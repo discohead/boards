@@ -1,0 +1,33 @@
+// The factory under wrangler dev, for its GitHub check (github-check.mjs): the same Worker and
+// board, without the parts that need the account (AI, containers) or start an agent (the wake
+// watcher's WAKE binding), and GitHub's API at a local mock.
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "factory",
+  "main": "../src/worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "BOARD_ORIGIN": "http://127.0.0.1:8813",
+    "GITHUB_APP_ID": "1001",
+    "GITHUB_APP_SLUG": "factory-test",
+    "GITHUB_BOT_USER_ID": "4242",
+    "GITHUB_API_BASE": "http://127.0.0.1:8814",
+    "AI_GATEWAY_ID": "none"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGER", "class_name": "Ledger" },
+      { "name": "RELAY", "class_name": "Relay" },
+      { "name": "MAILBOX", "class_name": "Mailbox" },
+      { "name": "THREAD_AGENT", "class_name": "ThreadAgent" },
+      { "name": "INBOX", "class_name": "Inbox" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox", "ThreadAgent"] },
+    { "tag": "v2", "new_sqlite_classes": ["Inbox"] }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "factory-board-files" }],
+  "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }]
+}

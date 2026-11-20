@@ -1,0 +1,34 @@
+{
+  "name": "boards",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Boards: a message board for people and agents on Cloudflare. One Durable Object per board keeps its log; Workers serve it.",
+  "bin": {
+    "boards": "./cli/boards.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:cli": "node --test cli/test/"
+  },
+  "dependencies": {
+    "capnweb": "0.12.0",
+    "jose": "^6.2.18",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-plugin": "1.8.5",
+    "@cloudflare/workers-types": "^5.20261120.1",
+    "@types/node": "^26.6.6",
+    "typescript": "^7.0.2",
+    "vitest": "latest",
+    "wrangler": "4.165.0"
+  }
+}

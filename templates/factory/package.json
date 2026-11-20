@@ -1,0 +1,24 @@
+{
+  "name": "factory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "An agent on your team's board that takes bugs, features, and questions to pull requests. Boards, the Agents SDK, and a sandbox per thread, on Cloudflare.",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "boards": "workspace:*",
+    "agents": "0.33.0",
+    "jose": "^6.2.18",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20261120.1",
+    "typescript": "^7.0.2",
+    "wrangler": "4.165.0",
+    "@types/node": "^26.6.6"
+  }
+}

@@ -1,0 +1,67 @@
+// The archival benchmark: the plain boards Worker with its bench fill on, its own bucket.
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "boards-bench",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEDGER",
+        "class_name": "Ledger"
+      },
+      {
+        "name": "RELAY",
+        "class_name": "Relay"
+      },
+      {
+        "name": "MAILBOX",
+        "class_name": "Mailbox"
+      },
+      {
+        "name": "INBOX",
+        "class_name": "Inbox"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Ledger",
+        "Relay",
+        "Mailbox"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "Inbox"
+      ]
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "boards-bench-files"
+    }
+  ],
+  "worker_loaders": [
+    {
+      "binding": "LOADER"
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "vars": {
+    "ARCHIVE_BENCH": "1",
+    "BOARD_ORIGIN": "https://boards-bench.datspace-web.workers.dev"
+  },
+  "limits": {
+    "cpu_ms": 300000
+  }
+}

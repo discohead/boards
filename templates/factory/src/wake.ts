@@ -1,0 +1,67 @@
+// Where the board's wake watcher delivers (FactoryWake), and where the sandbox's GitHub traffic gets
+// its token (GitHubEgress). GitHub's own sync is the board's (worker.ts): nothing here copies to it.
+import { WorkerEntrypoint } from 'cloudflare:workers'
+import { getAgentByName } from 'agents'
+import { AGENT_PRINCIPAL, boardCall } from './board.ts'
+import { REPOS } from './config.ts'
+import { repoToken } from './github-app.ts'
+import type { Env } from './env.ts'
+
+type By = { actor: string; principal: string; profile: string | null }
+type Event = { cursor: string; type: string; payload: Record<string, any>; message?: { id: string; re: string | null; by: By; schedule?: unknown }; actor?: { name: string } }
+type Delivered = { attempt: number; match: string; board: { reply(id: string, input: string): Promise<unknown> } }
+
+/** Whether the agent wrote it: this Worker, as itself. */
+const byAgent = (by: By | undefined) => by?.principal === AGENT_PRINCIPAL && by.profile === null
+
+export class FactoryWake extends WorkerEntrypoint<Env> {
+  async onEvent(event: Event, context: Delivered): Promise<void> {
+    const message = event.message
+    if (!message) return
+    const thread = message.re ?? message.id
+    let text: string
+    if (event.type === 'message.posted') {
+      // Its own messages don't wake it, except the reminders it schedules for itself.
+      if (byAgent(message.by) && message.schedule === undefined) return
+      // What the app itself said on GitHub is in the thread already, as the agent's own.
+      if (message.by.actor === 'github:user:' + this.env.GITHUB_BOT_USER_ID) return
+      text = message.re ? 'New message #' + message.id + ' in board thread #' + thread + '.' : 'New board thread #' + thread + '.'
+    } else if (event.type === 'reaction.added') {
+      if (!byAgent(message.by) || byAgent(event.payload.by)) return
+      text = (event.actor?.name ?? 'Someone') + ' reacted :' + event.payload.emoji + ': to your message #' + message.id + ' in board thread #' + thread + '.'
+    } else return
+    try {
+      const agent = await getAgentByName(this.env.THREAD_AGENT, 'thread-' + thread)
+      await agent.wake({ thread, key: event.cursor, text })
+    } catch (error) {
+      // The Mailbox tries again; on the last tries, say so in the thread.
+      if (context.attempt < 3) throw error
+      const reason = (error instanceof Error ? error.message : String(error)).split('\n')[0]!.slice(0, 200)
+      await context.board.reply(thread, 'The agent couldn’t start: \u0060' + reason + '\u0060. Reply here to try again.')
+    }
+  }
+}
+
+/** The repos a thread's GitHub token covers: a GitHub thread's own repo, or every repo the factory works on. */
+export function threadRepos(root: { origin?: { thread?: string } | null } | null, repos: string[]): string[] {
+  if (!root) return []
+  const from = root.origin?.thread?.match(/^[^:]+:([^/:]+\/[^/:]+):/)?.[1]?.toLowerCase()
+  if (!from) return repos
+  return repos.filter((repo) => repo.toLowerCase() === from)
+}
+
+/** The thread's GitHub token, added to the sandbox's requests to GitHub as they leave it. */
+export class GitHubEgress extends WorkerEntrypoint<Env, { thread: string }> {
+  async fetch(request: Request): Promise<Response> {
+    const url = new URL(request.url)
+    const root = await boardCall(this.env)('message', { id: this.ctx.props.thread }).then((view) => view.message).catch(() => null)
+    const repos = threadRepos(root, Object.keys(REPOS))
+    const token = repos.length ? await repoToken(this.env as never, repos).catch((error: unknown) => (console.warn('[factory] no GitHub token:', error), null)) : null
+    const headers = new Headers(request.headers)
+    if (token) {
+      if (url.hostname === 'github.com') headers.set('authorization', 'Basic ' + btoa('x-access-token:' + token))
+      else headers.set('authorization', 'Bearer ' + token)
+    } else headers.delete('authorization')
+    return fetch(new Request(request, { headers }))
+  }
+}

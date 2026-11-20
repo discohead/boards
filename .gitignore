@@ -1,0 +1,9 @@
+node_modules
+.wrangler
+.dev.vars
+.issuer*.json
+dist
+*.log
+.DS_Store
+.live
+*.conflict*

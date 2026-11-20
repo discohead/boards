@@ -1,0 +1,103 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "factory",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "vars": {
+    "BOARD_ORIGIN": "https://factory.datspace-web.workers.dev",
+    "GITHUB_APP_ID": "5844492",
+    "GITHUB_APP_SLUG": "cf-factory-discohead",
+    "GITHUB_BOT_USER_ID": "359035899",
+    "AI_GATEWAY_ID": "macmini",
+    "AI_GATEWAY_BYOK_ALIAS": "mini-anthropic",
+    "MODEL": "claude-haiku-5-5"
+  },
+  "ai": {
+    "binding": "AI"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "LEDGER",
+        "class_name": "Ledger"
+      },
+      {
+        "name": "RELAY",
+        "class_name": "Relay"
+      },
+      {
+        "name": "MAILBOX",
+        "class_name": "Mailbox"
+      },
+      {
+        "name": "THREAD_AGENT",
+        "class_name": "ThreadAgent"
+      },
+      {
+        "name": "INBOX",
+        "class_name": "Inbox"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "Ledger",
+        "Relay",
+        "Mailbox",
+        "ThreadAgent"
+      ]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": [
+        "Inbox"
+      ]
+    }
+  ],
+  "containers": [
+    {
+      "class_name": "ThreadAgent",
+      "scheduling_policy": "durable_object",
+      "images": {
+        "base": {
+          "dockerfile": "./Dockerfile"
+        }
+      }
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "FILES",
+      "bucket_name": "factory-board-files"
+    }
+  ],
+  "services": [
+    {
+      "binding": "WAKE",
+      "service": "factory",
+      "entrypoint": "FactoryWake"
+    }
+  ],
+  "rules": [
+    {
+      "type": "Text",
+      "globs": [
+        "**/*.md"
+      ],
+      "fallthrough": true
+    }
+  ],
+  "observability": {
+    "enabled": true
+  },
+  "worker_loaders": [
+    {
+      "binding": "LOADER"
+    }
+  ]
+}

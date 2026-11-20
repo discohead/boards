@@ -1,0 +1,32 @@
+// A Worker for checking the Slack and Linear providers against real signed requests, locally, as
+// the board's own syncs (each one's Inbox and courier): its Slack credentials come from Secrets
+// Store, its Linear ones are plain Worker secrets, and each
+// platform's API is wherever SLACK_API_BASE and LINEAR_API_URL point (a local mock in the check).
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "boards-providers-test",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    "SLACK_CHANNELS": "{\"C0SYNCED\": \"slack/general\"}",
+    "SLACK_BOT_USER_ID": "U0BOT",
+    "LINEAR_TEAMS": "{\"ENG\": \"linear/eng\"}",
+    "LINEAR_BOT_USER_ID": "lin-user-bot",
+    "SLACK_API_BASE": "http://127.0.0.1:8814/slack/api",
+    "LINEAR_API_URL": "http://127.0.0.1:8814/linear/graphql"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGER", "class_name": "Ledger" },
+      { "name": "RELAY", "class_name": "Relay" },
+      { "name": "MAILBOX", "class_name": "Mailbox" },
+      { "name": "INBOX", "class_name": "Inbox" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox"] }, { "tag": "v2", "new_sqlite_classes": ["Inbox"] }],
+  "secrets_store_secrets": [
+    { "binding": "SLACK_SIGNING_SECRET", "store_id": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "secret_name": "slack-signing-secret" },
+    { "binding": "SLACK_BOT_TOKEN", "store_id": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f", "secret_name": "slack-bot-token" }
+  ]
+}
