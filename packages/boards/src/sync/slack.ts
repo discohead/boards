@@ -140,6 +140,8 @@ export function slackEvents(payload: any, options: SlackOptions, key = 'slack'):
     return []
   }
   if ((event.type === 'reaction_added' || event.type === 'reaction_removed') && event.item?.type === 'message') {
+    // The bot reacts only when the courier copies a board reaction out: Slack's echo of it is already on the board.
+    if (own(event)) return []
     const slackChannel: string = event.item.channel
     if (!options.channels[slackChannel]) return []
     const emoji = slackEmoji(String(event.reaction ?? ''))

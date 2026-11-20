@@ -133,3 +133,9 @@ test('linear: an issue in a mapped team is a root with its state and labels; its
   const own = linearEvents({ type: 'Comment', action: 'create', data: { ...comment, userId: 'lbot' } }, linearOptions)[0]!
   assert.equal(own.kind === 'reply' && own.own, true)
 })
+test("Slack: the bot's own reaction is the courier's echo, a person's is an event", () => {
+  const options = { signingSecret: 's', botToken: 't', channels: { C1: 'slack/general' }, botUserId: 'UBOT' }
+  const reaction = (user: string) => ({ type: 'event_callback', event_id: 'Ev' + user, event: { type: 'reaction_added', user, reaction: 'rocket', item: { type: 'message', channel: 'C1', ts: '1.000100' } } })
+  assert.deepEqual(slackEvents(reaction('UBOT'), options as never, 'slack'), [])
+  assert.equal(slackEvents(reaction('UPERSON'), options as never, 'slack').length, 1)
+})
