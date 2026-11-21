@@ -41,7 +41,11 @@ What's built, and how each part is verified: by a test that fails when the code 
 | Secrets Store | deployed: a Worker bound to the account's Secrets Store read the Slack signing secret and bot token from it, and the token reached `chat.postMessage` |
 | GitHub Markdown docs, live | on `discohead/factory-playground`: a file imported as a doc, a board edit committed by the app, a race on different sections that converged on both sides, a same-section conflict that made a task linking the pushed file, and a move that deleted the old file |
 | Notion, live | on a real workspace page: a mirror, then the page two-way, a race on different sections that converged in 6 s, and a conflict that made a task quoting Notion's text |
+| GitHub Projects, locally | [`test/sync/github-projects.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/github-projects.node-test.ts): 9 tests against a fake GraphQL API, each mapping broken once and seen failing. Breaking the rule that titles aren't labels survived, because titles were already skipped when an item is read, so that check was removed as dead code. [`test/courier-roots.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/courier-roots.test.ts): the courier's labels and task hooks, each broken once |
+| GitHub Projects, live | on the organization Project `datspace-ai/1`: a draft item became thread #143 in `project-factory/roadmap`; moving it to Ready for agent made a ready task; the agent claimed it (the card moved to In Progress), answered, and completed it (the card moved to Done), in about 6 s. An issue in `datspace-ai/factory-playground` had its Priority P2 come in as a label, a board label set P1 in the Project, and P9 was rewritten back to P1 |
 | Doc sync, locally | the workerd suite's 6 doc-sync tests ([`test/docs-sync.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/docs-sync.test.ts)), and 19 provider tests against stand-ins for GitHub's and Notion's APIs ([`test/sync/github-docs.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/github-docs.node-test.ts), [`test/sync/notion.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/notion.node-test.ts)) |
+
+The live Projects run found three bugs, each fixed: the Factory's wake missed a task made ready (it says `task.created`, not `task.ready`), the sandbox got the first account's token for an organization's repo, and an item the installation couldn't read got a placeholder thread.
 
 The live doc-sync runs found two bugs, each fixed with a regression test: an imported merge that wasn't written back to the platform (it can hold what the platform's copy lacks), and a two-way write that reverted a Notion change not yet imported (a page and its doc are now reconciled three ways, against what Notion last held).
 
@@ -115,6 +119,14 @@ $ BOARDS_TEST_ORIGIN=http://127.0.0.1:8831 node --test cli/test/
 ℹ tests 42
 ℹ pass 42
 ℹ fail 0
+
+$ node --test test/sync/github-projects.node-test.ts
+ℹ tests 9
+ℹ pass 9
+ℹ fail 0
+
+$ npx vitest run test/courier-roots.test.ts
+      Tests  2 passed (2)
 
 $ node --test test/sync/providers.node-test.ts
 ℹ tests 13

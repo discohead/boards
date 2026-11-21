@@ -64,7 +64,7 @@ export default {
 4. A turn sends the agent's instructions, its skills' index, the thread's conversation so far (up to 120 messages), and the new message to Claude through your AI Gateway. It runs the tools Claude asks for, and repeats, up to 60 steps, until the agent calls `end_turn`.
 5. If the agent can't start on the last tries, `FactoryWake` says so in the thread, as the watcher: `The agent couldn’t start: …. Reply here to try again.`
 
-The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_follow`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`, `doc_read`, `doc_edit`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
+The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_follow`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`, `doc_read`, `doc_edit`), its claims (`task_claim`, `task_complete`, `task_release`, `task_block`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
 
 The agent calls the board's Ledger directly over RPC as `worker:factory`, narrowed to `project-factory/=read,post,react,label;project-factory/factory=read,post,react,label,edit`: no token, no other channels, and `edit` only where its living doc is.
 
@@ -72,7 +72,33 @@ The agent calls the board's Ledger directly over RPC as `worker:factory`, narrow
 
 Each `ThreadAgent` owns a [container](https://developers.cloudflare.com/containers/) built from the template's `Dockerfile`: Node 24 with git, gh, pnpm, ripgrep, jq, and python3. The agent runs commands in it with `exec`, in `/workspace`.
 
-The sandbox holds no credential. Its requests to `github.com`, `api.github.com`, `uploads.github.com`, and `codeload.github.com` are intercepted on the way out by the `GitHubEgress` entrypoint, which adds an installation token for the app, scoped to the repo the thread came from (or to every repo the factory works on, for a thread that started on the board). `gh` sees a placeholder `GH_TOKEN`, and the real token is added after the request leaves the container. The container trusts the Cloudflare CA the intercepts present. Files can be gone after the container sleeps, and the agent clones again when a path is missing.
+The sandbox holds no credential. Its requests to `github.com`, `api.github.com`, `uploads.github.com`, and `codeload.github.com` are intercepted on the way out by the `GitHubEgress` entrypoint, which adds an installation token for the app, scoped to the repo the thread came from (or to every repo the factory works on, for a thread that started on the board). Tokens are per account, so the egress uses the account a request names: its path (`api.github.com/repos/<owner>/…`, `github.com/<owner>/…`) or a GraphQL query's `owner`. `gh` sees a placeholder `GH_TOKEN`, and the real token is added after the request leaves the container. The container trusts the Cloudflare CA the intercepts present. Files can be gone after the container sleeps, and the agent clones again when a path is missing.
+
+## Its roadmap
+
+The team steers the agent from a GitHub Project too. `PROJECTS` in `src/config.ts` is the GitHub sync's `projects` option ([Sync with GitHub Projects](/boards/guides/sync-github-projects/)), with a Status mapping:
+
+```ts title="src/config.ts"
+/**
+ * GitHub Projects kept as labels on their items' threads (design/github-projects.md): the team's
+ * planning board steers the agent. A card moved to "Ready for agent" makes its thread a ready task.
+ */
+export const PROJECTS = {
+  roadmap: {
+    project: 'acme/7',
+    channel: channel('roadmap'),
+    status: { field: 'Status', ready: 'Ready for agent', claimed: 'In Progress', completed: 'Done', canceled: "Won't do" },
+  },
+}
+```
+
+What happens to a card:
+
+1. **Ready for agent.** Someone moves a card there, and its thread becomes a ready task: the card's issue thread, or a thread in `project-factory/roadmap` for a draft.
+2. **Claimed, In Progress.** `FactoryWake` wakes the agent for a thread made a ready task (`task.created` or `task.ready`), and the agent claims it with `task_claim`. The card moves to In Progress.
+3. **Completed, Done.** The agent works the thread and completes the task with `task_complete`, its result the pull request or the answer. The card moves to Done. A merged pull request's card goes to Done by GitHub's own workflow too.
+
+The claims' tokens stay in the agent's Durable Object storage, never in what the model reads, and each claim's lease is renewed every step of a turn. `task_release` gives a task back, and `task_block` marks it blocked with why. The agent sets other fields with `board_label` (`project.roadmap.priority=P1`). The App needs the organization's Projects permission and the Projects v2 item event, and `orgToken` in `src/github-app.ts` mints the organization's installation token.
 
 ## Its skills
 

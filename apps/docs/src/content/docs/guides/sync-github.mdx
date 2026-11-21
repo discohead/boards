@@ -203,6 +203,10 @@ A few things stay on one side:
 - **A file whose path can't be a doc** (an uppercase letter, a space) is left out, with a line in the Worker's logs. A path segment is a channel segment, and the file name a slug.
 - **A doc's comments** stay on the board: its thread syncs as the doc, not as messages.
 
+## Projects
+
+An organization's GitHub Projects ride on the same sync: with `projects` and `orgToken`, a Project item is its issue's thread (or a thread in the Project's channel), its fields are labels on that thread, and a Status mapping makes a card moved to a column a ready task. [Sync with GitHub Projects](/boards/guides/sync-github-projects/) has the setup and the rules.
+
 ## How it works
 
 GitHub's webhook goes to the sync's Inbox, a Durable Object of its own, which keeps each delivery under GitHub's delivery ID before GitHub hears 200, so a redelivery does nothing. The Inbox imports events one GitHub thread at a time, oldest first, with 5 tries each; a failed one can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). On the way out, the courier is a Mailbox that the board feeds every write in a synced thread, in the thread's order. [Sync: Inbox and courier](/boards/architecture/sync/) has the details, and the [webhooks reference](/boards/reference/webhooks/) what each route verifies.

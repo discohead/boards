@@ -141,6 +141,8 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 | | `botUserId` | The app's bot user ID, so its own comments aren't imported again. |
 | | `starts` | `(event) => boolean`: whether an event may start a thread. |
 | | `docs` | Markdown [docs](/boards/guides/sync-github/#markdown-docs) per repo: `{ 'acme/web': { dir, channel, branch? } }`. The files under `dir` are the docs under `channel`, both ways, on the repo's default branch (asked of GitHub once); `branch` is for docs on another branch. |
+| | `projects` | [GitHub Projects](/boards/guides/sync-github-projects/) by a name of your choosing: `{ roadmap: { project: 'acme/7', channel, status? } }`. `project` is the organization and the Project's number; `channel` takes its drafts; `status` maps Status options (`field`, `ready`, `claimed`, `blocked`, `completed`, `canceled`) to task states. Organization Projects only. |
+| | `orgToken` | `(org) => Promise<string>`: an installation token for an organization, for its Projects. Required with `projects`. |
 | | `apiBase` | GitHub's REST API, `https://api.github.com` by default. |
 | `slackProvider` | `signingSecret` | The app's signing secret. Required. |
 | | `channels` | Each Slack channel ID and the board channel its threads come into. Required. |

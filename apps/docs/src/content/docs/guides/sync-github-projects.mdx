@@ -1,0 +1,210 @@
+---
+title: "Sync with GitHub Projects"
+description: "An organization Project's items as threads, its fields as labels, and its Status as board tasks."
+sidebar:
+  order: 14
+---
+
+A GitHub Project (v2) is a view over issues, pull requests, and draft items, with fields. On a board it isn't a channel of its own: an item is the thread the [GitHub sync](/boards/guides/sync-github/) already makes for its issue, being in the Project and each field are labels on that thread's root, and a view is a threads query. With a Status mapping, moving a card drives the thread as a [task](/boards/guides/tasks/), and the task's state moves the card back.
+
+```ts title="src/worker.ts"
+import { defineBoards, githubProvider, type Secret } from 'boards'
+import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+
+type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; GITHUB_WEBHOOK_SECRET: Secret; GITHUB_BOT_USER_ID: string }
+// userland: installation tokens from your GitHub App, for a repo and for an organization
+declare function repoToken(env: Env, repo: string): Promise<string>
+declare function orgToken(env: Env, org: string): Promise<string>
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  sync: {
+    github: githubProvider({
+      webhookSecret: env.GITHUB_WEBHOOK_SECRET,
+      repos: { 'acme/web': 'eng/web' },
+      token: (repo) => repoToken(env, repo),
+      botUserId: env.GITHUB_BOT_USER_ID,
+      // The organization's token, for its Projects (GitHub's GraphQL API).
+      orgToken: (org) => orgToken(env, org),
+      projects: {
+        // acme's Project 7, called roadmap on the board; its drafts come into the roadmap channel.
+        roadmap: {
+          project: 'acme/7',
+          channel: 'roadmap',
+          status: { field: 'Status', ready: 'Ready for agent', claimed: 'In progress', completed: 'Done', canceled: "Won't do" },
+        },
+      },
+    }),
+  },
+}))
+
+export default { fetch: (request: Request, env: Env) => gateway(request, env) }
+```
+
+The transcripts on this page are from a local run of the provider with a stand-in for GitHub's GraphQL API, as `test/sync/github-projects.node-test.ts` fakes it; the board side is as it answered. A draft item added to the Project, with Status Todo and Priority P2:
+
+```
+$ boards read roadmap
+#2  ada  0 replies  **Rotate the staging keys** The old ones leaked into a CI...
+$ boards read 2
+#2  ada  2026-11-20 21:50
+  **Rotate the staging keys**
+
+  The old ones leaked into a CI log.
+  labels  project.roadmap=yes, project.roadmap.status=Todo, project.roadmap.priority=P2
+```
+
+## The model
+
+| GitHub Project | On the board |
+| --- | --- |
+| a Project (`acme/7`) | a name in the config (`roadmap`), a channel for its drafts, and labels |
+| an issue or pull request item, in a synced repo | the thread the GitHub sync makes for that issue, in its repo's channel |
+| an issue item from a repo that isn't synced | a thread in the Project's channel, its first line a link to the issue |
+| a draft item | a thread in the Project's channel: its title the first line, its body the rest |
+| being in the Project | the label `project.roadmap=yes` |
+| a field value | a label `project.roadmap.<field>`: `project.roadmap.status=Todo`, `project.roadmap.priority=P2` |
+| a view | a threads query, not synced |
+
+A field's key is its name in label form: `Target date` is `target-date`. Values are as GitHub shows them: an option's name, an iteration's title, a number, a date (`YYYY-MM-DD`), or text. The title is never a label; it's the thread's first line. The thread is the item's home (its comments, claims, and history), and the Project holds where it stands.
+
+A view is a query over those labels:
+
+```
+$ curl -s "$BOARDS_URL/threads?label=project.roadmap.priority=P3" -H "authorization: Bearer $BOARDS_TOKEN" | jq -r '.threads[].message | "#" + .id + "  " + .channel + "  " + .labels.issue'
+#36  eng/web  acme/web#6
+```
+
+## From GitHub
+
+A `projects_v2_item` webhook for a configured Project lands in the GitHub sync's Inbox, like an issue event. Its import reads the item through GraphQL, so a stale or out-of-order delivery writes the item as it is now. Then it:
+
+- finds or makes the item's thread: its issue's thread (imported then, if the issue never came in), or a new thread in the Project's channel;
+- writes the Project's labels as one label write from the sync, setting each field's label and unsetting those of fields now empty;
+- on `archived` or `deleted`, unsets the Project's labels. The thread stays.
+
+An issue item in a synced repo lands on its issue's thread, with its fields beside the issue's own labels:
+
+```
+$ boards read eng/web
+#27  bo  0 replies  **Issue #5: Checkout times out in eu-west** Requests to /...
+$ boards read 27
+#27  bo  2026-11-20 21:51
+  **Issue #5: Checkout times out in eu-west**
+
+  Requests to /checkout hang for 30s.
+  labels  issue=acme/web#5, state=open, project.roadmap=yes, project.roadmap.status=Todo, project.roadmap.priority=P2
+```
+
+The app's own Project writes (by `botUserId`) aren't imported again. An item whose repo the installation can't read comes back from GitHub with its content and fields hidden: it's left out, with a line in the Worker's logs.
+
+## From the board
+
+A label change on a thread with a Project item goes to GitHub as the App:
+
+- a changed `project.roadmap.<field>` sets that field, and unsetting it clears the field;
+- a value the field can't take (an option it doesn't have, a malformed date) is refused, and the thread's labels are rewritten from the item, so the board shows what the Project holds;
+- setting `project.roadmap=yes` on a thread synced with an issue or pull request adds it to the Project, with any field labels it carries; unsetting it archives the item, which GitHub can restore.
+
+```
+$ boards label 27 project.roadmap.priority=P1
+labeled #27  project.roadmap.priority=P1
+$ boards label 27 project.roadmap.priority=P9
+labeled #27  project.roadmap.priority=P9
+$ boards read 27
+#27  bo  2026-11-20 21:51
+  **Issue #5: Checkout times out in eu-west**
+
+  Requests to /checkout hang for 30s.
+  labels  issue=acme/web#5, state=open, project.roadmap=yes, project.roadmap.status=Todo, project.roadmap.priority=P1
+```
+
+The Project refused `P9` (`Priority has no option "P9"` in the Worker's logs), and the label went back to `P1`. Joining from the board:
+
+```
+$ boards read eng/web
+#27  bo  0 replies  **Issue #5: Checkout times out in eu-west** Requests to /...
+#36  bo  0 replies  **Issue #6: Add a status page** Customers ask where to lo...
+$ boards label 36 project.roadmap=yes project.roadmap.priority=P3
+labeled #36  project.roadmap=yes, project.roadmap.priority=P3
+$ boards read 36
+#36  bo  2026-11-20 21:51
+  **Issue #6: Add a status page**
+
+  Customers ask where to look during an outage.
+  labels  issue=acme/web#6, state=open, project.roadmap=yes, project.roadmap.priority=P3
+```
+
+Who may change a Project from the board is who may `label` in that channel. Items are added from the board only for threads synced with an issue or pull request; a draft is made in GitHub.
+
+## Status as tasks
+
+A Project's Status and a task's state are two different state machines: a task has claims, leases, and needs, and a column is where a card sits. So the mapping is opt-in (`status` in the config), and each direction maps only what it can mean.
+
+| Status moves to | The thread's task |
+| --- | --- |
+| the `ready` option | becomes a ready task, or a failed one reopens; a completed or canceled task stays finished |
+| the `completed` option | completes, if it's ready: the sync claims it and completes it. A task someone holds stays theirs, to complete |
+| the `canceled` option | is canceled, if it's open |
+| the `claimed` or `blocked` option, or one not mapped | nothing: a claim is an actor's, and dragging a card isn't one |
+
+| The task | Status is set to |
+| --- | --- |
+| becomes ready, or a claim is released or expires | the `ready` option |
+| is claimed | the `claimed` option |
+| is blocked | the `blocked` option |
+| completes | the `completed` option |
+| is canceled | the `canceled` option |
+
+A card moved to Ready for agent, claimed on the board, and completed:
+
+```
+$ boards tasks roadmap
+#2  ready  ada  **Rotate the staging keys** The old ones leaked into a CI log.
+$ boards tasks claim 2
+claimed #2 until 2026-11-20 22:05
+$ boards read 2
+#2  ada  2026-11-20 21:50
+  **Rotate the staging keys**
+
+  The old ones leaked into a CI log.
+  task    claimed by boards:user:jared until 2026-11-20 22:05
+  labels  project.roadmap=yes, project.roadmap.status=In progress, project.roadmap.priority=P2
+$ boards tasks complete 2 'rotated; the old keys are revoked'
+completed #2
+$ boards read 2
+#2  ada  2026-11-20 21:50
+  **Rotate the staging keys**
+
+  The old ones leaked into a CI log.
+  task    completed: rotated; the old keys are revoked
+  labels  project.roadmap=yes, project.roadmap.status=Done, project.roadmap.priority=P2
+```
+
+The card went to In progress when the task was claimed, and to Done when it completed. A card dragged to Done while someone holds the task leaves the claim alone:
+
+```
+$ boards tasks claim 13
+claimed #13 until 2026-11-20 22:05
+$ boards read 13
+#13  ada  2026-11-20 21:50
+  **Upgrade the CI runners**
+  task    claimed by boards:user:jared until 2026-11-20 22:05
+  labels  project.roadmap=yes, project.roadmap.status=Done
+```
+
+Both directions are idempotent, so the echo of the sync's own write changes nothing. GitHub's default workflows agree with the mapping: a closed issue or a merged pull request moves its card to Done, which completes a ready task. Map a column of its own, like Ready for agent, rather than Todo: the "set Todo when added" workflow would make every new card a ready task.
+
+## Set it up
+
+- **Organization Projects only.** GitHub delivers Project webhooks for organization Projects, and gives an App no way into a Project a person owns.
+- **The App's permissions:** the organization permission **Projects** (read and write), and the **Projects v2 item** webhook event. Install the App on the organization. An App owned by a person installs only on that person's account unless it's public, so make it public to install it on an organization.
+- **`orgToken`** answers an installation token for an organization, for GraphQL. `token` stays the repos' token, used to find an issue's node ID when a thread joins from the board.
+- **`project`** is the organization and the Project's number, as its URL shows them: `acme/7` for `github.com/orgs/acme/projects/7`. The sync reads the Project's fields once and again every ten minutes, or sooner when a label names a field or option it doesn't know.
+
+## Limits
+
+- **Project webhooks are in public preview** on GitHub. The import reads each item itself, so only the event's name matters.
+- **No backfill:** items already in the Project arrive the next time they change.
+- **Views, ordering, and multi-select fields** aren't synced: a view is a query, order is GitHub's, and a multi-select value has no label form.
+- **GitHub's limits:** 50 fields and 50,000 items a Project, and 5,000 GraphQL points an hour per installation.
+- **An item's thread carries labels, not messages:** replies on a draft's thread stay on the board.
