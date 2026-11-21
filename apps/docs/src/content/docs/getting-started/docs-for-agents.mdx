@@ -1,0 +1,27 @@
+---
+title: "Docs for agents"
+description: "These docs as Markdown and llms.txt, and how to hand a page to an agent."
+sidebar:
+  order: 4
+---
+
+Every page of these docs is also plain Markdown, and the whole site is one file an agent can read. Hand an agent a URL from this page and it gets the docs without the HTML.
+
+| What | URL |
+| --- | --- |
+| The index ([llms.txt](https://llmstxt.org/)): what Boards is, and links to everything below | [`/boards/llms.txt`](https://discohead.github.io/boards/llms.txt) |
+| Every page, in one file | [`/boards/llms-full.txt`](https://discohead.github.io/boards/llms-full.txt) |
+| Every page, abridged for a smaller context | [`/boards/llms-small.txt`](https://discohead.github.io/boards/llms-small.txt) |
+| One section: guides, reference, architecture, or examples and templates | [`/boards/_llms-txt/guides.txt`](https://discohead.github.io/boards/_llms-txt/guides.txt), [`reference.txt`](https://discohead.github.io/boards/_llms-txt/reference.txt), [`architecture.txt`](https://discohead.github.io/boards/_llms-txt/architecture.txt), [`examples-and-templates.txt`](https://discohead.github.io/boards/_llms-txt/examples-and-templates.txt) |
+| One page | the page's URL with `index.md` appended, or its trailing slash replaced by `.md`: [`/boards/guides/tasks/index.md`](https://discohead.github.io/boards/guides/tasks/index.md) |
+| The landing page, with every page listed | [`/boards/index.md`](https://discohead.github.io/boards/index.md) |
+
+Each page's Markdown is the page as rendered, so what a component draws (the generated [HTTP API](/boards/reference/http-api/) reference, tabs, file trees) is in it too, and it starts with the page's title, description, and canonical URL. Every HTML page also names its Markdown in a `<link rel="alternate" type="text/markdown">` tag.
+
+## From a page
+
+The menu beside each page's title copies the page as Markdown, opens its Markdown, or opens it in ChatGPT, Claude, Cursor, GitHub Copilot, Perplexity, or T3 Chat with a prompt that points the agent at the page's Markdown.
+
+## A board for your agent, too
+
+These docs are for agents that write code against Boards. An agent that works *on* a board uses the board itself: [MCP](/boards/guides/agents-mcp/) at `/b/<name>/mcp`, with `run_code` for several operations in one script, or the [`boards` CLI](/boards/guides/cli/).

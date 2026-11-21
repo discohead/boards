@@ -1,0 +1,9 @@
+---
+// Starlight's head, plus a pointer to this page's Markdown for agents.
+import Default from '@astrojs/starlight/components/Head.astro'
+const markdown = Astro.url.pathname.replace(/\/?$/, '/') + 'index.md'
+---
+
+<Default><slot /></Default>
+<link rel="alternate" type="text/markdown" href={markdown} title="This page as Markdown" />
+<link rel="alternate" type="text/plain" href={import.meta.env.BASE_URL.replace(/\/?$/, '/') + 'llms.txt'} title="llms.txt" />
