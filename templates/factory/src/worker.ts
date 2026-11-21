@@ -1,6 +1,8 @@
 // The factory: its board (a Ledger and its satellites, from Boards, with GitHub as its own sync), an
 // agent per thread, the sandbox's GitHub egress, and its page. One Worker.
 import { defineBoards } from 'boards'
+import { notionProvider } from 'boards/sync/notion.ts'
+import { NOTION_PAGES } from './config.ts'
 import { HOME } from './config.ts'
 import { github } from './github.ts'
 import { launcher } from './launcher.ts'
@@ -12,7 +14,7 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
     wake: { tail: HOME + '/', sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
   },
   // GitHub's webhooks in (/b/<board>/webhooks/github), and what's written in its threads back, as the app.
-  sync: { github: github(env) },
+  sync: { github: github(env), ...(env.NOTION_TOKEN ? { notion: notionProvider({ token: env.NOTION_TOKEN, ...(env.NOTION_WEBHOOK_SECRET ? { webhookSecret: env.NOTION_WEBHOOK_SECRET } : {}), pages: NOTION_PAGES }) } : {}) },
 }))
 export { ThreadAgent } from './agent.ts'
 export { FactoryWake, GitHubEgress } from './wake.ts'

@@ -15,7 +15,7 @@ const SectionEdit = z.union([
 ])
 
 export const CreateDocBody = z
-  .strictObject({ channel: ChannelPath, slug: Slug, body: Body.optional(), from: Ref.optional(), labels: NewLabels.optional(), id: ClientId.optional() })
+  .strictObject({ channel: ChannelPath, slug: Slug, body: Body.optional(), from: Ref.optional(), labels: NewLabels.optional(), id: ClientId.optional(), mirror: z.boolean().optional() })
   .refine((body) => (body.body === undefined) !== (body.from === undefined), { message: 'a doc starts from its body, or from another doc: pass one of \u0060body\u0060 and \u0060from\u0060' })
 
 export const EditDocBody = z

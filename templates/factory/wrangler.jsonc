@@ -95,6 +95,13 @@
   "observability": {
     "enabled": true
   },
+  "secrets_store_secrets": [
+    {
+      "binding": "NOTION_TOKEN",
+      "store_id": "325a978922414509877e38091676ce6c",
+      "secret_name": "NOTION_TOKEN"
+    }
+  ],
   "worker_loaders": [
     {
       "binding": "LOADER"

@@ -43,7 +43,7 @@ export async function courier(input: { ledger: Ledger; key: string; provider: Sy
     for (const target of targets) {
       if (only !== null && target !== only) continue
       try {
-        await provider.doc({ target, event: kind, doc: { id: message.doc.id, path: message.doc.path, title: message.doc.title, revision: message.doc.revision }, body: message.text, ...(kind === 'moved' ? { from: String(event.payload.path), to: String(event.payload.to) } : {}), ...(event.payload.by?.actor ? { by: String(event.payload.by.actor) } : {}) }, tools)
+        await provider.doc({ target, event: kind, doc: { id: message.doc.id, path: message.doc.path, title: message.doc.title, revision: message.doc.revision }, body: message.text, ...(kind === 'moved' ? { from: String(event.payload.path), to: String(event.payload.to) } : {}), ...(event.payload.by?.actor ? { by: String(event.payload.by.actor) } : {}) }, { key, call })
       } catch (error) {
         if (!last && !(error instanceof SyncRefused)) throw error
         console.warn('[boards] sync ' + key + ': ' + event.type + ' of doc #' + message.id + ' not written to ' + target + ':', reason(error))

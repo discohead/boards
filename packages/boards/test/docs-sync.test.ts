@@ -80,4 +80,18 @@ describe('docs on a sync', () => {
     expect(task.message.text).toContain('[[' + channel + '/deploy]] both changed ' + '\u0060deploy/canary\u0060')
     expect((await api(name, 'GET', '/docs/' + doc.id)).body.body).toBe(BODY.replace('Five percent.', 'One percent.'))
   })
+
+  it("makes a mirror only from a sync's import, and only its imports change it", async () => {
+    const name = freshBoard('docsync-mirror')
+    const channel = 'docsync/' + name
+    expect((await api(name, 'POST', '/docs', { channel, slug: 'mine', body: BODY, mirror: true })).body.error).toMatchObject({ code: 'mirror_needs_sync' })
+    expect((await webhook(name, [{ id: 'm1', kind: 'docfile', thread: 'm', message: 'v1', channel, slug: 'handbook', before: null, after: BODY, mirror: true }])).status).toBe(200)
+    const found = await until(async () => (await api(name, 'GET', '/docs?path=' + encodeURIComponent(channel + '/handbook'))).body.doc, 'the mirror')
+    expect(found.source).toBe('test')
+    const refused = await api(name, 'POST', '/docs/' + found.id + '/edit', { revision: found.revision, edits: [{ section: 'deploy/canary', text: '\nOne percent.\n\n' }] })
+    expect([refused.status, refused.body.error.code]).toEqual([409, 'doc_mirrored'])
+    const next = BODY.replace('Five percent.', 'Ten percent.')
+    expect((await webhook(name, [{ id: 'm2', kind: 'docfile', thread: 'm', message: 'v2', channel, slug: 'handbook', before: null, after: next, mirror: true }])).status).toBe(200)
+    await until(async () => (await api(name, 'GET', '/docs/' + found.id)).body.body === next, 'the mirror, changed by its import')
+  })
 })

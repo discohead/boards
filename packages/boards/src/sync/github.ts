@@ -233,8 +233,8 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
   return {
     platform: 'github',
 
-    docTarget(channel, key) {
-      for (const [repo, docs] of Object.entries(options.docs ?? {})) if (channel === docs.channel || channel.startsWith(docs.channel + '/')) return key + ':' + repo + ':doc'
+    docTarget(path, key) {
+      for (const [repo, docs] of Object.entries(options.docs ?? {})) if (path.startsWith(docs.channel + '/')) return key + ':' + repo + ':doc'
       return null
     },
 

@@ -16,6 +16,8 @@ export type DocFile = {
   link: string
   /** What the platform calls it (docs/deploy.md), for the task's words. */
   name: string
+  /** A mirror: the doc is the platform's copy, made and changed only by this sync (people edit it there). */
+  mirror?: boolean
 }
 
 /** The doc's answer (created or edited), or the task made when both sides changed the same sections. */
@@ -25,7 +27,9 @@ export async function importDocFile(call: Call, file: DocFile): Promise<{ doc?: 
     if (error?.code === 'doc_not_found') return null
     throw error
   })
-  if (!found) return { doc: await call('createDoc', { channel: file.channel, slug: file.slug, body: file.after }) }
+  if (!found) return { doc: await call('createDoc', { channel: file.channel, slug: file.slug, body: file.after, ...(file.mirror ? { mirror: true } : {}) }) }
+  // A mirror is what the platform says, whole.
+  if (file.mirror) return { doc: await call('editDoc', { id: found.doc.id, revision: found.doc.revision, body: file.after }) }
   // Nothing new: the platform's copy says what the doc says (the courier's own write, come back).
   if (file.before !== null && file.before === file.after) return { doc: found }
   try {

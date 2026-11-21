@@ -2,7 +2,7 @@
 // thread with a state; a doc is a thread with a body. Its replies are its comments, its channel its
 // folder, its labels its properties. Edits name sections and are checked per section; the log keeps
 // each edit as the sections it changed, with a snapshot every so often.
-import { badRequest, BoardsError, conflict, notFound } from '../errors.ts'
+import { forbidden, badRequest, BoardsError, conflict, notFound } from '../errors.ts'
 import { authorize, iso, ref, type MessageRow } from './core.ts'
 import { ensureChannel, labelMessage, postMessage, settle, writeTerms, type Posting } from './messages.ts'
 import { hooks, op, OPS, viewOptions, type Ctx } from './ops.ts'
@@ -24,9 +24,9 @@ const fromOf = (ctx: Ctx) => {
 }
 
 /** Attaches a doc's thread to each sync that keeps its channel in step: its courier writes the doc there (not back to the sync it came from). */
-function attachSyncs(ctx: Ctx, row: MessageRow, channel: string) {
+function attachSyncs(ctx: Ctx, row: MessageRow, path: string) {
   for (const targetOf of ctx.board.docTargets) {
-    const prefix = targetOf(channel)
+    const prefix = targetOf(path)
     if (prefix !== null) attach(ctx, row, prefix + ':' + row.id, 'thread', 'doc', fromOf(ctx))
   }
 }
@@ -145,7 +145,7 @@ export function bodyAt(ctx: Ctx, row: MessageRow, rev: number): string {
 
 // -- writes ------------------------------------------------------------------------------------
 
-type CreateDoc = { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string }
+type CreateDoc = { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string; mirror?: boolean }
 
 function fill(text: string, values: { title: string; author: string; date: string }) {
   return text.replaceAll('{{title}}', values.title).replaceAll('{{author}}', values.author).replaceAll('{{date}}', values.date)
@@ -154,6 +154,9 @@ function fill(text: string, values: { title: string; author: string; date: strin
 op('createDoc', (ctx, body: CreateDoc) => {
   authorize(ctx.access, 'post', body.channel)
   authorize(ctx.access, 'edit', body.channel)
+  // A mirror of a platform's page: only that platform's sync makes one, and only its imports change it.
+  const mirror = body.mirror ? satelliteKey(ctx.caller) : null
+  if (body.mirror && mirror === null) throw forbidden('only a sync makes a mirror of a page: create the doc, or set up the sync', 'mirror_needs_sync')
   if (!SLUG.test(body.slug)) throw badRequest('slug: a doc\'s slug is lowercase letters, numbers, _, and -, up to 128, starting with a letter or number', 'invalid_slug')
   if ((body.body === undefined) === (body.from === undefined)) throw badRequest('a doc starts from its body, or from another doc: pass one of body and from')
   if (body.id !== undefined) {
@@ -184,8 +187,8 @@ op('createDoc', (ctx, body: CreateDoc) => {
   const metas = track(null, sections, row.id)
   const facet = [title, ...sections.filter((section) => section.level > 0).map((section) => section.title)].join('\n')
   ctx.sql.run(
-    'insert into docs (root, channel, slug, title, size, sections, snapshot, since, facet_text, facet_terms, from_doc, created) values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?)',
-    row.id, body.channel, body.slug, title, bytes(row.text), JSON.stringify(metas), row.id, facet, JSON.stringify(mentionTerms(row.text)), from, ctx.now,
+    'insert into docs (root, channel, slug, title, size, sections, snapshot, since, facet_text, facet_terms, source, from_doc, created) values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
+    row.id, body.channel, body.slug, title, bytes(row.text), JSON.stringify(metas), row.id, facet, JSON.stringify(mentionTerms(row.text)), mirror, from, ctx.now,
   )
   // The post's own event keeps the doc's facet, not its body twice.
   ctx.sql.run('update events set facets = ? where seq = ?', JSON.stringify({ before: null, after: ctx.board.facet(row.id) }), row.id)
@@ -194,7 +197,7 @@ op('createDoc', (ctx, body: CreateDoc) => {
   ctx.sql.run("insert into doc_versions (root, seq, kind, rev) values (?, ?, 'edit', ?)", row.id, row.id, row.id)
   snapshot(ctx, row.id, row.id, row.text)
   ctx.sql.run('update docs set facet_text = ?, facet_terms = ? where root = ?', title, '[]', row.id)
-  attachSyncs(ctx, ctx.board.message(row.id)!, body.channel)
+  attachSyncs(ctx, ctx.board.message(row.id)!, path)
   return { message: ctx.board.view(ctx.board.message(row.id)!, viewOptions(ctx)), ...(mentions ? { mentions } : {}) }
 })
 
@@ -247,7 +250,8 @@ function settled(ctx: Ctx, row: MessageRow, edit: SectionEdit): SectionEdit {
 
 /** Checks an edit against the doc as it is and applies it: the new revision. */
 function applyDocEdit(ctx: Ctx, row: MessageRow, doc: DocRow, body: EditDoc, by: By, proposedBy?: string): { revision: number; merged?: boolean } {
-  if (doc.source !== null) throw conflict('doc_mirrored', pathOf(doc) + ' mirrors a page in ' + doc.source + ': edit it there')
+  // A mirror changes only by its sync's imports.
+  if (doc.source !== null && satelliteKey(ctx.caller) !== doc.source) throw conflict('doc_mirrored', pathOf(doc) + ' mirrors a page in ' + doc.source + ': edit it there')
   const rev = body.revision !== undefined ? revisionOf(body.revision) : null
   if (body.edits !== undefined) {
     if (rev === null) throw badRequest('revision: a section edit names the revision you read, so a section changed since then is refused rather than overwritten')
@@ -368,7 +372,7 @@ op('moveDoc', (ctx, body: { id: string; channel?: string; slug?: string }) => {
   ctx.sql.run('update docs set channel = ?, slug = ? where root = ?', channel, slug, row.id)
   writeTerms(ctx, { id: row.id, thread: row.thread, text: row.text, deleted: 0, labels, attachments: json(row.attachments, []) })
   ctx.board.append('doc.moved', { id: row.id, thread: row.thread_key, path: from, to, by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before, seq })
-  attachSyncs(ctx, ctx.board.message(row.id)!, channel)
+  attachSyncs(ctx, ctx.board.message(row.id)!, to)
   return answer(ctx, row.id)
 })
 

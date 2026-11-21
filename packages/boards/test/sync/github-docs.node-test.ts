@@ -100,8 +100,8 @@ test('a doc written on the board is committed to its file, once, and a move dele
   assert.equal(files.get('main:docs/ops/deploy.md'), '# Deploy\n\nfrom the board ✓\n')
 })
 
-test('the docs channel and below are kept; others are not', () => {
-  assert.equal(provider.docTarget!('web/docs/runbooks', 'github'), 'github:acme/web:doc')
-  assert.equal(provider.docTarget!('web/docs', 'github'), 'github:acme/web:doc')
-  assert.equal(provider.docTarget!('web/docsy', 'github'), null)
+test('docs in the docs channel and below are kept; others are not', () => {
+  assert.equal(provider.docTarget!('web/docs/runbooks/deploy', 'github'), 'github:acme/web:doc')
+  assert.equal(provider.docTarget!('web/docs/deploy', 'github'), 'github:acme/web:doc')
+  assert.equal(provider.docTarget!('web/docsy/deploy', 'github'), null)
 })

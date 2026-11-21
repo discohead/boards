@@ -21,6 +21,11 @@ export const DOCS: Record<string, { dir: string; channel: string }> = {
   'discohead/factory-playground': { dir: 'docs', channel: channel('playground') + '/docs' },
 }
 
+/** Notion pages kept as board docs (the integration's token is the NOTION_TOKEN secret): a mirror, or twoWay. */
+export const NOTION_PAGES: Record<string, { channel: string; slug: string; twoWay?: boolean }> = {
+  '41fa619b05d080dbb7f9c4bdd77d6bad': { channel: channel('handbook'), slug: 'handbook' },
+}
+
 /** The factory's own repo, where it changes itself when asked, or null. */
 export const OWN_REPO: string | null = null
 

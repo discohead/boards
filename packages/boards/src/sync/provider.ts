@@ -51,7 +51,8 @@ export type OutboundMessage = { id: string; re: string | null; thread: string; t
 /** Where a board message is on the platform: its platform thread and message. */
 export type Copy = { thread: string; message: string }
 
-export type CourierTools = { key: string }
+/** What a courier delivery gets: the sync's key, and board calls as the courier (a provider that keeps docs records what it wrote). */
+export type CourierTools = { key: string; call?: Call }
 
 export interface SyncProvider<E = any> {
   /** The platform's name, as discovery lists it. */
@@ -66,8 +67,8 @@ export interface SyncProvider<E = any> {
   delete?(input: { target: string; copy: Copy }, tools: CourierTools): Promise<void>
   react?(input: { target: string; copy: Copy; emoji: string; remove: boolean }, tools: CourierTools): Promise<void>
   startTyping?(input: { target: string; thread: string; status?: string }, tools: CourierTools): Promise<void>
-  /** Docs (ledger/docs.ts) this sync keeps in step: for a doc's channel, the target prefix its threads attach to, or null. */
-  docTarget?(channel: string, key: string): string | null
+  /** Docs (ledger/docs.ts) this sync keeps in step: for a doc's path (channel/slug), the target prefix its thread attaches to, or null. */
+  docTarget?(path: string, key: string): string | null
   /** A doc written on the board, written to the platform as it is now: created, edited, or moved (from and to are paths). */
   doc?(input: { target: string; event: 'created' | 'edited' | 'moved'; doc: OutboundDoc; body: string; from?: string; to?: string; by?: string }, tools: CourierTools): Promise<void>
 }

@@ -25,6 +25,9 @@ export type Env = {
   /** The app's private key and webhook secret: Worker secrets, or Secrets Store bindings. */
   GITHUB_APP_PRIVATE_KEY: Secret
   GITHUB_WEBHOOK_SECRET: Secret
+  /** The Notion integration's token, and its webhook's verification token once the subscription is verified. */
+  NOTION_TOKEN?: Secret
+  NOTION_WEBHOOK_SECRET?: Secret
   /** GitHub's REST API, when it isn't https://api.github.com (a test's mock). */
   GITHUB_API_BASE?: string
 }
