@@ -19,6 +19,7 @@ globalThis.fetch = (async (input: string, init: RequestInit = {}) => {
   const body = init.body ? JSON.parse(String(init.body)) : undefined
   requests.push({ method, path: url.pathname + url.search, body })
   const found = url.pathname.match(/^\/repos\/acme\/web\/contents\/(.+)$/)
+  if (url.pathname === '/repos/acme/web' && method === 'GET') return Response.json({ default_branch: 'trunk' })
   if (!found) return new Response('{}', { status: 404 })
   const path = decodeURIComponent(found[1]!)
   if (method === 'GET') {
@@ -104,4 +105,15 @@ test('docs in the docs channel and below are kept; others are not', () => {
   assert.equal(provider.docTarget!('web/docs/runbooks/deploy', 'github'), 'github:acme/web:doc')
   assert.equal(provider.docTarget!('web/docs/deploy', 'github'), 'github:acme/web:doc')
   assert.equal(provider.docTarget!('web/docsy/deploy', 'github'), null)
+})
+
+test("with no branch named, both ways use the repo's default branch", async () => {
+  const unnamed = githubProvider({ webhookSecret: { get: async () => SECRET }, repos: {}, token: async () => 'token', botUserId: '42', apiBase: 'https://api.test', docs: { [REPO]: { dir: 'docs', channel: 'web/docs' } } })
+  const pushTo = async (ref: string) => (await unnamed.receive(push({ ref, repository: { full_name: REPO, default_branch: 'trunk' }, before: 'b1', after: 'a1', commits: [{ modified: ['docs/x.md'] }] }), { key: 'github' })).events.length
+  assert.equal(await pushTo('refs/heads/trunk'), 1)
+  assert.equal(await pushTo('refs/heads/main'), 0)
+  requests.length = 0
+  await unnamed.doc!({ target: 'github:acme/web:doc:9', event: 'edited', doc: { id: '9', path: 'web/docs/x', title: 'X', revision: '3' }, body: '# X\n' }, { key: 'github' })
+  assert.equal(requests.find((request) => request.method === 'PUT')!.body.branch, 'trunk')
+  assert.equal(files.get('trunk:docs/x.md'), '# X\n')
 })

@@ -294,6 +294,9 @@ describe('templates, comments, links, and moves', () => {
     expect(doc.labels.template).toBeUndefined()
     const fromIt = await api(name, 'GET', '/threads?label=board.doc.from=' + template.id)
     expect(fromIt.body.threads.map((thread: { message: { id: string } }) => thread.message.id)).toEqual([doc.id])
+    // The template's backlinks list the docs made from it.
+    const links = (await api(name, 'GET', '/docs/' + template.id + '/backlinks')).body.backlinks
+    expect(links).toEqual([expect.objectContaining({ id: doc.id, kind: 'doc', path: 'docs/incidents/checkout-outage', via: 'template' })])
   })
 
   it("comments on a section carry its key, and say when it's gone", async () => {
@@ -345,5 +348,38 @@ describe('the feed', () => {
     expect(all).toEqual(['doc.edited', 'doc.edited'])
     const facets = await rows<{ facets: string }>(name, "select facets from events where type = 'doc.edited'")
     for (const row of facets) expect(row.facets.length).toBeLessThan(1500)
+  })
+})
+
+describe('a section edit', () => {
+  it('keeps a blank line around each heading and a newline at the end, whatever blank lines its text has', async () => {
+    const name = freshBoard('doc-spacing')
+    const doc = await create(name)
+    let revision = doc.doc.revision
+    const edit = async (body: Record<string, unknown>) => {
+      const done = await editDoc(name, doc.id, { revision, ...body })
+      expect(done.status, JSON.stringify(done.body)).toBe(200)
+      revision = done.body.revision
+    }
+    await edit({ edits: [{ section: 'deploy/rollback', text: 'Roll back to the last tag.' }] })
+    await edit({ edits: [{ section: 'monitoring', text: '\n\n\nWatch the error rate.' }] })
+    await edit({ edits: [{ section: 'deploy', text: 'How we ship, from main.\n\n\n' }] })
+    await edit({ edits: [{ after: 'monitoring', text: '# Contacts\nAsk in ops.' }] })
+    await edit({ edits: [{ section: 'deploy/canary', subtree: true, text: 'Ship to 1% first.\n### Wait\nTen minutes.' }] })
+    expect((await read(name, doc.id)).body).toBe(
+      ['Runbook for deploys.', '', '# Deploy', '', 'How we ship, from main.', '', '## Rollback', '', 'Roll back to the last tag.', '', '## Canary', '', 'Ship to 1% first.', '### Wait', 'Ten minutes.', '', '# Monitoring', '', 'Watch the error rate.', '', '# Contacts', '', 'Ask in ops.', ''].join('\n'),
+    )
+    await edit({ edits: [{ remove: 'contacts' }] })
+    expect((await read(name, doc.id)).body.endsWith('Watch the error rate.\n')).toBe(true)
+  })
+})
+
+describe('a move', () => {
+  it("retitles a doc whose title is its slug's, at once", async () => {
+    const name = freshBoard('doc-move-title')
+    const doc = await create(name, 'deploy', 'No heading here, so the title is the slug.\n')
+    expect((await read(name, doc.id)).doc.title).toBe('Deploy')
+    expect((await api(name, 'POST', '/docs/' + doc.id + '/move', { channel: 'docs/ops', slug: 'shipping' })).status).toBe(200)
+    expect((await read(name, doc.id)).doc.title).toBe('Shipping')
   })
 })

@@ -120,11 +120,11 @@ const TOOLS = [
   },
   {
     name: 'doc_edit',
-    description: "Edit a doc by section, as you. revision is the doc's revision when you read it; edits is a list of { section, text } (replace a section's own text, its heading stays), { section, text, subtree: true } (it and everything under it), { section, title } (rename), { after, text } (insert a section, text starting with its heading), or { remove }. A section changed since your revision is refused with section_conflict: read that section again and redo your change. Without the edit permission, send propose: true (and a note): the change becomes a task someone completes to apply it.",
+    description: "Edit a doc by section, as you. revision is the doc's revision when you read it; edits is a list of { section, text } (replace a section's own text, its heading stays), { section, text, subtree: true } (it and everything under it), { section, title } (rename), { after, text } (insert a section, text starting with its heading), or { remove }. A section changed since your revision is refused with section_conflict: read that section again and redo your change. A whole body goes as body with the revision you read, or with merge: true and that revision or base (the text you started from), merged by section. Without the edit permission, send propose: true (and a note): the change becomes a task someone completes to apply it.",
     inputSchema: {
       type: 'object',
-      properties: { id: { type: 'string' }, path: { type: 'string' }, revision: { type: 'string' }, edits: { type: 'array', items: { type: 'object' } }, body: { type: 'string' }, merge: { type: 'boolean' }, propose: { type: 'boolean' }, note: { type: 'string' } },
-      required: ['revision'],
+      properties: { id: { type: 'string' }, path: { type: 'string' }, revision: { type: 'string' }, base: { type: 'string' }, edits: { type: 'array', items: { type: 'object' } }, body: { type: 'string' }, merge: { type: 'boolean' }, propose: { type: 'boolean' }, note: { type: 'string' } },
+      required: [],
       additionalProperties: false,
     },
   },
@@ -170,7 +170,7 @@ async function callTool(ctx: Ctx, name: string, args: Record<string, unknown>) {
       }
       case 'doc_edit': {
         const id = typeof args.path === 'string' ? ((await ctx.board.docs.at(args.path, { depth: 1 })) as { doc: { id: string } }).doc.id : String(args.id ?? '')
-        return content(await ctx.board.docs.edit(id, pick(args, ['revision', 'edits', 'body', 'merge', 'propose', 'note'])))
+        return content(await ctx.board.docs.edit(id, pick(args, ['revision', 'base', 'edits', 'body', 'merge', 'propose', 'note'])))
       }
       case 'doc_create':
         return content(await ctx.board.docs.create(pick(args, ['channel', 'slug', 'body', 'from', 'labels']) as { channel: string; slug: string }))
@@ -262,7 +262,7 @@ async function answer(ctx: Ctx, message: Rpc): Promise<Record<string, unknown> |
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'boards', title: 'Boards: ' + ctx.mount.name, version: '0.1.0' },
-        instructions: 'The board ' + ctx.mount.name + ', as ' + ctx.caller.principal.handle + '. board_read, board_post, board_reply, and board_search do one thing each; run_code runs a script of many board calls at once.',
+        instructions: 'The board ' + ctx.mount.name + ', as ' + ctx.caller.principal.handle + '. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once.',
       })
     }
     case 'ping':

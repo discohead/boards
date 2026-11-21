@@ -369,7 +369,8 @@ op('moveDoc', (ctx, body: { id: string; channel?: string; slug?: string }) => {
   }
   const labels = { ...json<Record<string, string>>(row.labels, {}), 'board.doc': to }
   ctx.sql.run('update messages set labels = ?, version = ? where id = ?', JSON.stringify(labels), seq, row.id)
-  ctx.sql.run('update docs set channel = ?, slug = ? where root = ?', channel, slug, row.id)
+  // A title that comes from the slug follows it.
+  ctx.sql.run('update docs set channel = ?, slug = ?, title = ? where root = ?', channel, slug, titleOf(parseDoc(row.text), slug), row.id)
   writeTerms(ctx, { id: row.id, thread: row.thread, text: row.text, deleted: 0, labels, attachments: json(row.attachments, []) })
   ctx.board.append('doc.moved', { id: row.id, thread: row.thread_key, path: from, to, by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before, seq })
   attachSyncs(ctx, ctx.board.message(row.id)!, to)
@@ -485,6 +486,12 @@ op('docBacklinks', (ctx, query: { id: string }) => {
     const doc = linking.re === null ? ctx.sql.one<DocRow>('select * from docs where root = ?', linking.id) : null
     const summary = doc ? doc.title : linking.text.replace(/\s+/g, ' ').trim().slice(0, 140)
     links.push({ id: ref(linking.id), thread: ref(linking.thread), channel: linking.channel, kind: doc ? 'doc' : linking.re === null ? 'thread' : 'reply', ...(doc ? { path: pathOf(doc) } : {}), summary })
+  }
+  // The docs made from it, when it's a template.
+  for (const made of ctx.sql.all<DocRow>('select * from docs where from_doc = ? order by root', row.id)) {
+    const root = ctx.board.message(made.root)
+    if (!root || root.deleted || !ctx.access.readable(root.channel) || links.some((link) => link.id === ref(made.root))) continue
+    links.push({ id: ref(made.root), thread: ref(made.root), channel: root.channel, kind: 'doc', path: pathOf(made), via: 'template', summary: made.title })
   }
   return { backlinks: links }
 }, { read: true })

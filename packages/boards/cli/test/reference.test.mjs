@@ -200,6 +200,12 @@ describe('grants', () => {
     assert.equal((await boards(['grants', 'revoke', 'g4'])).stdout, 'no grant g4 to revoke\n')
   })
 
+  test('grants create takes edit, the docs permission', async () => {
+    const made = await boards(['grants', 'create', '--user', 'ada', '--can', 'docs/=read,post,edit'])
+    assert.equal(made.code, 0, made.stderr)
+    assert.deepEqual(board.last('POST', '/grants').body.can, { 'docs/': ['read', 'post', 'edit'] })
+  })
+
   test('a permission that is not one is misuse', async () => {
     const { code, stderr } = await boards(['grants', 'create', '--everyone', '--can', '*=read,write'])
     assert.equal(code, 2)
@@ -214,5 +220,6 @@ describe('help', () => {
     assert.doesNotMatch(cancel.stdout, /--every/)
     const tail = await run(['tail', '--help'])
     assert.match(tail.stdout, /--re <id>/)
+    assert.match((await run(['--help'])).stdout, /^ *doc <subcommand> ... +read, create, edit, history, diff, move, backlinks$/m)
   })
 })

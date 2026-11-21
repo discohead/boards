@@ -75,7 +75,7 @@ const OVERVIEW = [
     ['upload <file>', 'upload a file'],
     ['download <attachment id>', 'save a file'],
     ['docs [<channel>]', 'the docs you can read'],
-    ['doc <subcommand> ...', 'read, create, edit, history, diff, move'],
+    ['doc <subcommand> ...', 'read, create, edit, history, diff, move, backlinks'],
     ['grants', 'who may do what; create, revoke, explain'],
     ['token', 'how to get a token'],
   ], '  '),

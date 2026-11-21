@@ -3,7 +3,7 @@ import { misuse } from '../failure.mjs'
 import { columns, when } from '../format.mjs'
 import { required } from '../common.mjs'
 
-const PERMISSIONS = ['read', 'post', 'react', 'label', 'sync', 'manage']
+const PERMISSIONS = ['read', 'post', 'react', 'label', 'edit', 'sync', 'manage']
 
 /** A principal in a few words: user ada, github acme/web, everyone. */
 function principalText(p) {
@@ -125,7 +125,7 @@ const create = {
     '      --oidc <issuer> --claim <name=value>...',
     '      --app <id>, --all-users, --everyone, or --principal <json>',
     'can   a pattern (* every channel, dev one, dev/ it and its subtree) and its',
-    '      permissions (read, post, react, label, sync, manage, or all), like',
+    '      permissions (read, post, react, label, edit, sync, manage, or all), like',
     '      --can dev/=read,post',
   ].join('\n'),
   flags: { user: 'list', github: 'list', workflow: 'list', branch: 'list', event: 'list', oidc: 'list', claim: 'list', app: 'list', 'all-users': 'bool', everyone: 'bool', principal: 'list', can: 'list', 'lock-me-out': 'bool' },

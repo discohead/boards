@@ -198,6 +198,14 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
     if (response.status === 429 || response.status >= 500 || (response.status === 403 && /rate limit/i.test(text))) throw new SyncRetry(said)
     throw new SyncRefused(said)
   }
+  /** The branch a repo's docs live on: the one named, else the repo's default branch (asked once). */
+  const defaults = new Map<string, Promise<string>>()
+  const branchOf = (repo: string): Promise<string> => {
+    const named = docsOf(options, repo)?.branch
+    if (named) return Promise.resolve(named)
+    if (!defaults.has(repo.toLowerCase())) defaults.set(repo.toLowerCase(), github(repo, 'GET', '').then((found: { default_branch?: string }) => found.default_branch ?? 'main').catch((error) => { defaults.delete(repo.toLowerCase()); throw error }))
+    return defaults.get(repo.toLowerCase())!
+  }
   /** A file's contents and blob SHA at a ref, or null when it isn't there. */
   const contents = async (repo: string, path: string, ref: string): Promise<{ sha: string; text: string } | null> => {
     if (!token) throw new SyncRefused('no GitHub token is configured')
@@ -242,7 +250,7 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
       const found = input.target.slice(key.length + 1).match(/^([^/:]+\/[^/:]+):doc:\d+$/)
       if (!found) throw new SyncRefused(input.target + " isn't a GitHub doc target")
       const repo = found[1]!
-      const branch = docsOf(options, repo)?.branch ?? 'main'
+      const branch = await branchOf(repo)
       const write = async (method: 'PUT' | 'DELETE', path: string, body: Record<string, unknown>) => {
         try {
           await github(repo, method, '/contents/' + encodePath(path), { ...body, branch })

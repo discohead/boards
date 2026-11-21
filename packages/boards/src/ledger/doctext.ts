@@ -151,6 +151,16 @@ export class EditError extends Error {
 }
 
 const ended = (text: string) => (text === '' || text.endsWith('\n') ? text : text + '\n')
+/** Text without the blank lines around it. */
+const tidy = (text: string) => text.replace(/^(?:[ \t]*\n)+/, '').replace(/\s+$/, '')
+/** A section's new text as it sits in the body: a blank line after its heading, one before the next, and a newline at the end. */
+const spaced = (text: string, headed: boolean, last: boolean) => {
+  const body = tidy(text)
+  if (!body) return headed && !last ? '\n' : ''
+  return (headed ? '\n' : '') + body + '\n' + (last ? '' : '\n')
+}
+/** A section a new one follows: a blank line before the next heading. */
+const gapped = (text: string) => (text === '' ? text : text.replace(/\n*$/, '\n\n'))
 const headingLine = (level: number, title: string) => '#'.repeat(level) + ' ' + title.trim() + '\n'
 
 /** Applies one edit to a body's sections, by key as they are now: the sections after it. */
@@ -165,7 +175,10 @@ export function applyEdit(sections: Section[], edit: SectionEdit): Section[] {
     const index = find(edit.remove)
     if (index === 0) return reparse(['', ...sections.slice(1).map(raw)])
     const end = subtreeEnd(sections, index)
-    return reparse([...sections.slice(0, index), ...sections.slice(end)].map(raw))
+    const pieces = [...sections.slice(0, index), ...sections.slice(end)].map(raw)
+    // The new last section ends the body with one newline.
+    if (end === sections.length && pieces.length) pieces[pieces.length - 1] = pieces[pieces.length - 1]!.replace(/\n+$/, '\n')
+    return reparse(pieces)
   }
   if ('after' in edit) {
     const index = find(edit.after)
@@ -173,8 +186,9 @@ export function applyEdit(sections: Section[], edit: SectionEdit): Section[] {
     if (level === null || !/^ {0,3}#{1,6}(?:[ \t]|$)/.test(edit.text)) throw new EditError(400, 'invalid_edit', 'an inserted section starts with its heading, like "## Rollback"', edit.after)
     const end = subtreeEnd(sections, index)
     const pieces = sections.map(raw)
-    if (end > 0) pieces[end - 1] = ended(pieces[end - 1]!)
-    pieces.splice(end, 0, ended(edit.text))
+    if (end > 0) pieces[end - 1] = gapped(pieces[end - 1]!)
+    const [heading, ...rest] = tidy(edit.text).split('\n')
+    pieces.splice(end, 0, heading!.replace(/\s+$/, '') + '\n' + spaced(rest.join('\n'), true, end === sections.length))
     return reparse(pieces)
   }
   const index = find(edit.section)
@@ -189,13 +203,13 @@ export function applyEdit(sections: Section[], edit: SectionEdit): Section[] {
     const level = shallowest(text)
     if (level !== null && level <= section.level) throw new EditError(400, 'invalid_edit', "a section's new text may hold only deeper headings than its own (H" + (section.level + 1) + ' and below)', edit.section)
     const end = subtreeEnd(sections, index)
-    const replaced = head + (end < sections.length ? ended(text) : text)
+    const replaced = head + (edit.text === undefined ? (end < sections.length ? ended(text) : text) : spaced(text, true, end === sections.length))
     pieces.splice(index, end - index, replaced)
     return reparse(pieces)
   }
   const own = edit.text ?? section.own
   if (edit.text !== undefined && shallowest(edit.text) !== null) throw new EditError(400, 'invalid_edit', 'a section edit replaces its own text, which holds no headings: to add or change subsections, edit with subtree: true or insert with after', edit.section)
-  pieces[index] = head + (index + 1 < sections.length ? ended(own) : own)
+  pieces[index] = head + (edit.text === undefined ? (index + 1 < sections.length ? ended(own) : own) : spaced(own, index > 0, index + 1 === sections.length))
   return reparse(pieces)
 }
 

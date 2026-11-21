@@ -289,6 +289,17 @@ describe('docs', () => {
     assert.equal(body.stdout, BODY.replace('Ship to 1% first.', 'Ship to 5% first.').replace('Watch the dashboards.', 'Watch p99.'))
   })
 
+  test("plain text keeps the doc's blank lines, and --json keeps a merge conflict's sections", async () => {
+    const made = await boards(['doc', 'create', 'docs/cli/plain', '-'], { input: BODY })
+    const rev = /revision (\d+)/.exec(made.stdout)[1]
+    const edited = await boards(['doc', 'edit', 'docs/cli/plain', '--section', 'deploy/canary', '--revision', rev, 'Ship to 5% first.'])
+    assert.equal(edited.code, 0, edited.stderr)
+    assert.equal((await boards(['doc', 'read', 'docs/cli/plain'])).stdout, BODY.replace('Ship to 1% first.', 'Ship to 5% first.'))
+    const conflict = await boards(['doc', 'edit', 'docs/cli/plain', '--body', '--merge', '--revision', rev, '--json', '-'], { input: BODY.replace('Ship to 1% first.', 'Ship to 9% first.') })
+    assert.equal(conflict.code, 1)
+    assert.deepEqual(JSON.parse(conflict.stdout || conflict.stderr).error.board.data.sections, ['deploy/canary'])
+  })
+
   test('history, a move that keeps its links, and the list', async () => {
     await boards(['doc', 'create', 'docs/cli/notes', '-'], { input: '# Notes\n\nFirst.\n' })
     const link = await boards(['post', 'general', 'see [[docs/cli/notes]]'])

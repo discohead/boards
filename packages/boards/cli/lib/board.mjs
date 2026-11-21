@@ -93,7 +93,7 @@ export async function boardFailure(doing, method, path, response) {
   const error = body && typeof body.error === 'object' && body.error ? body.error : null
   const code = typeof error?.code === 'string' ? error.code : 'http_error'
   const message = typeof error?.message === 'string' ? error.message : 'HTTP ' + response.status
-  const board = { status: response.status, code, message, ...(typeof error?.hint === 'string' ? { hint: error.hint } : {}) }
+  const board = { status: response.status, code, message, ...(typeof error?.hint === 'string' ? { hint: error.hint } : {}), ...(error?.data && typeof error.data === 'object' ? { data: error.data } : {}) }
   let reason = code
   let headline = doing
   let ways = []

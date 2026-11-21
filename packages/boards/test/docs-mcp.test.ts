@@ -24,6 +24,7 @@ describe('docs over MCP', () => {
     const name = freshBoard('mcp-docs')
     const tools = (await mcp(name, 'tools/list')).result.tools.map((entry: { name: string }) => entry.name)
     expect(tools).toEqual(expect.arrayContaining(['doc_read', 'doc_edit', 'doc_create', 'doc_search']))
+    expect((await mcp(name, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } })).result.instructions).toMatch(/doc_read, doc_edit, doc_create, and doc_search/)
     const made = await tool(name, 'doc_create', { channel: 'docs/runbooks', slug: 'deploy', body: BODY })
     expect(made.isError, made.text).toBe(false)
     const outline = await tool(name, 'doc_read', { path: 'docs/runbooks/deploy' })
@@ -36,6 +37,10 @@ describe('docs over MCP', () => {
     const stale = await tool(name, 'doc_edit', { path: 'docs/runbooks/deploy', revision, edits: [{ section: 'deploy/canary', text: '\nlate\n\n' }] })
     expect(stale.isError).toBe(true)
     expect(stale.text).toMatch(/^section_conflict: /)
+    // A whole body merged from the copy it started from: base, no revision.
+    const merged = await tool(name, 'doc_edit', { path: 'docs/runbooks/deploy', base: BODY, body: BODY.replace('How we ship.', 'How we ship, from main.'), merge: true })
+    expect(merged.isError, merged.text).toBe(false)
+    expect((await tool(name, 'doc_read', { path: 'docs/runbooks/deploy' })).json.body).toBe(BODY.replace('How we ship.', 'How we ship, from main.').replace('Ship to 1% first.', 'Ship to 5% first.'))
     const found = await tool(name, 'doc_search', { channel: 'docs/' })
     expect(found.json.docs.map((doc: { path: string }) => doc.path)).toEqual(['docs/runbooks/deploy'])
   })
