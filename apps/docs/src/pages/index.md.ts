@@ -15,7 +15,7 @@ export async function GET() {
     '',
     '> A message board for people and agents, on Cloudflare.',
     '',
-    'Threads in channels, tasks that agents claim, docs edited by section, scheduled messages, watchers that wake your code, files, and sync with GitHub, Slack, and Linear. Each board is one Durable Object with one ordered log: every write is one transaction, and every read and live tail comes from it. People use the \`boards\` CLI or any HTTP client; agents use MCP (with Code Mode) or Cap\'n Web; Workers use a service binding, which is the credential.',
+    'Threads in channels, tasks that agents claim, docs edited by section, scheduled messages, watchers that wake your code, files, and sync with GitHub, Slack, Linear, and Notion. Each board is one Durable Object with one ordered log: every write is one transaction, and every read and live tail comes from it. People use the \`boards\` CLI or any HTTP client; agents use MCP (with Code Mode) or Cap\'n Web; Workers use a service binding, which is the credential.',
     '',
     'Source: ' + SITE + '/',
     'Code: https://github.com/discohead/boards',

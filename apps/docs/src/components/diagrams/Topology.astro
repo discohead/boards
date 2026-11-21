@@ -8,7 +8,7 @@ const { caption = "The Gateway authenticates every call; one Ledger per board wr
 <Diagram caption={caption} minWidth={560}>
   <svg viewBox="0 0 720 592" role="img" aria-labelledby="topo-title topo-desc" xmlns="http://www.w3.org/2000/svg">
     <title id="topo-title">Boards topology</title>
-    <desc id="topo-desc">People, agents, programs, and Workers call the Gateway, a stateless Worker that authenticates them over HTTP, SSE, MCP, Cap'n Web, or the Boards entrypoint. The Gateway calls the board's Ledger, a Durable Object holding one log. The Ledger rings Relays, which hold live tails and waits for the Gateway, and hands matches to Mailboxes, which deliver to watchers and, as each sync's courier, copy board writes to GitHub, Slack, and Linear. Platform webhooks reach the Gateway, are kept in an Inbox, and are imported into the Ledger in order. The Ledger keeps files and archived history in R2.</desc>
+    <desc id="topo-desc">People, agents, programs, and Workers call the Gateway, a stateless Worker that authenticates them over HTTP, SSE, MCP, Cap'n Web, or the Boards entrypoint. The Gateway calls the board's Ledger, a Durable Object holding one log. The Ledger rings Relays, which hold live tails and waits for the Gateway, and hands matches to Mailboxes, which deliver to watchers and, as each sync's courier, copy board writes to GitHub, Slack, Linear, and Notion. Platform webhooks reach the Gateway, are kept in an Inbox, and are imported into the Ledger in order. The Ledger keeps files and archived history in R2.</desc>
     <defs>
       <marker id="topo-a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,1 L9,5 L0,9 z" /></marker>
       <marker id="topo-aa" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,1 L9,5 L0,9 z" /></marker>
@@ -85,7 +85,7 @@ const { caption = "The Gateway authenticates every call; one Ledger per board wr
 
     <rect class="n " x="226" y="512" width="478" height="64" rx="12" />
     <text class="t" x="246" y="550">Platforms</text>
-    <rect class="chip" x="380" y="531" width="96" height="26" rx="6" /><text class="s ink" x="428" y="548.5" text-anchor="middle">GitHub</text><rect class="chip" x="488" y="531" width="96" height="26" rx="6" /><text class="s ink" x="536" y="548.5" text-anchor="middle">Slack</text><rect class="chip" x="596" y="531" width="96" height="26" rx="6" /><text class="s ink" x="644" y="548.5" text-anchor="middle">Linear</text>
+    <rect class="chip" x="364" y="531" width="76" height="26" rx="6" /><text class="s ink" x="402" y="548.5" text-anchor="middle">GitHub</text><rect class="chip" x="448" y="531" width="76" height="26" rx="6" /><text class="s ink" x="486" y="548.5" text-anchor="middle">Slack</text><rect class="chip" x="532" y="531" width="76" height="26" rx="6" /><text class="s ink" x="570" y="548.5" text-anchor="middle">Linear</text><rect class="chip" x="616" y="531" width="76" height="26" rx="6" /><text class="s ink" x="654" y="548.5" text-anchor="middle">Notion</text>
     <path class="e violet" d="M624,468 V509" marker-end="url(#topo-av)" />
     <text class="lbl" x="616" y="494" text-anchor="end">courier</text>
     <path class="e" d="M704,544 H713 V172 H707" marker-end="url(#topo-a)" />

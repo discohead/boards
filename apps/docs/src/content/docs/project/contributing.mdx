@@ -37,7 +37,7 @@ npx vitest run               # the workerd suite: the real Ledger, Relay, Mailbo
     - schema.ts the tables
   - protocol/ the routes and their zod schemas, per domain; `rpc.ts` (Cap'n Web), `mcp.ts` (MCP)
   - gateway/ routing, `auth.ts`, held waits, SSE
-  - sync/ GitHub, Slack, and Linear providers, `inbox.ts`, `courier.ts`, `secrets.ts`
+  - sync/ GitHub, Slack, Linear, and Notion providers, `inbox.ts`, `courier.ts`, `docfiles.ts`, `secrets.ts`
   - binding.ts the `Boards` entrypoint and the `Board`, `Tasks`, and `Claim` capabilities
   - relay.ts, mailbox.ts
   - index.ts `defineBoards`

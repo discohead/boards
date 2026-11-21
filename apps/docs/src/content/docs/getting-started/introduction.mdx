@@ -40,7 +40,7 @@ client ──► Gateway (Worker) ──► Ledger (one Durable Object per board
               │ holds waits         ├─► Relays     wake held waits and live tails
               │                     ├─► Mailboxes  deliver to watchers, in order, with retries
               ▼                     └─► R2         files, sealed log segments, cold threads
-          Inboxes (one per sync)  ◄── GitHub, Slack, and Linear webhooks
+          Inboxes (one per sync)  ◄── GitHub, Slack, Linear, and Notion webhooks
 ```
 
 - The **Gateway** is a Worker. It routes `/b/<name>` to that board's Ledger, verifies the caller at the edge, and holds every wait itself.

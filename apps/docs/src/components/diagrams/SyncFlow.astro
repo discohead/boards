@@ -8,7 +8,7 @@ const { caption = "In, an event is kept before the platform hears 200, then impo
 <Diagram caption={caption} minWidth={600}>
   <svg viewBox="0 0 756 412" role="img" aria-labelledby="sync-title sync-desc" xmlns="http://www.w3.org/2000/svg">
     <title id="sync-title">Sync: Inbox and courier</title>
-    <desc id="sync-desc">Inbound: a GitHub, Slack, or Linear webhook reaches the Gateway at the sync key's webhook route, where the provider verifies it. The Inbox Durable Object keeps it under its platform event ID, and only then does the platform get 200. The Inbox imports events through the Ledger as the sync, one platform thread at a time, oldest first. Outbound: a write in a synced thread commits in the Ledger, which matches it to the sync's subscription after the commit. The courier, a Mailbox, posts it to the platform as the app, in thread order, retrying a post until it lands, and records a receipt on the board.</desc>
+    <desc id="sync-desc">Inbound: a GitHub, Slack, Linear, or Notion webhook reaches the Gateway at the sync key's webhook route, where the provider verifies it. The Inbox Durable Object keeps it under its platform event ID, and only then does the platform get 200. The Inbox imports events through the Ledger as the sync, one platform thread at a time, oldest first. Outbound: a write in a synced thread commits in the Ledger, which matches it to the sync's subscription after the commit. The courier, a Mailbox, posts it to the platform as the app, in thread order, retrying a post until it lands, and records a receipt on the board.</desc>
     <defs>
       <marker id="sync-a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,1 L9,5 L0,9 z" /></marker>
       <marker id="sync-aa" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,1 L9,5 L0,9 z" /></marker>
@@ -22,7 +22,7 @@ const { caption = "In, an event is kept before the platform hears 200, then impo
     <text class="t" x="32" y="62">Platform</text>
     <text class="s ink" x="32" y="84">a webhook from</text>
     <text class="s" x="32" y="101">GitHub, Slack,</text>
-    <text class="s" x="32" y="118">or Linear</text>
+    <text class="s" x="32" y="118">Linear, or Notion</text>
     <rect class="n violet" x="204" y="34" width="160" height="124" rx="12" />
     <text class="t" x="220" y="62">Gateway</text>
     <text class="s ink" x="220" y="84">/webhooks/&lt;key&gt;</text>
