@@ -357,6 +357,10 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
           }
         } else if (unset.includes(prefix) && item) {
           await P.archive(project, item, true)
+          // Its fields go with it: GitHub's echo of this archive is the app's own, which the sync doesn't import.
+          const labels = ((await call('message', { id: root.id, limit: 1 })).message.labels ?? {}) as Record<string, string>
+          const cleared = labelChange(name, labels, null)
+          if (cleared) await call('syncImport', { op: 'labels', from: key, author: projectsAuthor(key), origin: { thread: itemKey(key, name, item) }, set: cleared.set, unset: cleared.unset })
           continue
         }
         if (!item) continue
@@ -383,16 +387,26 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
     },
 
     async task({ targets, root }, { key, call }) {
-      if (!P || !call || !root.task) return
+      if (!P || !call) return
+      if (!targets.some((entry) => entry.startsWith(key + ':project:'))) return
+      // The task as it is now, not as the event saw it: a claim and a completion in one write are two events, and only the end counts.
+      const now = (await call('message', { id: root.id, limit: 1 })).message as { labels?: Record<string, string>; task?: { state: string } | null }
+      if (!now.task) return
       for (const name of P.names()) {
         const target = targets.find((entry) => entry.startsWith(key + ':project:' + name + ':'))
         if (!target) continue
         const project = await P.load(name)
-        const option = P.optionFor(project, root.task.state)
+        const option = P.optionFor(project, now.task.state)
         if (!option) continue
         const label = 'project.' + name + '.' + P.statusKey(project)
-        if ((root.labels[label] ?? '').toLowerCase() === option.toLowerCase()) continue
-        const refused = await P.setField(project, target.slice(target.lastIndexOf(':') + 1), P.statusKey(project), option)
+        const itemId = target.slice(target.lastIndexOf(':') + 1)
+        // What the Project holds, not the label: the label can say what a person just set there.
+        const held = (await P.read(project, itemId))?.values[P.statusKey(project)]
+        if ((held ?? '').toLowerCase() === option.toLowerCase()) {
+          if ((now.labels?.[label] ?? '').toLowerCase() !== option.toLowerCase()) await call('syncImport', { op: 'labels', from: key, author: projectsAuthor(key), origin: { thread: target }, set: { [label]: held! }, unset: [] })
+          continue
+        }
+        const refused = await P.setField(project, itemId, P.statusKey(project), option)
         if (refused) {
           console.warn('[boards] sync ' + key + ': ' + project.config.project + ' refused Status ' + JSON.stringify(option) + ': ' + refused)
           continue

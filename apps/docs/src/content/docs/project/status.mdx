@@ -47,6 +47,8 @@ What's built, and how each part is verified: by a test that fails when the code 
 
 The live Projects run found three bugs, each fixed: the Factory's wake missed a task made ready (it says `task.created`, not `task.ready`), the sandbox got the first account's token for an organization's repo, and an item the installation couldn't read got a placeholder thread.
 
+Checking the Projects docs found two more, each fixed with a regression test in [`test/sync/github-projects.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/github-projects.node-test.ts) and checked live: a card moved straight to Done left it at In progress (the sync claims and completes the task in one write, and the courier set Status from the claim's event; it now sets it from the task as it is, against what the Project holds), and taking a thread out of a Project from the board left its field labels.
+
 The live doc-sync runs found two bugs, each fixed with a regression test: an imported merge that wasn't written back to the platform (it can hold what the platform's copy lacks), and a two-way write that reverted a Notion change not yet imported (a page and its doc are now reconciled three ways, against what Notion last held).
 
 Checking these docs found eight more, each fixed with a regression test that fails without the fix:

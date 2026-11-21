@@ -198,8 +198,11 @@ test('project.<name> set on an issue thread adds its issue, with the fields it c
   assert.deepEqual(mutations.map((entry) => entry.name), ['addProjectV2ItemById', 'updateProjectV2ItemFieldValue'])
   const target = b.roots.get('10')!.targets.find((entry) => entry.startsWith('github:project:roadmap:'))!
   assert.ok(target)
-  await provider.labels!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: {} }, set: {}, unset: ['project.roadmap', 'project.roadmap.priority'] }, { key: 'github', call: b.call })
+  delete b.roots.get('10')!.labels['project.roadmap']
+  await provider.labels!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: { ...b.roots.get('10')!.labels } }, set: {}, unset: ['project.roadmap'] }, { key: 'github', call: b.call })
   assert.equal(last()!.name, 'archiveProjectV2Item')
+  // Its fields go with it.
+  assert.deepEqual(b.roots.get('10')!.labels, { issue: 'acme/web#5' })
 })
 
 test("a task's state sets Status, once: the label says so after, and an unmapped state sets nothing", async () => {
@@ -207,14 +210,31 @@ test("a task's state sets Status, once: the label says so after, and an unmapped
   const b = board()
   b.roots.get('10')!.targets.push('github:project:roadmap:PVTI_t')
   b.roots.get('10')!.labels = { 'project.roadmap': 'yes', 'project.roadmap.status': 'Ready for agent' }
+  b.roots.get('10')!.task = { state: 'claimed' }
   mutations.length = 0
   await provider.task!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: { ...b.roots.get('10')!.labels }, task: { state: 'claimed' } } }, { key: 'github', call: b.call })
   assert.deepEqual(mutations.map((entry) => [entry.name, entry.variables.v]), [['updateProjectV2ItemFieldValue', { singleSelectOptionId: 'o_prog' }]])
   assert.equal(b.roots.get('10')!.labels['project.roadmap.status'], 'In progress')
   mutations.length = 0
   await provider.task!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: { ...b.roots.get('10')!.labels }, task: { state: 'claimed' } } }, { key: 'github', call: b.call })
+  b.roots.get('10')!.task = { state: 'waiting' }
   await provider.task!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: { ...b.roots.get('10')!.labels }, task: { state: 'waiting' } } }, { key: 'github', call: b.call })
   assert.deepEqual(mutations, [])
+})
+
+test('a claim and a completion in one write leave the card at Done, not In progress', async () => {
+  // A person moved the card to Done; the sync claimed and completed the task; the courier sees task.claimed, then task.completed.
+  items.set('PVTI_c', { id: 'PVTI_c', archived: false, content: null, values: { Status: 'Done' } })
+  const b = board()
+  b.roots.get('10')!.targets.push('github:project:roadmap:PVTI_c')
+  b.roots.get('10')!.labels = { 'project.roadmap': 'yes', 'project.roadmap.status': 'Done' }
+  b.roots.get('10')!.task = { state: 'completed' }
+  mutations.length = 0
+  await provider.task!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: { ...b.roots.get('10')!.labels }, task: { state: 'claimed' } } }, { key: 'github', call: b.call })
+  await provider.task!({ targets: b.roots.get('10')!.targets, root: { id: '10', labels: { ...b.roots.get('10')!.labels }, task: { state: 'completed' } } }, { key: 'github', call: b.call })
+  assert.deepEqual(mutations, [])
+  assert.equal(items.get('PVTI_c')!.values.Status, 'Done')
+  assert.equal(b.roots.get('10')!.labels['project.roadmap.status'], 'Done')
 })
 
 test('an item target carries no messages: a reply posts nothing to GitHub', async () => {
