@@ -201,11 +201,13 @@ Resolving a comment is a label (`resolved=true`) or a reaction, as the team like
 ### 3.6 Proposals
 
 A caller with `post` but not `edit` in the doc's channel sends the same `editDoc` body with
-`propose: true`. Nothing in the doc changes. Instead the board makes a **task** in the doc's thread
-(the thread is a doc, and the proposal is a reply that's a task, as any reply can be adopted as one):
+`propose: true`. Nothing in the doc changes. Instead the board makes a **task** in the doc's channel,
+its own thread, labeled `board.doc.proposal=<doc>` (as built: a task is a thread's root, so a
+proposal can't be a reply in the doc's thread):
 
-- its text says what changes, in a few lines, and `board.doc.proposal` carries the edit and the
-  `revision` (or `base`) it was proposed against;
+- its text says what changes, in a few lines, with the author's `note`; the edit and the
+  `revision` (or `base`) it was proposed against are kept in `doc_proposals`, and the doc's view
+  lists its open proposals;
 - completing the task applies the edit, and needs `edit` in the channel; the edit is checked as any
   `editDoc` is (§3.2), against the revision it was proposed at, so a proposal overtaken by later
   edits to the same sections fails with `section_conflict` and stays open for its author to redo;
@@ -336,6 +338,25 @@ its courier, with receipts as the retry guard.
   409 `doc_mirrored`. Version 2 maps headings to heading blocks and writes a section edit back as
   the blocks between two headings.
 
+**As built.** A provider keeps docs with `docTarget(path)` (the doc's thread attaches to that target
+when it's made or moved there) and `doc()` (the courier hands it the whole body after an attach, an
+edit, or a move; a doc's thread syncs as the doc, never its messages). `importDocFile`
+(`sync/docfiles.ts`) is the shared inbound half.
+
+- **GitHub** (`docs: { repo: { dir, channel, branch } }`): as above. A conflict keeps the board's
+  version and makes a task that links the file's blob at the pushed commit. An imported merge is
+  written back, since it can hold what the file lacks; the provider writes nothing when the file
+  already says it.
+- **Notion** uses Notion's Markdown API (`GET` and `PATCH /v1/pages/{id}/markdown`), which made the
+  block mapping unnecessary. A mirror is `createDoc { mirror: true }`, syncs only, kept in
+  `docs.source` (not a label); only its sync's imports change it. Two-way pages reconcile three
+  ways whenever either side changes: Notion, the board, and the base (the revision Notion last held,
+  in the `notion.synced` label) merge by section, and each side gets what it lacks. Notion gets one
+  `update_content` replacement per changed section, so untouched blocks keep their IDs and
+  comments; the whole content only when sections are added, removed, or renamed. When both changed
+  a section, the board's text stands on both sides and a task quotes Notion's. Notion comments are
+  not synced yet.
+
 ## 11. The Factory as the first user
 
 The feedback skill changes from posting a thread per lesson to keeping one doc,
@@ -359,12 +380,12 @@ again and folds the two together. A watcher on the doc tells the team when it ch
 
 ## 13. Build plan
 
-| Step | Ships | Done when |
-| --- | --- | --- |
-| 1 | `docs` table, `board.doc`, the `edit` permission, `createDoc`, `editDoc` (section and whole-body, with merge), proposals as tasks, `doc.*` events, snapshots, reads at a revision | the workerd suite covers each conflict case, and breaking any of them fails a test; a property test of random concurrent section edits against a sequential model never diverges; an 18 KB doc edited 1,000 times grows the log by edits, not by body size (measured) |
-| 2 | sections in views, history, diffs, comments on sections, `k:` link terms and backlinks, `moveDoc` | backlinks survive a move; `archive-check.mjs` covers docs (cold docs read and edit the same) |
-| 3 | the `Board` capability, MCP tools, CLI commands, the docs site's guide | the Factory's feedback skill keeps its doc, verified live |
-| 4 | GitHub Markdown sync, then Notion (one-way, then two-way) | live, against a real repo and a real workspace |
+| Step | Ships | Done when | Status |
+| --- | --- | --- | --- |
+| 1 | `docs` table, `board.doc`, the `edit` permission, `createDoc`, `editDoc` (section and whole-body, with merge), proposals as tasks, `doc.*` events, snapshots, reads at a revision | the workerd suite covers each conflict case, and breaking any of them fails a test; a property test of random concurrent section edits against a sequential model never diverges; an 18 KB doc edited 1,000 times grows the log by edits, not by body size (measured) | done: 19 doc tests, each conflict case broken once; 60 property rounds; 1,000 edits grew the log 3.4 MB (about 3.4 KB an edit, against 55 MB for whole bodies) |
+| 2 | sections in views, history, diffs, comments on sections, `k:` link terms and backlinks, `moveDoc` | backlinks survive a move; `archive-check.mjs` covers docs (cold docs read and edit the same) | done: a backlink survives a move; `archive-check` 424 compared, 0 differences |
+| 3 | the `Board` capability, MCP tools, CLI commands, the docs site's guide | the Factory's feedback skill keeps its doc, verified live | done: the live agent folded a correction into `how-we-work#pull-requests` |
+| 4 | GitHub Markdown sync, then Notion (one-way, then two-way) | live, against a real repo and a real workspace | done: `discohead/factory-playground` and a Notion page, races and conflicts included |
 
 The conformance kit is unaffected: docs are new routes, and an `edit` on a non-doc message behaves
 exactly as before.

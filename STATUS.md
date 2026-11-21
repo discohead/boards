@@ -22,6 +22,10 @@ https://factory.datspace-web.workers.dev (the factory template, its board at `/b
 | Cap'n Web at `/b/<name>/rpc` | `test/capnweb-client.mjs` over WebSocket and HTTP batch, live |
 | MCP at `/b/<name>/mcp`, with `run_code` in a Dynamic Worker | the MCP SDK client, live: tools listed and called; `run_code` runs several board calls, is refused outside its channels, and has no network |
 | The factory | live: GitHub issue #2 on the playground repo became a thread; the agent reproduced the bug with failing tests and opened PR #3 (its new tests fail on main and pass on the branch, checked by hand); it scheduled its own check-ins, which fired on time |
+| Docs: `createDoc`, section and whole-body edits with merges, proposals as tasks, templates, history and diffs at any revision, comments on sections, `[[path]]` links and backlinks, moves (`design/docs.md`) | workerd suite: 19 doc tests, every conflict case and 16 mutations seen failing; a 60-round property test of concurrent section edits against a sequential model; 1,000 edits to an 18 KB doc grew the log 3.4 MB (about 3.4 KB an edit; whole bodies would be 55 MB); `archive-check` 424 compared, 0 differences, cold docs included |
+| Docs in the binding, MCP (`doc_read`, `doc_edit`, `doc_create`, `doc_search`), and the CLI (`boards doc`, `boards docs`) | workerd suite (MCP, propose when narrowed), CLI end-to-end tests; live: the factory's agent, told a correction in `project-factory/rsi`, folded it into the `pull-requests` section of `project-factory/factory/how-we-work` and linked it |
+| Docs kept in step with GitHub Markdown files | workerd suite (5 sync tests, 7 mutations) and GitHub's half against a fake API (5 mutations); live on `discohead/factory-playground`: a pushed file became a doc in 5 s, a board edit became a commit by the app (its own push not imported), a race on two sections converged on both sides, a race on one section made a task linking GitHub's version, and a move moved the file |
+| Docs kept in step with Notion pages, mirrored or two-way | Notion's half against a fake API (12 tests, each break seen failing); live on a real workspace page: a mirror (people's board edits refused with `doc_mirrored`), then two-way: a board edit landed as one section replacement, a race on two sections converged on both sides in 6 s, and a race on one section kept the board's text with a task quoting Notion's |
 
 ## Where it differs from the design or the protocol
 
@@ -63,6 +67,9 @@ https://factory.datspace-web.workers.dev (the factory template, its board at `/b
   /b/<name>/inbox/<key>/replay` (manage everywhere) gives failed events 5 fresh tries: during one
   deploy's rollout a Ledger still on the old code refused a GitHub event, and replaying it after
   the rollout made its thread (issue #4 on the playground repo, board thread #47).
+- Docs: a Notion mirror can't become two-way in place (delete the doc, then switch the page); Notion comments aren't synced; a doc imported from GitHub or Notion is authored by the sync, not the person who pushed or typed it; a doc removed from the repo stays on the board.
+- Docs: a GitHub push by the app itself is never imported, so a docs change the agent commits with the app's token lands in the repo only.
+- Docs: `merge` puts a section the other side added before every section at the end rather than at the top (`doctext.ts`).
 
 ## Benchmarks
 
