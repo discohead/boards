@@ -256,8 +256,12 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
     }
 
     // -- watchers: config wiring, delivered by Mailboxes ----------------------------------------
+    private watchersActors = -1
     private compiledWatchers(ctx: Ctx) {
-      if (this.watchers) return this.watchers
+      // A tail names actors by handle (--by, --for): compiled again when an actor is new.
+      const actors = this.sql.one<{ n: number }>('select count(*) as n from actors')?.n ?? 0
+      if (this.watchers && actors === this.watchersActors) return this.watchers
+      this.watchersActors = actors
       this.watchers = Object.entries(this.config.watch ?? {}).map(([id, watch]) => {
         const spec = parseTail(watch.tail)
         return { id, spec, tail: compile(ctx, spec), sink: watch.sink }

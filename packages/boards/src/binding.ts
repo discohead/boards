@@ -255,6 +255,16 @@ export class Board extends RpcTarget {
     return call(this.#seat, 'react', checked('react', { ...options(opts), emoji }, { id }))
   }
 
+  /** Follows what a message is in (its thread, or its discussion on a doc), or unfollows it with { on: false }. */
+  follow(id: string, opts?: { on?: boolean }) {
+    return call(this.#seat, 'follow', checked('follow', options(opts), { id }))
+  }
+
+  /** What this caller follows, newest first. */
+  follows(query?: { limit?: number }) {
+    return call(this.#seat, 'follows', checked('follows', query))
+  }
+
   label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> }) {
     return call(this.#seat, 'label', checked('label', change, { id }))
   }

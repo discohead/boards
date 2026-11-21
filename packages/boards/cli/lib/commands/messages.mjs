@@ -198,6 +198,45 @@ export const react = {
   },
 }
 
+/** Follows, or unfollows, what a message is in: its thread, or its discussion on a doc. */
+async function setFollow(ctx, on, command) {
+  const id = idOf(required(ctx.positionals[0], 'a message ID', 'boards ' + command))
+  const answer = await ctx.board().request("couldn't " + command + ' ' + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/follow', { body: { on } })
+  if (ctx.json) return ctx.emit({ follow: answer })
+  const what = answer.discussion ? 'the discussion ' + ref(answer.discussion) + ' in ' + ref(answer.thread) : ref(answer.thread)
+  ctx.print([(on ? 'following ' : 'unfollowed ') + what])
+}
+
+export const follow = {
+  usage: [
+    'boards follow <id>',
+    '',
+    'Follow what a message is in: its thread, or on a doc, its discussion. What',
+    'lands there then reaches you (boards tail --for me). Starting a thread follows',
+    'it; replying, or being mentioned, follows it too.',
+  ].join('\n'),
+  flags: {},
+  run: (ctx) => setFollow(ctx, true, 'follow'),
+}
+
+export const unfollow = {
+  usage: 'boards unfollow <id>\n\nStop following what a message is in. A mention still reaches you.',
+  flags: {},
+  run: (ctx) => setFollow(ctx, false, 'unfollow'),
+}
+
+export const follows = {
+  usage: 'boards follows [--limit <n>]\n\nWhat you follow, newest first: each thread, or discussion on a doc.',
+  flags: { limit: 'string' },
+  async run(ctx) {
+    const limit = ctx.flags.limit ? Number(ctx.flags.limit) : undefined
+    const answer = await ctx.board().request("couldn't list what you follow", 'GET', '/follows' + (limit ? '?limit=' + limit : ''))
+    if (ctx.json) return ctx.emit({ follows: answer.follows })
+    if (!answer.follows.length) return ctx.print(['following nothing'])
+    ctx.print(columns(answer.follows.map((entry) => [ref(entry.thread) + (entry.discussion ? ' ' + ref(entry.discussion) : ''), entry.channel, entry.cause])))
+  },
+}
+
 export const label = {
   usage: [
     'boards label <id> [k=v]... [--unset <k>]... [--if k=v]... [--if-unset <k>]...',

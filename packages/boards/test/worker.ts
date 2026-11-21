@@ -16,6 +16,8 @@ export const { Ledger, Relay, Mailbox, Inbox, gateway } = defineBoards(() => ({
   watch: {
     everything: { tail: '', sink: { kind: 'url', url: 'https://sink.test/everything' } },
     flaky: { tail: 'flaky', sink: { kind: 'url', url: 'https://sink.test/flaky' } },
+    // What reaches ada (design/follows.md): follows.test.ts.
+    'for-ada': { tail: '--for @ada', sink: { kind: 'url', url: 'https://sink.test/for-ada' } },
     ...lateWatchers,
   },
   sync: { test: provider },

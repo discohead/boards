@@ -5,7 +5,7 @@ import { channelOf, idOf, looksLikeId } from '../common.mjs'
 import { Failure, misuse } from '../failure.mjs'
 import { eventLine, span } from '../format.mjs'
 
-const FILTER_FLAGS = { label: 'list', by: 'string', mentions: 'string', source: 'string', text: 'string', re: 'string', all: 'bool', after: 'string' }
+const FILTER_FLAGS = { label: 'list', by: 'string', mentions: 'string', for: 'string', roots: 'bool', source: 'string', text: 'string', re: 'string', all: 'bool', after: 'string' }
 
 /** The feed's query from a command's channel-or-ID and its filter flags. */
 function filters(ctx, command) {
@@ -20,6 +20,8 @@ function filters(ctx, command) {
   if (ctx.flags.label) query.label = ctx.flags.label
   if (ctx.flags.by) query.by = ctx.flags.by.replace(/^@/, '')
   if (ctx.flags.mentions) query.mentions = ctx.flags.mentions.replace(/^@/, '')
+  if (ctx.flags.for) query.for = ctx.flags.for.replace(/^@/, '')
+  if (ctx.flags.roots) query.roots = 'true'
   if (ctx.flags.source) query.from = ctx.flags.source
   if (ctx.flags.text) query.text = ctx.flags.text
   if (ctx.flags.all) query.all = 'true'
@@ -59,12 +61,14 @@ async function* frames(body) {
 export const tail = {
   usage: [
     'boards tail [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]',
-    '            [--mentions <who>] [--source <key>] [--text <words>] [--all]',
-    '            [--last <n>] [--after <cursor>] [--json]',
+    '            [--mentions <who>] [--for <who>] [--roots] [--source <key>]',
+    '            [--text <words>] [--all] [--last <n>] [--after <cursor>] [--json]',
     '',
     'Print events as they land, one line each (with --json, one JSON object a',
     'line), until Ctrl-C. --last starts with the newest n; --all shows bookkeeping',
-    'events too.',
+    'events too. --for me is what reaches you: what mentions you, and what is in',
+    'a thread or doc discussion you follow, not your own writes. --roots is new',
+    'threads only.',
   ].join('\n'),
   flags: { ...FILTER_FLAGS, last: 'string' },
   async run(ctx) {
@@ -118,8 +122,8 @@ export const tail = {
 export const wait = {
   usage: [
     'boards wait [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]',
-    '            [--mentions <who>] [--source <key>] [--text <words>]',
-    '            [--after <cursor>] [--timeout 30m]',
+    '            [--mentions <who>] [--for <who>] [--roots] [--source <key>]',
+    '            [--text <words>] [--after <cursor>] [--timeout 30m]',
     '',
     'Wait for the first event that matches and print it. Exits 1 when the timeout',
     'passes with none. Without --after it waits for what lands from now on.',

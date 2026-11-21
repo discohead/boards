@@ -37,7 +37,7 @@ export function eventView(ctx: Ctx, row: EventRow, compiled: Compiled, all: bool
   if (HIDDEN.has(row.type) && !all) return null
   if (compiled.criteria) {
     if (row.message === null || !facets) return null
-    if (!(matches(compiled, facets.before) || matches(compiled, facets.after))) return null
+    if (!(matches(compiled, facets.before, row.actor) || matches(compiled, facets.after, row.actor))) return null
   } else if (row.message === null && !all) return null
   const payload = JSON.parse(row.payload) as Record<string, unknown>
   const view: Record<string, unknown> = { cursor: ref(row.seq), type: row.type, createdAt: iso(row.at), payload: payloadView(ctx, payload) }

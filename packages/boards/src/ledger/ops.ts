@@ -67,6 +67,8 @@ export const hooks = {
   viewExtras: (_ctx: Pick<Ctx, 'board' | 'sql' | 'now'>, _row: MessageRow): Record<string, unknown> | undefined => undefined,
   /** Whether a root is a doc (docs.ts): its body changes through editDoc, not edit. */
   docRoot: (_ctx: Pick<Ctx, 'sql'>, _root: number): boolean => false,
+  /** A message was just written (in its transaction, before its event): follows.ts records who follows it. */
+  posted: (_ctx: Ctx, _row: MessageRow): void => {},
   /** A task is about to complete (in the completion's transaction): a part may refuse it by throwing. */
   taskCompleting: (_ctx: Ctx, _root: number): void => {},
   /** Pending schedules that reply in a thread, for its view. */

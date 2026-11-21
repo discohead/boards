@@ -6,7 +6,7 @@ import { GLOBAL_FLAGS, parse } from './lib/args.mjs'
 import { connect } from './lib/board.mjs'
 import { Failure, misuse } from './lib/failure.mjs'
 import { columns } from './lib/format.mjs'
-import { channels, del, edit, label, post, react, read, reply, typing, whoami } from './lib/commands/messages.mjs'
+import { channels, del, edit, follow, follows, label, post, react, read, reply, typing, unfollow, whoami } from './lib/commands/messages.mjs'
 import { tail, wait } from './lib/commands/feed.mjs'
 import { tasks } from './lib/commands/tasks.mjs'
 import { schedule, schedules } from './lib/commands/schedules.mjs'
@@ -47,7 +47,7 @@ const token = {
 }
 
 const COMMANDS = {
-  whoami, channels, read, post, reply, edit, delete: del, react, label, typing,
+  whoami, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows,
   tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, token,
 }
 
@@ -67,6 +67,8 @@ const OVERVIEW = [
     ['react <id> <emoji>', 'react, or take it back with --remove'],
     ['label <id> k=v...', 'set labels, or --unset them'],
     ['typing <id> [status]', 'show typing in synced threads'],
+    ['follow <id>', 'follow a thread or doc discussion; unfollow'],
+    ['follows', 'what you follow'],
     ['tail [<channel>|<prefix/>]', 'print events as they land'],
     ['wait [<channel>] --re <id>', 'wait for the first event that matches'],
     ['tasks [<channel>]', 'list tasks; create, claim, complete, and more'],

@@ -199,6 +199,8 @@ export type Facet = {
   text: string
   terms: string[]
   deleted: boolean
+  /** Who follows what the message is in (follows.ts), when the event was written. */
+  followers?: string[]
 }
 
 export const ref = (n: number) => String(n)
@@ -290,7 +292,27 @@ export class Board {
     const doc = row.re === null && !row.deleted ? this.sql.one<{ facet_text: string; facet_terms: string }>('select facet_text, facet_terms from docs where root = ?', row.id) : null
     const text = row.deleted ? '' : doc ? doc.facet_text : row.text
     const terms = row.deleted ? [] : doc ? json<string[]>(doc.facet_terms, []) : mentionTerms(row.text)
-    return { id: row.id, channel: row.channel, re: row.re, actor: row.actor, principal: row.principal, from: row.from_key, labels: withTask(this, row, labels), rootLabels: row.re === null ? withTask(this, row, labels) : rootLabels, text, terms, deleted: Boolean(row.deleted) }
+    const followers = row.deleted ? [] : this.followers(row)
+    return { id: row.id, channel: row.channel, re: row.re, actor: row.actor, principal: row.principal, from: row.from_key, labels: withTask(this, row, labels), rootLabels: row.re === null ? withTask(this, row, labels) : rootLabels, text, terms, deleted: Boolean(row.deleted), ...(followers.length ? { followers } : {}) }
+  }
+
+  /** What a message is in, for following (follows.ts): its thread, or in a doc's thread, its discussion (a top-level comment and the replies under it). */
+  unitOf(row: MessageRow): { root: number; discussion: number } {
+    const root = row.re ?? row.id
+    if (row.re === null || !this.sql.one('select 1 as there from docs where root = ?', root)) return { root, discussion: 0 }
+    let head = row
+    for (let depth = 0; head.reply_to !== null && depth < 500; depth++) {
+      const up = this.message(head.reply_to)
+      if (!up || up.re === null) break
+      head = up
+    }
+    return { root, discussion: head.id }
+  }
+
+  /** Who follows what a message is in: its thread, and in a doc, its discussion. */
+  followers(row: MessageRow): string[] {
+    const unit = this.unitOf(row)
+    return this.sql.all<{ actor: string }>('select distinct actor from follows where root = ? and discussion in (0, ?) and following = 1 order by actor limit 200', unit.root, unit.discussion).map((found) => found.actor)
   }
   private rootLabels(root: number): Record<string, string> {
     const row = this.message(root)

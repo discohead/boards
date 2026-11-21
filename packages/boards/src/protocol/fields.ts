@@ -35,4 +35,6 @@ export const Filters = z.object({
   label: z.union([LabelFilter, z.array(LabelFilter)]).optional(),
   from: z.string().min(1).max(165).optional(),
   text: z.string().min(1).max(200).optional(),
+  for: z.string().min(1).max(200).optional(),
+  roots: z.union([z.boolean(), QueryBool]).optional(),
 })

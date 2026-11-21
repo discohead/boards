@@ -42,6 +42,8 @@ export function parseTail(expression: string): Tail {
       case '--re': out.re = value(); break
       case '--by': out.by = value().replace(/^@/, ''); break
       case '--mentions': out.mentions = value().replace(/^@/, ''); break
+      case '--for': out.for = value().replace(/^@/, ''); break
+      case '--roots': out.roots = true; break
       case '--label': labels.push(value()); break
       case '--source': case '--from': out.from = value(); break
       case '--text': out.text = value(); break

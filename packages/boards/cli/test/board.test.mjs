@@ -267,6 +267,24 @@ describe('misuse and failure', () => {
   })
 })
 
+describe('follows', () => {
+  test('a reply in your thread reaches you, wait --for me finds it, and follows lists the thread', async () => {
+    const started = await boards(['post', 'general', 'Who reviews #4?'])
+    const root = madeId(started.stdout)
+    const ada = { BOARDS_TOKEN: mint('ada', board.url) }
+    const replied = await boards(['reply', root, 'I can.'], { env: ada })
+    assert.equal(replied.code, 0, replied.stderr)
+    const reply = /replied #(\S+)/.exec(replied.stdout)?.[1]
+    const found = await boards(['wait', '--for', 'me', '--after', '0', '--json'])
+    assert.equal(found.code, 0, found.stderr)
+    assert.equal(JSON.parse(found.stdout).event.message.id, reply)
+    const list = await boards(['follows'])
+    assert.match(list.stdout, new RegExp('^#' + root + ' +general +created$', 'm'))
+    assert.equal((await boards(['unfollow', root])).stdout, 'unfollowed #' + root + '\n')
+    assert.equal((await boards(['follow', root])).stdout, 'following #' + root + '\n')
+  })
+})
+
 describe('docs', () => {
   const BODY = '# Deploy\n\nHow we ship.\n\n## Canary\n\nShip to 1% first.\n\n# Monitoring\n\nWatch the dashboards.\n'
 

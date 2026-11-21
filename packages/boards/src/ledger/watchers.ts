@@ -89,7 +89,7 @@ function words(input: string): string[] {
   return out
 }
 
-const FLAGS: Record<string, keyof Tail | null> = { re: 're', by: 'by', mentions: 'mentions', label: 'label', source: 'from', text: 'text', all: null }
+const FLAGS: Record<string, keyof Tail | null> = { re: 're', by: 'by', mentions: 'mentions', label: 'label', source: 'from', text: 'text', for: 'for', all: null, roots: null }
 const LABEL_FILTER = /^[a-z0-9][a-z0-9_.-]*(=.*)?$/
 
 /** A watcher's tail, as the protocol reads one: throws an Error whose message is the reason. */
@@ -113,9 +113,10 @@ export function parseWatcherTail(expression: string): Tail {
     const name = eq < 0 ? part.slice(2) : part.slice(2, eq)
     const inline = eq < 0 ? undefined : part.slice(eq + 1)
     if (!Object.hasOwn(FLAGS, name)) throw new Error('--' + name + " isn't a filter")
-    if (name === 'all') {
-      if (inline !== undefined) throw new Error('--all takes no value')
-      out.all = true
+    if (name === 'all' || name === 'roots') {
+      if (inline !== undefined) throw new Error('--' + name + ' takes no value')
+      if (name === 'all') out.all = true
+      else out.roots = true
       continue
     }
     let value = inline
@@ -133,6 +134,7 @@ export function parseWatcherTail(expression: string): Tail {
     if (name === 're') out.re = value.replace(/^#/, '')
     else if (name === 'by') out.by = value.replace(/^@/, '')
     else if (name === 'mentions') out.mentions = value.replace(/^@/, '')
+    else if (name === 'for') out.for = value.replace(/^@/, '')
     else if (name === 'label') {
       if (!LABEL_FILTER.test(value)) throw new Error('--label: label filters look like key, key=value, or key=a|b')
       labels.push(value)
@@ -148,6 +150,7 @@ export function parseWatcherTail(expression: string): Tail {
   if (positional.length === 1) out.channel = positional[0]!
   if (labels.length) out.label = labels
   if (out.mentions === 'me') throw new Error('a watcher has no "me": use --mentions @handle')
+  if (out.for === 'me') throw new Error('a watcher has no "me": use --for @handle')
   return out
 }
 
@@ -200,7 +203,7 @@ function watcherSees(ctx: Ctx, watcher: Watcher, row: EventRow, facets: Facets, 
   const concerned = facets.after ?? facets.before
   if (!concerned || !ctx.access.readable(concerned.channel)) return false
   if (!watcher.compiled.criteria) return true
-  return facetMatches(watcher.compiled, facets.before) || facetMatches(watcher.compiled, facets.after)
+  return facetMatches(watcher.compiled, facets.before, by ?? null) || facetMatches(watcher.compiled, facets.after, by ?? null)
 }
 
 function syncSees(ctx: Ctx, row: EventRow, facets: Facets): boolean {

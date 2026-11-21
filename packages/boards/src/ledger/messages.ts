@@ -223,6 +223,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   if (root) refreshThread(ctx, root.id)
   else ctx.sql.run('insert into threads (root, channel, replies, last) values (?, ?, 0, ?)', seq, channel, seq)
   writeTerms(ctx, { id: seq, thread, text, deleted: 0, labels, attachments })
+  hooks.posted(ctx, ctx.board.message(seq)!)
   const payload: Record<string, unknown> = { channel, text, re: root?.id ?? null, replyTo, thread: threadKey, labels, noSync: Boolean(body.noSync), by: author, origin: imported.origin ?? null, from: imported.from ?? null }
   if (attachments.length) payload.attachments = attachments
   if (imported.links?.length) payload.links = imported.links
@@ -434,7 +435,7 @@ op('channelMessages', (ctx, query: { channel: string; after?: string; limit?: nu
 
 // -- filters ------------------------------------------------------------------------------------
 
-export type Filters = { channel?: string; re?: string; by?: string; mentions?: string; label?: string | string[]; from?: string; text?: string }
+export type Filters = { channel?: string; re?: string; by?: string; mentions?: string; label?: string | string[]; from?: string; text?: string; for?: string; roots?: boolean | string }
 export type Compiled = {
   criteria: boolean
   channel?: string
@@ -446,13 +447,26 @@ export type Compiled = {
   labels: [string, string[] | null][]
   from?: string
   text?: string
+  /** for: the actors it's for (not their own writes; their follows or their mentions), and the terms that mention them. */
+  for?: { actors: Set<string>; terms: Set<string> }
+  roots?: boolean
 }
 
 /** Filters as one predicate: resolved once against the actors as they are now. */
 export function compile(ctx: Ctx, filters: Filters): Compiled {
   const labelList = filters.label === undefined ? [] : Array.isArray(filters.label) ? filters.label : [filters.label]
   const labels = labelList.map((entry): [string, string[] | null] => (entry.includes('=') ? [entry.slice(0, entry.indexOf('=')), entry.slice(entry.indexOf('=') + 1).split('|')] : [entry, null]))
-  const out: Compiled = { criteria: [filters.channel, filters.re, filters.by, filters.mentions, filters.from, filters.text].some((value) => value !== undefined) || labels.length > 0, labels }
+  const roots = filters.roots === true || filters.roots === 'true' || filters.roots === '1'
+  const out: Compiled = { criteria: [filters.channel, filters.re, filters.by, filters.mentions, filters.from, filters.text, filters.for].some((value) => value !== undefined) || labels.length > 0 || roots, labels }
+  if (roots) out.roots = true
+  if (filters.for !== undefined) {
+    // An actor and its handle; a handle names each actor that has it.
+    const named = filters.for === 'me' ? [{ id: ctx.actor.id, handle: ctx.actor.handle }] : (() => {
+      const known = ctx.board.actor(filters.for!)
+      return known ? [{ id: known.id, handle: known.handle }] : ctx.sql.all<{ id: string; handle: string }>('select id, handle from actors where handle_lc = ?', filters.for!.toLowerCase())
+    })()
+    out.for = { actors: new Set(named.map((actor) => actor.id)), terms: new Set(named.flatMap((actor) => [actor.id, actor.handle.toLowerCase()])) }
+  }
   if (filters.channel !== undefined) out.channel = filters.channel
   if (filters.re !== undefined) out.re = /^(0|[1-9]\d{0,15})$/.test(filters.re) ? Number(filters.re) : -1
   if (filters.by !== undefined) {
@@ -494,7 +508,8 @@ export function compile(ctx: Ctx, filters: Filters): Compiled {
 const labelHolds = (labels: Record<string, string>, [key, values]: [string, string[] | null]) => Object.hasOwn(labels, key) && (values === null || values.includes(labels[key]!))
 
 /** Whether a message, as a facet, meets every filter. */
-export function matches(compiled: Compiled, facet: Facet | null): boolean {
+/** Whether a facet holds. by is who wrote the event about it (a reaction's author, say), when it isn't the message's. */
+export function matches(compiled: Compiled, facet: Facet | null, by?: string | null): boolean {
   if (!facet) return false
   if (compiled.channel !== undefined) {
     const value = compiled.channel
@@ -508,6 +523,12 @@ export function matches(compiled: Compiled, facet: Facet | null): boolean {
   if (compiled.terms && !facet.terms.some((value) => compiled.terms!.has(value) || compiled.prefixes!.some((prefix) => value.startsWith(prefix)))) return false
   if (compiled.from !== undefined && (facet.from ?? 'board') !== compiled.from) return false
   if (compiled.text !== undefined && !facet.text.toLowerCase().includes(compiled.text)) return false
+  if (compiled.roots && facet.re !== null) return false
+  if (compiled.for) {
+    const { actors, terms } = compiled.for
+    if (actors.has(by ?? facet.actor)) return false
+    if (!(facet.followers ?? []).some((actor) => actors.has(actor)) && !facet.terms.some((value) => terms.has(value))) return false
+  }
   for (const label of compiled.labels) if (!(labelHolds(facet.labels, label) || (facet.re !== null && labelHolds(facet.rootLabels, label)))) return false
   return true
 }
