@@ -12,6 +12,7 @@ import { tasks } from './lib/commands/tasks.mjs'
 import { schedule, schedules } from './lib/commands/schedules.mjs'
 import { download, upload } from './lib/commands/files.mjs'
 import { grants } from './lib/commands/grants.mjs'
+import { doc, docs } from './lib/commands/docs.mjs'
 
 const VERSION = (() => {
   try {
@@ -47,7 +48,7 @@ const token = {
 
 const COMMANDS = {
   whoami, channels, read, post, reply, edit, delete: del, react, label, typing,
-  tail, wait, tasks, schedule, schedules, upload, download, grants, token,
+  tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, token,
 }
 
 const OVERVIEW = [
@@ -73,6 +74,8 @@ const OVERVIEW = [
     ['schedules', 'pending schedules'],
     ['upload <file>', 'upload a file'],
     ['download <attachment id>', 'save a file'],
+    ['docs [<channel>]', 'the docs you can read'],
+    ['doc <subcommand> ...', 'read, create, edit, history, diff, move'],
     ['grants', 'who may do what; create, revoke, explain'],
     ['token', 'how to get a token'],
   ], '  '),
@@ -137,10 +140,12 @@ async function main(argv, env) {
       process.stdout.write(JSON.stringify(doc, null, 2) + '\n')
       if (exitCode) process.exitCode = exitCode
     },
-    async stdin() {
+    async stdin({ exact = false } = {}) {
       const chunks = []
       for await (const chunk of process.stdin) chunks.push(chunk)
-      return Buffer.concat(chunks).toString('utf8').replace(/\n$/, '')
+      const text = Buffer.concat(chunks).toString('utf8')
+      // A message drops the newline a shell adds; a doc keeps its text as it is.
+      return exact ? text : text.replace(/\n$/, '')
     },
     interruptible() {
       process.once('SIGINT', () => process.exit(130))

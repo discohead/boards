@@ -19,5 +19,9 @@ export const REPOS: Record<string, string> = {
 /** The factory's own repo, where it changes itself when asked, or null. */
 export const OWN_REPO: string | null = null
 
-/** What the agent may do on the board: read, post, react, and label in its own channels, nowhere else. */
-export const AGENT_CAN = HOME + '/=read,post,react,label'
+/** The factory's living doc of how it works: one section per area, kept by the agent (skills/feedback.md). */
+export const HOW_WE_WORK = { channel: channel('factory'), slug: 'how-we-work' }
+export const HOW_WE_WORK_PATH = HOW_WE_WORK.channel + '/' + HOW_WE_WORK.slug
+
+/** What the agent may do on the board: read, post, react, and label in its own channels, nowhere else; and edit the docs in its own. */
+export const AGENT_CAN = HOME + '/=read,post,react,label;' + HOW_WE_WORK.channel + '=read,post,react,label,edit'

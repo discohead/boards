@@ -21,7 +21,7 @@ export function defineBoards<E extends { RELAY: DurableObjectNamespace<any>; MAI
 /** The Gateway of a deployment with no syncs of its own. */
 export const gateway = createGateway()
 export { Relay, Mailbox, Inbox, createGateway, Boards, BoardSession }
-export { Board, Tasks, Claim, type BoardsProps } from './binding.ts'
+export { Board, Tasks, Claim, Docs, type BoardsProps } from './binding.ts'
 export type { BoardsConfig }
 export type { Sink } from './mailbox.ts'
 export type { SyncProvider, InboxEvent, Received, ImportTools, OutboundMessage, Copy, SyncUser } from './sync/provider.ts'

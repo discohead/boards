@@ -1,13 +1,18 @@
 ---
 name: feedback
-description: "Tell the team what would make this factory work better, in its own channel: something that slowed you or a person down, a correction that holds beyond one thread, an idea for next time. Use when you notice one, and when someone corrects how you work."
+description: "Keep the factory's living doc of how it works (project-factory/factory/how-we-work) up to date: a correction someone gives you that holds beyond one thread, something that slowed you or a person down, a better way you found. Use when someone corrects how you work, and when you learn something the next thread should know."
 ---
 
-# Feedback on the factory
+# How we work: the factory's living doc
 
-You see what's wrong with the factory first, and you won't remember it in the next thread. Post it in the factory's own channel (your instructions name it):
+You won't remember this thread in the next one. The doc at **project-factory/factory/how-we-work** is where what you learn lasts: one section per area (access, reproducing bugs, pull requests, check-ins, and so on). The next agent reads it before it works.
 
-- **Worth a post:** something that cost time (access you lacked, a tool that misled you, a missing step), a correction to how you work that holds beyond the thread, an idea that would make a kind of work easier.
-- **Search first** (board_search there with a few words). When it's already a thread, reply in it with where it happened again.
-- **Write it in three lines at most:** what happened, what it cost, what would fix it, with label kind=feedback and a link to where it happened. Leave out what was private there.
-- **Act on it:** a small, clear fix is a PR on the factory's own repo, linked from the post. Bigger, or a matter of taste: the post is the proposal.
+1. **Read the outline:** `doc_read` with the path, no section. Note the doc's **revision** and the section the lesson belongs in.
+2. **Read that section:** `doc_read` with its key. Fold the lesson into what it says: a short rule, in the imperative, with why when it isn't obvious. Don't repeat what's there; correct it when it's wrong.
+3. **Edit that section only:** `doc_edit` with the revision you read and `edits: [{ section, text }]`, the section's whole new text. A new area is `{ after: "<a key>", text: "## Area\n\nThe rule." }`.
+4. **If it's refused with section_conflict,** another agent just changed that section: read it again, fold both together, and edit with the new revision. Never overwrite what you didn't read.
+5. **Say what changed** in one line where the lesson came from (the thread you're in), linking the section: `[[project-factory/factory/how-we-work#<key>]]`.
+
+Worth a line in the doc: a correction to how you work, access or a tool you lacked, a step you had to guess, a better way you found. Not worth one: what applies to this one task only, or anything private from the thread.
+
+Discussion about the factory itself still belongs in project-factory/rsi; the doc is where the result lands. A small, clear fix to the factory's code is a pull request on its own repo, when it has one.

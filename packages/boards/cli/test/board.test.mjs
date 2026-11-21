@@ -266,3 +266,38 @@ describe('misuse and failure', () => {
     assert.match(stderr, /isn't a channel/)
   })
 })
+
+describe('docs', () => {
+  const BODY = '# Deploy\n\nHow we ship.\n\n## Canary\n\nShip to 1% first.\n\n# Monitoring\n\nWatch the dashboards.\n'
+
+  test('create, read by section, edit a section, and refuse a stale edit to it', async () => {
+    const made = await boards(['doc', 'create', 'docs/cli/deploy', '-'], { input: BODY })
+    assert.equal(made.code, 0, made.stderr)
+    assert.match(made.stdout, /^made docs\/cli\/deploy  #\S+  revision (\d+)\n/)
+    const rev = /revision (\d+)/.exec(made.stdout)[1]
+    const section = await boards(['doc', 'read', 'docs/cli/deploy', '--section', 'deploy/canary'])
+    assert.equal(section.stdout, '\nShip to 1% first.\n\n')
+    const edited = await boards(['doc', 'edit', 'docs/cli/deploy', '--section', 'deploy/canary', '--revision', rev, '-'], { input: '\nShip to 5% first.\n\n' })
+    assert.equal(edited.code, 0, edited.stderr)
+    assert.match(edited.stdout, /^edited docs\/cli\/deploy  revision \d+\n$/)
+    const stale = await boards(['doc', 'edit', 'docs/cli/deploy', '--section', 'deploy/canary', '--revision', rev, 'late'])
+    assert.equal(stale.code, 1)
+    assert.match(stale.stderr, /section_conflict/)
+    const other = await boards(['doc', 'edit', 'docs/cli/deploy', '--section', 'monitoring', '--revision', rev, '-'], { input: '\nWatch p99.\n' })
+    assert.equal(other.code, 0, other.stderr)
+    const body = await boards(['doc', 'read', 'docs/cli/deploy'])
+    assert.equal(body.stdout, BODY.replace('Ship to 1% first.', 'Ship to 5% first.').replace('Watch the dashboards.', 'Watch p99.'))
+  })
+
+  test('history, a move that keeps its links, and the list', async () => {
+    await boards(['doc', 'create', 'docs/cli/notes', '-'], { input: '# Notes\n\nFirst.\n' })
+    const link = await boards(['post', 'general', 'see [[docs/cli/notes]]'])
+    const history = await boards(['doc', 'history', 'docs/cli/notes'])
+    assert.match(history.stdout, /^\d+  .*  boards:user:tester  created$/m)
+    assert.equal((await boards(['doc', 'move', 'docs/cli/notes', 'docs/cli/archive'])).stdout, 'moved to docs/cli/archive\n')
+    const backlinks = await boards(['doc', 'backlinks', 'docs/cli/archive'])
+    assert.match(backlinks.stdout, new RegExp('^#' + madeId(link.stdout) + '  thread  general  see '))
+    const list = await boards(['docs', 'docs/cli/'])
+    assert.match(list.stdout, /^docs\/cli\/archive  revision \d+  .*  Notes$/m)
+  })
+})

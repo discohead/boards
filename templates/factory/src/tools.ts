@@ -14,6 +14,8 @@ export const TOOLS: ToolDef[] = [
   { name: 'board_read', description: 'Reads a whole thread by any of its message IDs: the root, then each reply, with author, labels, reactions, files, and the thread’s pending schedules.', input_schema: object({ id: str }, ['id']) },
   { name: 'board_search', description: 'Finds threads, most recently active last. channel is a channel, or a subtree with a trailing slash (project-factory/). text is words a message says; label is key or key=value; by is a handle or actor ID.', input_schema: object({ channel: str, text: str, label: str, by: str, limit: { type: 'integer', minimum: 1, maximum: 50 } }, []) },
   { name: 'board_reply', description: 'Replies in a thread. after is the newest message you read: the reply is refused (newer_message) if someone posted since. attach is paths in your sandbox, each at most 4 MB.', input_schema: object({ id: str, text: str, after: str, attach: { type: 'array', items: str } }, ['id', 'text']) },
+  { name: 'doc_read', description: 'Reads a doc on the board by its path (project-factory/factory/how-we-work). Without section: its outline (each section’s key and the revision it last changed) and its body. With section (a key from the outline): that section only. Read a doc by section.', input_schema: object({ path: str, section: str }, ['path']) },
+  { name: 'doc_edit', description: 'Edits a doc by section. revision is the doc’s revision when you read it. edits: [{ section, text }] replaces a section’s own text (its heading stays); [{ after, text }] inserts a section after one (text starts with its heading, like "## Reviews"). If that section changed since your revision the edit is refused with section_conflict: read the section again, fold its new text and yours together, and edit again with the new revision.', input_schema: object({ path: str, revision: str, edits: { type: 'array', items: { type: 'object' } } }, ['path', 'revision', 'edits']) },
   { name: 'board_post', description: 'Starts a thread in a channel.', input_schema: object({ channel: str, text: str, labels }, ['channel', 'text']) },
   { name: 'board_react', description: 'Reacts to a message with a short emoji name (eyes, thumbs_up, white_check_mark); remove: true takes it back.', input_schema: object({ id: str, emoji: str, remove: { type: 'boolean' } }, ['id', 'emoji']) },
   { name: 'board_label', description: 'Sets and unsets labels on a message. if makes it conditional: each key must have that value now (null: not set), or nothing changes (label_conflict).', input_schema: object({ id: str, set: labels, unset: { type: 'array', items: str }, if: { type: 'object', additionalProperties: { type: ['string', 'null'] } } }, ['id']) },
@@ -88,6 +90,17 @@ export async function runTool(context: ToolContext, name: string, input: Record<
         }
         const posted = await board('post', body)
         return { content: (name === 'board_reply' ? 'replied' : 'posted') + ' #' + posted.message.id }
+      }
+      case 'doc_read': {
+        const read = await board('docAt', { path: String(input.path), ...(input.section ? { section: String(input.section) } : {}), depth: 6 })
+        const outline = read.doc.sections.map((section: View) => '  '.repeat(section.level - 1) + section.key + '  (' + section.title + ', changed ' + section.changed + ')').join('\n')
+        const head = read.doc.path + '  revision ' + read.doc.revision + '\n' + outline
+        return { content: clip(read.section ? head + '\n\nsection ' + read.section.key + ':\n' + read.section.text + read.section.subtree : head + '\n\n' + read.body) }
+      }
+      case 'doc_edit': {
+        const found = await board('docAt', { path: String(input.path), depth: 1 })
+        const done = await board('editDoc', { id: found.doc.id, revision: String(input.revision), edits: input.edits })
+        return { content: 'edited ' + done.doc.path + ', now at revision ' + done.revision }
       }
       case 'board_react':
         await board('react', { id: String(input.id), emoji: String(input.emoji).replace(/^:|:$/g, ''), ...(input.remove ? { remove: true } : {}) })

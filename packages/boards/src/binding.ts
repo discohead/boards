@@ -290,6 +290,63 @@ export class Board extends RpcTarget {
   get tasks(): Tasks {
     return new Tasks(this.#seat)
   }
+
+  /** Docs: threads whose root holds a body, read and edited by section. */
+  get docs(): Docs {
+    return new Docs(this.#seat)
+  }
+}
+
+/** The board's docs (ledger/docs.ts), each addressed by its root's ID or, with at(), its path. */
+export class Docs extends RpcTarget {
+  #seat: Seat
+  constructor(seat: Seat) {
+    super()
+    this.#seat = seat
+  }
+
+  /** Makes a doc at channel/slug from its body, or from another doc as a template (from). */
+  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string }) {
+    return call(this.#seat, 'createDoc', checked('createDoc', input))
+  }
+
+  /** A doc and its body; with section, that section only; with revision, as it was then. */
+  read(id: string, query?: { section?: string; revision?: string; depth?: number }) {
+    return call(this.#seat, 'doc', checked('doc', query, { id }))
+  }
+
+  /** The doc at a path (docs/runbooks/deploy), read as read() reads. */
+  at(path: string, query?: { section?: string; revision?: string; depth?: number }) {
+    return call(this.#seat, 'docAt', checked('docAt', { ...options(query), path }))
+  }
+
+  /**
+   * Edits a doc: { revision, edits: [{ section, text }] } by section, checked per section, or
+   * { revision | base, body, merge: true } as a whole. propose: true asks for it as a task instead.
+   */
+  edit(id: string, input: Record<string, unknown>) {
+    return call(this.#seat, 'editDoc', checked('editDoc', input, { id }))
+  }
+
+  /** Moves a doc to a new channel, slug, or both: its ID, and every link to it, stay. */
+  move(id: string, to: { channel?: string; slug?: string }) {
+    return call(this.#seat, 'moveDoc', checked('moveDoc', to, { id }))
+  }
+
+  /** Its edits, oldest first: who, when, which sections. */
+  history(id: string, query?: { after?: string; limit?: number }) {
+    return call(this.#seat, 'docHistory', checked('docHistory', query, { id }))
+  }
+
+  /** The sections that changed between two revisions (to: now). */
+  diff(id: string, from: string, to?: string) {
+    return call(this.#seat, 'docDiff', checked('docDiff', { from, ...(to !== undefined ? { to } : {}) }, { id }))
+  }
+
+  /** The threads, replies, and docs that link it. */
+  backlinks(id: string) {
+    return call(this.#seat, 'docBacklinks', checked('docBacklinks', undefined, { id }))
+  }
 }
 
 type Claimed = { task: unknown; claim: { epoch: number; token: string; until: string } }

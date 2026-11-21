@@ -63,6 +63,18 @@ interface Board {
   as(profile: string): Board                                   // writes as <you>+<profile>
   channel(pattern: string): Board                              // 'work/' : only that subtree
   readonly tasks: Tasks
+  readonly docs: Docs
+}
+interface DocView { id: string; path: string; title: string; revision: string; size: number; sections: { key: string; title: string; level: number; changed: string; subtree: string }[] }
+type SectionEdit = { section: string; text?: string; title?: string; subtree?: boolean } | { after: string; text: string } | { remove: string }
+interface Docs {                        // a doc is a thread whose root holds a Markdown body
+  read(id: string, query?: { section?: string; revision?: string }): Promise<{ doc: DocView; body?: string; section?: { key: string; text: string; subtree: string; changed: string } }>
+  at(path: string, query?: { section?: string }): Promise<{ doc: DocView; body?: string; section?: unknown }>
+  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Labels }): Promise<{ message: Message }>
+  // Section edits name the revision you read; a section changed since is refused (section_conflict): read it and redo.
+  edit(id: string, input: { revision: string; edits: SectionEdit[]; propose?: boolean } | { revision?: string; base?: string; body: string; merge?: boolean }): Promise<{ doc: DocView; revision: string }>
+  history(id: string): Promise<{ edits: { revision: string; at: string; sections?: { section: string; op: string }[] }[] }>
+  backlinks(id: string): Promise<{ backlinks: { id: string; kind: string; summary: string }[] }>
 }
 declare const board: Board    // the board, as you. There is no network: fetch() fails.
 `
@@ -101,6 +113,33 @@ const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'doc_read',
+    description: "Read a doc (a thread whose root holds a Markdown body) by id or path (docs/runbooks/deploy). Without section: its outline (doc.sections, each with its key and the revision it last changed) and its body. With section (a key from the outline): that section's text only, which is how to read a long doc. revision reads it as it was.",
+    inputSchema: { type: 'object', properties: { id: { type: 'string' }, path: { type: 'string' }, section: { type: 'string' }, revision: { type: 'string' } }, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'doc_edit',
+    description: "Edit a doc by section, as you. revision is the doc's revision when you read it; edits is a list of { section, text } (replace a section's own text, its heading stays), { section, text, subtree: true } (it and everything under it), { section, title } (rename), { after, text } (insert a section, text starting with its heading), or { remove }. A section changed since your revision is refused with section_conflict: read that section again and redo your change. Without the edit permission, send propose: true (and a note): the change becomes a task someone completes to apply it.",
+    inputSchema: {
+      type: 'object',
+      properties: { id: { type: 'string' }, path: { type: 'string' }, revision: { type: 'string' }, edits: { type: 'array', items: { type: 'object' } }, body: { type: 'string' }, merge: { type: 'boolean' }, propose: { type: 'boolean' }, note: { type: 'string' } },
+      required: ['revision'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'doc_create',
+    description: 'Make a doc at channel/slug, from its Markdown body, or from another doc as a template (from: its id, filling {{title}}, {{author}}, {{date}}).',
+    inputSchema: { type: 'object', properties: { channel: { type: 'string' }, slug: { type: 'string' }, body: { type: 'string' }, from: { type: 'string' }, labels: { type: 'object', additionalProperties: { type: 'string' } } }, required: ['channel', 'slug'], additionalProperties: false },
+  },
+  {
+    name: 'doc_search',
+    description: 'Find docs: by words in them (text), a channel or subtree (docs/runbooks/), or a label (key or key=value). Answers each doc\'s id, path, title, and revision.',
+    inputSchema: { type: 'object', properties: { text: { type: 'string' }, channel: { type: 'string' }, label: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 100 } }, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
     name: 'run_code',
     description: RUN_CODE,
     inputSchema: { type: 'object', properties: { code: { type: 'string', description: 'An async arrow function, like async () => { ... }' } }, required: ['code'], additionalProperties: false },
@@ -125,6 +164,21 @@ async function callTool(ctx: Ctx, name: string, args: Record<string, unknown>) {
         return content(await ctx.board.reply(args.id as string, pick(args, ['text', 'labels'])))
       case 'board_search':
         return content(await ctx.board.threads(pick(args, ['text', 'channel', 'by', 'mentions', 'label', 'limit', 'before'])))
+      case 'doc_read': {
+        const query = pick(args, ['section', 'revision'])
+        return content(typeof args.path === 'string' ? await ctx.board.docs.at(args.path, query) : await ctx.board.docs.read(String(args.id ?? ''), query))
+      }
+      case 'doc_edit': {
+        const id = typeof args.path === 'string' ? ((await ctx.board.docs.at(args.path, { depth: 1 })) as { doc: { id: string } }).doc.id : String(args.id ?? '')
+        return content(await ctx.board.docs.edit(id, pick(args, ['revision', 'edits', 'body', 'merge', 'propose', 'note'])))
+      }
+      case 'doc_create':
+        return content(await ctx.board.docs.create(pick(args, ['channel', 'slug', 'body', 'from', 'labels']) as { channel: string; slug: string }))
+      case 'doc_search': {
+        const label = typeof args.label === 'string' ? ['board.doc', args.label] : 'board.doc'
+        const page = (await ctx.board.threads({ ...pick(args, ['text', 'channel', 'limit']), label })) as { threads: { message: { doc?: { id: string; path: string; title: string; revision: string }; editedAt: string | null; createdAt: string } }[] }
+        return content({ docs: page.threads.map((thread) => thread.message.doc && { ...thread.message.doc, sections: undefined, editedAt: thread.message.editedAt ?? thread.message.createdAt }).filter(Boolean) })
+      }
       case 'run_code': {
         const run = await runCode(ctx, args.code)
         return content(run, 'error' in run)

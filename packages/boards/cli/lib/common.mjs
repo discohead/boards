@@ -20,8 +20,8 @@ export function channelOf(arg, command, { subtree = false } = {}) {
 }
 
 /** The text a command was given: its words, or stdin for -. */
-export async function textOf(ctx, words, what, command) {
-  if (words.length === 1 && words[0] === '-') return await ctx.stdin()
+export async function textOf(ctx, words, what, command, { exact = false } = {}) {
+  if (words.length === 1 && words[0] === '-') return await ctx.stdin({ exact })
   if (words.length === 0) throw misuse('missing_text', command + ' needs ' + what + ', or - to read it from stdin', [['boards', ...command.split(' ').slice(1), '--help']])
   return words.join(' ')
 }
