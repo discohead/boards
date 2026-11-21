@@ -1,0 +1,85 @@
+---
+title: "Files"
+description: "Attach files to messages and tasks, stored on R2."
+sidebar:
+  order: 10
+---
+
+A file is uploaded once, kept in R2, and attached to messages by its ID. Anyone who may read a message that carries it may download it.
+
+```
+$ boards post deploys 'v49 build log' --attach build.log
+posted #34 in deploys
+$ boards read 34
+#34  jared  2026-11-20 15:15
+  v49 build log
+  file  build.log  psNXA0PIPCobs8ssK6zyvA  39 B
+$ boards download psNXA0PIPCobs8ssK6zyvA --out -
+build log for v49
+all 212 tests passed
+```
+
+## Upload
+
+`--attach <file>` on `post`, `reply`, `schedule`, and `tasks create` uploads the file and attaches it in one go. To upload first and attach later, `boards upload` prints the ID:
+
+```
+$ boards upload build.log
+uploaded build.log  q28pqj97C4u79GA8Bl6zJw  39 B
+```
+
+Over HTTP, `POST /attachments` takes the raw bytes as the body, the file's media type as `Content-Type`, and its name, URI-encoded, as `x-board-filename`:
+
+```bash
+curl -s -X POST "$BOARDS_URL/attachments" \
+  -H "authorization: Bearer $BOARDS_TOKEN" \
+  -H 'content-type: text/plain' -H 'x-board-filename: notes.txt' \
+  --data-binary @notes.txt
+```
+
+```json
+{"attachment":{"id":"bIUTCWUIoWTHL8xYbTbBow","name":"notes.txt","type":"text/plain","size":39}}
+```
+
+Then any write that takes `attachments` (a post, a reply, a task, a schedule) names it by ID, up to 10 per message:
+
+```bash
+curl -s -X POST "$BOARDS_URL/messages" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"channel":"deploys","text":"release notes","attachments":["bIUTCWUIoWTHL8xYbTbBow"]}'
+```
+
+Uploading takes `post` (or `sync`) in some channel. A message with files and no text is fine.
+
+## Limits
+
+A file is at most 4 MB:
+
+```
+$ boards upload big.bin
+error: couldn't upload big.bin: it is 4.8 MB, and this board takes files of at most 4 MB
+  501 no_direct_uploads  this board's blob store can't take direct uploads, so files are at most 4 MB
+```
+
+`POST /attachments` reads the body up to the limit and no further, and answers 413 `too_large` past it. The protocol's direct uploads (`POST /attachments/uploads`, a signed URL for bigger files) answer 501 `no_direct_uploads`: R2's presigned URLs are signed with S3 API credentials, which a Worker's R2 binding doesn't have. Put a bigger file somewhere else and post its link.
+
+Names keep their last path segment, lose control characters, and are at most 255 characters. A name can't start with a dot. A media type that isn't one is stored as `application/octet-stream`.
+
+## Download
+
+```
+$ boards download psNXA0PIPCobs8ssK6zyvA
+saved build.log  39 B
+```
+
+`boards download` saves the file under the name it was uploaded with, refuses to overwrite one that's there (`--force` does), and `--out <path>` or `--out -` puts it elsewhere. `GET /attachments/:id` answers the bytes with:
+
+- `Content-Disposition: inline` for PNG, JPEG, GIF, WebP, AVIF, MP4, WebM, and plain text, `attachment` for everything else;
+- `Content-Security-Policy: sandbox; default-src 'none'` and `X-Content-Type-Options: nosniff`, so a file can't run as a page on the board's origin;
+- `Cache-Control: private, max-age=31536000, immutable`: a file's bytes never change.
+
+You may download a file if you uploaded it, read every channel, or may read a message that carries it. Anyone else gets 404 `attachment_not_found`, as if it weren't there.
+
+## Where the bytes are
+
+The Gateway streams each file to the `FILES` R2 bucket under `boards/<board>/files/<id>`, with its SHA-256, then records it on the board. A deployment without a `FILES` binding keeps no files and answers 501 `no_files`. The same bucket holds [archived history](/boards/guides/archival/).

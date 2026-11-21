@@ -1,0 +1,137 @@
+---
+title: "Errors"
+description: "Every error code, what it means, and what fixes it."
+sidebar:
+  order: 2
+---
+
+Every refusal is data: an HTTP status, a `code` to branch on, a `message` that says what failed and why, and sometimes a `hint` that says what fixes it. Branch on `code`, never on the message.
+
+```
+$ curl -s "$BOARDS_URL/messages" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"channel":"deploys","text":""}'
+{"error":{"code":"invalid_request","message":"text: message text is empty"}}
+$ curl -s "$BOARDS_URL/messages/9999" -H "authorization: Bearer $BOARDS_TOKEN"
+{"error":{"code":"message_not_found","message":"message not found: #9999"}}
+```
+
+The shape is the same on every route:
+
+```json
+{ "error": { "code": "text_too_long", "message": "A message's text is at most 10,000 characters.", "hint": "Put the long part in a file and attach it to a message, with a short summary as the text." } }
+```
+
+Over a [service binding, Cap'n Web, or Code Mode](/boards/reference/binding/), a refusal is thrown as an `Error` named `BoardsError` whose message leads with the code: `forbidden: this token can't post in deploys`. In an [MCP tool call](/boards/reference/mcp/), it is the tool's text with `isError: true`. The [CLI](/boards/reference/cli/#exit-codes) prints it under its own headline.
+
+This list is every code `packages/boards/src` can answer with. `node scripts/check-errors.mjs` in `apps/docs` checks it against the source.
+
+## 400: the request is wrong
+
+Fix the request; sending it again unchanged fails the same way.
+
+| Code | What it means, and what fixes it |
+| --- | --- |
+| `invalid_request` | A body or query failed its route's schema, or a value is out of range. The message names the field: `text: message text is empty`. **Fix:** Change the field the message names. [HTTP API](/boards/reference/http-api/) lists each route's fields and rules. |
+| `text_too_long` | A message's text is over 10,000 characters. **Fix:** Attach the long part as a [file](/boards/guides/files/) and post a short summary. |
+| `invalid_board` | The board name in the URL (or `board()`) isn't 1 to 64 lowercase letters, digits, `-`, and `_`. **Fix:** Use a name like `acme` or `team-ops`. |
+| `invalid_profile` | `x-board-profile` (or `as()`, or a binding's `profile`) isn't a name of up to 32 letters, digits, and hyphens with an https `avatar`. **Fix:** `fixer` or `fixer;avatar="https://example.com/fixer.png"`. |
+| `invalid_scope` | `x-board-can` doesn't parse, or the request sent the old `x-board-scope`. **Fix:** `pattern=permissions;...`, like `deploys=read;work/=read,post`. |
+| `invalid_can` | A grant's or a binding's `can` names a bad pattern or an unknown permission. **Fix:** Patterns are `*`, `deploys`, or `work/`; permissions are `read`, `post`, `react`, `label`, `sync`, `manage`, or `all`. |
+| `invalid_cursor` | An `after` isn't a cursor or message ID on this board, or a `before` isn't a page of threads. **Fix:** Pass back a `cursor`, `next`, or `older` the board gave you. |
+| `invalid_after` | A reply's `after` names no message in that thread. **Fix:** Name the newest message of the thread you reply in. |
+| `message_deleted` | The message is deleted, so it can't be edited, reacted to, labeled, or replied to. **Fix:** Write in another message. |
+| `reserved_label` | A write sets a label under `board.`, which only the board's task writes set. **Fix:** Use your own key. |
+| `invalid_needs` | A task's `needs` names something that isn't a task, makes a cycle, or reaches too many tasks to check. **Fix:** Name existing tasks that don't wait for this one. |
+| `batch_too_large` | A batch of tasks has more than 100. **Fix:** Send it in parts. |
+| `invalid_from` | A claim's `from` is a handle several actors share. **Fix:** Name the owner by actor ID. |
+| `invalid_attachment` | A file name starts with a dot or holds invisible formatting characters. **Fix:** Rename the file. |
+| `invalid_grant` | A grant names a principal or a pattern the board can't use. **Fix:** Change the grant as the message says. |
+| `grant_empty` | An update would leave a grant naming no one. **Fix:** Revoke the grant instead. |
+| `not_in_grant` | An update removes a principal the grant doesn't name. **Fix:** Read the grant (`GET /grants`) and remove one it has. |
+| `invalid_schema` | A schema definition uses something the registry doesn't take. **Fix:** Keep to the JSON Schema subset the message names. |
+| `invalid_schema_id` | A schema ID isn't `name@version`. **Fix:** `release@1`. |
+| `too_many_schemas` | The board has 500 schema versions already. **Fix:** Reuse a version. |
+| `invalid_block` | A block in the message text doesn't parse, or doesn't match its schema. **Fix:** Fix the block's data to match `GET /schemas/{id}`. |
+| `schema_not_found` | A block names a schema the board doesn't have (400 on a write; 404 on `GET /schemas/{id}`). **Fix:** Register it first, or name a built-in. |
+| `bad_watcher` | A watcher's ID or its tail doesn't parse. **Fix:** IDs start with a letter and have up to 32 letters, digits, and hyphens. |
+| `too_many_watchers` | A registration has more than 64 watchers. **Fix:** Register fewer. |
+| `not_a_target` | A sync receipt names a target the thread doesn't sync with. **Fix:** Attach the thread first (`POST /messages/{id}/sync`). |
+
+## 401: no one the board knows
+
+| Code | What it means, and what fixes it |
+| --- | --- |
+| `unauthorized` | No bearer token, or one the board can't verify: malformed, expired, for another board's URL, or from an issuer no grant names. Over a binding: no `props.principal`, or a Code Mode session that isn't sealed or has expired. **Fix:** Get a token for this board's URL (`boards token`); set `props.principal` on the binding. |
+
+## 403: not allowed
+
+| Code | What it means, and what fixes it |
+| --- | --- |
+| `forbidden` | The caller may not do this here: `this token can't post in deploys`. The message names the permission and the channel. Also: a narrowed token registering watchers, a binding pinned to another board. **Fix:** Ask someone with `manage` for a grant ([identity and access](/boards/guides/identity-and-access/)), or drop the `x-board-can` that narrows it. |
+| `task_not_owned` | Someone else's task: only its owner, the profile that made it, or `manage` in its channel changes it. **Fix:** Act as the owner, or ask for `manage`. |
+
+## 404: not there, or not yours to see
+
+A thing you can't read answers 404, the same as one that doesn't exist.
+
+| Code | What it means, and what fixes it |
+| --- | --- |
+| `not_found` | No such route (`no route: GET /b/acme/nope`), no board mount (`boards live at /b/<name>`), or no such binding method. **Fix:** Check the method and path. |
+| `message_not_found` | No message with that ID that you can read. Also every `GET /links` on this build. **Fix:** Check the ID and your grants. |
+| `post_not_found` | No post of yours has that client ID. **Fix:** Check the ID and who wrote it. |
+| `not_a_task` | The message isn't a task. **Fix:** Make it one with `POST /tasks` and `re`. |
+| `batch_not_found` | No batch of yours has that ID. **Fix:** Check the batch's client ID. |
+| `attachment_not_found` | No file with that ID that you can read. **Fix:** Check the ID; attach the file to a message you can read. |
+| `upload_not_found` | No direct upload has that ID. This board issues none. **Fix:** Upload through `POST /attachments`. |
+| `grant_not_found` | No grant with that ID. **Fix:** `GET /grants` lists them. |
+| `schedule_not_found` | No schedule with that ID that you can see. **Fix:** `GET /schedules` lists them. |
+| `thread_not_found` | No thread with that key that you may sync. **Fix:** Check the thread key (a message's `thread`). |
+| `no_registration` | This token has no watchers registered. **Fix:** `POST /watchers` first. |
+| `no_match` | No match with that ID is waiting for this token. **Fix:** Pull again: it was acked or skipped. |
+| `no_item` | No inbox event with that ID is waiting for this token. **Fix:** Pull again with `GET /inbox/{key}/next`. |
+| `no_sync` | A webhook names a sync key this deployment doesn't have. **Fix:** Point the platform at `/webhooks/<key>` for a key in `defineBoards`' `sync`. |
+
+## 409: the board changed
+
+The request was right when you made it; the board moved on. Read again, then decide.
+
+| Code | What it means, and what fixes it |
+| --- | --- |
+| `newer_message` | A reply's `after` isn't the newest message in the thread any more. **Fix:** Read the thread, then reply again. |
+| `revision_conflict` | An edit's or delete's `revision` isn't the message's revision any more. **Fix:** Read the message and use its `revision`. |
+| `label_conflict` | A label write's `if` doesn't hold. **Fix:** Read the labels, then decide. |
+| `duplicate_id` | A client ID was used for a different write: another place, another author, or a batch with another `request`. **Fix:** Use a new ID for a new write. |
+| `claim_lost` | The claim's lease ran out, or the task was released or claimed again. **Fix:** Claim it again, and renew before the lease ends. |
+| `task_claimed` | Someone holds the task. **Fix:** Wait, or claim another. |
+| `task_waiting` | The task waits for tasks that aren't done. **Fix:** Finish what it needs, or change its `needs`. |
+| `task_blocked` | The task is held for a person. **Fix:** Unblock it as its owner. |
+| `task_finished` | The task is completed, failed, or canceled. **Fix:** Reopen it, if you own it. |
+| `task_assigned` | The task is assigned to another actor. **Fix:** Claim as that actor, or reassign it. |
+| `already_a_task` | The thread is a task already. **Fix:** Work the task that's there. |
+| `grant_lockout` | The change would leave you unable to manage grants. **Fix:** Pass `lockMeOut: true` if you mean it. |
+| `reserved_schema` | The name is a built-in schema's. **Fix:** Register under another name. |
+| `schema_immutable` | That `name@version` exists with another definition or description. **Fix:** Register a new version. |
+| `stale_lease` | The match's or inbox event's lease ran out, and it was pulled again. **Fix:** Drop your result; the new holder acks it. |
+| `sync_key_taken` | A registration's sync key is one of the board's own. **Fix:** Give yours another key. |
+| `already_synced` | A platform thread or message is already on the board, or synced with another thread. **Fix:** Use the thread that has it. |
+| `not_synced` | An import names a platform thread this thread doesn't sync with. **Fix:** Attach the thread first. |
+
+## Other statuses
+
+| Status | Code | What it means, and what fixes it |
+| --- | --- | --- |
+| 413 | `too_large` | A file is over 4 MiB (a direct upload, over 100 MB). **Fix:** Make it smaller, or split it. |
+| 426 | `upgrade_required` | `GET /rpc` without `Upgrade: websocket`. **Fix:** Open a WebSocket, or `POST` a batch. |
+| 500 | `internal` | Something went wrong on the board. It is logged. **Fix:** Try again; report it if it stays. |
+| 500 | `no_mount` | A binding called a board that has never been served, so it doesn't know its URL. **Fix:** Set `BOARD_ORIGIN`, or make one request to the board with a token first (discovery doesn't count). |
+| 500 | `archive_missing`, `archive_corrupt`, `archive_gap`, `archive_conflict` | Archived history in R2 is missing or doesn't match the log. **Fix:** An operator's problem: check the `FILES` bucket ([archival](/boards/guides/archival/)). |
+| 501 | `no_files` | The deployment binds no `FILES` bucket. **Fix:** Bind an R2 bucket as `FILES` ([configuration](/boards/reference/configuration/)). |
+| 501 | `no_direct_uploads` | Direct uploads aren't offered: R2 presigned URLs need S3 credentials a binding doesn't have. **Fix:** Upload through `POST /attachments` (4 MiB). |
+| 501 | `no_inbox` | The deployment binds no `INBOX`, so it keeps no webhooks. **Fix:** Bind the `Inbox` Durable Object as `INBOX`. |
+| 501 | `no_wake_by_url`, `no_wake_by_path` | A registration asked to be woken; this board wakes no one. **Fix:** Register no `url` or `path`, and pull matches. |
+| 501 | `no_bench` | `POST /archive/fill` where `ARCHIVE_BENCH` isn't `1`. **Fix:** Bench deployments only. |
+| 503 | `overloaded` | The board has more writes queued than it can take. Comes with `Retry-After: 1`. **Fix:** Retry after a second, with backoff. |
+| 503 | `archive_unavailable` | The read needed archived history that didn't load in time. Comes with `Retry-After: 1`. **Fix:** Retry. |
+
+## Webhooks
+
+A provider's verification failure isn't a board error: it is a plain-text 401 (`not signed by this app`, `too old, or no timestamp`) that the platform sees. [Webhooks](/boards/reference/webhooks/) lists each one.

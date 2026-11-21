@@ -1,0 +1,105 @@
+---
+title: "Deploy notifier"
+description: "A Worker that posts each deploy and its result to a channel."
+sidebar:
+  order: 1
+---
+
+import { Code, Steps } from '@astrojs/starlight/components'
+import worker from '../../../examples/deploy-notifier/src/worker.ts?raw'
+import config from '../../../examples/deploy-notifier/wrangler.jsonc?raw'
+
+CI calls this Worker when a deploy starts and when it ends, and it keeps one thread per deploy in the `deploys` channel: the root says what's deploying, a reply says how it went, and a `status` label says where it stands. It reaches the board through a service binding, so it holds no token.
+
+<Code code={worker} lang="ts" title="src/worker.ts" />
+
+<Code code={config} lang="jsonc" title="wrangler.jsonc" />
+
+## How it works
+
+- **The binding is the credential.** `env.BOARDS.board()` hands back a `Board` acting as `worker:deploy-notifier`. The props pin it to the board `docs` and narrow it to `deploys=read,post,label`, so it can't write anywhere else, whatever its code does.
+- **One thread per deploy, by client ID.** Every call posts the root with `id: deploy-<env>-<sha>`. The first call starts the thread; every later one, including a retry from CI, gets the same message back. The reply has a client ID of its own, so a retried "succeeded" replies once.
+- **Labels say where it stands.** `env` and `sha` are set with the root, and `status` moves from `started` to `succeeded` or `failed`. Anyone can list the failed ones:
+
+  ```
+  $ boards read deploys --label status=failed
+  #7  deploy-notifier  1 reply  Deploying 0b1c2d3 to staging  [env=staging, sha...
+  ```
+
+## Run it
+
+<Steps>
+
+1. Run a board, from `packages/boards`:
+
+   ```bash
+   npx wrangler dev --port 8823
+   node scripts/issuer.mjs token jared http://127.0.0.1:8823/b/docs
+   ```
+
+2. Make one request to the board as yourself, so it knows its own URL (a binding call carries none):
+
+   ```bash
+   BOARDS_URL=http://127.0.0.1:8823/b/docs BOARDS_TOKEN=<token> boards whoami
+   ```
+
+3. In another terminal, run the notifier. Its `BOARDS` binding connects to the board's dev session by the service name `boards`:
+
+   ```bash
+   echo 'DEPLOY_SECRET=local-only-secret' > .dev.vars
+   npx wrangler dev --port 8824
+   ```
+
+4. Send it a deploy, the way CI would:
+
+   ```bash
+   curl -X POST http://127.0.0.1:8824/ -H 'authorization: Bearer local-only-secret' \
+     -d '{"sha":"9f3c2a17b4e8d0c6a5f1e2d3c4b5a69788d0e1f2","env":"production","status":"started"}'
+   ```
+
+</Steps>
+
+Four calls, the second one sent twice as a CI retry would:
+
+```
+{"thread":"2","status":"started"}
+{"thread":"2","status":"succeeded"}
+{"thread":"2","status":"succeeded"}
+{"thread":"7","status":"failed"}
+```
+
+The thread on the board has one reply, not two:
+
+```
+$ boards read 2
+#2  deploy-notifier  2026-11-20 15:14
+  Deploying 9f3c2a1 to production
+  labels  env=production, sha=9f3c2a17b4e8d0c6a5f1e2d3c4b5a69788d0e1f2, status=succeeded
+
+#4  deploy-notifier  2026-11-20 15:14
+  Live: https://acme.example/releases/42
+```
+
+And a live tail shows the next deploy as it happens:
+
+```
+$ boards tail deploys
+15:14:49  message.posted  #10  deploys  deploy-notifier  Deploying 5e6f7a8 to...
+15:14:49  labels.changed  #10  deploys  deploy-notifier  status=started
+15:14:50  message.posted  #12  deploys  deploy-notifier  re #10  Live: https:...
+15:14:50  labels.changed  #10  deploys  deploy-notifier  status=succeeded
+```
+
+:::note
+Without a first request, the binding's call answers `no_mount: this board hasn't been served at its URL yet`. In production, set `BOARD_ORIGIN` on the Boards Worker and it never comes up. Discovery (`GET /b/docs/`) doesn't count as a first request.
+
+The binding finds the board's dev session by its Worker name, `boards`. If more than one Worker named `boards` runs on your machine, start yours with `--name` and point the binding's `service` at that name.
+:::
+
+## Make it yours
+
+- Point the props at your board, and the `can` at your channel.
+- Call it from your CI's deploy step, with `DEPLOY_SECRET` as a CI secret. Or have CI post to the board directly with its own OIDC token: see [Identity and access](/boards/guides/identity-and-access/).
+- Add a [watcher](/boards/guides/watchers/) with the tail `deploys --label status=failed` to wake whoever fixes failed deploys.
+
+[Boards from a Worker](/boards/guides/workers/) covers the binding and the `Board` capability in full.

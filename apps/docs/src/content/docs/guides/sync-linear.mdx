@@ -1,0 +1,145 @@
+---
+title: "Sync with Linear"
+description: "Linear issues and comments as threads and replies, both ways."
+sidebar:
+  order: 13
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+Linear sync makes each issue in a team a thread in a board channel, with the issue's state and labels as labels on the root, and its comments as replies. What's written on the board in those threads goes back to Linear as comments, with your API key.
+
+```ts title="src/worker.ts"
+import { defineBoards, linearProvider, type Secret } from 'boards'
+import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+
+type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; LINEAR_WEBHOOK_SECRET: Secret; LINEAR_API_KEY: Secret; LINEAR_BOT_USER_ID: string }
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  sync: {
+    linear: linearProvider({
+      webhookSecret: env.LINEAR_WEBHOOK_SECRET,
+      apiKey: env.LINEAR_API_KEY,
+      // Each team (its key, like ENG, or its ID), and the board channel its issues come into.
+      teams: { ENG: 'linear/eng' },
+      // The user the API key acts as: Linear's echo of the board's comments isn't imported again.
+      botUserId: env.LINEAR_BOT_USER_ID,
+    }),
+  },
+}))
+
+export default { fetch: (request: Request, env: Env) => gateway(request, env) }
+```
+
+An issue, as it lands on the board (from the [provider check](/boards/guides/sync-slack/#check-it-locally)): created, retitled, moved to In Progress, labeled Frontend, and commented on.
+
+```
+{
+ "id": "15",
+ "by": "Ada Lovelace (linear:user:lin-user-ada)",
+ "text": "**ENG-42: Checkout times out in eu-west**\n\nRequests to /checkout hang for 30s.\n\nhttps://linear.test/acme/issue/ENG-42",
+ "edited": true,
+ "labels": {
+  "issue": "ENG-42",
+  "state": "In Progress",
+  "label.frontend": "Frontend"
+ },
+ "origin": "linear:issue:issue-0b1d / issue"
+}
+{
+ "id": "17",
+ "by": "Bo Diddley (linear:user:lin-user-bo)",
+ "text": "Seeing it too, only in eu-west since 07:40.",
+ "edited": true,
+ "origin": "linear:issue:issue-0b1d / comment-cm-1"
+}
+```
+
+## Set it up
+
+<Steps>
+
+1. **Make the webhook.** In Linear's settings, under API, add a webhook with the board's webhook route as its URL, for the **Issues** and **Comments** data change events. Linear sends events from all public teams; the board keeps only the teams you map. The URL is:
+
+   ```
+   https://boards.example.com/b/acme/webhooks/linear
+   ```
+
+   Check the saved URL ends in `/webhooks/linear`: a request to a shorter path answers 404 and nothing reaches the board. Linear shows the webhook's signing secret once it's made.
+
+2. **Make an API key.** A personal API key (`lin_api_…`) of the user the board comments as, from Settings, then Security & access. Its user ID is `botUserId` (the `viewer { id }` of the API, or the `linear:user:<id>` of that user's first imported message). Comments the board posts show in Linear as that user.
+
+3. **Give the Worker both.**
+
+   ```bash
+   npx wrangler secret put LINEAR_WEBHOOK_SECRET
+   npx wrangler secret put LINEAR_API_KEY
+   ```
+
+   ```jsonc title="wrangler.jsonc"
+   "vars": { "LINEAR_BOT_USER_ID": "<the API key's user ID>" }
+   ```
+
+   Either secret can be a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding instead, as in [Sync with Slack](/boards/guides/sync-slack/#set-it-up).
+
+4. **Deploy**, then create an issue in the team and `boards tail linear/eng`.
+
+</Steps>
+
+:::tip[Verified live]
+These steps were run against a real Linear workspace: an issue, a comment, its edit, and a state change each landed on the board once, and a board reply, its edit, and a reaction each reached Linear. See [Status](/boards/project/status/).
+:::
+
+## What comes in
+
+| In Linear | On the board |
+| --- | --- |
+| an issue created in a mapped team | a thread: `**ENG-42: <title>**`, its description, and its link |
+| its title or description changed | the root edited |
+| its state or labels changed | the root's labels: `issue=ENG-42`, `state=<state name>`, and `label.<name>=<Name>` for each label; a label taken off in Linear comes off |
+| a comment, its edit, its delete | a reply, edited, deleted |
+| an issue removed | the root deleted |
+
+Each message is by its Linear author, `linear:user:<id>`. Issues in teams you didn't map are ignored. A delivery whose `Linear-Signature` isn't the HMAC of its body under the webhook's secret, or whose `webhookTimestamp` is more than a minute off, answers 401:
+
+```
+# linear: verification
+bad signature     401 not signed by this webhook
+61 seconds old    401 too old, or no webhookTimestamp
+ok    a forged or stale delivery is 401
+
+# linear: deliveries, each sent twice
+issue       200 kept 1  |  200 kept 1
+comment     200 kept 1  |  200 kept 1
+commentEdit 200 kept 1  |  200 kept 1
+state       200 kept 1  |  200 kept 1
+title       200 kept 1  |  200 kept 1
+comment2    200 kept 1  |  200 kept 1
+remove      200 kept 1  |  200 kept 1
+otherTeam   200 nothing to keep  |  200 nothing to keep
+```
+
+Each delivery sent twice landed once: Linear's retries of a delivery have the same Inbox ID.
+
+## What goes back
+
+A reply written on the board in an issue's thread is posted with Linear's `commentCreate`, using the API key. Editing it calls `commentUpdate`, deleting it `commentDelete`, and a reaction `reactionCreate` (a removed reaction isn't copied).
+
+```
+board reply  #23
+receipt  [{"target":"linear:issue:issue-0b1d","key":"linear","thread":"linear:issue:issue-0b1d","message":"comment-lc-1","url":null,"undelivered":null}]
+linear got  POST /linear/graphql  auth=lin_api_test  {"query":"mutation CommentCreate($input: CommentCreateInput!) { commentCreate(input: $input) { success comment { id } } }","variables":{"input":{"issueId":"issue-0b1d","body":"Rolled back the eu-west gateway config; watching p99."}}}  -> comment lc-1
+ok    one commentCreate on the issue, with the API key from the Worker secret
+ok    the receipt records the comment Linear made
+echo  200 kept 1  |  200 kept 1
+...
+ok    the echo imported nothing
+```
+
+Threads start in Linear: a board thread sent to Linear is refused, since it would be a new issue. With `botUserId`, Linear's webhook for the board's own comment waits for the courier's receipt and lands as nothing.
+
+Against a real Linear workspace, an issue, a comment, its edit, and a state change each landed on the board once, and a board reply, its edit, and a reaction each reached Linear.
+
+## How it works
+
+The webhook goes to the sync's Inbox, which keeps each delivery before Linear hears 200 and imports one issue at a time, in order, with 5 tries each; a failed one can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). The courier copies board writes back in each thread's order. See [Sync: Inbox and courier](/boards/architecture/sync/).

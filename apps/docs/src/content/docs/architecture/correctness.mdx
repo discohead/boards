@@ -1,0 +1,77 @@
+---
+title: "Failure and correctness"
+description: "Why a board stays correct when things fail."
+sidebar:
+  order: 7
+---
+
+A board stays correct because the hard parts are the platform's: one Durable Object assigns every position inside a committed transaction, answers only after the commit is durable, and lets one request decide at a time. What's left is retries that can't double, and failures that are recorded instead of lost.
+
+```
+POST /tasks {"channel":"jobs","text":"check https://example.com/ once more","claim":true,"lease":30}
+201 {"epoch":1,"state":"claimed"}
+
+POST /tasks/67/release {"epoch":1,"token":"ldNJ12vP…"}
+200 {"state":"ready"}
+
+POST /tasks/67/claim
+200 {"epoch":2,"state":"claimed"}
+
+POST /tasks/67/complete {"epoch":1,"token":"ldNJ12vP…"}
+409 {"code":"claim_lost","message":"this claim on #67 is over: claim it again"}
+```
+
+A worker that lost its claim (here by a release; usually by a lease that ran out while it was stalled) can't complete the task out from under the one that holds it now. Its epoch is old, and the write is refused.
+
+## The guarantees
+
+| Guarantee | Why it holds |
+| --- | --- |
+| Every event has one position, and positions have no gaps | one object assigns `seq`, inside the transaction; a transaction that throws gives its positions back |
+| No one sees a write a crash could take back | the output gate holds every answer, ring, and delivery until the commit is durable |
+| A check and the write it guards can't be split | an operation never awaits, and the input gate lets one decide at a time |
+| What a caller may do is current | access comes from the grants in the same transaction as the write |
+| A watcher sees a thread's events in order | each Mailbox delivers only the oldest pending match of each thread |
+| A webhook the platform heard 200 for is kept | the Inbox writes it before the Gateway answers |
+
+## What fails, and what happens
+
+| What fails | What happens | Why nothing is lost or doubled |
+| --- | --- | --- |
+| An operation throws halfway | nothing is written; the caller gets the error | the transaction rolls back, and `head` goes back to where it was |
+| The Ledger stops mid-write | the transaction never committed, and no answer was sent | the client retries with its client ID, and the post lands once |
+| Two writers race | one lands; the other sees what it did | claims, `after`, `if`, and `revision` are checked in the write's transaction |
+| A claim's holder stalls | its lease timer ends the claim: `task.expired`, and the task is ready at a new epoch | every write on a claim carries its epoch and token; an old one is refused `claim_lost` |
+| A timer throws | it writes nothing, and runs again a minute later | each timer runs in its own transaction; the alarm moves on to the rest |
+| The Ledger stops after a commit, before its hand-off to Mailboxes | those events wait | the outbox cursor didn't move; the next write's dispatch hands them on |
+| A watcher throws or times out | its Mailbox tries again, 1 second doubling to 30, 5 tries | the lane waits; after 5 tries the match is recorded failed and the lane goes on |
+| A platform retries a webhook | the Inbox finds its platform event ID | kept once by that ID; answered only once durable |
+| An import fails, as during a deploy's rollout | 5 tries, then recorded failed | `POST /inbox/<key>/replay` gives it 5 fresh tries |
+| A platform's API is down | the courier's Mailbox tries again, 5 times | the receipt guard: a message with a copy is never posted again; after 5, `message.sync_failed` shows under it |
+| A platform echoes the board's copy | it imports as nothing | the import finds the copy's receipt, or waits for it |
+| A Relay goes away, or a socket drops | the held wait wakes and asks the Ledger again | the Ledger is the truth; a ring only says to look |
+| An SSE stream ends | the client reconnects with `Last-Event-ID` | cursors are gapless positions |
+| The board has more writes queued than it can take | 503 `overloaded` with `Retry-After: 1` | nothing was written; retry it |
+| Archived history doesn't load in time | 503 `archive_unavailable` with `Retry-After: 1` | the run that needed it was thrown away; retry it |
+
+:::caution
+A Mailbox delivers each match at least once. When a watcher retries, its code runs again, and the board writes it made through `context.board` on the try that failed are written again. Make a watcher's writes its last step, or give them client IDs of your own.
+:::
+
+## How it's checked
+
+Each guarantee has a test that breaks when the code that keeps it does. The workerd suite (`npx vitest run`) runs the real Ledger, Relay, Mailbox, and Inbox on real SQLite storage:
+
+| Test file | What it pins |
+| --- | --- |
+| [`transactions.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/transactions.test.ts) | an operation that throws leaves no rows; `seq` stays gapless across a failed write |
+| [`idempotency.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/idempotency.test.ts) | a client ID posted twice, or concurrently, lands once; racing replies with `after` have one winner |
+| [`timers.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/timers.test.ts) | one alarm runs many timers; a lease ends a claim; a renewed lease isn't ended early; a timer that throws doesn't spin |
+| [`held.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/held.test.ts) | a long-poll and a waiting claim wake on the Relay's ring |
+| [`watchers.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/watchers.test.ts) | each match once, in order per thread; a failing sink is retried while other threads go on |
+| [`sync-inbox.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync-inbox.test.ts) | kept before 200; a retried webhook does nothing; 5 tries then failed; replay |
+| [`courier.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/courier.test.ts) | each reply posted once; the receipt guards a retry; the echo isn't imported; `sync_failed` after 5 |
+| [`auth.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/auth.test.ts) | a bad token is 401 before the Ledger; narrowing holds however a call arrives |
+| [`overload.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/overload.test.ts) | an overloaded board is a 503 with `Retry-After`, not a 500 |
+
+The protocol's conformance kit checks the board from outside, and `scripts/archive-check.mjs` checks that archival changes no answer. [Status](/boards/project/status/) lists every check and its last result.

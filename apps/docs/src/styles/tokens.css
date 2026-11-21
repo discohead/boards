@@ -1,0 +1,80 @@
+/* Boards design tokens: ink and signal. Dark is the default; light is paper. */
+@import '@fontsource-variable/bricolage-grotesque/opsz.css';
+@import '@fontsource-variable/instrument-sans/wdth.css';
+@import '@fontsource-variable/jetbrains-mono/wght.css';
+
+:root {
+  color-scheme: dark;
+  --bd-font-display: 'Bricolage Grotesque Variable', 'Instrument Sans Variable', ui-sans-serif, system-ui, sans-serif;
+  --bd-font-body: 'Instrument Sans Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --bd-font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ink */
+  --bd-bg: #0a0b0f;
+  --bd-bg-raised: #101218;
+  --bd-surface: #14171f;
+  --bd-surface-2: #1b1f29;
+  --bd-line: #252a36;
+  --bd-line-strong: #363d4d;
+  --bd-text: #f3f4f7;
+  --bd-text-body: #c5c9d3;
+  --bd-muted: #8c92a2;
+
+  /* signal */
+  --bd-accent: #c5f04a;
+  --bd-accent-strong: #d6fa6e;
+  --bd-accent-ink: #0a0b0f;
+  --bd-accent-text: #d4f77a;
+  --bd-accent-soft: rgb(197 240 74 / 0.11);
+  --bd-accent-line: rgb(197 240 74 / 0.42);
+
+  /* the rest of the palette, for diagrams and states */
+  --bd-violet: #a99bff;
+  --bd-violet-soft: rgb(169 155 255 / 0.12);
+  --bd-sky: #6fcaff;
+  --bd-sky-soft: rgb(111 202 255 / 0.11);
+  --bd-rose: #ff7d93;
+  --bd-rose-soft: rgb(255 125 147 / 0.12);
+  --bd-yellow: #f2d45c;
+  --bd-yellow-soft: rgb(242 212 92 / 0.12);
+
+  --bd-radius: 14px;
+  --bd-radius-sm: 8px;
+  --bd-shadow: 0 1px 0 rgb(255 255 255 / 0.04) inset, 0 24px 60px -24px rgb(0 0 0 / 0.7);
+  --bd-grid: rgb(255 255 255 / 0.045);
+  --bd-glass: rgb(10 11 15 / 0.72);
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+  /* paper */
+  --bd-bg: #f6f5ef;
+  --bd-bg-raised: #fbfaf6;
+  --bd-surface: #ffffff;
+  --bd-surface-2: #eeede5;
+  --bd-line: #dddbd0;
+  --bd-line-strong: #c3c1b4;
+  --bd-text: #0c0e13;
+  --bd-text-body: #2a2e37;
+  --bd-muted: #5a606c;
+
+  --bd-accent: #c5f04a;
+  --bd-accent-strong: #b5e62c;
+  --bd-accent-ink: #0c0e13;
+  --bd-accent-text: #3a5d00;
+  --bd-accent-soft: rgb(120 170 0 / 0.12);
+  --bd-accent-line: rgb(84 128 0 / 0.5);
+
+  --bd-violet: #5440cf;
+  --bd-violet-soft: rgb(84 64 207 / 0.09);
+  --bd-sky: #0a659f;
+  --bd-sky-soft: rgb(10 101 159 / 0.08);
+  --bd-rose: #c0213d;
+  --bd-rose-soft: rgb(192 33 61 / 0.08);
+  --bd-yellow: #7a5d00;
+  --bd-yellow-soft: rgb(196 150 0 / 0.12);
+
+  --bd-shadow: 0 1px 0 rgb(255 255 255 / 0.7) inset, 0 24px 50px -28px rgb(40 38 20 / 0.28);
+  --bd-grid: rgb(12 14 19 / 0.055);
+  --bd-glass: rgb(246 245 239 / 0.78);
+}

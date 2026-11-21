@@ -1,0 +1,92 @@
+---
+title: "Design decisions"
+description: "Choices, alternatives considered, and where Boards departs from the protocol."
+sidebar:
+  order: 9
+---
+
+Boards is built on one bet: a board is one Durable Object that writes its log in one synchronous transaction per write. Most other choices follow from that bet, or protect it. This page says what was chosen, what was considered instead, and where the result differs from protocol v1 as the conformance kit describes it.
+
+## One Durable Object per board
+
+**Chosen:** one Ledger holds a board's whole log and every table folded from it.
+
+**Considered:** sharding a board, by thread or by channel, with a small coordinating object for the sequence and the indexes.
+
+**Why:** every write still has to take a position in the board's one order, so the coordinator would see every write and the ceiling would barely move. Conditional writes would become protocols between objects, and dependencies, `claim` from a channel subtree, and batches of tasks would become multi-step sagas. Channels aren't a consistency boundary: dependencies, subtree claims, and the board-wide feed all cross them. A board per scope is the way to scale out, and [archival](/boards/architecture/archival/) keeps one board's hot set small.
+
+## SQLite in the object, and no await in a write
+
+**Chosen:** the Ledger's own SQLite, written with `transactionSync`. Operations are synchronous functions.
+
+**Considered:** a database behind a network hop, such as D1.
+
+**Why:** a database a hop away puts every query of a write one round trip from the logic, and gives up the input and output gates that make a check and its write atomic, and an answer durable before it's sent. With storage in the object and no `await`, a write can't lose a race it isn't in. The price is that an operation can't wait on R2, so archived history faults and the operation runs again (see [Fault and rerun](/boards/architecture/archival/#fault-and-rerun)).
+
+## One alarm and a timers table
+
+**Chosen:** every lease, scheduled send, and archival step is a row in `timers`, and the object's one alarm runs whatever is due.
+
+**Considered:** a Workflow instance per schedule or claim.
+
+**Why:** a timer row is written in the same transaction as the claim or schedule it belongs to, so the two can't disagree, and one alarm costs the same for one timer as for ten thousand.
+
+## Mailboxes for delivery
+
+**Chosen:** a SQLite Durable Object per subscriber, with a lane per thread.
+
+**Considered:** Queues.
+
+**Why:** a watcher must see a thread's events in order, and a queue doesn't promise order. A Mailbox delivers only the head of each lane, retries it in place, and lets other threads go on.
+
+## Grants in the Ledger
+
+**Chosen:** grants are rows in the Ledger, cached in memory by a version that every grant write bumps.
+
+**Considered:** grants in KV, close to the Gateway.
+
+**Why:** KV is eventually consistent, so a revoke would lag. In the Ledger, access is computed in the same transaction as the write it allows.
+
+## Relays carry the head, not the events
+
+**Chosen:** a ring is one number. Every Gateway reads its events from the Ledger, as its caller.
+
+**Considered:** pushing events to subscribers through the Relay, filtered there.
+
+**Why:** a Relay that held events would also have to hold each subscriber's access and filter, and stay in step with grants. Carrying only the head keeps the Relay stateless in every way that matters and keeps every access decision in the Ledger.
+
+## Authenticate at the edge, authorize at the state
+
+**Chosen:** the Gateway verifies tokens and builds the caller; the Ledger decides what the caller may do, inside the write.
+
+**Why:** a forged or expired token costs a Worker invocation, never the board's single writer. Authorization needs the grants as they are at the moment of the write, which only the Ledger has.
+
+## The binding is the credential
+
+**Chosen:** a Worker in the account reaches a board through a service binding to the `Boards` entrypoint, whose props name it.
+
+**Why:** only someone who can deploy to the account can set a binding's props, so there's no token to mint, store, rotate, or leak. Props can pin a binding to one board and narrow it.
+
+## A plain Durable Object for the Ledger
+
+**Chosen:** the Ledger extends `DurableObject` with an explicit schema.
+
+**Considered:** the Agents SDK's `Agent` as its base.
+
+**Why:** an Agent's state sync, queue, and alarm solve an agent's problems, not a sequencer's. Agents are a board's clients: the [Factory](/boards/templates/factory/) runs one `Agent` per thread, each a caller of the board.
+
+## Where Boards departs from the protocol
+
+The conformance kit passes on wrangler dev and on the live deployment (85 passed and 6 skipped as an owner; 86 passed and 5 skipped as a member). Where the protocol leaves a choice to the board, or where Cloudflare changes the answer, Boards does this:
+
+- **Principals.** People are `boards:user:<sub>` (the board's issuer) or `access:user:<sub>` (Cloudflare Access). Workers are `worker:<script>`. A grant's `project` is a Worker by script name, and `all-projects` is every Worker.
+- **Deployments.** The built-in deployment schema is `cloudflare-deployment@1`.
+- **Uploads.** Direct uploads answer 501 `no_direct_uploads`, since R2 presigned URLs need S3 credentials a binding doesn't have. Uploads are at most 4 MiB through `POST /attachments`.
+- **Registered watchers** are pulled (`GET /watchers/matches`). Waking a URL or a path answers 501. Config watchers deliver through Mailboxes to service bindings.
+- **Inboxes.** Registrants that sync from elsewhere use the board's inbox routes (`/inbox/:key`), kept in the Ledger. The board's own syncs use their Inbox Durable Objects.
+- **Syncs are declared** by the deployment (`defineBoards(() => ({ sync: { github: githubProvider(...) } }))`), and their satellites write as `boards:sync:<key>`. The courier's matching runs in the Ledger's post-commit dispatch, from its outbox cursor, not inside the write's transaction.
+- **What sync copies out.** Labels aren't copied out, and removing a reaction isn't copied to GitHub or Linear. A board reply by a person is posted as the app, without naming its author.
+- **Side tables.** Schedules and grants are side tables, not events in the log. A schedule's send is its `message.posted`.
+- **Capabilities.** The `Board` capability's `channel()` returns a narrower `Board`. There is no `Thread` or `Subscription` object.
+- **MCP** is stateless JSON over streamable HTTP, with bearer tokens only.
+- **Archival** keeps threads with sync, imports, or pending matches hot. A text search over cold history reads the threads it scans from R2.

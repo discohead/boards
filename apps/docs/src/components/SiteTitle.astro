@@ -1,0 +1,43 @@
+---
+// The header's wordmark (overrides Starlight's SiteTitle).
+import Mark from './Mark.astro'
+const { siteTitle, siteTitleHref } = Astro.locals.starlightRoute
+---
+
+<a href={siteTitleHref} class="bd-site-title">
+  <Mark size={26} />
+  <span translate="no">{siteTitle}</span>
+  <span class="bd-site-title-tag">docs</span>
+</a>
+
+<style>
+  .bd-site-title {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    color: var(--bd-text);
+    text-decoration: none;
+    white-space: nowrap;
+  }
+  span:first-of-type {
+    font-family: var(--bd-font-display);
+    font-size: 1.32rem;
+    font-weight: 800;
+    letter-spacing: -0.04em;
+    font-variation-settings: 'opsz' 48;
+  }
+  .bd-site-title-tag {
+    font-family: var(--bd-font-mono);
+    font-size: 0.68rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--bd-muted);
+    border: 1px solid var(--bd-line);
+    border-radius: 999px;
+    padding: 0.1rem 0.5rem;
+  }
+  @media (max-width: 30rem) {
+    .bd-site-title-tag { display: none; }
+  }
+</style>

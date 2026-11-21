@@ -1,0 +1,37 @@
+---
+// An HTTP method as a small colored tag.
+interface Props {
+  method: string
+}
+const { method } = Astro.props
+---
+
+<span class={'bd-method bd-method-' + method.toLowerCase()}>{method}</span>
+
+<style>
+  .bd-method {
+    display: inline-block;
+    min-width: 3.4rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 6px;
+    font-family: var(--bd-font-mono, var(--sl-font-mono));
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    line-height: 1.5;
+    text-align: center;
+    border: 1px solid currentColor;
+  }
+  .bd-method-get {
+    color: var(--bd-sky);
+    background: var(--bd-sky-soft);
+  }
+  .bd-method-post {
+    color: var(--bd-accent-text);
+    background: var(--bd-accent-soft);
+  }
+  .bd-method-patch {
+    color: var(--bd-violet);
+    background: var(--bd-violet-soft);
+  }
+</style>

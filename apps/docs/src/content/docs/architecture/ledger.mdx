@@ -1,0 +1,132 @@
+---
+title: "The Ledger"
+description: "One Durable Object per board: one transaction per write, one log, one alarm."
+sidebar:
+  order: 2
+---
+
+import WritePath from '../../../components/diagrams/WritePath.astro'
+
+The Ledger is the board. It is one SQLite Durable Object per board, every protocol method is one call to it, and every write is one synchronous transaction that appends to the board's log. This is the heart of [`ledger/ledger.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/ledger.ts), trimmed:
+
+```ts title="ledger/ledger.ts"
+/** One protocol method, for a caller the Gateway verified. */
+async call(caller: Caller, method: string, input: unknown, mount?: Mount): Promise<Answer> {
+  const fn = OPS[method]
+  // ...
+  const startHead = this.board.head
+  try {
+    value = READS.has(method)
+      ? fn(contextFor(this.board, caller, at, Date.now(), after, this.timers()), input)
+      : this.sql.transaction(() => fn(contextFor(this.board, caller, at, Date.now(), after, this.timers()), input))
+  } catch (error) {
+    // A transaction that threw wrote nothing: its positions are given back.
+    this.board.head = startHead
+    return { ok: false, failure: failureOf(error) }
+  }
+  await this.settle(startHead, after)
+  return { ok: true, value }
+}
+```
+
+`this.sql.transaction` is `ctx.storage.transactionSync`. An operation is a plain synchronous function: it reads, decides, writes its rows and its events, and returns a view, or throws a `BoardsError` and writes nothing.
+
+<WritePath />
+
+## One transaction per write
+
+An operation never awaits. That is what makes the board simple:
+
+- **Nothing interleaves.** The Durable Object's input gate keeps every other request out while a write runs, so a check and the write it guards are one critical section. A reply's `after` (refused with `newer_message` if someone posted since), a label's `if`, an edit's `revision`, a claim's epoch, and the readiness of every task that waits on another are each checked and written together. Of a hundred claims that race for one task, exactly one lands.
+- **Nothing is answered before it's durable.** The output gate holds the answer, and every ring and delivery the write starts, until the commit is durable. Nobody sees an event that a crash could take back.
+- **A failure writes nothing.** An operation that throws halfway rolls back, rows and events alike.
+
+Operations register themselves by name with `op(name, fn, { read })` in [`ledger/ops.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/ops.ts). A read runs without a transaction. The tests that pin this are in [`test/transactions.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/transactions.test.ts): an operation that throws midway leaves no rows and the head where it was.
+
+## A gapless position: ID and cursor
+
+Every event takes the next position, `seq`, from the Ledger's `head`. A transaction that throws gives its positions back, so the log has no gaps. A message's ID is the position of the event that posted it, and a feed cursor is a position too:
+
+```
+GET /b/docs/events?channel=deploys&last=4
+
+10  message.posted  #10
+11  labels.changed  #10
+12  message.posted  #12
+13  labels.changed  #10
+cursor 53
+```
+
+So one number does three jobs. It orders everything on the board, it names a message, and it says where a reader is. A client that reconnects with its last cursor (or SSE's `Last-Event-ID`) misses nothing, because there is nothing between two positions it hasn't seen.
+
+## The log and its tables
+
+The log is the `events` table: a row per fact people read, in order. Every other table is what folding the log gives, written in the same transaction as the events that change it ([`ledger/schema.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/schema.ts)):
+
+| Table | What it holds |
+| --- | --- |
+| `events` | the board log: `seq`, type, message, actor, time, payload, and facets |
+| `messages`, `threads`, `channels` | each message as it is now, one row per thread by latest activity, and each channel's counts |
+| `terms` | every filter's index: `l:key`, `l:key=value`, `m:<mention>`, and `^<file>`, by message and root |
+| `actors` | who has written, as they show |
+| `tasks`, `task_needs`, `task_views` | each task's state and claim, what it waits on, and its view after each of its events |
+| `timers`, `outbox` | when each timer is due, and how far each watcher has read |
+
+Some facts are side tables and never events: grants, schemas, file records, schedules, registrations and their matches, sync records, and idempotency keys. A schedule's send is its `message.posted`.
+
+### Facets: before and after, at the write
+
+Each event about a message carries two **facets**: what a filter can match the message on (channel, author, labels, the root's labels, mentions, text) from just before the change and just after it. The Ledger reads the "after" facet once the tables are written, in the same transaction.
+
+A filter on the feed asks of each event whether the message matched before or after. So a watcher on `label=status=failed` sees the event that set the label and the one that removed it, and the feed answers what a message was at that point in the log without folding the log again.
+
+### Terms: one index for every filter
+
+Labels, mentions, and files go into `terms` as rows keyed by message and root. A thread listing filtered by `label=area=billing`, `mentions=ada`, or a file is an index scan on one table. Each index in the schema has to earn its place: rows written is what a write costs.
+
+## Client IDs: a retry lands once
+
+A post can carry a client ID. The same ID from the same author in the same place posts once, and a retry answers with the message that landed. The same ID for a different write is refused:
+
+```
+POST /messages {"channel":"ops","id":"nightly-2026-11-20","text":"nightly build started"}
+201 {"message":{"id":"59","channel":"ops","text":"nightly build started"}}
+
+POST /messages {"channel":"ops","id":"nightly-2026-11-20","text":"nightly build started"}
+201 {"message":{"id":"59","channel":"ops","text":"nightly build started"}}
+
+POST /messages {"channel":"deploys","id":"nightly-2026-11-20","text":"something else"}
+409 {"error":{"code":"duplicate_id","message":"that id was already used for a different write"}}
+```
+
+The [deploy notifier](/boards/examples/deploy-notifier/) leans on this: CI can call it twice for one deploy, and the thread and its reply each land once.
+
+## One alarm for every timer
+
+A Durable Object has one alarm. The Ledger keeps every timer as a row in `timers (kind, ref, due)` and sets the alarm to the earliest `due` after each write. Three kinds exist today:
+
+| Kind | What it does when due |
+| --- | --- |
+| `lease` | ends a claim whose lease ran out: `task.expired`, and the task is ready again at a new epoch |
+| `send` | posts a scheduled message, and arms the next one if it repeats |
+| `archive` | runs a bounded step of [archival](/boards/architecture/archival/), which reads and writes R2 |
+
+When the alarm fires, it runs every due timer, 25 at a time, each in its own transaction as the board itself. A timer that throws writes nothing and is tried again a minute later, without holding up the rest. The `archive` timer awaits R2, so it runs outside a transaction and commits each step only after its R2 writes are confirmed. [`test/timers.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/timers.test.ts) checks that one alarm runs many leases and a schedule, all due at once.
+
+## After the commit: rings and dispatch
+
+What a write starts runs after it commits, in `settle()`:
+
+1. **Arm** the alarm for the next due timer.
+2. **Ring** every Relay attached to this board with the new head, at most once every 10 ms. See [Relays](/boards/architecture/relays-and-mailboxes/).
+3. **Dispatch** new events to each config watcher's Mailbox and each sync's courier.
+
+Dispatch reads from an **outbox cursor**: a row in `outbox (destination, seq)` for each watcher, the last position it has handed on. It reads up to 100 events past the cursor, matches each against the watcher's tail, enqueues the matches to the watcher's Mailbox, and only then moves the cursor. A match's ID is `<watcher>:<seq>`, and a Mailbox keeps each ID once, so handing the same events over twice delivers them once.
+
+Dispatch is outside the write's transaction on purpose. Matching costs the writer nothing, and a slow Mailbox never holds a write. If the Ledger stops between the commit and the hand-off, the cursor hasn't moved, and the next write's dispatch picks up from it.
+
+A watcher deployed later starts at the head when the Ledger first sees it: it gets what comes after, and nothing from before.
+
+## The board's address
+
+A board learns its own URL from the first call the Gateway makes to it, and keeps it. Discovery (`GET /b/<name>/`) is answered by the Gateway alone, so it doesn't count. A call through a service binding carries no URL, so a board that has never been served answers it with `no_mount` unless the Worker sets `BOARD_ORIGIN`.

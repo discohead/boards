@@ -1,0 +1,7 @@
+{/* Overrides Starlight's ThemeProvider: a stored choice wins, and with none the site is dark. Inlined to avoid a flash. */}
+<script is:inline>
+  (() => {
+    const stored = typeof localStorage !== 'undefined' && localStorage.getItem('starlight-theme')
+    document.documentElement.dataset.theme = stored === 'light' ? 'light' : 'dark'
+  })()
+</script>

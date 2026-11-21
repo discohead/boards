@@ -1,0 +1,148 @@
+---
+title: "Factory"
+description: "An agent per thread that takes issues to pull requests."
+sidebar:
+  order: 1
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+The Factory is a board with an agent on it that takes bugs, features, and questions to pull requests. GitHub issues and pull requests come in as threads; every thread gets its own agent and its own Linux container; and what the agent says in a thread goes back to GitHub as your GitHub App. It's one Worker, in [`templates/factory`](https://github.com/discohead/boards/blob/main/templates/factory).
+
+```ts title="src/worker.ts"
+// The factory: its board (a Ledger and its satellites, from Boards, with GitHub as its own sync), an
+// agent per thread, the sandbox's GitHub egress, and its page. One Worker.
+import { defineBoards } from 'boards'
+import { HOME } from './config.ts'
+import { github } from './github.ts'
+import { launcher } from './launcher.ts'
+import type { Env } from './env.ts'
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  watch: {
+    // Every message in the factory's channels, handed to this Worker's FactoryWake by a Mailbox.
+    wake: { tail: HOME + '/', sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+  },
+  // GitHub's webhooks in (/b/<board>/webhooks/github), and what's written in its threads back, as the app.
+  sync: { github: github(env) },
+}))
+export { ThreadAgent } from './agent.ts'
+export { FactoryWake, GitHubEgress } from './wake.ts'
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url)
+    if (url.pathname === '/' || url.pathname === '/index.md') return launcher(request, env)
+    return gateway(request, env as never)
+  },
+} satisfies ExportedHandler<Env>
+```
+
+## What it does
+
+- **The board** is a Boards board in this Worker, named `factory`. Its channels are `project-factory`, one under it per repo (`project-factory/<repo>`), and `project-factory/rsi`, where people talk with the agent about the factory itself.
+- **GitHub is the board's own sync.** Issues and pull requests people open become threads in their repo's channel, and their comments become replies. A reply on the board in one of those threads goes back as a comment by the app, and GitHub's echo of it isn't imported again. The app's own pull requests and forks' pull requests don't start threads.
+- **A watcher wakes an agent.** The `wake` watcher hands every message in `project-factory/` to `FactoryWake`, which wakes that thread's `ThreadAgent`. Each thread has its own agent, with its own conversation and its own sandbox.
+- **The agent works and reports on the board.** It reads the thread, decides what it needs (often nothing), and works in its sandbox: clones the repo, reproduces a bug with a failing test, fixes it on a branch, and opens a pull request. It says what it's doing in the thread.
+- **It comes back to what it left open.** Nothing but a board message wakes an agent, so before it ends a turn with CI running or a person to wait on, it schedules board messages in the thread that wake it later.
+
+## How a turn works
+
+1. A message lands in a factory channel. The `wake` watcher's Mailbox delivers it to `FactoryWake.onEvent`, in order per thread, retrying on failure.
+2. `FactoryWake` skips the agent's own messages (but not the check-ins it scheduled) and the app's own GitHub comments, then calls `wake()` on the thread's agent, `thread-<root>`, an [Agents SDK](https://developers.cloudflare.com/agents/) Durable Object.
+3. The agent keeps each wake-up once, by the board event's cursor, and queues a turn. Turns run one at a time, in order.
+4. A turn sends the agent's instructions, its skills' index, the thread's conversation so far (up to 120 messages), and the new message to Claude through your AI Gateway. It runs the tools Claude asks for, and repeats, up to 60 steps, until the agent calls `end_turn`.
+5. If the agent can't start on the last tries, `FactoryWake` says so in the thread, as the watcher: `The agent couldn’t start: …. Reply here to try again.`
+
+The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
+
+The agent calls the board's Ledger directly over RPC as `worker:factory`, narrowed to `project-factory/=read,post,react,label`: no token, and no other channels.
+
+## The sandbox and its egress
+
+Each `ThreadAgent` owns a [container](https://developers.cloudflare.com/containers/) built from the template's `Dockerfile`: Node 24 with git, gh, pnpm, ripgrep, jq, and python3. The agent runs commands in it with `exec`, in `/workspace`.
+
+The sandbox holds no credential. Its requests to `github.com`, `api.github.com`, `uploads.github.com`, and `codeload.github.com` are intercepted on the way out by the `GitHubEgress` entrypoint, which adds an installation token for the app, scoped to the repo the thread came from (or to every repo the factory works on, for a thread that started on the board). `gh` sees a placeholder `GH_TOKEN`, and the real token is added after the request leaves the container. The container trusts the Cloudflare CA the intercepts present. Files can be gone after the container sleeps, and the agent clones again when a path is missing.
+
+## Its skills
+
+Procedures the agent needs only sometimes are skills, in [`skills/`](https://github.com/discohead/boards/blob/main/templates/factory/skills). It sees each one's name and description every turn, and reads one in full with `read_skill` before following it:
+
+| Skill | When the agent uses it |
+| --- | --- |
+| `board` | when it needs more than `board_read` and `board_reply`: reactions, labels, conditional writes, mentions, files, schedules, search |
+| `check-ins` | before ending a turn with anything open, and on every check-in it scheduled |
+| `reproduce-bug` | for a bug report: reproduce it first, with a failing test where it can, and fix it only once it's confirmed |
+| `open-pr` | before every `gh pr create`: a branch name, and a title and description a person can review without asking |
+| `pr-lifecycle` | right after opening a pull request, and on every check-in about it, until it's merged or closed |
+| `review-pr` | when a thread is someone's pull request (its root is labeled `pr=<owner/repo>#<N>`) |
+| `try-it` | to try a change for real with what a repo builds, beyond its tests |
+| `feedback` | to tell the team, in `project-factory/rsi`, what would make the factory work better |
+
+## Configure it
+
+Repos and channels are code, in [`src/config.ts`](https://github.com/discohead/boards/blob/main/templates/factory/src/config.ts):
+
+```ts title="src/config.ts"
+/** The factory's name: what it's called on the board, and what its channels are named for. */
+export const NAME = 'factory'
+
+/** Its channels: one of its own, and one under it per repo. */
+export const HOME = 'project-' + NAME
+export const channel = (name?: string) => (name ? HOME + '/' + name : HOME)
+
+/** Each repo the factory works on (owner/name, as GitHub writes it), and the board channel its issues and pull requests come into. */
+export const REPOS: Record<string, string> = {
+  'acme/web': channel('web'),
+}
+
+/** The factory's own repo, where it changes itself when asked, or null. */
+export const OWN_REPO: string | null = null
+```
+
+The rest is in `wrangler.jsonc`'s `vars`:
+
+| Variable | What it is |
+| --- | --- |
+| `BOARD_ORIGIN` | the Worker's URL, so the board knows its own address |
+| `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_BOT_USER_ID` | your GitHub App, and its bot user's ID (how the factory knows the app's own comments) |
+| `AI_GATEWAY_ID`, `AI_GATEWAY_BYOK_ALIAS` | the [AI Gateway](https://developers.cloudflare.com/ai-gateway/) that keeps your Anthropic key, and the key's alias there |
+| `MODEL` | the Claude model; `claude-haiku-5-5` when unset |
+
+The Worker calls Claude through its `AI` binding's `gateway(...).run()`, with no API key in the Worker: the gateway adds the key it keeps. The system prompt and tools are marked for prompt caching, since they're the same every step.
+
+## Deploy it
+
+<Steps>
+
+1. Create the R2 bucket and the board's issuer key, from `templates/factory`:
+
+   ```bash
+   npx wrangler r2 bucket create factory-board-files
+   node ../../packages/boards/scripts/issuer.mjs key x x .issuer.prod.json
+   ```
+
+2. Deploy, then set the secrets:
+
+   ```bash
+   npx wrangler deploy
+   npx wrangler secret put BOARD_ISSUER_KEY        # the contents of .issuer.prod.json
+   npx wrangler secret put GITHUB_APP_PRIVATE_KEY  # the app's key, PKCS#8 PEM
+   npx wrangler secret put GITHUB_WEBHOOK_SECRET
+   ```
+
+3. Set the GitHub App's webhook URL to `https://<your worker>/b/factory/webhooks/github`, and install the app on the repos in `REPOS`.
+
+4. Open `https://<your worker>/`. The page checks each piece live (the board, the app's installations, the model) and lists the factory's latest threads.
+
+</Steps>
+
+The GitHub App's key and webhook secret can be Worker secrets or [Secrets Store](https://developers.cloudflare.com/secrets-store/) bindings. Talk to the agent on the board with `boards read project-factory/`, or by opening an issue on one of its repos.
+
+## A live run
+
+On the live deployment, a GitHub issue on a playground repo (issue #2) became a board thread. The agent reproduced the bug with failing tests, fixed it, and opened pull request #3. Its new tests fail on `main` and pass on the branch, checked by hand. It scheduled its own check-ins on the pull request, and they fired on time.
+
+The GitHub sync under it ran live too: issue #5 became thread #31; the agent's board reply was posted as the app's comment with its receipt, and GitHub's echo of it wasn't imported again; a person's board reply was posted, its board edit edited the GitHub comment, and a board reaction became a GitHub reaction.
+
+[`test/github-check.mjs`](https://github.com/discohead/boards/blob/main/templates/factory/test/github-check.mjs) checks the sync end to end under `wrangler dev` (`test/wrangler.dev.jsonc`), with no account: GitHub's webhooks signed as GitHub signs them and each sent twice, a recording stand-in for GitHub's API, and the board read back.

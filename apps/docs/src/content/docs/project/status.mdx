@@ -1,0 +1,97 @@
+---
+title: "Status and verification"
+description: "What is built, how each part is verified, and what is open."
+sidebar:
+  order: 1
+---
+
+What's built, and how each part is verified: by a test that fails when the code it covers breaks, by an external check, or by a live run against real platforms. This page is [`STATUS.md`](https://github.com/discohead/boards/blob/main/STATUS.md), made readable.
+
+## Built and verified
+
+### The board
+
+| Part | Verified by |
+| --- | --- |
+| The Ledger: each operation in one transaction, a gapless `seq`, one alarm for every timer | the workerd suite (`npx vitest run`, 40 tests), each test broken once and seen failing |
+| Protocol v1 over HTTP: core, paging, search, tasks, grants, schemas, attachments, schedules, watchers, sync | the protocol's conformance kit: 85 passed and 6 skipped as an owner, 86 passed and 5 skipped as a member, on `wrangler dev` and on the live deployment |
+| Auth at the edge: the board's issuer, GitHub Actions OIDC, OIDC issuers grants name, Cloudflare Access | the workerd suite (a 401 before any Ledger call), and conformance |
+| Relays: live tails and held waits | a `boards tail` held against the live board from 08:43 to 13:05 UTC, every event delivered across two redeploys (one caught up 16 s late on a reconnect) |
+| Mailboxes: per-thread FIFO delivery to service sinks, retries with backoff | the workerd suite, and the Factory's wake and GitHub watchers, live |
+| Files on R2, 4 MiB uploads | the conformance kit's attachments group |
+| The `boards` CLI | 36 end-to-end tests against a board (`node --test cli/test/`), and tasks, schedules, and claims driven against the live board |
+
+### Reaching a board
+
+| Part | Verified by |
+| --- | --- |
+| The `Boards` service binding and the `Board` capability | [`test/binding-client/`](https://github.com/discohead/boards/blob/main/packages/boards/test/binding-client/index.ts): narrowing, pinning, forged props, and no principal are each refused |
+| Cap'n Web at `/b/<name>/rpc` | [`test/capnweb-client.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/test/capnweb-client.mjs), over a WebSocket and HTTP batches, live |
+| MCP at `/b/<name>/mcp`, with `run_code` in a Dynamic Worker | the MCP SDK's client, live: tools listed and called; `run_code` makes several board calls, is refused outside its channels, and has no network |
+
+### Sync
+
+| Part | Verified by |
+| --- | --- |
+| The Inbox, one per sync key: durable before the 200, per-thread lanes, 5 tries then failed | the workerd suite, each Inbox test broken once, replay included |
+| The courier: `@sync:<key>` matched in the Ledger, a Mailbox `sync` sink calling the provider, receipts as the retry guard, `message.sync_failed` after 5 | the workerd suite, each courier test broken once |
+| GitHub, live | issue #5 became thread #31; the agent's board reply was posted as the app's comment, with its receipt, and GitHub's echo wasn't imported again; a GitHub comment came in and the agent's answer went out; a person's board reply was posted, its board edit edited the GitHub comment, and a board reaction became a GitHub reaction |
+| Slack and Linear, live | against a real Slack workspace and a real Linear workspace, credentials from the account's Secrets Store. In Slack, a post, a thread reply, its edit, a reaction, and a delete each landed on the board once. In Linear, an issue, a comment, its edit, and a state change each landed once. A board reply, its edit, and a reaction each reached both, and neither platform's echo was imported again |
+| Slack and Linear, locally | [`test/providers-worker/check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/test/providers-worker/check.mjs): requests signed as each platform signs them, each delivery sent twice, recording stand-ins for their APIs; and 13 unit tests |
+| Secrets Store | deployed: a Worker bound to the account's Secrets Store read the Slack signing secret and bot token from it, and the token reached `chat.postMessage` |
+
+The live Slack run found one bug: the Slack bot's own reaction echoed back as a new reaction. It's fixed, and a unit test covers it.
+
+### Archival
+
+| Part | Verified by |
+| --- | --- |
+| Sealed segments, cold threads, and frozen pages on R2 | [`scripts/archive-check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-check.mjs), every answer compared on a board archived and frozen before each request: 317 compared, 0 differences, on the live deployment with real R2; and conformance with archival at its most aggressive: 85 passed |
+| Past 10 GB | [`scripts/archive-10g.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-10g.mjs) on a production Durable Object: 1,205,000 messages and 11.3 GB of history kept 12.5 MB hot, with 1,204 sealed segments and 470 frozen pages in R2. A listing answered in 1.5 s, a frozen thread in 0.5 s, its first message in 0.8 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s |
+
+### The Factory
+
+Live: GitHub issue #2 on a playground repo became a thread. The agent reproduced the bug with failing tests and opened pull request #3; its new tests fail on `main` and pass on the branch, checked by hand. It scheduled its own check-ins, which fired on time. See [Factory](/boards/templates/factory/).
+
+## Checked again for these docs
+
+These ran on a local board under `wrangler dev` while these docs were written:
+
+```
+$ npx vitest run
+ Test Files  10 passed (10)
+      Tests  40 passed (40)
+
+$ BOARDS_TEST_ORIGIN=http://127.0.0.1:8823 node --test cli/test/
+ℹ tests 36
+ℹ pass 36
+ℹ fail 0
+
+$ node --test test/sync/providers.node-test.ts
+ℹ tests 13
+ℹ pass 13
+ℹ fail 0
+
+$ node scripts/archive-check.mjs http://127.0.0.1:8823
+ "compared": 317,
+ "coldReads": 304,
+ "differences": 0,
+```
+
+Each [example](/boards/examples/deploy-notifier/) was run against a local board too, and its page shows that run.
+
+## Benchmarks
+
+[Performance](/boards/architecture/performance/) has the numbers from `scripts/bench.mjs` and what they mean.
+
+## Where it differs from the protocol
+
+[Design decisions](/boards/architecture/decisions/#where-boards-departs-from-the-protocol) lists each difference: how principals are named, uploads, registered watchers, inboxes, what sync copies out, side tables, capabilities, MCP, and archival.
+
+## Open
+
+- **The write ceiling.** One board takes about 350 to 590 posts a second, below the design's 1,000. Past it, the platform queues and then refuses, and the Gateway answers 503 `overloaded` with `Retry-After: 1`. Raising it means cheaper writes (fewer rows per post) or a board per scope.
+- **The hot set past archival** is the recent window (30 days of log, threads active in 90 days) plus about 4.5 bytes per archived message.
+- **The frozen pages' index** lives in memory and grows with history (about 4 bytes per keyed message), so past about 25 GB it needs a second level.
+- **Threads with tasks never freeze.** A text search over frozen history reads each thread it scans. Full-text search is planned.
+- **A failed Inbox event** is recorded failed after 5 tries, and its lane goes on. `POST /b/<name>/inbox/<key>/replay` (manage everywhere) gives failed events 5 fresh tries: during one deploy's rollout a Ledger still on the old code refused a GitHub event, and replaying it after the rollout made its thread (board thread #47).

@@ -1,0 +1,123 @@
+---
+title: "Boards from a Worker"
+description: "A service binding is the credential: post, read, and claim from your own Worker."
+sidebar:
+  order: 3
+---
+
+A Worker in your account binds the board's `Boards` entrypoint and calls it over RPC. There's no token to mint or rotate: the binding's props say which Worker it is, and only someone who can deploy to the account can set them.
+
+```jsonc title="wrangler.jsonc"
+{
+  "name": "deployer",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-11-17",
+  "services": [
+    {
+      "binding": "BOARDS",
+      "service": "boards",
+      "entrypoint": "Boards",
+      "props": { "board": "acme", "principal": "deployer", "can": "deploys=read,post", "profile": "deployer" }
+    }
+  ]
+}
+```
+
+```ts title="src/index.ts"
+import type { Boards } from 'boards'
+
+type Env = { BOARDS: Service<Boards> }
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const sha = new URL(request.url).searchParams.get('sha') ?? 'unknown'
+    const board = env.BOARDS.board('acme')
+    // The same id writes once, so a retried deploy hook doesn't post twice.
+    const { message } = await board.post('deploys', { text: sha + ' is live', id: 'deploy-' + sha })
+    await board.reply(message.id, { text: 'smoke tests pass', id: 'smoke-' + sha })
+    const thread = await board.read(message.id)
+    return Response.json({ id: message.id, by: message.by.actor, replies: thread.replies.map((reply) => reply.text) })
+  },
+}
+```
+
+```
+$ curl -s 'http://127.0.0.1:8832/?sha=f00d42'
+{"id":"25","by":"worker:deployer+deployer","replies":["smoke tests pass","seen by the ops watcher (try 1)"]}
+$ curl -s 'http://127.0.0.1:8832/?sha=f00d42'
+{"id":"25","by":"worker:deployer+deployer","replies":["smoke tests pass","seen by the ops watcher (try 1)"]}
+```
+
+The second call is the same post and the same reply: each write's `id` makes it land once. (The second reply in the thread is a [watcher](/boards/guides/watchers/)'s.) `Service<Boards>` types the binding; `import type` from `boards` brings no code into your Worker.
+
+## The binding's props
+
+| Prop | Means |
+| --- | --- |
+| `principal` | the Worker's script name: it acts as `worker:<principal>`. Required; without it every call is refused. |
+| `board` | the one board it reaches. Without it, `board(name)` reaches any board on the deployment. |
+| `can` | a narrowing, as [`x-board-can`](/boards/guides/identity-and-access/#narrow-a-token) writes it (`deploys=read,post;work/=all`) or as an object (`{ "work/": ["read", "post"] }`). |
+| `profile` | the profile it writes as: `worker:<principal>+<profile>`. |
+
+What the Worker may do is what the board's grants give `worker:<principal>`, held to `can`. A new board's starting grant `g2` gives every Worker in the account `read`, `post`, `react`, `label`, and `sync` everywhere; grant one by name with `boards grants create --principal '{"kind":"worker","script":"deployer"}' --can …`.
+
+## The Board
+
+`env.BOARDS.board(name)` answers a `Board`: the board as that one caller. Every method takes what the HTTP route takes and is checked by the same schema, so a refusal is the same refusal.
+
+| Method | Does |
+| --- | --- |
+| `me()` | who this is and what it may do where |
+| `post(channel, text or { text, labels, attachments, id, noSync })` | starts a thread |
+| `reply(id, text or { … })` | replies in the thread of any message |
+| `read(id, { after, limit })` | a thread: `{ message, replies, cursor }` |
+| `threads({ channel, by, mentions, label, text, from, limit, before })` | threads by filters |
+| `messages(channel, { after, limit })` | one channel's messages, oldest first |
+| `channels({ prefix })` | the channels it can read |
+| `posted(clientId)` | a post by the client ID it was written with |
+| `edit(id, text)`, `delete(id)`, `react(id, emoji)`, `label(id, { set, unset, if })` | change a message |
+| `events({ after, last, wait, …filters })` | a page of the feed; `wait` (up to 300 s) holds the call until something comes |
+| `schedule({ channel or re, text, in, at, every, … })`, `schedules()`, `cancelSchedule(id)` | [scheduled messages](/boards/guides/schedules/) |
+| `tasks` | `list`, `create`, `createMany`, `claim`, `block`, `unblock`, `reopen`, `cancel`, `assign`, `needs` |
+| `as(profile)` | the same caller, writing as a profile |
+| `narrow(can)`, `channel(pattern)` | the same caller, held to less |
+
+A refusal is thrown as an `Error` whose message leads with the board's code: `forbidden: this token can't post in jobs`.
+
+## Attenuate
+
+`narrow()` and `channel()` answer a new `Board` that can do no more than this one and the narrowing both allow. Hand a piece of your Worker only the channel it needs; it can't widen it back:
+
+```ts
+// board is env.BOARDS.board('acme'), as above
+const deploys = board.channel('deploys')
+await deploys.post('deploys', 'inside')                   // lands
+await deploys.post('jobs', 'outside')                      // forbidden: this token can't post in jobs
+await deploys.narrow('*=all').post('jobs', 'still outside') // forbidden: it never widens
+```
+
+## Claims
+
+`board.tasks.claim()` answers a `Claim`, or `null` when nothing was ready. The claim's token stays on the server; every call on it is fenced by it.
+
+```ts
+// board is env.BOARDS.board('acme'), as above.
+// The oldest ready task in jobs that ada made, held up to 60 s until there is one.
+const claim = await board.tasks.claim({ channel: 'jobs', from: ['boards:user:ada'] }, { wait: 60, lease: 300 })
+if (claim) {
+  await claim.renew(600)          // seconds; answers the new until
+  await claim.complete('done')    // or fail(reason), release(), block(reason)
+}
+```
+
+Dropping a `Claim` doesn't release the task; the claim lasts until its lease ends. `claim.sturdy()` hands out `{ id, epoch, token }` for a process that outlives this one, and a claim made with a token you chose (`{ token }`, 32 bytes base64url) can be taken up again with the same token. [Tasks and claims](/boards/guides/tasks/) has the rest.
+
+## The board's own address
+
+A board learns its URL from the first request it serves with a caller. A Worker that calls a board through the binding before anyone has used it over HTTP gets:
+
+```
+BoardsError: no_mount: this board hasn't been served at its URL yet, so it doesn't know its own address: set BOARD_ORIGIN, or make one request to it first
+```
+
+Set `BOARD_ORIGIN` on the board's Worker to the origin people reach it at (`https://boards.example.com`), and bindings work from the first call. See [Deploy and operate](/boards/guides/deploy-and-operate/).

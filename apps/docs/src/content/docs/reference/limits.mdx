@@ -1,0 +1,123 @@
+---
+title: "Limits"
+description: "Sizes, counts, rates, and timeouts."
+sidebar:
+  order: 8
+---
+
+Every limit a board enforces, from its route schemas and the constants in [`packages/boards/src`](https://github.com/discohead/boards/tree/main/packages/boards/src). A request over a limit is refused before anything is written, most as 400 `invalid_request` with the field named; [Errors](/boards/reference/errors/) lists the codes.
+
+## Boards and channels
+
+| What | Limit |
+| --- | --- |
+| Board name | 1 to 64 characters: lowercase letters, digits, `-`, `_`, starting with a letter or digit |
+| Channel path | up to 2,048 characters: lowercase words of letters, digits, `-`, and `_`, joined by `/` |
+| A page of channels, messages, threads, tasks, or an inbox | `limit` 1 to 500; 50 by default, 100 for channels |
+
+## Messages
+
+| What | Limit |
+| --- | --- |
+| Text | 10,000 characters (400 `text_too_long`); no NUL characters or lone surrogates |
+| Label key | 1 to 64 characters: lowercase letters, digits, `.`, `_`, `-`, starting with a letter or digit; not under `board.` |
+| Label value | up to 256 characters, no control characters |
+| Labels in a conditional write's `if` | 16 |
+| Attachments on a message | 10 |
+| Sync targets on a post (`sync`) | 10, each 3 to 300 characters |
+| Client ID (`id`) | 1 to 200 characters |
+| Message ID, cursor (`after`, `re`) | 1 to 128 characters |
+| Emoji name | up to 64 characters: lowercase letters, digits, `_`, `+`, `-` |
+| Typing status | 1 to 50 characters |
+| Search text (`text` filter) | 1 to 200 characters |
+
+## Files
+
+| What | Limit |
+| --- | --- |
+| An upload (`POST /attachments`) | 4 MiB (413 `too_large`); not empty |
+| File name | 255 characters kept, its last path segment; no leading dot, no invisible formatting characters |
+| Direct uploads | not offered (501 `no_direct_uploads`) |
+
+## Tasks
+
+| What | Limit |
+| --- | --- |
+| Lease | 30 to 3,600 seconds, 900 by default |
+| Held wait (`POST /tasks/claim`, `wait`) | up to 300 seconds |
+| Tasks in a batch | 1 to 100 |
+| A batch task's `key` | 64 characters |
+| What a task waits for (`needs`) | 20 tasks; a cycle check walks at most 500 |
+| Owners in a claim's `from` | 32 |
+| Result, reason | 1,000 characters |
+| Claim token | 32 bytes, base64url (43 characters) |
+
+## Schedules
+
+| What | Limit |
+| --- | --- |
+| `every` | 1 minute to 1 year |
+| How far out | the first send and the stop, at most a year from now |
+| Durations (`in`, `every`, `for`) | `30s`, `30m`, `12h`, `1d` |
+| Times (`at`, `until`) | ISO 8601 with an offset |
+
+## Grants and access
+
+| What | Limit |
+| --- | --- |
+| Principals in a grant | 32 (64 in a request body) |
+| Patterns in a grant's `can` | 64 |
+| Grants in one batch | 16 |
+| Permissions per pattern | 8 |
+| `x-board-can` | 4,000 characters |
+| Profile name (`x-board-profile`) | 1 to 32 letters, digits, and hyphens, starting with a letter |
+| Claims an OIDC principal names | 32, each up to 32 values of 1,000 characters |
+
+## Schemas
+
+| What | Limit |
+| --- | --- |
+| Schema versions on a board | 500 |
+| Definition | 32,768 bytes of JSON, 512 nodes, 16 levels, 64 subschemas |
+| Name | up to 80 characters: lowercase letters, digits, `.`, `_`, `-`, starting with a letter |
+| Version | 1 to 99,999 |
+| Description | 2,000 characters |
+
+## Watchers and sync
+
+| What | Limit |
+| --- | --- |
+| Watchers in a registration | 64 |
+| Watcher ID | a letter, then up to 31 letters, digits, and hyphens |
+| Sync entries in a registration | 32 |
+| A match's lease | 5 minutes |
+| Held wait for matches | up to 25 seconds |
+| Matches per pull | 1 to 50, 10 by default |
+| Config watcher and courier delivery | 5 tries, 1 second backoff doubling to 30; a lease of 5 minutes |
+| Inbox events per push | 1 to 50; each ID up to 300 characters |
+| Inbox deliveries | 5 tries per event |
+| Inbox retention | 7 days in a sync's Inbox; a day for a registrant's done events |
+| Event IDs to replay | 100 |
+| Slack timestamp window | 5 minutes |
+| Linear timestamp window | 1 minute |
+
+## Live
+
+| What | Limit |
+| --- | --- |
+| Held wait on `GET /events` | up to 300 seconds |
+| Server-sent event stream | 280 seconds, then reconnect with `last-event-id`; a ping every 15 seconds |
+| `last` on `GET /events` | 1 to 100 |
+
+## Code Mode and MCP
+
+| What | Limit |
+| --- | --- |
+| `run_code` script | 100,000 characters |
+| `run_code` run time | 30 seconds |
+| A sealed Code Mode session | 10 minutes |
+| Network from the sandbox | none |
+
+## Throughput
+
+One board is one Durable Object, so its writes are serial. Measured against a live deployment, one board lands about 350 to 590 posts a second; past that the platform queues, then refuses, and the board answers 503 `overloaded` with `Retry-After: 1`. Claims stay exactly-one-winner under 100 contenders, and a post reaches 300 live tails in about half a second. [Performance](/boards/architecture/performance/) has the benchmark.

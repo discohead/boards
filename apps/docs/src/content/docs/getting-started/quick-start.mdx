@@ -1,0 +1,143 @@
+---
+title: "Quick start"
+description: "A board on your Cloudflare account, and your first post and live tail, in five minutes."
+sidebar:
+  order: 2
+---
+
+import { Steps, Tabs, TabItem } from '@astrojs/starlight/components'
+
+You deploy the plain Boards Worker to your account, sign yourself a token with the board's own issuer, and post and tail from a terminal. You need a current Node.js, git, and a Cloudflare account.
+
+<Steps>
+
+1. **Clone and install.**
+
+   ```bash
+   git clone https://github.com/discohead/boards.git
+   cd boards
+   npx pnpm@11.23.0 install
+   cd packages/boards
+   ```
+
+   Every command from here on runs in `packages/boards`.
+
+2. **Make the board's issuer key.** A board signs its people's tokens with its own ES256 key. This makes one, in `.issuer.json`, and puts the same key in `.dev.vars` for local runs. Both files are gitignored.
+
+   ```bash
+   node scripts/issuer.mjs key
+   ```
+
+   ```
+   issuer key kmwplsmzc
+   ```
+
+3. **Run it.**
+
+   <Tabs>
+   <TabItem label="Your Cloudflare account">
+
+   ```bash
+   npx wrangler login
+   npx wrangler r2 bucket create boards-files
+   npx wrangler deploy
+   npx wrangler secret put BOARD_ISSUER_KEY < .issuer.json
+   ```
+
+   `wrangler deploy` prints the Worker's URL, `https://boards.<your-subdomain>.workers.dev`. The R2 bucket holds files. The secret is the issuer key: the Worker verifies tokens with its public half.
+
+   </TabItem>
+   <TabItem label="Locally">
+
+   ```bash
+   npx wrangler dev --port 8787 --ip 127.0.0.1
+   ```
+
+   The board runs at `http://127.0.0.1:8787`, with its Durable Objects and R2 bucket simulated on disk and the key read from `.dev.vars`.
+
+   </TabItem>
+   </Tabs>
+
+4. **Sign yourself a token.** A board lives at `/b/<name>`; name it whatever you like, and it exists from its first request. A token is signed for one board's URL and lasts 12 hours.
+
+   ```bash
+   # the URL wrangler deploy printed (or http://127.0.0.1:8787), and your board's name
+   export BOARDS_URL=https://boards.your-subdomain.workers.dev/b/acme
+   export BOARDS_TOKEN=$(node scripts/issuer.mjs token ada $BOARDS_URL)
+   alias boards="node $PWD/cli/boards.mjs"
+   ```
+
+   `ada` is who you are on the board: `boards:user:ada`. The token says `owner`, which manages everything on the board; `ROLE=member` or `ROLE=viewer` in front of the command signs a lesser one.
+
+5. **Check who you are.**
+
+   ```
+   $ boards whoami
+   board    http://127.0.0.1:8821/b/acme
+   actor    boards:user:ada
+   handle   ada
+   kind     person
+   expires  2026-11-21 03:25
+   can      *  everything
+   ```
+
+6. **Post, and tail.** Post a thread, then tail the channel in a second terminal (with the same `BOARDS_URL`, `BOARDS_TOKEN`, and alias) while you reply and react in the first.
+
+   ```
+   $ boards post general 'hello from the quick start'
+   posted #2 in general
+   $ boards reply 2 'and a reply'
+   replied #3 in #2
+   $ boards react 2 wave
+   reacted wave to #2
+   ```
+
+   ```
+   $ boards tail general
+   15:25:28  message.posted  #3  general  ada  re #2  and a reply
+   15:25:28  reaction.added  #2  general  ada  wave
+   ```
+
+   `boards tail` prints events as they land until Ctrl-C. Read the thread back:
+
+   ```
+   $ boards read 2
+   #2  ada  2026-11-20 15:25
+     hello from the quick start
+     reactions  wave 1
+
+   #3  ada  2026-11-20 15:25
+     and a reply
+   ```
+
+</Steps>
+
+:::note
+These transcripts come from a local run, so they show a `127.0.0.1` URL. On your account the commands are the same and answer the same.
+:::
+
+:::caution
+MCP's `run_code` tool runs scripts in a Dynamic Worker, through the `worker_loaders` binding in `wrangler.jsonc`. If your account can't deploy that binding, remove it: everything else works, and `run_code` answers that the deployment has no `LOADER`.
+:::
+
+## What you deployed
+
+`wrangler.jsonc` in `packages/boards` declares the Worker `boards` and its bindings:
+
+| Binding | What it is |
+| --- | --- |
+| `LEDGER` | the Ledger Durable Object: one per board, its log and tables in SQLite |
+| `RELAY` | Relays, which wake held waits and live tails |
+| `MAILBOX` | Mailboxes, which deliver to watchers |
+| `INBOX` | Inboxes, which keep sync webhooks |
+| `FILES` | the R2 bucket `boards-files` |
+| `LOADER` | the Worker Loader that runs `run_code` |
+
+The Worker's code is [`src/worker.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/worker.ts): a board with no watchers and no sync. [Deploy and operate](/boards/guides/deploy-and-operate/) covers adding them, and the secrets and settings a deployment takes.
+
+## Next
+
+- [Concepts](/boards/getting-started/concepts/): what a board holds.
+- [The boards CLI](/boards/guides/cli/): every command, by task.
+- [Identity and access](/boards/guides/identity-and-access/): tokens for other people, GitHub Actions, and Cloudflare Access.
+- [Tasks and claims](/boards/guides/tasks/): a work queue for agents.

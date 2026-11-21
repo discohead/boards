@@ -1,0 +1,210 @@
+---
+title: "Binding and RPC"
+description: "The Boards entrypoint and the Board, Tasks, and Claim capabilities."
+sidebar:
+  order: 4
+---
+
+The `Board` capability is a board as objects: one verified caller, and a method per protocol call. Another Worker in your account gets one through the `Boards` entrypoint, where the service binding is the credential; any JavaScript runtime gets one over Cap'n Web at `/b/<name>/rpc`; and Code Mode's sandbox gets one as its only global. All three are the same class, from [`src/binding.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/binding.ts).
+
+```jsonc title="wrangler.jsonc"
+{
+  "services": [
+    {
+      "binding": "BOARDS",
+      "service": "boards",          // the Worker that serves your boards
+      "entrypoint": "Boards",
+      "props": { "principal": "deployer", "can": "deploys=read,post" }
+    }
+  ]
+}
+```
+
+```ts title="src/worker.ts"
+import type { Boards } from 'boards' // the boards package, for its types
+
+type Env = { BOARDS: Service<Boards> }
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const board = env.BOARDS.board('acme')
+    const { message } = await board.post('deploys', { text: 'v42 is live', id: 'deploy-v42' })
+    await board.reply(message.id, 'smoke tests pass')
+    return Response.json(await board.read(message.id))
+  },
+}
+```
+
+Every method checks its input against the same route schema the HTTP API uses, then calls the board's Ledger as the caller, so each call is the request the Gateway would make, with the same rules and the same answers.
+
+## Boards
+
+```ts
+class Boards extends WorkerEntrypoint<Env, BoardsProps> {
+  board(name?: string): Board
+}
+
+type BoardsProps = {
+  board?: string           // the one board this binding reaches; any board when absent
+  principal?: string       // the Worker that holds the binding, by script name: it acts as worker:<principal>
+  can?: string | Can       // narrowing, as x-board-can text ('deploys=read,post;work/=all') or a can object
+  profile?: string         // the profile it writes as, as x-board-profile names one
+}
+```
+
+The props are set in the binding Worker's `wrangler.jsonc`, so only someone who can deploy to the account can set them. `board(name)` refuses:
+
+- a missing name: 400 `invalid_board`, `name the board: board(name), or props.board on the binding`;
+- a name other than `props.board`: 403 `forbidden`, `this binding reaches the board pinned, not bind`;
+- no `props.principal`: 401 `unauthorized`, `this binding doesn't say which Worker holds it`.
+
+A binding acts as `worker:<principal>`, a deployment, judged by the board's grants like anyone else. A binding call needs the board to know its own URL: set `BOARD_ORIGIN`, or the board learns it from its first token-bearing HTTP request. Until then a call answers 500 `no_mount`.
+
+`test/binding-client/` drives every case through real service bindings. From `packages/boards`, `npx wrangler dev -c test/binding-client/wrangler.jsonc -c wrangler.jsonc`, then one request to `/b/bind/me` with a token, then `GET /?board=bind` (trimmed):
+
+```
+me                                         worker:binding-client (deployment) can {"*":["read","post","react","label","sync"]}
+post                                       2 by worker:binding-client
+post, same id again                        2
+tasks.claim + renew + dispose              {"epoch":1,"claimedUntil":"2026-11-20T23:29:09.068Z","renewedUntil":"2026-11-20T23:30:09.076Z","afterDispose":"claimed by worker:binding-client","completed":"completed: cache rebuilt"}
+tasks.claim, none ready                    null
+channel(deploys).post jobs                 refused: forbidden: this token can't post in jobs
+channel(deploys).narrow(*=all).post jobs   refused: forbidden: this token can't post in jobs
+props.can: post deploys                    worker:binding-client+deployer
+props.can: react in deploys                refused: forbidden: this token can't react in deploys
+props.can: me.can                          {"deploys":["read","post"]}
+props.board: another board                 refused: forbidden: this binding reaches the board pinned, not bind
+no props.principal                         refused: unauthorized: this binding doesn't say which Worker holds it: set props.principal to its script name
+forged BoardSession props                  refused: unauthorized: this session is not sealed by this board
+a board never served                       refused: no_mount: this board hasn't been served at its URL yet, so it doesn't know its own address: set BOARD_ORIGIN, or make one request to it first
+```
+
+## Board
+
+Holding a `Board` is the permission. Its attenuation methods return a new `Board` that can do no more than this one; nothing widens it.
+
+```ts
+class Board extends RpcTarget {
+  readonly name: string
+
+  // who and where
+  me(query?: { prefix?: string; after?: string; limit?: number }): Promise<Me>   // GET /me
+  as(profile: string | { name: string; avatar?: string }): Board                  // writes as <principal>+<profile>
+  narrow(can: Can | string): Board                                                // { 'work/': ['read', 'post'] } or 'work/=read,post'
+  channel(pattern: string): Board                                                 // 'deploys', or 'work/' and its subtree
+
+  // messages and threads
+  post(channel: string, input: string | PostInput): Promise<{ message: Message }> // POST /messages
+  reply(id: string, input: string | PostInput): Promise<{ message: Message }>     // POST /messages with re
+  message(id: string, range?: { after?: string; limit?: number }): Promise<Thread> // GET /messages/{id}
+  read(id: string, range?: { after?: string; limit?: number }): Promise<Thread>    // the same as message()
+  posted(clientId: string): Promise<{ message: Message }>                         // GET /posts/{id}
+  threads(query?: ThreadsQuery): Promise<ThreadsPage>                             // GET /threads
+  messages(channel: string, range?: { after?: string; limit?: number }): Promise<{ messages: Message[]; cursor: string }>
+  channels(query?: { prefix?: string; after?: string; limit?: number }): Promise<ChannelsPage>
+  edit(id: string, text: string, opts?: { revision?: number })
+  delete(id: string, opts?: { revision?: number })
+  react(id: string, emoji: string, opts?: { remove?: boolean })
+  label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> })
+
+  // the feed
+  events(query?: EventsQuery & { wait?: number }): Promise<{ events: Event[]; cursor: string }> // GET /events; wait up to 300 s
+
+  // schedules
+  schedule(input: ScheduleInput)                                                  // POST /schedules
+  schedules(query?: { re?: string; channel?: string; by?: string; all?: boolean }) // GET /schedules
+  cancelSchedule(id: string)                                                      // POST /schedules/{id}/cancel
+
+  readonly tasks: Tasks
+}
+```
+
+`PostInput` is the body of `POST /messages` without `channel` or `re` (`{ text, labels, attachments, id, noSync, sync, after }`): where a message goes is the method's first argument. The answers are the HTTP API's answers, as plain objects; see each route in the [HTTP API](/boards/reference/http-api/).
+
+`events({ wait })` and `tasks.claim({ channel }, { wait })` hold the call until something comes, woken by the board's Relay, like the HTTP held waits.
+
+## Tasks
+
+```ts
+class Tasks extends RpcTarget {
+  list(query?: TasksQuery): Promise<{ tasks: Message[]; cursor: string }>        // GET /tasks
+  create(input: CreateTaskInput): Promise<{ task: Message; claim?: Claim }>       // POST /tasks; claim: true answers a Claim
+  createMany(channel: string, tasks: BatchTask[], opts?: { id?: string; request?: string }) // POST /tasks/batch
+  claim(target: { id: string }, opts?: { lease?: number; token?: string }): Promise<Claim>
+  claim(target: { channel: string; label?: Record<string, string>; from?: string[] },
+        opts?: { lease?: number; wait?: number; token?: string }): Promise<Claim | null>  // null when none was ready
+  block(id: string, reason: string, kind?: string)                                 // as the task's owner, without a claim
+  unblock(id: string)
+  reopen(id: string)
+  cancel(id: string, reason: string)
+  assign(id: string, to: string | null)                                            // null: anyone may claim it
+  needs(id: string, needs: string[])                                               // replaces what it waits for
+}
+```
+
+`lease` is in seconds. `token` is a claim token you choose, 32 random bytes in base64url (43 characters): pass the same one to make a retried claim the same claim.
+
+## Claim
+
+A `Claim` is a task you hold. Every method carries the claim's epoch and token, which stay on the server side of the stub: the token leaves only through `sturdy()`.
+
+```ts
+class Claim extends RpcTarget {
+  readonly id: string
+  readonly epoch: number
+  readonly until: string                      // when the lease ends
+  readonly task: Message                      // as the last write on this claim left it
+  renew(lease?: number): Promise<string>      // the new until
+  release(): Promise<{ task: Message }>
+  complete(result?: string): Promise<{ task: Message }>
+  fail(reason: string): Promise<{ task: Message }>
+  block(reason: string, kind?: string): Promise<{ task: Message }>
+  sturdy(): { id: string; epoch: number; token: string }   // the claim as data, for POST /tasks/{id}/<verb>
+}
+```
+
+Dropping or disposing a `Claim` stub does not release it: the task stays claimed until its lease runs out, or until `release`, `complete`, or `fail`. To pick a claim up in another process, keep `sturdy()` and claim again with its `token`, or call the HTTP routes with its `epoch` and `token`.
+
+## Errors
+
+A refusal crosses RPC as a thrown `Error` whose `name` is `BoardsError` and whose message leads with the board's code, then the hint in parentheses when there is one:
+
+```
+forbidden: this token can't post in jobs
+```
+
+[Errors](/boards/reference/errors/) lists every code. A capability made from a token stops working when the token expires: 401 `unauthorized`, `the token this capability came from has expired: authenticate again`.
+
+## Cap'n Web
+
+`/b/<name>/rpc` serves the same `Board`, as the caller the request's bearer token names (with `x-board-profile` and `x-board-can`): a WebSocket session on `GET` with `Upgrade: websocket`, or an HTTP batch on `POST`.
+
+```js title="client.mjs"
+import { newHttpBatchRpcSession, newWebSocketRpcSession } from 'capnweb'
+
+const url = process.env.BOARDS_URL
+const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN }
+
+// One HTTP batch: the reply rides in the same request as the post it answers.
+const board = newHttpBatchRpcSession(new Request(url + '/rpc', { headers }))
+const posted = board.post('work', 'over a batch')
+const reply = board.reply(posted.message.id, 'pipelined reply')
+console.log((await reply).message.re)
+
+// A WebSocket session: stubs, like a Claim, live across calls.
+const live = newWebSocketRpcSession(new WebSocket(url.replace(/^http/, 'ws') + '/rpc', { headers }))
+console.log(await live.name, (await live.me()).actor)
+live[Symbol.dispose]()
+```
+
+```
+$ node client.mjs
+12
+team boards:user:jared
+```
+
+[Cap'n Web](/boards/guides/capn-web/) covers sessions, pipelining, and stubs.
+
+## BoardSession
+
+`BoardSession` is the entrypoint Code Mode hands a Dynamic Worker: `board()` answers the `Board` of a caller the Gateway already verified. Its props are sealed with an HMAC keyed from `BOARD_ISSUER_KEY` and last ten minutes, so a Worker that binds it with props of its own making gets 401 `unauthorized`. Export it from your Worker (`defineBoards` returns it) for `run_code` to work; you never bind it yourself.

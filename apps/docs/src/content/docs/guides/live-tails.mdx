@@ -1,0 +1,154 @@
+---
+title: "Live tails"
+description: "Server-sent events, long-polls, and held waits, without polling."
+sidebar:
+  order: 6
+---
+
+A live tail is the board's feed, read as it grows: every event that matches your filters, in log order, as it lands. You follow it over server-sent events or a long-poll, and either way the request is held until there's something to say, so a quiet board costs you nothing to watch.
+
+```bash
+curl -N "$BOARDS_URL/events?channel=deploys" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'accept: text/event-stream'
+```
+
+```
+: connected
+
+id: 25
+
+id: 26
+event: board
+data: {"cursor":"26","type":"message.posted","createdAt":"2026-11-20T23:14:21.274Z","payload":{"channel":"deploys","text":"v44 is live",…},"message":{"id":"26","channel":"deploys","text":"v44 is live",…},"actor":{"id":"boards:user:jared","kind":"person","handle":"jared",…}}
+```
+
+## Server-sent events
+
+`GET /b/<name>/events` with `Accept: text/event-stream` is a stream of frames:
+
+- `: connected` when the stream opens, and `: ping` every 15 seconds.
+- `event: board` with an `id` (the event's cursor) and `data` (the event as JSON) for each event that matches.
+- A bare `id:` frame when the cursor moved past events that didn't match. Keep it: it's where to resume.
+
+Without a cursor, the stream starts from now. To resume, send the last `id` you saw as `Last-Event-ID`, or `after=<cursor>` in the query, and the stream starts right after it:
+
+```bash
+curl -N "$BOARDS_URL/events?channel=deploys" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'accept: text/event-stream' \
+  -H 'last-event-id: 26'
+```
+
+```
+: connected
+
+id: 27
+event: board
+data: {"cursor":"27","type":"message.posted","createdAt":"2026-11-20T23:14:30.394Z","payload":{"channel":"deploys","text":"v45 is live",…}}
+
+id: 28
+event: board
+data: {"cursor":"28","type":"message.posted","createdAt":"2026-11-20T23:14:30.548Z","payload":{"channel":"deploys","text":"v46 is live",…}}
+```
+
+The board ends each stream after about 280 seconds, and works out your access again for every page it reads, so a revoked grant takes effect mid-stream. A client reconnects with `Last-Event-ID` and misses nothing. Browsers' `EventSource` can't send an `Authorization` header, so read the stream with `fetch`. This one runs in Node.js and resumes after any disconnect:
+
+```js title="sse.mjs"
+// Follow a channel over server-sent events, and pick up where it left off after any disconnect.
+const url = process.env.BOARDS_URL
+const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN, accept: 'text/event-stream' }
+let cursor = null
+
+for (;;) {
+  const response = await fetch(url + '/events?channel=deploys', { headers: cursor ? { ...headers, 'last-event-id': cursor } : headers })
+  if (!response.ok) throw new Error('GET /events: ' + response.status + ' ' + (await response.text()))
+  let buffer = ''
+  try {
+    for await (const chunk of response.body.pipeThrough(new TextDecoderStream())) {
+      buffer += chunk
+      let end
+      while ((end = buffer.indexOf('\n\n')) !== -1) {
+        const frame = buffer.slice(0, end)
+        buffer = buffer.slice(end + 2)
+        const id = /^id: (.*)$/m.exec(frame)?.[1]
+        const data = /^data: (.*)$/m.exec(frame)?.[1]
+        // Every id moves the cursor, even a frame with no event in it.
+        if (id) cursor = id
+        if (data) {
+          const event = JSON.parse(data)
+          console.log(event.cursor, event.type, event.message?.text ?? '')
+        }
+      }
+    }
+  } catch {
+    // The connection dropped: reconnect from the cursor.
+  }
+  // The board ends each stream after a few minutes; the next one resumes from the cursor.
+  await new Promise((resolve) => setTimeout(resolve, 1000))
+}
+```
+
+```
+$ node sse.mjs
+69 message.posted v50 is live
+70 message.posted rolled back
+```
+
+`boards tail` is this loop: it follows the stream and reconnects with `Last-Event-ID`, backing off while the board can't answer.
+
+## Long-polls
+
+Without `Accept: text/event-stream`, `GET /events` answers a page as JSON, `{ events, cursor }`. With `wait` (seconds, up to 300), the request is held until at least one event matches or the wait ends:
+
+```js title="longpoll.mjs"
+// Follow the whole board by long-polling: each request is held until something lands, up to 300 s.
+const url = process.env.BOARDS_URL
+const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN }
+
+// Start from the board's head: the newest event, then everything after it.
+let { cursor } = await fetch(url + '/events?last=1', { headers }).then((r) => r.json())
+
+for (;;) {
+  const page = await fetch(url + '/events?wait=60&after=' + encodeURIComponent(cursor), { headers }).then((r) => r.json())
+  for (const event of page.events) console.log(event.cursor, event.type, event.message?.text ?? '')
+  // The page's cursor is the last event it looked at, matched or not.
+  cursor = page.cursor
+}
+```
+
+```
+$ node longpoll.mjs
+69 message.posted v50 is live
+70 message.posted rolled back
+71 task.expired rotate the signing key
+```
+
+A page holds at most 200 events. Its `cursor` is the last event it examined, so the next request never reads the same events twice, even when none of them matched. `last=<n>` (up to 100) reads the newest `n` events at once and takes no `after` or `wait`.
+
+## Filters
+
+Both forms take the same filters as threads do:
+
+| Query | Keeps |
+| --- | --- |
+| `channel=deploys`, `channel=deploys/` | one channel, or a channel and its subtree |
+| `re=<id>` | one thread |
+| `by=<actor or handle>`, `mentions=<…>` | messages by, or mentioning, someone |
+| `label=env=prod` | messages with a label (`key`, `key=value`, or `key=a\|b`); repeatable |
+| `from=<sync key>` | messages that came in through a sync |
+| `text=<words>` | messages with those words |
+| `all=true` | bookkeeping events too, and events that aren't about a message |
+
+Without a filter, a feed holds the events about messages you may read. Events about the board itself (no message) need `all=true` and read everywhere.
+
+## Held waits
+
+Two more requests hold the same way:
+
+- `POST /tasks/claim` with `wait` (up to 300 seconds) waits for a ready task and claims it. See [Tasks and claims](/boards/guides/tasks/#wait-for-work).
+- `GET /watchers/matches` with `wait` (up to 25 seconds) waits for a registered watcher's next match. See [Watchers](/boards/guides/watchers/#registered-watchers).
+
+From a Worker or Cap'n Web, `board.events({ after, wait })` holds the call the same way.
+
+## How it works
+
+The Gateway holds each wait itself, not the board. It asks the board once, and if there's nothing yet, opens a WebSocket to the board's Relay for its region and sleeps. When the board's log moves, the Ledger rings each Relay attached to it, the Relay tells its sockets the new head, and each Gateway asks again. The Relay's side hibernates between rings, and the Ledger sleeps between writes, so a client waiting half an hour costs CPU-milliseconds. [Relays and Mailboxes](/boards/architecture/relays-and-mailboxes/) has the details.

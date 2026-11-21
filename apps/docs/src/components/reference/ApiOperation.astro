@@ -1,0 +1,262 @@
+---
+// One route of the HTTP API: its method and path, what it takes, its rules, and a real exchange
+// with a board (curl and the answer), from src/data/openapi.json.
+import { Code } from '@astrojs/starlight/components'
+import Fields from './Fields.astro'
+import Method from './Method.astro'
+import { anchorOf, bodyOf, curlOf, rowsOf, STATUS, variantsOf, type Exchange, type Operation, type Row } from './api'
+
+interface Props {
+  operation: Operation
+}
+const { operation } = Astro.props
+const anchor = anchorOf(operation)
+const open = operation.security.length === 0
+
+const parameters: Row[] = (operation.parameters ?? []).map((parameter) => {
+  const [row] = rowsOf({ properties: { [parameter.name]: parameter.schema }, required: parameter.required ? [parameter.name] : [] })
+  return { ...row!, notes: [parameter.in === 'path' ? 'in the path' : 'in the query', ...row!.notes] }
+})
+
+const content = operation.requestBody?.content ?? {}
+const json = content['application/json']?.schema
+const bytes = content['*/*'] ? operation.requestBody?.['x-headers'] : undefined
+const variants = variantsOf(json)
+const bodyRows = json && !variants ? rowsOf(json) : []
+const headerRows: Row[] = bytes ? Object.entries(bytes).map(([name, note]) => ({ name, type: 'header', required: false, notes: [note] })) : []
+
+const shown = (exchange: Exchange | undefined) => {
+  if (!exchange) return null
+  const body = bodyOf(exchange)
+  const lines = body ? body.text.split('\n').length : 0
+  const headers = exchange.headers ? Object.entries(exchange.headers).map(([key, value]) => key + ': ' + value).join('\n') : ''
+  return { curl: curlOf(exchange), body, long: lines > 28, headers, status: exchange.status + ' ' + (STATUS[exchange.status] ?? '') }
+}
+const example = shown(operation['x-example'])
+const failed = shown(operation['x-error-example'])
+const failedCode = (operation['x-error-example']?.response as { error?: { code?: string } } | undefined)?.error?.code
+---
+
+<section class="bd-op not-content" id={anchor}>
+  <div class="bd-op-head">
+    <a class="bd-op-route" href={'#' + anchor}>
+      <Method method={operation.method} />
+      <code class="bd-op-path">{operation.path}</code>
+    </a>
+    <span class="bd-op-meta">
+      {open && <span class="bd-badge">no token</span>}
+      <span class="bd-op-id">{operation.operationId}</span>
+    </span>
+  </div>
+  <p class="bd-op-summary">{operation.summary}</p>
+
+  {
+    parameters.length > 0 && (
+      <>
+        <h4 class="bd-op-label">Parameters</h4>
+        <Fields rows={parameters} label="Parameter" />
+      </>
+    )
+  }
+  {
+    headerRows.length > 0 && (
+      <>
+        <h4 class="bd-op-label">Body</h4>
+        <p class="bd-op-note">The file's bytes, as they are, with these headers.</p>
+        <Fields rows={headerRows} label="Header" />
+      </>
+    )
+  }
+  {
+    bodyRows.length > 0 && (
+      <>
+        <h4 class="bd-op-label">Body{operation.requestBody && !operation.requestBody.required && <span class="bd-op-optional"> (optional)</span>}</h4>
+        <Fields rows={bodyRows} />
+      </>
+    )
+  }
+  {
+    variants && (
+      <>
+        <h4 class="bd-op-label">Body: one of</h4>
+        {variants.map((variant) => (
+          <details class="bd-variant">
+            <summary>
+              <code>{variant.label}</code>
+            </summary>
+            <Fields rows={variant.rows} />
+          </details>
+        ))}
+      </>
+    )
+  }
+  {
+    operation['x-rules'] && (
+      <>
+        <h4 class="bd-op-label">Rules</h4>
+        <ul class="bd-rules">
+          {operation['x-rules'].map((rule) => (
+            <li>{rule}</li>
+          ))}
+        </ul>
+      </>
+    )
+  }
+  {
+    example && (
+      <>
+        <h4 class="bd-op-label">Example</h4>
+        <Code code={example.curl} lang="sh" />
+        <details class="bd-answer" open={!example.long}>
+          <summary>
+            <span class="bd-status">{example.status}</span>
+          </summary>
+          {example.headers && <Code code={example.headers} lang="http" />}
+          {example.body && <Code code={example.body.text} lang={example.body.lang} />}
+        </details>
+      </>
+    )
+  }
+  {
+    failed && (
+      <details class="bd-answer bd-answer-error">
+        <summary>
+          <span class="bd-status">{failed.status}</span>
+          {failedCode && <code>{failedCode}</code>}
+        </summary>
+        <Code code={failed.curl} lang="sh" />
+        {failed.headers && <Code code={failed.headers} lang="http" />}
+        {failed.body && <Code code={failed.body.text} lang={failed.body.lang} />}
+      </details>
+    )
+  }
+</section>
+
+<style>
+  .bd-op {
+    margin: 1.75rem 0 2.25rem;
+    padding: 1rem 1.1rem 0.6rem;
+    border: 1px solid var(--bd-line);
+    border-radius: var(--bd-radius-sm);
+    background: var(--bd-bg-raised);
+    scroll-margin-top: calc(var(--sl-nav-height, 4rem) + 1rem);
+  }
+  .bd-op-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+  }
+  .bd-op-route {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.6rem;
+    text-decoration: none;
+    color: var(--bd-text);
+  }
+  .bd-op-path {
+    font-family: var(--bd-font-mono, var(--sl-font-mono));
+    font-size: 0.95rem;
+    font-weight: 600;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: var(--bd-text);
+  }
+  .bd-op-route:hover .bd-op-path {
+    text-decoration: underline;
+  }
+  .bd-op-meta {
+    display: inline-flex;
+    gap: 0.5rem;
+    align-items: center;
+  }
+  .bd-op-id {
+    font-family: var(--bd-font-mono, var(--sl-font-mono));
+    font-size: 0.75rem;
+    color: var(--bd-muted);
+  }
+  .bd-badge {
+    font-size: 0.7rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    color: var(--bd-yellow);
+    background: var(--bd-yellow-soft);
+  }
+  .bd-op-summary {
+    margin: 0.6rem 0 0.4rem;
+    color: var(--bd-text-body);
+  }
+  .bd-op-label {
+    margin: 1rem 0 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bd-muted);
+  }
+  .bd-op-optional {
+    text-transform: none;
+    letter-spacing: 0;
+    font-weight: 400;
+  }
+  .bd-op-note {
+    margin: 0.25rem 0;
+    font-size: 0.85rem;
+    color: var(--bd-text-body);
+  }
+  .bd-rules {
+    margin: 0.25rem 0 0.75rem 1.1rem;
+    padding: 0;
+    font-size: 0.85rem;
+    color: var(--bd-text-body);
+  }
+  .bd-rules li {
+    margin: 0.15rem 0;
+  }
+  .bd-variant,
+  .bd-answer {
+    margin: 0.5rem 0 0.75rem;
+  }
+  .bd-variant > summary,
+  .bd-answer > summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--bd-text-body);
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    list-style: none;
+  }
+  .bd-variant > summary::-webkit-details-marker,
+  .bd-answer > summary::-webkit-details-marker {
+    display: none;
+  }
+  .bd-variant > summary::before,
+  .bd-answer > summary::before {
+    content: '';
+    width: 0.4rem;
+    height: 0.4rem;
+    border-right: 1.5px solid var(--bd-muted);
+    border-bottom: 1.5px solid var(--bd-muted);
+    transform: rotate(-45deg);
+    transition: transform 0.15s;
+    flex: none;
+  }
+  .bd-variant[open] > summary::before,
+  .bd-answer[open] > summary::before {
+    transform: rotate(45deg);
+  }
+  .bd-status {
+    font-family: var(--bd-font-mono, var(--sl-font-mono));
+    font-weight: 600;
+    color: var(--bd-accent-text);
+  }
+  .bd-answer-error .bd-status {
+    color: var(--bd-rose);
+  }
+  .bd-op :global(.expressive-code) {
+    margin: 0.4rem 0;
+  }
+</style>

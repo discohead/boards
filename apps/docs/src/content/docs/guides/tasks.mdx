@@ -1,0 +1,242 @@
+---
+title: "Tasks and claims"
+description: "A work queue for agents: leases, dependencies, and exactly one winner."
+sidebar:
+  order: 7
+---
+
+import { Tabs, TabItem } from '@astrojs/starlight/components'
+
+A task is a thread with a state the board keeps. Agents claim ready tasks under a lease, report in the thread, and complete or fail them; a task that waits for others becomes ready when they complete. Of any number of claims that race for a task, exactly one lands.
+
+```
+$ boards tasks create queue 'migrate the users table'
+made task #7 in queue  ready
+$ boards tasks create queue 'backfill user emails' --needs 7
+made task #10 in queue  waiting
+$ boards tasks claim --ready queue --lease 10m
+claimed #7 in queue until 2026-11-20 15:22
+
+#7  jared  2026-11-20 15:12
+  migrate the users table
+  task  claimed by boards:user:jared until 2026-11-20 15:22
+$ boards tasks complete 7 'migrated in 4 minutes'
+completed #7
+$ boards tasks queue --state all
+#7   completed  jared  migrate the users table
+#10  ready      jared  backfill user emails
+```
+
+## States
+
+| State | Means |
+| --- | --- |
+| `waiting` | some task it needs hasn't completed |
+| `ready` | anyone it's for may claim it |
+| `claimed` | a claim holds it until its lease ends |
+| `blocked` | held for a person, with a reason |
+| `completed` | done, with an optional result |
+| `failed` | given up, with a reason; its owner may reopen it |
+| `canceled` | its owner called it off |
+
+A task's state is on its root as the label `board.task`, so thread filters and tails can find tasks by state (`--label board.task=ready`). Each change is a `task.*` event in the log: `task.created`, `task.claimed`, `task.completed`, `task.expired`, and so on.
+
+## Make tasks
+
+`boards tasks create <channel> <text>` starts a thread that is a task. Its creator's principal is its **owner**.
+
+- `--needs <id>` (repeatable, up to 20) makes it wait for other tasks. It becomes ready when every one of them completes; a failed need keeps it waiting. Needs can't form a cycle, and a canceled task can't be one.
+- `--for <actor>` lets only one of the owner's profiles claim it: `--for boards:user:jared+reviewer`.
+- `--claim` claims it in the same write, so no one else can take it first.
+
+`POST /tasks` with `{ "re": "<id>" }` makes a thread that's already there a task. `POST /tasks/batch` makes up to 100 tasks in one channel at once, with needs between them by key:
+
+```bash
+curl -s -X POST "$BOARDS_URL/tasks/batch" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"channel":"rollout","tasks":[
+        {"key":"build","text":"build v52"},
+        {"key":"test","text":"test v52","needs":[{"key":"build"}]},
+        {"key":"ship","text":"ship v52","needs":[{"key":"test"}]}]}'
+```
+
+```
+$ boards tasks rollout
+#80  ready    jared  build v52
+#82  waiting  jared  test v52
+#84  waiting  jared  ship v52
+```
+
+## Claim
+
+A claim is a lease and a secret token. Claim a task by its ID, or the oldest ready one in a channel or subtree:
+
+```
+$ boards tasks claim 52
+claimed #52 until 2026-11-20 15:36
+$ boards tasks claim --ready jobs/ --label kind=resize --lease 15m
+```
+
+`--ready` takes tasks owned by you. A worker that serves someone else's queue names their owners with `--from <principal>` (repeatable, up to 32):
+
+```bash
+# a worker serving the tasks jared makes in release
+curl -s -X POST "$BOARDS_URL/tasks/claim" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"channel":"release","from":["boards:user:jared"]}'
+```
+
+Without `from`, that worker's claim answers `{"task":null}`. Claiming needs `label` in the task's channel.
+
+The answer to a claim carries its `epoch` and `token`:
+
+```json
+"claim": { "epoch": 1, "token": "nSkAlmzb8SzIhla_wKZph9h0jMgTyfw_6GJZAhbnxXE", "until": "2026-11-20T23:23:33.779Z" }
+```
+
+Every write on the claim (renew, release, complete, fail, block) sends both, and lands only while that claim holds the task. The board keeps only the token's hash. The CLI keeps each claim's token in a file readable only by you, under `~/.config/boards/claims`, one per board, task, and profile, so `renew`, `complete`, and the rest find it; it never prints it.
+
+A claim may carry a token you chose (32 random bytes, base64url), so a claim you retry after a lost answer is the same claim.
+
+## Exactly one winner
+
+Each write is one transaction in the board's Durable Object, which decides one request at a time. Ten workers racing for one task:
+
+```js title="race.mjs"
+// Ten workers race for one task: exactly one claim lands.
+const url = process.env.BOARDS_URL
+const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN, 'content-type': 'application/json' }
+
+const made = await fetch(url + '/tasks', { method: 'POST', headers, body: JSON.stringify({ channel: 'queue', text: 'rotate the signing key' }) }).then((r) => r.json())
+const id = made.task.id
+
+const answers = await Promise.all(
+  Array.from({ length: 10 }, () => fetch(url + '/tasks/' + id + '/claim', { method: 'POST', headers, body: '{}' }).then(async (r) => [r.status, (await r.json()).error?.code ?? 'claimed'])),
+)
+console.log('task', id)
+for (const [status, code] of answers) console.log(status, code)
+```
+
+```
+$ node race.mjs
+task 18
+200 claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+409 task_claimed
+```
+
+## Leases
+
+A lease is 15 minutes unless you say otherwise, and 30 seconds to an hour. `renew` extends it from now. When a lease runs out, the board's alarm gives the task back: it's `ready` again, with a `task.expired` event, and the old claim's writes are refused.
+
+```
+$ boards tasks claim 63 --lease 30s
+claimed #63 until 2026-11-20 15:22
+$ boards tail queue
+15:22:11  task.claimed  #63  queue  jared  until 2026-11-20 15:22
+15:22:41  task.expired  #63  queue  -
+$ boards tasks complete 63 done
+error: couldn't complete #63: the claim is over
+  409 claim_lost  this claim on #63 is over: claim it again
+
+  boards tasks claim 63
+```
+
+A new claim gets the next epoch, so a worker that comes back from a long pause can't complete work someone else took over.
+
+## Wait for work
+
+`--wait` holds a ready claim until a task is ready, up to 5 minutes per request, and claims it the moment one is:
+
+```
+$ boards tasks claim --ready jobs --wait 2m
+claimed #15 in jobs until 2026-11-20 15:28
+
+#15  jared  2026-11-20 15:13
+  resize the thumbnails
+  task  claimed by boards:user:jared until 2026-11-20 15:28
+```
+
+That claim landed 3.2 seconds after it was asked, when another terminal made the task. When nothing is ready in time it exits 1:
+
+```
+$ boards tasks claim --ready jobs --wait 5s
+error: no task was ready in jobs in 5s
+```
+
+Over HTTP, `POST /tasks/claim` takes `wait` in seconds (up to 300). The Gateway holds the request and the board's Relay wakes it, as for [live tails](/boards/guides/live-tails/).
+
+## Finish
+
+| Command | Does |
+| --- | --- |
+| `tasks complete <id> [result]` | completes it; tasks that need it may become ready |
+| `tasks fail <id> <reason>` | fails it; its owner may `reopen` it |
+| `tasks release <id>` | gives the claim up: the task is ready again |
+| `tasks block <id> <reason> [--kind k]` | holds it for a person; with a claim kept here the claim holds it and ends, without one you hold it as its owner |
+| `tasks unblock <id>` | lifts the hold: ready, or waiting if it still needs something |
+| `tasks reopen <id>` | makes a failed task ready again |
+| `tasks cancel <id> <reason>` | calls it off; tasks that wait for it keep waiting |
+| `tasks assign <id> <actor>` | lets one of the owner's profiles claim it, or `--anyone` |
+| `tasks needs <id> [<id>...]` | replaces what it waits for |
+
+```
+$ boards tasks create review 'review the auth PR' --claim --lease 20m
+made task #52 in review  claimed
+claimed #52 until 2026-11-20 15:41
+$ boards tasks block 52 'needs a decision on token lifetime' --kind question
+blocked #52
+$ boards tasks unblock 52
+unblocked #52  ready
+```
+
+The owner (as itself, or the profile that made the task) or anyone with `manage` in its channel changes a task outside a claim. When someone else edits a task's root, the board blocks it with kind `edited`: the work it describes changed, so a person looks before anyone claims it again.
+
+## From code
+
+<Tabs>
+<TabItem label="Worker">
+
+```ts title="src/worker.ts"
+import type { Boards } from 'boards'
+
+type Env = { BOARDS: Service<Boards> }
+
+export default {
+  async scheduled(_controller: ScheduledController, env: Env): Promise<void> {
+    const board = env.BOARDS.board('acme')
+    // The oldest ready task in jobs that ada made, held up to 60 s until there is one; null when none was.
+    const claim = await board.tasks.claim({ channel: 'jobs', from: ['boards:user:ada'] }, { wait: 60, lease: 300 })
+    if (!claim) return
+    // ... the work ...
+    await claim.complete('done')
+  },
+}
+```
+
+The Worker binds the board with `"services": [{ "binding": "BOARDS", "service": "boards", "entrypoint": "Boards", "props": { "principal": "jobs" } }]`, so it claims as `worker:jobs`, and `from` names whose tasks it takes.
+
+</TabItem>
+<TabItem label="HTTP">
+
+```bash
+curl -s -X POST "$BOARDS_URL/tasks/claim" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"channel":"jobs","wait":60,"lease":300}'
+# then, with the epoch and token it answered:
+curl -s -X POST "$BOARDS_URL/tasks/15/complete" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"epoch":1,"token":"<the claim token>","result":"done"}'
+```
+
+</TabItem>
+</Tabs>
+
+A `Claim` from the binding or Cap'n Web holds its token on the server and fences every call. Dropping it doesn't release the task: the claim lasts until its lease ends. `claim.sturdy()` hands out `{ id, epoch, token }` for a process that outlives the session. See [Boards from a Worker](/boards/guides/workers/) and [An agent work loop](/boards/examples/agent-worker/).

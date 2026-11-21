@@ -1,0 +1,92 @@
+---
+title: "A synced support channel"
+description: "Slack questions on a board, triaged by an agent."
+sidebar:
+  order: 3
+---
+
+import { Code, Steps } from '@astrojs/starlight/components'
+import worker from '../../../examples/support-channel/src/worker.ts?raw'
+import config from '../../../examples/support-channel/wrangler.jsonc?raw'
+import tryIt from '../../../examples/support-channel/try-it.mjs?raw'
+
+People ask in a Slack channel; each question becomes a thread on the board's `support` channel; an agent labels it by area and urgency and posts a first reply, which goes back to Slack in the question's thread as your bot. One Worker holds all of it: the board, its Slack sync, and the agent, a watcher that calls Workers AI.
+
+<Code code={worker} lang="ts" title="src/worker.ts" />
+
+<Code code={config} lang="jsonc" title="wrangler.jsonc" />
+
+## How it works
+
+1. **Slack to the board.** Slack's Events API posts to `/b/<board>/webhooks/slack`. The provider checks Slack's signature and its 5-minute window, the sync's Inbox keeps the event under Slack's event ID, and only then does Slack hear 200. The Inbox imports it as a new thread in `support`, written by the Slack user.
+2. **The board to the agent.** The `triage` watcher's Mailbox hands every event in `support` to the `Triage` entrypoint, in order per thread. It acts only on a new root that came from Slack (`from === 'slack'`), so replies, and its own posts, don't wake it.
+3. **The agent decides.** It asks the model for the question's area, its urgency, and a first reply, as JSON in a fixed shape. The model makes the judgment; the code only applies it.
+4. **The board to Slack.** `context.board` writes as `boards:watch:triage`. The labels stay on the board. The reply is in a synced thread, so the sync's courier posts it to Slack in the question's thread and records a receipt. Slack's echo of that post comes back as an event and imports as nothing.
+
+## Run it without Slack
+
+[`try-it.mjs`](https://github.com/discohead/boards/blob/main/apps/docs/src/examples/support-channel/try-it.mjs) runs a stand-in for Slack's Web API, sends a question to the webhook signed as Slack signs it (twice, as Slack retries), and sends Slack's echo of the bot's reply back.
+
+<Steps>
+
+1. Make the board's issuer key, and add Slack's values for the stand-in:
+
+   ```bash
+   node <boards>/packages/boards/scripts/issuer.mjs key      # writes .issuer.json and .dev.vars
+   cat >> .dev.vars <<'EOF'
+   SLACK_SIGNING_SECRET=local-signing-secret
+   SLACK_BOT_TOKEN=xoxb-local-stand-in
+   SLACK_API_BASE=http://127.0.0.1:8826/api
+   EOF
+   ```
+
+2. Run the Worker. Workers AI runs on your account even in `wrangler dev`, so log in first:
+
+   ```bash
+   npx wrangler dev --port 8825
+   ```
+
+3. Send the question:
+
+   ```bash
+   SLACK_SIGNING_SECRET=local-signing-secret BOARDS_URL=http://127.0.0.1:8825/b/desk \
+   BOARDS_TOKEN=$(node <boards>/packages/boards/scripts/issuer.mjs token jared http://127.0.0.1:8825/b/desk) \
+   node try-it.mjs
+   ```
+
+</Steps>
+
+```
+webhook       200 kept 1
+retried       200 kept 1
+board thread  #2 {"area":"billing","urgency":"high"}, 1 reply by boards:watch:triage
+to slack      C0SUPPORT thread 1795216784.000100: Sorry to hear that you were charged twice for November. Can you please provide me with your account information or order number so I can look into this further?
+```
+
+Slack's retry was kept once, the agent replied once, and that reply reached Slack once, in the question's thread. On the board:
+
+```
+$ boards read 2
+#2  ada  2026-11-20 15:19
+  I was charged twice for November and can't find a refund option
+  labels  area=billing, urgency=high
+
+#5  triage  2026-11-20 15:19
+  Sorry to hear that you were charged twice for November. Can you please provide me with your account information or order number so I can look into this further?
+```
+
+The question is Ada's, as Slack named her, and the reply is the watcher's. Anyone on the board can list the urgent ones with `boards read support --label urgency=high`, and a person who replies on the board is posted to Slack in the same thread.
+
+<Code code={tryIt} lang="js" title="try-it.mjs" />
+
+## Connect a real Slack workspace
+
+- Set `SLACK_CHANNEL` and `SLACK_BOT_USER_ID` in `wrangler.jsonc` to your channel's ID and your bot's user ID, and drop `SLACK_API_BASE`.
+- Store the signing secret and bot token as Worker secrets (`npx wrangler secret put SLACK_SIGNING_SECRET`), or bind them from Secrets Store.
+- Point your Slack app's Events API request URL at `https://<your worker>/b/<board>/webhooks/slack`.
+
+[Sync with Slack](/boards/guides/sync-slack/) has the Slack app's settings in full.
+
+:::note
+The example imports `boards` as a package, as the [Factory](/boards/templates/factory/) does (`"boards": "workspace:*"` in this repo). The run above used it from this checkout's `packages/boards`.
+:::

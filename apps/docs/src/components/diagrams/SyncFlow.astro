@@ -1,0 +1,77 @@
+---
+// Sync both ways: a platform's webhook into the board, and a board write out to the platform.
+import Diagram from './Diagram.astro'
+interface Props { caption?: string }
+const { caption = "In, an event is kept before the platform hears 200, then imported in order. Out, the courier posts the copy and records a receipt: a copy that exists is never posted again, and the platform's echo is not imported." } = Astro.props
+---
+
+<Diagram caption={caption} minWidth={600}>
+  <svg viewBox="0 0 756 412" role="img" aria-labelledby="sync-title sync-desc" xmlns="http://www.w3.org/2000/svg">
+    <title id="sync-title">Sync: Inbox and courier</title>
+    <desc id="sync-desc">Inbound: a GitHub, Slack, or Linear webhook reaches the Gateway at the sync key's webhook route, where the provider verifies it. The Inbox Durable Object keeps it under its platform event ID, and only then does the platform get 200. The Inbox imports events through the Ledger as the sync, one platform thread at a time, oldest first. Outbound: a write in a synced thread commits in the Ledger, which matches it to the sync's subscription after the commit. The courier, a Mailbox, posts it to the platform as the app, in thread order, retrying a post until it lands, and records a receipt on the board.</desc>
+    <defs>
+      <marker id="sync-a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="sync-aa" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="sync-av" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head violet" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="sync-as" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head sky" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="sync-ar" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head rose" d="M0,1 L9,5 L0,9 z" /></marker>
+    </defs>
+
+    <text class="zt" x="16" y="22">In: a platform event</text>
+    <rect class="n " x="16" y="34" width="160" height="124" rx="12" />
+    <text class="t" x="32" y="62">Platform</text>
+    <text class="s ink" x="32" y="84">a webhook from</text>
+    <text class="s" x="32" y="101">GitHub, Slack,</text>
+    <text class="s" x="32" y="118">or Linear</text>
+    <rect class="n violet" x="204" y="34" width="160" height="124" rx="12" />
+    <text class="t" x="220" y="62">Gateway</text>
+    <text class="s ink" x="220" y="84">/webhooks/&lt;key&gt;</text>
+    <text class="s" x="220" y="101">the provider</text>
+    <text class="s" x="220" y="118">verifies it</text>
+    <rect class="n violet" x="392" y="34" width="160" height="124" rx="12" />
+    <text class="t" x="408" y="62">Inbox</text>
+    <text class="s ink" x="408" y="84">kept under its</text>
+    <text class="s" x="408" y="101">platform event ID</text>
+    <text class="s" x="408" y="118">retries do nothing</text>
+    <rect class="n accent" x="580" y="34" width="160" height="124" rx="12" />
+    <text class="t" x="596" y="62">Ledger</text>
+    <text class="s ink" x="596" y="84">imported as</text>
+    <text class="s" x="596" y="101">boards:sync:&lt;key&gt;</text>
+    <text class="s" x="596" y="118">thread by thread,</text>
+    <text class="s" x="596" y="135">oldest first</text>
+    <path class="e" d="M176,96 H201" marker-end="url(#sync-a)" />
+    <path class="e violet" d="M364,96 H389" marker-end="url(#sync-av)" />
+    <path class="e accent flow" d="M552,96 H577" marker-end="url(#sync-aa)" />
+    <path class="e dash" d="M472,159 V184 H96 V161" marker-end="url(#sync-a)" />
+    <text class="lbl" x="200" y="178">200, once it is kept</text>
+
+    <line class="zone" x1="16" y1="206" x2="740" y2="206" />
+
+    <text class="zt" x="16" y="236">Out: a board write</text>
+    <rect class="n " x="16" y="248" width="160" height="124" rx="12" />
+    <text class="t" x="32" y="276">Write</text>
+    <text class="s ink" x="32" y="298">a reply, edit, or</text>
+    <text class="s" x="32" y="315">reaction in a</text>
+    <text class="s" x="32" y="332">synced thread</text>
+    <rect class="n accent" x="204" y="248" width="160" height="124" rx="12" />
+    <text class="t" x="220" y="276">Ledger</text>
+    <text class="s ink" x="220" y="298">matches</text>
+    <text class="s" x="220" y="315">@sync:&lt;key&gt;</text>
+    <text class="s" x="220" y="332">after the commit</text>
+    <rect class="n violet" x="392" y="248" width="160" height="124" rx="12" />
+    <text class="t" x="408" y="276">Courier</text>
+    <text class="s ink" x="408" y="298">a Mailbox, in</text>
+    <text class="s" x="408" y="315">thread order</text>
+    <text class="s" x="408" y="332">posts retry until</text>
+    <text class="s" x="408" y="349">they land</text>
+    <rect class="n " x="580" y="248" width="160" height="124" rx="12" />
+    <text class="t" x="596" y="276">Platform</text>
+    <text class="s ink" x="596" y="298">the copy, posted</text>
+    <text class="s" x="596" y="315">as the app</text>
+    <path class="e" d="M176,310 H201" marker-end="url(#sync-a)" />
+    <path class="e violet" d="M364,310 H389" marker-end="url(#sync-av)" />
+    <path class="e violet flow" d="M552,310 H577" marker-end="url(#sync-av)" />
+    <path class="e accent dash" d="M660,373 V398 H284 V375" marker-end="url(#sync-aa)" />
+    <text class="lbl accent" x="380" y="392">receipt: where the copy is</text>
+  </svg>
+</Diagram>

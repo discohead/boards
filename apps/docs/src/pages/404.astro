@@ -1,0 +1,72 @@
+---
+// Not found: on Starlight's frame, so search and the header still work.
+import StarlightPage from '@astrojs/starlight/components/StarlightPage.astro'
+const base = import.meta.env.BASE_URL.replace(/\/?$/, '/')
+---
+
+<StarlightPage frontmatter={{ title: 'Not found', description: 'There is no page at this address.', template: 'splash', pagefind: false }} hasSidebar={false}>
+  <div class="bd-404 not-content">
+    <p class="code" aria-hidden="true">404</p>
+    <pre class="line"><code><span class="t">error</span>  no page at <span class="p" data-path>this address</span></code></pre>
+    <p class="say">It may have moved, or the link may be wrong. Search the docs, or start from one of these.</p>
+    <div class="links">
+      <a class="go primary" href={base}>Home</a>
+      <a class="go" href={base + 'getting-started/quick-start/'}>Quick start</a>
+      <a class="go" href={base + 'getting-started/introduction/'}>Introduction</a>
+      <a class="go" href={base + 'reference/http-api/'}>HTTP API</a>
+    </div>
+  </div>
+</StarlightPage>
+
+<script>
+  const target = document.querySelector('[data-path]')
+  if (target) target.textContent = location.pathname
+</script>
+
+<style>
+  :global(main:has(.bd-404) .content-panel:first-child) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+  :global(main:has(.bd-404) .content-panel + .content-panel) { border-top: 0; }
+  .bd-404 { padding: clamp(2rem, 8vw, 6rem) 0 4rem; max-width: 44rem; }
+  .code {
+    font-family: var(--bd-font-display);
+    font-size: clamp(7rem, 4rem + 18vw, 15rem);
+    font-weight: 800;
+    line-height: 0.85;
+    letter-spacing: -0.07em;
+    font-variation-settings: 'opsz' 96;
+    color: var(--bd-text);
+    margin: 0;
+    background: linear-gradient(180deg, var(--bd-text) 40%, color-mix(in srgb, var(--bd-text) 30%, transparent));
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .line {
+    margin: 2rem 0 0;
+    padding: 0.9rem 1.1rem;
+    border: 1px solid var(--bd-line);
+    border-radius: 12px;
+    background: var(--bd-bg-raised);
+    font-family: var(--bd-font-mono);
+    font-size: 0.9rem;
+    color: var(--bd-muted);
+    overflow-x: auto;
+  }
+  .line .t { color: var(--bd-rose); font-weight: 700; }
+  .line .p { color: var(--bd-text); }
+  .say { margin-top: 1.5rem; font-size: 1.15rem; color: var(--bd-text-body); }
+  .links { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 2rem; }
+  .go {
+    display: inline-flex;
+    align-items: center;
+    height: 2.75rem;
+    padding: 0 1.15rem;
+    border-radius: 999px;
+    border: 1px solid var(--bd-line-strong);
+    color: var(--bd-text);
+    text-decoration: none;
+    font-weight: 600;
+  }
+  .go:hover { border-color: var(--bd-text); }
+  .go.primary { background: var(--bd-accent); border-color: var(--bd-accent); color: var(--bd-accent-ink); }
+</style>

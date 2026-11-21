@@ -1,0 +1,76 @@
+---
+// One write, from the request to what runs after its commit.
+import Diagram from './Diagram.astro'
+interface Props { caption?: string }
+const { caption = "A write is one transaction in the Ledger. Its answer, the Relays' rings, and the Mailboxes' deliveries all wait until it is durable." } = Astro.props
+---
+
+<Diagram caption={caption} minWidth={560}>
+  <svg viewBox="0 0 720 462" role="img" aria-labelledby="wp-title wp-desc" xmlns="http://www.w3.org/2000/svg">
+    <title id="wp-title">The write path</title>
+    <desc id="wp-desc">A request reaches the Gateway, which authenticates the caller and refuses with 401 before any Ledger call. The Ledger authorizes the caller from the board's grants and runs the operation in one transaction, appending an event at the next sequence number to the log. Once the commit is durable, three things happen at once: the caller gets its answer, Relays are rung so live tails and waits see the new head, and Mailboxes take watcher and sync matches to deliver in thread order.</desc>
+    <defs>
+      <marker id="wp-a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="wp-aa" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="wp-av" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head violet" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="wp-as" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head sky" d="M0,1 L9,5 L0,9 z" /></marker>
+      <marker id="wp-ar" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head rose" d="M0,1 L9,5 L0,9 z" /></marker>
+    </defs>
+
+    <rect class="n " x="16" y="40" width="214" height="124" rx="12" />
+    <circle class="dot" cx="38" cy="66" r="11" /><text class="num" x="38" y="70" text-anchor="middle">1</text>
+    <text class="t" x="58" y="71">Request</text>
+    <text class="s ink" x="32" y="102">POST /b/acme/messages</text>
+    <text class="s" x="32" y="122">or MCP, Cap'n Web,</text>
+    <text class="s" x="32" y="140">or a service binding</text>
+
+    <rect class="n violet" x="253" y="40" width="214" height="124" rx="12" />
+    <circle class="dot" cx="275" cy="66" r="11" /><text class="num" x="275" y="70" text-anchor="middle">2</text>
+    <text class="t" x="295" y="71">Gateway</text>
+    <text class="s ink" x="269" y="102">authenticate the caller</text>
+    <text class="s" x="269" y="122">401 before any</text>
+    <text class="s" x="269" y="140">Ledger call</text>
+
+    <rect class="n accent" x="490" y="40" width="214" height="124" rx="12" />
+    <circle class="dot" cx="512" cy="66" r="11" /><text class="num" x="512" y="70" text-anchor="middle">3</text>
+    <text class="t" x="532" y="71">Ledger</text>
+    <text class="s ink" x="506" y="102">authorize from grants</text>
+    <text class="s" x="506" y="122">run the op in one</text>
+    <text class="s" x="506" y="140">transactionSync</text>
+
+    <path class="e accent flow" d="M230,102 H250" marker-end="url(#wp-aa)" />
+    <path class="e accent flow" d="M467,102 H487" marker-end="url(#wp-aa)" />
+
+    <rect class="n " x="490" y="196" width="214" height="92" rx="12" />
+    <circle class="dot" cx="512" cy="222" r="11" /><text class="num" x="512" y="226" text-anchor="middle">4</text>
+    <text class="t" x="532" y="227">Log</text>
+    <text class="s ink" x="506" y="254">append at the next seq</text>
+    <rect class="cell" x="506" y="262" width="22" height="16" rx="4" /><rect class="cell" x="532" y="262" width="22" height="16" rx="4" /><rect class="cell" x="558" y="262" width="22" height="16" rx="4" /><rect class="cell" x="584" y="262" width="22" height="16" rx="4" /><rect class="cell" x="610" y="262" width="22" height="16" rx="4" /><rect class="cell" x="636" y="262" width="22" height="16" rx="4" /><rect class="cell new pulse" x="662" y="262" width="22" height="16" rx="4" />
+    <path class="e accent flow" d="M597,164 V193" marker-end="url(#wp-aa)" />
+
+    <line class="e accent" x1="16" y1="318" x2="704" y2="318" />
+    <path class="e accent" d="M597,288 V318" />
+    <circle class="dot" cx="597" cy="318" r="5" />
+    <text class="zt accent" x="16" y="308">commit: the write is durable</text>
+
+    <text class="zt" x="16" y="346">Then, at once</text>
+    <rect class="n " x="16" y="358" width="214" height="88" rx="12" />
+    <text class="t" x="32" y="386">The answer</text>
+    <text class="s ink" x="32" y="410">201 or 200, to</text>
+    <text class="s" x="32" y="428">the caller</text>
+
+    <rect class="n sky" x="253" y="358" width="214" height="88" rx="12" />
+    <text class="t" x="269" y="386">Relays</text>
+    <text class="s ink" x="269" y="410">rung with the new head</text>
+    <text class="s" x="269" y="428">tails and waits wake</text>
+
+    <rect class="n violet" x="490" y="358" width="214" height="88" rx="12" />
+    <text class="t" x="506" y="386">Mailboxes</text>
+    <text class="s ink" x="506" y="410">watcher, sync matches</text>
+    <text class="s" x="506" y="428">in thread order</text>
+
+    <path class="e" d="M123,319 V355" marker-end="url(#wp-a)" />
+    <path class="e sky" d="M360,319 V355" marker-end="url(#wp-as)" />
+    <path class="e violet" d="M597,323 V355" marker-end="url(#wp-av)" />
+  </svg>
+</Diagram>

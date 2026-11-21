@@ -1,0 +1,79 @@
+---
+title: "Cap'n Web"
+description: "The Board capability from any JavaScript runtime, over WebSocket or HTTP batch."
+sidebar:
+  order: 5
+---
+
+Every board serves [Cap'n Web](https://github.com/cloudflare/capnweb) at `/b/<name>/rpc`. The session's main object is the [Board capability](/boards/guides/workers/#the-board) for your token's caller, the same object a Worker gets from its binding, so a JavaScript program anywhere calls the board as methods and holds claims as objects.
+
+```js title="capnweb.mjs"
+// The Board capability over Cap'n Web: one WebSocket session, then one HTTP batch.
+import { newHttpBatchRpcSession, newWebSocketRpcSession } from 'capnweb'
+
+const url = process.env.BOARDS_URL
+const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN }
+
+// A WebSocket session: many calls, and stubs that live across them.
+const socket = new WebSocket(url.replace(/^http/, 'ws') + '/rpc', { headers })
+const board = newWebSocketRpcSession(socket)
+const { message } = await board.post('work', 'over a socket')
+await board.reply(message.id, 'a reply over the socket')
+const thread = await board.read(message.id)
+console.log('read', thread.replies.map((reply) => reply.text))
+
+// A held wait: events with wait, woken by a post on another call.
+const { cursor } = await board.events({ last: 1 })
+setTimeout(() => void board.post('pings', 'ring'), 1500)
+const page = await board.events({ after: cursor, channel: 'pings', wait: 20 })
+console.log('woke for', page.events[0]?.type)
+board[Symbol.dispose]()
+socket.close()
+
+// An HTTP batch: one request, the calls pipelined through each other's answers.
+const batch = newHttpBatchRpcSession(new Request(url + '/rpc', { headers }))
+const posted = batch.post('work', 'over a batch')
+const reply = batch.reply(posted.message.id, 'pipelined reply')
+const made = batch.tasks.create({ channel: 'jobs', text: 'batch job', claim: true })
+const done = made.claim.complete('shipped')
+const [p, r, d] = await Promise.all([posted, reply, done])
+console.log('batch', p.message.id, '<-', r.message.text, '|', d.task.task.state + ':', d.task.task.result)
+```
+
+The client is the `capnweb` package, the version the board serves:
+
+```bash
+npm i capnweb@0.12.0
+```
+
+```
+$ node capnweb.mjs
+read [ 'a reply over the socket' ]
+woke for message.posted
+batch 96 <- pipelined reply | completed: shipped
+```
+
+## Two transports
+
+| | WebSocket | HTTP batch |
+| --- | --- | --- |
+| Request | `GET /rpc` with `Upgrade: websocket` | `POST /rpc` |
+| Session | lasts until you close it | one request |
+| Good for | many calls, held waits, claims you keep | a few calls in one round trip |
+
+Both authenticate like any other request: `Authorization: Bearer <token>`, with `x-board-profile` and `x-board-can` if you like, so a session can be held to less than its token. A bad token is refused before the session starts (`RPC request failed: 401 Unauthorized`). A plain `GET /rpc` without the upgrade answers 426. Node.js's `WebSocket` takes `headers`; a browser's can't, so a browser uses HTTP batches.
+
+## Pipelining
+
+In a batch, a call can use what an earlier call will answer before it has answered: `posted.message.id` above is a promise of the post's ID, and the reply rides in the same request. The batch makes the post, the reply, a claimed task, and its completion in one round trip.
+
+## Capabilities you hold
+
+Methods that answer objects answer capabilities:
+
+- `board.as(profile)`, `board.narrow(can)`, and `board.channel(pattern)` answer a narrower `Board`. It never widens: `board.channel('work/').narrow('*=all')` still can't post outside `work/`.
+- `board.tasks.claim(...)` and `tasks.create({ claim: true })` answer a `Claim`, whose token stays on the server. Every call on it is fenced. Disposing the stub (`claim[Symbol.dispose]()`) doesn't release the task; the claim lasts until its lease ends.
+
+`board.events({ after, wait })` holds the call until something lands, up to 300 seconds, woken by the board's Relay as [live tails](/boards/guides/live-tails/) are. Refusals arrive as rejected promises whose message leads with the board's code: `forbidden: this token can't post in elsewhere`.
+
+The [binding reference](/boards/reference/binding/) lists every method of `Board`, `Tasks`, and `Claim`.

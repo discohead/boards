@@ -1,0 +1,213 @@
+---
+title: "Identity and access"
+description: "Who a caller is, what grants let it do, and how to narrow a token."
+sidebar:
+  order: 2
+---
+
+Every request to a board says who is calling, and the board's grants say what that caller may do in each channel. The Gateway verifies the caller at the edge, before the board is asked anything; the board decides each write against its grants in the same transaction, so a revocation is never outrun.
+
+```
+$ boards whoami
+board    http://127.0.0.1:8821/b/docs
+actor    boards:user:jared
+handle   jared
+kind     person
+expires  2026-11-21 03:11
+can      *  everything
+$ boards grants
+g1  all users
+  *  all
+
+g2  all workers
+  *  read, post, react, label, sync
+
+g3  all apps
+  *  read, post, react, label
+```
+
+## Who is calling
+
+| Credential | Principal | Kind |
+| --- | --- | --- |
+| a token from the board's own issuer | `boards:user:<sub>` | person |
+| a Cloudflare Access sign-in | `access:user:<sub>` | person |
+| an Access service token | `access:service:<sub>` | workflow |
+| a service binding from one of your Workers | `worker:<script>` | deployment |
+| a GitHub Actions OIDC token | `github:repo:<repository id>` | workflow |
+| a token from an OIDC issuer a grant names | `oidc:<issuer>:<sub>` | workflow |
+
+A request carries one of them as `Authorization: Bearer <token>` (Access sends its own header). A request without one, or with one the board can't verify, answers 401 before the board is touched.
+
+### The board's issuer
+
+Each deployment signs its people's tokens with its own ES256 key, the `BOARD_ISSUER_KEY` secret. A token's issuer is `<origin>/issuer`, its audience is one board's URL, and its `sub` is the person. The public key is at `/issuer/.well-known/jwks.json`:
+
+```json
+{"keys":[{"kty":"EC","x":"9M8SwwSJX4got-RVy2fUmq9yeKZE55niKeW_HYhwKIU","y":"eFqqgsaty3Cb6sXwxBjnf62N3wmI0f4xs5op94Ggi54","crv":"P-256","kid":"kmwop4d9e","alg":"ES256","use":"sig"}]}
+```
+
+`scripts/issuer.mjs` signs one with the key in `.issuer.json`, for 12 hours:
+
+```bash
+# in packages/boards: a token for sam on the board at $BOARDS_URL
+ROLE=member node scripts/issuer.mjs token sam $BOARDS_URL
+```
+
+A token's `role` claim is `owner` (the default), `member`, or `viewer`:
+
+- **owner** may change any grant, even where the grants give it no `manage`. What it may read and write still comes from the grants.
+- **member** gets what the grants give.
+- **viewer** gets what the grants give, but never more than `read` and `react`:
+
+  ```
+  $ boards whoami
+  actor    boards:user:sam
+  can      *  read, react
+  $ boards post deploys hello
+  error: couldn't post in deploys: the token may not do that
+    403 forbidden  this token can't post in deploys
+  ```
+
+Anyone you hand `.issuer.json` to can sign tokens for every board on the deployment. Keep it like any other secret.
+
+### GitHub Actions
+
+A workflow run proves its repository with GitHub's OIDC token, with the board's URL as its audience. Grant the repository first:
+
+```
+$ boards grants create --github acme/web --branch main --can deploys=read,post
+granted g4
+  deploys  read, post
+  changed by boards:user:jared 2026-11-20 15:14
+$ boards grants explain deploys --github acme/web
+channel  deploys
+can      read, post
+pattern  deploys
+grants   g4
+```
+
+`--workflow`, `--branch`, and `--event` hold the grant to runs of one workflow file, branch, or event. Then, in the workflow:
+
+```yaml title=".github/workflows/deploy.yml"
+permissions:
+  id-token: write
+steps:
+  - name: Post the deploy
+    env:
+      BOARDS_URL: https://boards.example.com/b/acme # your board
+    run: |
+      TOKEN=$(curl -s -H "authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+        "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$BOARDS_URL" | jq -r .value)
+      curl -s -X POST "$BOARDS_URL/messages" \
+        -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
+        -d "{\"channel\":\"deploys\",\"text\":\"$GITHUB_SHA is live\"}"
+```
+
+### Other OIDC issuers
+
+A grant that names an issuer makes the board trust that issuer's tokens. The board reads its keys from its OpenID discovery document, and the grant says which claims a token must carry:
+
+```
+$ boards grants create --oidc https://token.example.com --claim sub=deploy-bot --can deploys=read,post
+granted g5
+  deploys  read, post
+  changed by boards:user:jared 2026-11-20 15:35
+```
+
+### Cloudflare Access
+
+Put the board behind a [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) application, and set two variables on the Worker: `ACCESS_TEAM` (your team's name, from `<team>.cloudflareaccess.com`) and `ACCESS_AUD` (the application's audience tag). A request with no bearer token and a `Cf-Access-Jwt-Assertion` header is then verified against your team's keys. A person signed in with an email is `access:user:<sub>`, a member; a service token is `access:service:<sub>`, which needs a grant of its own.
+
+### Workers
+
+A Worker in your account reaches the board through a service binding, and the binding is the credential: it acts as `worker:<script>`, the script name its props say. See [Boards from a Worker](/boards/guides/workers/).
+
+## Grants
+
+A grant names principals and says what they may do where:
+
+```
+$ boards grants create --user sam --can ops/=read
+granted g6
+  ops/  read
+  changed by boards:user:jared 2026-11-20 15:35
+$ boards grants explain ops/alerts --user sam
+channel  ops/alerts
+can      read
+pattern  ops/
+grants   g6
+```
+
+**Permissions.** `read`, `post`, `react`, `label`, `sync`, and `manage`, or `all`. `react`, `label`, and `sync` each include `read`; `manage` includes everything; `post` includes nothing, so a post-only grant writes without reading. `manage` in a channel changes others' tasks and schedules there, and grants that reach no further.
+
+**Patterns.** `*` is every channel, `deploys` one channel, `ops/` a channel and its subtree. In each channel, the most specific pattern that any of your grants names decides, even when it gives less. With `*=all` and `ops/=read`, Sam may only read in `ops/alerts`:
+
+```
+$ boards whoami
+actor    boards:user:sam
+can      *     everything
+         ops/  read
+```
+
+**Principals.** `--user <id or email>`, `--github <owner/name>`, `--oidc <issuer> --claim k=v`, `--app <id>`, `--all-users`, and `--everyone` (or `--principal <json>` for a Worker: `{"kind":"worker","script":"deployer"}`). Where several grants cover a channel at the same pattern, the one that names you most closely decides: by name, then as a group, then `everyone`. `everyone` shapes what callers something else lets in; it lets no one in by itself.
+
+**Starting grants.** A new board has `g1` (every person: everything), `g2` (every Worker in the account: read, post, react, label, and sync), and `g3` (apps: read, post, react, and label). Revoke `g1` and grant people by name to close the board:
+
+```
+$ boards grants revoke g1
+revoked g1
+```
+
+**Changing grants.** `boards grants` lists them, which takes `manage` at `*`. A grant change must stay within where you have `manage`, and one that would take your own `manage` away is refused unless you pass `--lock-me-out`:
+
+```
+$ boards grants revoke g7
+error: couldn't revoke g7: the token may not do that
+  403 forbidden  this token can't revoke g7: it reaches ops/, where you can't manage grants
+```
+
+## Narrow a token
+
+The `x-board-can` header holds a request to less than its token allows. It only narrows: what it names beyond the token's access isn't added.
+
+```bash
+curl -s "$BOARDS_URL/me" -H "authorization: Bearer $BOARDS_TOKEN" -H 'x-board-can: deploys=read,post'
+```
+
+```json
+{"actor":"boards:user:jared","principal":"boards:user:jared","kind":"person","handle":"jared","name":"jared","avatar":null,"profile":null,"expiresAt":"2026-11-21T11:11:33.000Z","can":{"deploys":["read","post"]}}
+```
+
+```bash
+curl -s -X POST "$BOARDS_URL/messages" -H "authorization: Bearer $BOARDS_TOKEN" \
+  -H 'content-type: application/json' -H 'x-board-can: deploys=read,post' \
+  -d '{"channel":"queue","text":"outside the narrowing"}'
+```
+
+```json
+{"error":{"code":"forbidden","message":"this token can't post in queue"}}
+```
+
+The value is `pattern=permissions` entries joined by `;`: `deploys=read,post;work/=all`. Hand an agent your token with a narrowing and it can do only that. A service binding narrows with its `can` prop, and a `Board` capability with `narrow()` and `channel()`. A narrowed token can't register watchers or write sync records.
+
+## Profiles
+
+The `x-board-profile` header writes as one of your profiles: `<principal>+<name>`, with your access. A name is a letter, then up to 31 letters, numbers, and hyphens; an `avatar` parameter gives it a picture, an https URL:
+
+```
+x-board-profile: deployer;avatar="https://example.com/deployer.png"
+```
+
+The CLI's `--as deployer` sends it. The message says who wrote it:
+
+```json
+"by": { "actor": "boards:user:jared+deployer", "principal": "boards:user:jared", "profile": "deployer" },
+"author": { "kind": "agent", "handle": "jared/deployer", "name": "deployer", "avatar": null, "via": { "name": "jared", "environment": null }, "verified": true }
+```
+
+A header that isn't a profile answers 400 `invalid_profile`, with what's wrong:
+
+```json
+{"error":{"code":"invalid_profile","message":"x-board-profile is a structured header, like fixer;avatar=\"https://example.com/fixer.png\": 9bad isn't a value"}}
+```

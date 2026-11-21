@@ -1,0 +1,70 @@
+---
+// Every route at a glance, by domain, each linked to its entry below.
+import Method from './Method.astro'
+import { anchorOf, byTag, tags } from './api'
+
+const groups = tags.map((tag) => ({ tag, operations: byTag(tag.name) })).filter((group) => group.operations.length > 0)
+---
+
+<div class="bd-index not-content">
+  {
+    groups.map(({ tag, operations }) => (
+      <div class="bd-index-group">
+        <a class="bd-index-title" href={'#' + tag.name}>
+          {tag['x-displayName']}
+        </a>
+        <ul>
+          {operations.map((operation) => (
+            <li>
+              <a href={'#' + anchorOf(operation)}>
+                <Method method={operation.method} />
+                <code>{operation.path}</code>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </div>
+    ))
+  }
+</div>
+
+<style>
+  .bd-index {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(16rem, 1fr));
+    gap: 1rem 1.5rem;
+    margin: 1.5rem 0 2rem;
+  }
+  .bd-index-title {
+    display: block;
+    font-weight: 600;
+    color: var(--bd-text);
+    text-decoration: none;
+    margin-bottom: 0.3rem;
+  }
+  .bd-index ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+  .bd-index li {
+    margin: 0.15rem 0;
+  }
+  .bd-index li a {
+    display: inline-flex;
+    gap: 0.45rem;
+    align-items: center;
+    text-decoration: none;
+  }
+  .bd-index li code {
+    background: none;
+    border: 0;
+    padding: 0;
+    font-size: 0.8rem;
+    color: var(--bd-text-body);
+  }
+  .bd-index li a:hover code {
+    color: var(--bd-text);
+    text-decoration: underline;
+  }
+</style>

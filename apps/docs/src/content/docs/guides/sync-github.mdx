@@ -1,0 +1,130 @@
+---
+title: "Sync with GitHub"
+description: "Issues and pull requests as threads, and replies back as your app."
+sidebar:
+  order: 11
+---
+
+GitHub sync makes each issue and pull request in a repo a thread in a board channel, its comments and reviews replies, and its state labels on the root. What's written on the board in those threads goes back to GitHub as comments, posted with the token you give it.
+
+```ts title="src/worker.ts"
+import { defineBoards, githubProvider, type Secret } from 'boards'
+import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+
+type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; GITHUB_WEBHOOK_SECRET: Secret; GITHUB_TOKEN: Secret }
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  sync: {
+    // Issues and pull requests in acme/web become threads in github/web.
+    github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'github/web' }, token: env.GITHUB_TOKEN }),
+  },
+}))
+
+export default { fetch: (request: Request, env: Env) => gateway(request, env) }
+```
+
+An issue opened, a comment, a reply from the board, and the issue closed:
+
+```
+$ boards read 8
+#8  ada  2026-11-20 15:20
+  **Issue #7: Checkout button does nothing on Safari**
+
+  Clicking it logs a TypeError.
+  labels  issue=acme/web#7, state=closed
+
+#10  jared  2026-11-20 15:21
+  Reproduced on Safari 19; fix incoming
+
+#13  bo  2026-11-20 15:21
+  Still broken on 19.1
+```
+
+## Set it up
+
+1. **Deploy a board with the sync.** The sync's key (`github` above) names its webhook route and prefixes its users and threads. The deployment needs the `INBOX` and `MAILBOX` bindings ([Deploy and operate](/boards/guides/deploy-and-operate/#bindings)).
+
+2. **Give it its secrets.** The webhook secret is any long random string; the token is one that may comment on the repo's issues and pull requests.
+
+   ```bash
+   npx wrangler secret put GITHUB_WEBHOOK_SECRET
+   npx wrangler secret put GITHUB_TOKEN
+   ```
+
+   Either can be a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding instead.
+
+3. **Point GitHub's webhook at the board.** On the repo (or your GitHub App), add a webhook:
+
+   | Setting | Value |
+   | --- | --- |
+   | Payload URL | `https://<your board's origin>/b/<board>/webhooks/github` |
+   | Content type | `application/json` |
+   | Secret | the `GITHUB_WEBHOOK_SECRET` value |
+   | Events | Issues, Issue comments, Pull requests, Pull request reviews, Pull request review comments |
+
+   GitHub's ping answers `pong`. A delivery signed with any other secret answers 401:
+
+   ```
+   200 kept 1
+   401 not signed by this app
+   ```
+
+## What comes in
+
+| On GitHub | On the board |
+| --- | --- |
+| an issue opened | a thread: `**Issue #7: <title>**` and its body, labels `issue=acme/web#7`, `state=open` |
+| a pull request opened | a thread with its link, labels `pr=acme/web#12`, `state=open` or `draft` |
+| closed, reopened, merged, drafted | the root's `state`: `closed`, `not-planned`, `merged`, `open`, `draft` |
+| a comment, or a review comment | a reply; a review comment starts with its `path:line` |
+| a review | a reply (`**Review: approved**`), and `review=approved` or `changes-requested` on the root |
+| an edit or a delete | the board message edited or deleted |
+
+Each message is written by its GitHub author, `github:user:<id>`, with `from: "github"` and an `origin` naming the GitHub thread. Repos you didn't map are ignored. `starts` decides which events may start a thread: the [factory](/boards/templates/factory/) uses it to skip forks' pull requests and its own app's.
+
+```
+$ boards tail github/web
+15:20:59  message.posted  #8  github/web  ada  **Issue #7: Checkout button do...
+15:21:07  message.posted  #10  github/web  jared  re #8  Reproduced on Safari...
+15:21:23  message.posted  #13  github/web  bo  re #8  Still broken on 19.1
+15:21:23  labels.changed  #8  github/web  ada  state=closed
+```
+
+## What goes back
+
+A message written on the board in a synced thread is posted to GitHub as a comment with the provider's `token`; editing it edits the comment, deleting it deletes it, and a reaction GitHub has (`+1`, `eyes`, `rocket`, `heart`, and the rest) is added to it. A board thread you send to a repo (`"sync": ["github:acme/web"]` on the post) opens an issue, its first line the title. Labels aren't copied, a removed reaction isn't, and a person's reply is posted as the token's user without naming its author.
+
+`token` is one token for every repo (a Worker secret or a Secrets Store binding), or a function of the repo that answers one, such as a GitHub App's installation token:
+
+```ts
+// in githubProvider's options: an installation token for the thread's repo, from your own code
+token: async (repo) => installationToken(env, repo),
+// the app's bot user ID: its own comments come back as GitHub's echo, and aren't imported again
+botUserId: env.GITHUB_BOT_USER_ID,
+```
+
+With `botUserId`, the app's own comments wait for the courier's receipt, and land on the board as nothing: the board already has them.
+
+## When a copy fails
+
+The courier retries a comment until it lands, and the receipt it records is the guard: a copy that exists is never posted again. A refusal that won't change (a 4xx that isn't a rate limit) is recorded at once. Here the token was wrong:
+
+```
+#10  jared  2026-11-20 15:21
+  Reproduced on Safari 19; fix incoming
+  undelivered  github:acme/web:7  GitHub answered 401 to POST /issues/7/comments: { "message": "Bad credentials", "documentation_url": "https://docs.github.com/rest", "status": "401" }
+```
+
+```
+15:21:07  message.sync_failed  #10  github/web  -  github:acme/web:7  GitHub...
+```
+
+`GET /messages/:id/sync` says where a thread syncs and where each copy is:
+
+```json
+{"targets":[{"target":"github:acme/web:7","key":"github","thread":"github:acme/web:7","message":"issue","url":null,"undelivered":null}]}
+```
+
+## How it works
+
+GitHub's webhook goes to the sync's Inbox, a Durable Object of its own, which keeps each delivery under GitHub's delivery ID before GitHub hears 200, so a redelivery does nothing. The Inbox imports events one GitHub thread at a time, oldest first, with 5 tries each; a failed one can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). On the way out, the courier is a Mailbox that the board feeds every write in a synced thread, in the thread's order. [Sync: Inbox and courier](/boards/architecture/sync/) has the details, and the [webhooks reference](/boards/reference/webhooks/) what each route verifies.

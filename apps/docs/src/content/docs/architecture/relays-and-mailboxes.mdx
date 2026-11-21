@@ -1,0 +1,95 @@
+---
+title: "Relays and Mailboxes"
+description: "Live fan-out and ordered delivery, off the write path."
+sidebar:
+  order: 4
+---
+
+Relays tell waiting readers that the log moved; Mailboxes deliver each matching event to code, in order per thread. Neither holds up a write: the Ledger rings and hands off after it commits, and goes back to sleep.
+
+```
+$ curl -sN http://127.0.0.1:8823/b/docs/events?channel=pings -H 'accept: text/event-stream' -H "authorization: Bearer $BOARDS_TOKEN"
+: connected
+
+id: 56
+
+id: 57
+event: board
+data: {"cursor":"57","type":"message.posted","createdAt":"2026-11-20T23:25:10.264Z","payload":{"channel":"pings","text":"over SSE",...},"message":{…},"actor":{...}}
+```
+
+That stream sat idle until `boards post pings 'over SSE'` landed, then wrote the event within the same moment. No one polled.
+
+## Relays
+
+A **Relay** is a Durable Object per board per continent, named `relay:<board>:<continent>` from the request's `cf.continent` ([`relay.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/relay.ts)). It holds the WebSockets of every Gateway in that region that is waiting on the board, accepted with the hibernation API, so an idle socket costs nothing.
+
+1. A Gateway that has to wait opens a WebSocket to its region's Relay. The Relay attaches itself to the board's Ledger the first time, and sends the head it knows, so a ring that came before the socket isn't missed.
+2. After a write commits, the Ledger rings every attached Relay with its new head, coalesced to one ring per 10 ms.
+3. The Relay wakes for as long as it takes to send `{"head": N}` to each socket, then hibernates again. When its last socket closes it detaches from the Ledger.
+4. Each woken Gateway asks the Ledger for what's new, as its own caller.
+
+A ring carries only the head, never an event. Every Gateway reads the events from the Ledger itself, with the caller's access checked on that read, so a Relay holds no board data and makes no access decision. A revoked grant applies to a live tail from its next page.
+
+### Held waits
+
+Three calls can wait, and the Gateway holds each one, not the Ledger:
+
+| Call | Waits up to | Wakes when |
+| --- | --- | --- |
+| `GET /events?wait=` | 300 s | an event the caller may see matches |
+| `POST /tasks/claim` with `wait` | 300 s | a matching task is ready, and it claims it |
+| `GET /watchers/matches?wait=` | 25 s | a registered watcher has a match |
+| `GET /events` as SSE | 280 s per stream, a ping every 15 s | each new page of events |
+
+The Gateway asks once with no wait, opens its Bell (the WebSocket to the Relay), asks once more to catch a ring that came while it opened, then sleeps until a ring or the deadline. A long-poll on the local board:
+
+```
+1 event after 1571 ms: message.posted #54
+```
+
+That's `GET /events?channel=pings&wait=20`, with a post 1.5 seconds later. An SSE stream ends after 280 seconds and the client reconnects with `Last-Event-ID`; since cursors are gapless positions, it resumes exactly where it was. A `boards tail` held against the live board stayed up for over four hours across two redeploys and saw every event.
+
+A `Board` from a binding or Cap'n Web waits the same way: `board.events({ wait })` and `board.tasks.claim(target, { wait })` open the same Bell.
+
+## Mailboxes
+
+A **Mailbox** is a SQLite Durable Object per subscriber: one per config watcher (`<board>:<watcher>`) and one per sync courier (`<board>:@sync:<key>`), in [`mailbox.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/mailbox.ts). The Ledger's dispatch hands it each match, in order, and goes on. The Mailbox delivers:
+
+- **In order per thread.** A lane is one thread of one watcher. Only a lane's oldest pending match is in flight, so a thread's events arrive in the order they happened.
+- **Threads in parallel.** Up to 16 lanes deliver at once, so one slow thread doesn't hold the others.
+- **With retries.** Each try leases its match for 5 minutes. A try that throws waits 1 second, doubling up to 30, and the lane waits with it. After 5 tries the match is recorded as failed and the lane goes on.
+- **Once per match.** A match's ID is `<watcher>:<seq>`, and the Mailbox keeps each ID once.
+
+A watcher's code, however slow, never holds the Ledger.
+
+### Sinks
+
+A watcher's `sink` says where its Mailbox delivers:
+
+| Sink | Delivery |
+| --- | --- |
+| `{ kind: 'service', binding, method }` | calls `env[binding][method](event, context)` on a Worker entrypoint |
+| `{ kind: 'url', url, secret }` | POSTs the match as JSON, signed with `x-board-signature: sha256=<HMAC>` when there's a secret |
+| `{ kind: 'sync', key }` | the courier of the board's own sync under `key`: see [Sync](/boards/architecture/sync/) |
+
+A service sink's `context` holds the attempt number, the match ID, and `context.board`: the board, acting as the watcher (`boards:watch:<id>`), with `post`, `reply`, `react`, `label`, `typing`, `message`, `threads`, and `me`. A watcher's own posts don't wake it again, except the scheduled ones it made for itself.
+
+```ts title="src/worker.ts"
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  watch: {
+    // Every message in support, in order per thread, to this Worker's Triage entrypoint.
+    triage: { tail: 'support', sink: { kind: 'service', binding: 'TRIAGE', method: 'onEvent' } },
+  },
+}))
+```
+
+That's from the [support channel example](/boards/examples/support-channel/), whose watcher labels and answers each new question.
+
+:::caution
+A retry runs your code again, and its writes through `context.board` are written again. A watcher that replies and then throws replies twice. Do a watcher's board writes last, or key them with your own client IDs.
+:::
+
+### Registered watchers
+
+A program that isn't a Worker on the account can register watchers over HTTP and pull its matches (`GET /watchers/matches`, leased and acked). Those matches are recorded in the Ledger, by the registrant's own pull, so a write pays nothing for registrations. See [Watchers](/boards/guides/watchers/).

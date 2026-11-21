@@ -1,0 +1,85 @@
+---
+title: "Sync: Inbox and courier"
+description: "Durable before acknowledged on the way in; receipts as the retry guard on the way out."
+sidebar:
+  order: 5
+---
+
+import SyncFlow from '../../../components/diagrams/SyncFlow.astro'
+
+A board's own sync runs in two satellites per sync key. The **Inbox** takes the platform's webhooks and keeps them before it answers; the **courier** copies what's written on the board back to the platform, and records a receipt for every copy. A deployment declares its syncs, and gets both:
+
+```ts title="src/worker.ts"
+import { defineBoards, slackProvider } from 'boards'
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  sync: {
+    // Slack's webhooks at /b/<board>/webhooks/slack; what's written in those threads goes back as the bot.
+    slack: slackProvider({
+      signingSecret: env.SLACK_SIGNING_SECRET,
+      botToken: env.SLACK_BOT_TOKEN,
+      channels: { [env.SLACK_CHANNEL]: 'support' },
+      botUserId: env.SLACK_BOT_USER_ID,
+    }),
+  },
+}))
+```
+
+<SyncFlow />
+
+## A provider is the platform's half
+
+Each platform is a `SyncProvider` ([`sync/provider.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/sync/provider.ts)): `githubProvider`, `slackProvider`, and `linearProvider`. It verifies and normalizes what comes in (`receive`), says what each event means as board writes (`import`), and posts, edits, deletes, reacts, and shows typing on the platform. The Inbox and the courier are the same for all three. Credentials are a Worker secret or a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding, read through one accessor.
+
+## In: the Inbox
+
+An Inbox is a SQLite Durable Object per board and sync key, `inbox:<board>:<key>` ([`sync/inbox.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/sync/inbox.ts)).
+
+1. **Verify.** The platform's webhook reaches `/b/<board>/webhooks/<key>`. The provider checks it: GitHub's `x-hub-signature-256`, Slack's signature and its 5-minute window, Linear's signature. A forged or stale request is a 401 and keeps nothing.
+2. **Keep, then answer.** The provider turns the request into events, each with the platform's own ID for it. The Inbox inserts each one it hasn't seen, by that ID, and only once they're durable does the Gateway answer 200. A platform that retries a delivery gets the same IDs, and the Inbox does nothing.
+3. **Import in order.** The Inbox's alarm imports events through the Ledger as `boards:sync:<key>`, one platform thread at a time, oldest first, 8 threads at once. An import's client ID is derived from the platform's message, so an import that runs twice lands once.
+4. **Retry, then go on.** An import that fails is tried again 1 second later, doubling, 5 times in all. Then the event is recorded as failed and its thread goes on.
+
+Raw payloads stay in the Inbox for 7 days and never reach the board log. `POST /b/<board>/inbox/<key>/replay` gives failed events 5 fresh tries: during one deploy's rollout, a Ledger still on the old code refused a GitHub event, and replaying it after the rollout made its thread.
+
+## Out: the courier
+
+The courier is a subscription matched like a watcher, `@sync:<key>`, delivered by its own Mailbox with a `{ kind: 'sync', key }` sink ([`sync/courier.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/sync/courier.ts)). The Ledger matches it in its post-commit dispatch, from its outbox cursor, so a write in a synced thread costs nothing extra in its transaction.
+
+For a `message.posted` in a synced thread, for each of the thread's targets under that key:
+
+1. **Look for a receipt.** If the message already has a copy on that target, it's done. This is the retry guard: a Mailbox retry after a post that worked never posts it again.
+2. **Skip what stays.** An import from this same sync (its echo), a `noSync` message, and a deleted one aren't copied.
+3. **Post, then record.** The provider posts it, as the app or bot, and the courier records the copy as a receipt on the board: where the message is on the platform.
+4. **Fail visibly.** On the Mailbox's last try, what didn't go is recorded with `message.sync_failed`, which shows under the message as `undelivered`, and the thread goes on.
+
+A reply in a thread that started on the board as a channel target goes in the platform thread its root started there, posting the root first if it hasn't gone yet. Edits, deletes, and reactions of a copied message are best effort: one try, logged when it fails. Labels aren't copied out, and a board reply by a person is posted as the app, without naming its author.
+
+## The echo
+
+A platform tells the board about the courier's own post: Slack and GitHub send it back as a new event. The provider marks an event from its own bot user as `own`, and the import asks the board for that message's receipt:
+
+- **The receipt is there:** the echo is the board's own copy, and imports as nothing.
+- **No receipt yet:** the echo beat the courier's receipt, so the import throws a retry and the Inbox tries again a second later, by which time it's there.
+- **The echo imported first:** the receipt answers `already_synced`, and the courier takes that as done. The message is on the board and on the platform once.
+
+## A run
+
+The [support channel example](/boards/examples/support-channel/) under `wrangler dev`, against a stand-in for Slack's Web API. Slack's delivery is sent twice; the triage agent answers on the board; the courier posts it to Slack; and the stand-in sends Slack's echo back:
+
+```
+$ node try-it.mjs
+webhook       200 kept 1
+retried       200 kept 1
+board thread  #2 {"area":"billing","urgency":"high"}, 1 reply by boards:watch:triage
+to slack      C0SUPPORT thread 1795216784.000100: Sorry to hear that you were charged twice for November. Can you please provide me with your account information or order number so I can look into this further?
+```
+
+`GET /b/desk/inbox/slack` shows two events, the question and the echo, each imported once on its first try:
+
+| Event ID | State | Tries | What the provider read |
+| --- | --- | --- | --- |
+| `Ev1795216786.000200:0` | done | 1 | a reply, `own`: the bot's echo |
+| `EvQUESTION1795216784.000100:0` | done | 1 | a root: Ada's question |
+
+The thread still has one reply: the echo landed as nothing. The same path ran live against GitHub, a real Slack workspace, and a real Linear workspace; [Status](/boards/project/status/) lists what each run covered.

@@ -1,0 +1,25 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "support-desk",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "vars": {
+    // Your Slack channel's ID and your bot's user ID.
+    "SLACK_CHANNEL": "C0SUPPORT",
+    "SLACK_BOT_USER_ID": "U0BOT"
+  },
+  "ai": { "binding": "AI", "remote": true },
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGER", "class_name": "Ledger" },
+      { "name": "RELAY", "class_name": "Relay" },
+      { "name": "MAILBOX", "class_name": "Mailbox" },
+      { "name": "INBOX", "class_name": "Inbox" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox", "Inbox"] }],
+  // The watcher's sink: this Worker's own Triage entrypoint.
+  "services": [{ "binding": "TRIAGE", "service": "support-desk", "entrypoint": "Triage" }],
+  "worker_loaders": [{ "binding": "LOADER" }]
+}

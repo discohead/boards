@@ -1,0 +1,114 @@
+---
+// The frame every diagram shares: a themed panel that scrolls sideways on narrow screens, and a caption.
+// Diagrams draw with the classes below, so they follow the site's dark and light themes.
+interface Props {
+  caption?: string
+  /** The narrowest the drawing gets before the panel scrolls, in px. */
+  minWidth?: number
+}
+const { caption, minWidth = 560 } = Astro.props
+---
+
+<figure class="bd-diagram not-content">
+  <div class="bd-diagram-panel" style={`--bd-diagram-min: ${minWidth}px`} tabindex="0">
+    <slot />
+  </div>
+  {caption && <figcaption>{caption}</figcaption>}
+</figure>
+
+<style is:global>
+  .bd-diagram {
+    margin: 2rem 0;
+    --d-node: var(--bd-surface);
+    --d-stroke: var(--bd-line-strong);
+    --d-edge: var(--bd-muted);
+    --d-label: var(--bd-muted);
+    --d-halo: var(--bd-bg-raised);
+  }
+  .bd-diagram-panel {
+    overflow-x: auto;
+    border: 1px solid var(--bd-line);
+    border-radius: var(--bd-radius);
+    padding: clamp(0.5rem, 2vw, 1.25rem);
+    background-color: var(--bd-bg-raised);
+    background-image: radial-gradient(var(--bd-grid) 1px, transparent 1.2px);
+    background-size: 18px 18px;
+    background-position: -9px -9px;
+  }
+  .bd-diagram-panel:focus-visible {
+    outline: 2px solid var(--bd-accent);
+    outline-offset: 2px;
+  }
+  .bd-diagram svg {
+    display: block;
+    width: 100%;
+    min-width: var(--bd-diagram-min, 560px);
+    font-variant-ligatures: none;
+    height: auto;
+    overflow: visible;
+    font-family: var(--bd-font-body);
+  }
+  .bd-diagram figcaption {
+    margin-top: 0.75rem;
+    font-family: var(--bd-font-mono);
+    font-size: 0.78rem;
+    line-height: 1.6;
+    color: var(--bd-muted);
+  }
+
+  /* nodes */
+  .bd-diagram .n { fill: var(--d-node); stroke: var(--d-stroke); stroke-width: 1.25; }
+  .bd-diagram .n.accent { fill: var(--bd-accent-soft); stroke: var(--bd-accent); stroke-width: 1.75; }
+  .bd-diagram .n.violet { fill: var(--bd-violet-soft); stroke: var(--bd-violet); }
+  .bd-diagram .n.sky { fill: var(--bd-sky-soft); stroke: var(--bd-sky); }
+  .bd-diagram .n.rose { fill: var(--bd-rose-soft); stroke: var(--bd-rose); }
+  .bd-diagram .n.yellow { fill: var(--bd-yellow-soft); stroke: var(--bd-yellow); }
+  .bd-diagram .n.quiet { fill: transparent; stroke-dasharray: 4 4; }
+  .bd-diagram .chip { fill: var(--bd-surface-2); stroke: var(--bd-line); stroke-width: 1; }
+  .bd-diagram .cell { fill: var(--bd-surface-2); stroke: var(--bd-line-strong); stroke-width: 1; }
+  .bd-diagram .cell.new { fill: var(--bd-accent); stroke: var(--bd-accent); }
+  .bd-diagram .zone { fill: none; stroke: var(--bd-line-strong); stroke-width: 1; stroke-dasharray: 3 5; }
+  .bd-diagram .band { fill: var(--bd-surface-2); opacity: 0.55; }
+
+  /* text */
+  .bd-diagram .t { font-family: var(--bd-font-display); font-weight: 700; font-size: 15px; fill: var(--bd-text); letter-spacing: -0.01em; }
+  .bd-diagram .t.lg { font-size: 19px; letter-spacing: -0.02em; }
+  .bd-diagram .s { font-family: var(--bd-font-mono); font-size: 11.5px; fill: var(--bd-muted); }
+  .bd-diagram .s.ink { fill: var(--bd-text-body); }
+  .bd-diagram .s.on-accent { fill: var(--bd-accent-ink); font-weight: 700; }
+  .bd-diagram .zt { font-family: var(--bd-font-mono); font-size: 10.5px; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; fill: var(--bd-muted); }
+  .bd-diagram .zt.accent { fill: var(--bd-accent-text); }
+  .bd-diagram .lbl {
+    font-family: var(--bd-font-mono); font-size: 11px; fill: var(--d-label);
+    paint-order: stroke; stroke: var(--d-halo); stroke-width: 5px; stroke-linejoin: round;
+  }
+  .bd-diagram .lbl.accent { fill: var(--bd-accent-text); }
+  .bd-diagram .num { font-family: var(--bd-font-mono); font-size: 11px; font-weight: 700; fill: var(--bd-accent-ink); }
+  .bd-diagram .dot { fill: var(--bd-accent); }
+  .bd-diagram .dot.ink { fill: var(--bd-text); }
+
+  /* edges */
+  .bd-diagram .e { fill: none; stroke: var(--d-edge); stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+  .bd-diagram .e.accent { stroke: var(--bd-accent); stroke-width: 1.75; }
+  .bd-diagram .e.violet { stroke: var(--bd-violet); }
+  .bd-diagram .e.sky { stroke: var(--bd-sky); }
+  .bd-diagram .e.rose { stroke: var(--bd-rose); }
+  .bd-diagram .e.dash { stroke-dasharray: 5 5; }
+  .bd-diagram .head { fill: var(--d-edge); }
+  .bd-diagram .head.accent { fill: var(--bd-accent); }
+  .bd-diagram .head.violet { fill: var(--bd-violet); }
+  .bd-diagram .head.sky { fill: var(--bd-sky); }
+  .bd-diagram .head.rose { fill: var(--bd-rose); }
+  :root[data-theme='light'] .bd-diagram .e.accent,
+  :root[data-theme='light'] .bd-diagram .n.accent { stroke: #6f9a00; }
+  :root[data-theme='light'] .bd-diagram .head.accent { fill: #6f9a00; }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .bd-diagram .flow { stroke-dasharray: 6 8; animation: bd-flow 1.6s linear infinite; }
+    .bd-diagram .pulse { animation: bd-pulse 2.4s ease-in-out infinite; transform-box: fill-box; transform-origin: center; }
+    .bd-diagram .lease { animation: bd-lease 6s linear infinite; transform-box: fill-box; transform-origin: left center; }
+  }
+  @keyframes bd-flow { to { stroke-dashoffset: -28; } }
+  @keyframes bd-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes bd-lease { from { transform: scaleX(1); } to { transform: scaleX(0.08); } }
+</style>

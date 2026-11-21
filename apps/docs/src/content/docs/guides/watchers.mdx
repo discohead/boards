@@ -1,0 +1,151 @@
+---
+title: "Watchers"
+description: "Run code for every matching event, in order, with retries."
+sidebar:
+  order: 9
+---
+
+A watcher is a tail expression and somewhere to deliver what matches it. The board hands each matching event to your code once, one at a time per thread and in the thread's order, and retries what fails. Your code can be as slow as it likes: delivery runs off the write path, so it never holds the board.
+
+```ts title="src/worker.ts"
+import { WorkerEntrypoint } from 'cloudflare:workers'
+import { defineBoards } from 'boards'
+import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards(() => ({
+  watch: {
+    // Every event under deploys/, delivered in order per thread to this Worker's Ops entrypoint.
+    ops: { tail: 'deploys/', sink: { kind: 'service', binding: 'OPS', method: 'onEvent' } },
+  },
+}))
+
+type BoardEvent = { cursor: string; type: string; message?: { id: string; re: string | null; text: string } }
+type Delivery = { attempt: number; match: string; watcher: string; name: string; board: { reply(id: string, input: string): Promise<unknown> } }
+
+export class Ops extends WorkerEntrypoint<GatewayEnv> {
+  async onEvent(event: BoardEvent, context: Delivery): Promise<void> {
+    const message = event.message
+    // Answer each new thread under deploys/ once; the watcher's own replies come back as events too.
+    if (event.type !== 'message.posted' || !message || message.re !== null) return
+    await context.board.reply(message.id, 'seen by the ops watcher (try ' + context.attempt + ')')
+  }
+}
+
+export default { fetch: (request: Request, env: GatewayEnv) => gateway(request, env) }
+```
+
+This is the Worker of a deployment that depends on `boards` ([Deploy and operate](/boards/guides/deploy-and-operate/#a-deployment-of-your-own) sets one up). The `OPS` binding is the Worker's own `Ops` entrypoint, in its `wrangler.jsonc`:
+
+```jsonc title="wrangler.jsonc"
+"services": [{ "binding": "OPS", "service": "boards", "entrypoint": "Ops" }]
+```
+
+A post under `deploys/`, and the watcher's answer in its thread:
+
+```
+$ boards post deploys/web 'v7 is live'
+posted #23 in deploys/web
+$ boards read 23
+#23  jared  2026-11-20 15:33
+  v7 is live
+
+#24  ops  2026-11-20 15:33
+  seen by the ops watcher (try 1)
+```
+
+## Config watchers
+
+A deployment's own watchers are in its `defineBoards` config, under `watch`, by ID. Each has a `tail` and a `sink`, and runs on every board the deployment serves. A watcher sees what lands after it's deployed: a new watcher on a board in use starts at the head, and gets nothing from before.
+
+| Sink | Delivers |
+| --- | --- |
+| `{ kind: 'service', binding, method? }` | calls `env[binding][method](event, context)`, a Worker entrypoint over RPC; `method` is `onEvent` unless you name another |
+| `{ kind: 'url', url, secret? }` | POSTs `{ event, board, watcher, match, attempt }` as JSON, with `x-board-match`, and `x-board-signature: sha256=<hex HMAC of the body>` when there's a secret |
+
+A service sink's `context` holds `watcher`, `match` (the delivery's ID, the same on every try), `attempt`, `name` (the board's name), and `board`: the board, acting as the watcher. It has `me`, `message`, `threads`, `post`, `reply`, `react`, `label`, and `typing`, and what it writes is by `boards:watch:<id>`. Its writes are events like any other, so a watcher whose tail matches its own channel skips its own messages.
+
+A delivery fails when the sink throws (or a URL answers anything but 2xx). Here a URL sink refused the first two tries of one alert:
+
+```
+23:32:24 hooks attempt 1 message.posted "disk at 91% on db-2" signed true -> 200
+23:32:24 hooks attempt 1 message.posted "flaky probe on edge-7" signed true -> 503
+23:32:25 hooks attempt 2 message.posted "flaky probe on edge-7" signed true -> 503
+23:32:27 hooks attempt 3 message.posted "flaky probe on edge-7" signed true -> 200
+```
+
+That watcher was `hooks: { tail: 'alerts', sink: { kind: 'url', url: 'https://hooks.example.com/board', secret: env.HOOK_SECRET } }`, and the receiver checked each signature.
+
+## Order and retries
+
+Each watcher has a Mailbox, a Durable Object that delivers its matches:
+
+- **One at a time per thread, in order.** A thread's next match waits until the one before it is delivered or given up. Threads go in parallel, up to 16 at once.
+- **Retries with backoff.** A failed try is tried again after 1 second, doubling up to 30 seconds. Each try holds a 5-minute lease, so a try that never ends is tried again.
+- **Five tries.** After the fifth, the match is recorded as failed and its thread goes on.
+- **At least once.** A match is delivered until a try succeeds, so a sink that has side effects keys them by `context.match`.
+
+The Ledger hands matches to the Mailbox after each write commits, from a cursor it keeps, so a write never waits for a watcher and a watcher never misses a write.
+
+## Registered watchers
+
+A program that isn't part of the deployment registers watchers on a board and pulls their matches. Registering again replaces the registration: one per principal, up to 64 watchers.
+
+```js title="pull-watcher.mjs"
+// A watcher that runs anywhere: register a tail, then pull matches, handle each, and ack it.
+const url = process.env.BOARDS_URL
+const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN, 'content-type': 'application/json' }
+const call = async (method, path, body) => {
+  const response = await fetch(url + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
+  if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + (await response.text()))
+  return response.json()
+}
+
+// One registration per principal: registering again replaces its watchers.
+await call('POST', '/watchers', { watch: { prod: { tail: 'deploys --label env=prod' } } })
+
+for (;;) {
+  // Held up to 25 seconds until a match is due.
+  const { matches } = await call('GET', '/watchers/matches?wait=25')
+  for (const match of matches) {
+    try {
+      console.log(match.watcher, '#' + match.event.message.id, match.event.message.text)
+      // ... your work here ...
+      await call('POST', '/watchers/matches/' + match.id + '/ack', { lease: match.lease })
+    } catch (error) {
+      // A failed try comes back after a backoff, up to 5 tries.
+      await call('POST', '/watchers/matches/' + match.id + '/ack', { lease: match.lease, error: String(error).slice(0, 500) })
+    }
+  }
+}
+```
+
+With `v49 is live` posted with `env=prod` and `v49 on staging` with `env=staging`:
+
+```
+$ node pull-watcher.mjs
+prod #32 v49 is live
+```
+
+- `GET /watchers/matches` answers up to `limit` matches (10 unless you say, at most 50), each the head of its thread's lane, leased to you for 5 minutes. `wait` (up to 25 seconds) holds the request until one is due.
+- `POST /watchers/matches/:id/ack` with the match's `lease` takes it off the queue. With `error`, it comes back after a backoff, and after 5 tries it's recorded as failed. With `skip`, it's dropped.
+- An ack after the lease ran out answers 409 `stale_lease`: the match was handed out again.
+
+A registrant sees only what its principal may read, worked out again at each pull. Registering and pulling refuse a token narrowed with `x-board-can`. This board wakes no one: a registration with a `url` or `path` answers 501, and pulling is how matches arrive.
+
+## Tail expressions
+
+A watcher's `tail` is what you'd type after `boards tail`:
+
+| Expression | Matches |
+| --- | --- |
+| `deploys` | one channel |
+| `deploys/` | a channel and its subtree |
+| `''` | the whole board |
+| `--label env=prod` | messages with that label |
+| `--by ada`, `--mentions ada` | messages by, or mentioning, someone |
+| `--re 12` | one thread |
+| `--source slack` | what came in through a sync |
+| `--text 'out of memory'` | messages with those words |
+| `--all` | bookkeeping events too |
+
+Filters combine: `deploys/ --label env=prod --by deployer`.

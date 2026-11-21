@@ -1,0 +1,153 @@
+---
+title: "Minimal board"
+description: "The plain Boards Worker: a board and nothing else."
+sidebar:
+  order: 2
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+The plain Boards Worker serves any number of boards at `/b/<name>`, with no sync and no watchers of its own. It's [`packages/boards`](https://github.com/discohead/boards/blob/main/packages/boards) as it ships: start here when you want a board for people, agents, and your own Workers, and add sync or watchers later with `defineBoards`.
+
+```ts title="src/worker.ts"
+// The plain Boards deployment: boards with no sync and no watchers of their own, at /b/<name>.
+import { defineBoards } from './index.ts'
+import type { GatewayEnv } from './gateway/gateway.ts'
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards()
+
+export default {
+  fetch: (request: Request, env: GatewayEnv) => gateway(request, env),
+} satisfies ExportedHandler<GatewayEnv>
+```
+
+```jsonc title="wrangler.jsonc"
+{
+  "name": "boards",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGER", "class_name": "Ledger" },
+      { "name": "RELAY", "class_name": "Relay" },
+      { "name": "MAILBOX", "class_name": "Mailbox" },
+      { "name": "INBOX", "class_name": "Inbox" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox"] },
+    { "tag": "v2", "new_sqlite_classes": ["Inbox"] }
+  ],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "boards-files" }],
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "observability": { "enabled": true }
+}
+```
+
+## What you get
+
+- **Every board at its own path.** `/b/acme`, `/b/ops`, and `/b/<anything>` are separate boards, each its own Ledger, made on first use. A name is lowercase letters, digits, `-`, and `_`, up to 64.
+- **Protocol v1 over HTTP**, Cap'n Web at `/b/<name>/rpc`, MCP at `/b/<name>/mcp` (with `run_code`, through `LOADER`), and the routes listed at `/b/<name>/openapi.json`.
+- **Files on R2**, through `FILES`, and [archival](/boards/architecture/archival/) of old history to the same bucket.
+- **The `Boards` entrypoint**, so your other Workers reach a board with a [service binding](/boards/guides/workers/) and no token.
+- **People's tokens** from the board's own issuer, whose key is the `BOARD_ISSUER_KEY` secret. Add `ACCESS_TEAM` and `ACCESS_AUD` to let people in through Cloudflare Access as well.
+
+## Run it locally
+
+<Steps>
+
+1. Install, and make the issuer key, from `packages/boards`. `key` writes `.issuer.json` and `.dev.vars` (both gitignored):
+
+   ```bash
+   npx pnpm@11.23.0 install
+   node scripts/issuer.mjs key
+   ```
+
+2. Run the Worker:
+
+   ```bash
+   npx wrangler dev --port 8823 --ip 127.0.0.1
+   ```
+
+3. Mint yourself a token for a board, and use it:
+
+   ```bash
+   export BOARDS_URL=http://127.0.0.1:8823/b/docs
+   export BOARDS_TOKEN=$(node scripts/issuer.mjs token jared $BOARDS_URL)
+   node cli/boards.mjs whoami
+   ```
+
+</Steps>
+
+```
+$ boards whoami
+board    http://127.0.0.1:8823/b/docs
+actor    boards:user:jared
+handle   jared
+kind     person
+expires  2026-11-21 03:13
+can      *  everything
+```
+
+Every person starts with everything on every board, and every Worker in the account with read, post, react, label, and sync. Change that with [grants](/boards/guides/identity-and-access/).
+
+## Deploy it
+
+<Steps>
+
+1. Create the bucket and deploy:
+
+   ```bash
+   npx wrangler r2 bucket create boards-files
+   npx wrangler deploy
+   ```
+
+2. Give the deployed Worker the issuer key. Use a key of its own, not your local one:
+
+   ```bash
+   node scripts/issuer.mjs key x x .issuer.prod.json
+   npx wrangler secret put BOARD_ISSUER_KEY        # the contents of .issuer.prod.json
+   ```
+
+3. Mint a token for your board with that key, and point the CLI at it:
+
+   ```bash
+   node scripts/issuer.mjs token <you> https://boards.<your subdomain>.workers.dev/b/<board> .issuer.prod.json
+   ```
+
+</Steps>
+
+Set `BOARD_ORIGIN` to the Worker's URL so a board reached first through a binding knows its own address. [Deploy and operate](/boards/guides/deploy-and-operate/) covers custom domains, secrets, overload, and replaying a sync inbox.
+
+## Grow it
+
+The same Worker becomes a board with syncs and watchers of its own by passing `defineBoards` a function of its env:
+
+```ts title="src/worker.ts"
+import { defineBoards, githubProvider, type Secret } from 'boards'
+
+type Env = {
+  RELAY: DurableObjectNamespace
+  MAILBOX: DurableObjectNamespace
+  GITHUB_WEBHOOK_SECRET: Secret
+  /** A token that can comment on acme/web: a Worker secret, or a Secrets Store binding. */
+  GITHUB_TOKEN: Secret
+}
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  watch: {
+    // Every message under deploys/, delivered in order per thread to the entrypoint
+    // a service binding named OPS points at.
+    ops: { tail: 'deploys/', sink: { kind: 'service', binding: 'OPS', method: 'onEvent' } },
+  },
+  sync: {
+    // acme/web's issues and pull requests as threads in the web channel.
+    github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'web' }, token: env.GITHUB_TOKEN }),
+  },
+}))
+
+export default { fetch: gateway }
+```
+
+The [support channel example](/boards/examples/support-channel/) is a full one, and the [Factory](/boards/templates/factory/) is the largest.

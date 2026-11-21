@@ -1,0 +1,189 @@
+---
+title: "Sync with Slack"
+description: "A Slack channel and a board channel, kept in step both ways."
+sidebar:
+  order: 12
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+Slack sync maps a Slack channel to a board channel. Each message posted there is a thread on the board and its thread replies are replies; edits, deletes, and reactions follow. What's written on the board in those threads goes back to Slack as the bot, in the same Slack thread.
+
+```ts title="src/worker.ts"
+import { defineBoards, slackProvider, type Secret } from 'boards'
+import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+
+type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; SLACK_SIGNING_SECRET: Secret; SLACK_BOT_TOKEN: Secret; SLACK_BOT_USER_ID: string }
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  sync: {
+    slack: slackProvider({
+      signingSecret: env.SLACK_SIGNING_SECRET,
+      botToken: env.SLACK_BOT_TOKEN,
+      // Each Slack channel ID, and the board channel its threads come into.
+      channels: { C0SYNCED: 'slack/general' },
+      // The bot's own user ID: Slack's echo of what the board posted isn't imported again.
+      botUserId: env.SLACK_BOT_USER_ID,
+    }),
+  },
+}))
+
+export default { fetch: (request: Request, env: Env) => gateway(request, env) }
+```
+
+A Slack thread, as it lands on the board (from the [provider check](#check-it-locally): Ada's message, Bo's edited reply with Ada's reaction, and a reply Ada deleted):
+
+```
+{
+ "id": "2",
+ "by": "Ada (slack:user:U0ADA)",
+ "text": "Deploys to *staging* fail since [run 7](https://ci.test/run/7) & I cannot see why",
+ "origin": "slack:C0SYNCED:1700000000.000100 / 1700000000.000100"
+}
+{
+ "id": "4",
+ "by": "Bo (slack:user:U0BO)",
+ "text": "@[slack:user:U0ADA] looks like the deploy token expired yesterday",
+ "edited": true,
+ "reactions": {
+  "thumbs_up": [
+   "slack:user:U0ADA"
+  ]
+ },
+ "origin": "slack:C0SYNCED:1700000000.000100 / 1700000001.000200"
+}
+```
+
+## Set it up
+
+<Steps>
+
+1. **Make the Slack app.** At [api.slack.com/apps](https://api.slack.com/apps), create an app from a manifest, with these bot scopes and no event subscriptions yet: Slack checks a request URL as soon as it's saved, and the board can answer that check only once it has the app's signing secret (step 4).
+
+   ```json title="manifest.json"
+   {
+     "display_information": { "name": "Boards sync" },
+     "features": { "bot_user": { "display_name": "boards", "always_online": true } },
+     "oauth_config": {
+       "scopes": {
+         "bot": ["chat:write", "channels:history", "groups:history", "reactions:read", "reactions:write", "users:read"]
+       }
+     },
+     "settings": {
+       "org_deploy_enabled": false,
+       "socket_mode_enabled": false,
+       "token_rotation_enabled": false
+     }
+   }
+   ```
+
+
+2. **Install it and invite the bot.** Install the app to the workspace, and `/invite` the bot into each channel you sync. Note the channel's ID (in the channel's details) and the bot's user ID.
+
+3. **Give the Worker the app's secrets.** The signing secret is on the app's Basic Information page, and the bot token (`xoxb-…`) on OAuth & Permissions. Store them in your account's [Secrets Store](https://developers.cloudflare.com/secrets-store/):
+
+   ```bash
+   # your store's ID, from: npx wrangler secrets-store store list
+   npx wrangler secrets-store secret create <store id> --name slack-signing-secret --scopes workers --remote
+   npx wrangler secrets-store secret create <store id> --name slack-bot-token --scopes workers --remote
+   ```
+
+   and bind them:
+
+   ```jsonc title="wrangler.jsonc"
+   "secrets_store_secrets": [
+     { "binding": "SLACK_SIGNING_SECRET", "store_id": "<store id>", "secret_name": "slack-signing-secret" },
+     { "binding": "SLACK_BOT_TOKEN", "store_id": "<store id>", "secret_name": "slack-bot-token" }
+   ],
+   "vars": { "SLACK_BOT_USER_ID": "U0BOT" }
+   ```
+
+   Plain Worker secrets (`wrangler secret put SLACK_SIGNING_SECRET`) work as well: the provider reads either.
+
+4. **Deploy, then turn on events.** `npx wrangler deploy`. Then, on the app's **Event Subscriptions** page, turn events on with your board's webhook route as the request URL, `https://<your worker>/b/<board>/webhooks/slack`. Slack shows **Verified** once the board answers its challenge, signed with the secret from step 3. Subscribe to the bot events `message.channels`, `message.groups`, `reaction_added`, and `reaction_removed`, and save; reinstall the app if Slack asks. Post in the channel, and `boards tail slack/general`.
+
+</Steps>
+
+:::tip[Verified live]
+These steps were run against a real Slack workspace: a post, a thread reply, its edit, a reaction, and a delete each landed on the board once, and a board reply, its edit, and a reaction each reached Slack. See [Status](/boards/project/status/).
+:::
+
+## What comes in
+
+| In Slack | On the board |
+| --- | --- |
+| a message in a mapped channel | a thread in its board channel |
+| a reply in its Slack thread | a reply |
+| an edit, a delete | the board message edited, or deleted (a root deleted under replies stays as a tombstone) |
+| a reaction added or removed | the reaction added or removed |
+
+Each message is by its Slack author, `slack:user:<id>`, named from `users.info`. Slack's mrkdwn becomes the board's markdown: links become `[text](url)`, a mention of a person becomes `@[slack:user:<id>]`, and `&lt;`, `&gt;`, and `&amp;` become their characters. Channels you didn't map, joins, and changes that leave the text as it was (a reply count, an unfurl) are kept as nothing. Requests older than 5 minutes, or not signed with the app's signing secret, answer 401:
+
+```
+# slack: verification
+url_verification  200 c-3x4mpl3
+ok    url_verification answers its challenge
+bad signature     401 not signed by this app
+6 minutes old     401 too old, or no timestamp
+ok    a forged or stale request is 401
+```
+
+## What goes back
+
+A message written on the board in a synced thread is posted with `chat.postMessage` in that Slack thread, as the bot. Editing it calls `chat.update`, deleting it `chat.delete`, and a reaction `reactions.add` or `reactions.remove`. A board thread sent to a Slack channel (`"sync": ["slack:C0SYNCED"]` on the post) starts a Slack thread there.
+
+```
+board reply  #12
+slack got  POST /slack/api/chat.postMessage  auth=Bearer xoxb-test  {"channel":"C0SYNCED","thread_ts":"1700000000.000100","text":"Rotated the deploy token: &lt;staging&gt; &amp; prod should go green now"}  -> ts 1700000900.000100
+ok    one chat.postMessage, in the root's thread, with the bot token from Secrets Store
+ok    the receipt records the ts Slack answered
+```
+
+Slack sends the bot's own message back as an event, sometimes before `chat.postMessage` has answered. With `botUserId` (and `botId`, if the app posts as a bot ID), that echo waits for the courier's receipt and then lands as nothing, so the reply is on the board once. The bot's own reactions are dropped the same way.
+
+## Check it locally
+
+`test/providers-worker` is a Worker with Slack and Linear as its own syncs, credentials in a local Secrets Store, and each platform's API pointed at a mock. `check.mjs` signs every request as Slack and Linear sign them, sends each delivery twice, and reads the board back. From `packages/boards` (the values are test values; the check is told the same ones):
+
+```bash
+cd test/providers-worker
+npx wrangler secrets-store secret create 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f --name slack-signing-secret --value slack-test-secret --scopes workers --persist-to /tmp/providers-state
+npx wrangler secrets-store secret create 0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f --name slack-bot-token --value xoxb-test --scopes workers --persist-to /tmp/providers-state
+# an env file with BOARD_ISSUER_KEY (from ../../.dev.vars), LINEAR_WEBHOOK_SECRET, and LINEAR_API_KEY
+npx wrangler dev --port 8813 --ip 127.0.0.1 --persist-to /tmp/providers-state --env-file providers.env
+```
+
+```bash
+# in packages/boards, in a second terminal
+SLACK_SIGNING_SECRET=slack-test-secret SLACK_BOT_TOKEN=xoxb-test \
+  LINEAR_WEBHOOK_SECRET=lin-test-secret LINEAR_API_KEY=lin_api_test \
+  node test/providers-worker/check.mjs
+```
+
+```
+# slack: deliveries, each sent twice
+root        200 kept 1  |  200 kept 1
+reply       200 kept 1  |  200 kept 1
+reply2      200 kept 1  |  200 kept 1
+edit        200 kept 1  |  200 kept 1
+replyCount  200 nothing to keep  |  200 nothing to keep
+react       200 kept 1  |  200 kept 1
+reactRoot   200 kept 1  |  200 kept 1
+unreactRoot 200 kept 1  |  200 kept 1
+delete      200 kept 1  |  200 kept 1
+unmapped    200 nothing to keep  |  200 nothing to keep
+join        200 nothing to keep  |  200 nothing to keep
+…
+events in slack/general  {"message.posted":3,"message.edited":1,"reaction.added":2,"reaction.removed":1,"message.deleted":1}
+ok    each Slack delivery landed once: 3 posts, 1 edit, 2 reactions added, 1 removed, 1 delete
+…
+ok    the echo, sent before and after the receipt, imported nothing
+…
+all passed
+```
+
+Against a real workspace, with the credentials in the account's Secrets Store, a post, a thread reply, its edit, a reaction, and a delete each landed on the board once, and a board reply, its edit, and a reaction each reached Slack.
+
+## How it works
+
+Slack's request goes to the sync's Inbox, which keeps each event under Slack's event ID before Slack hears 200, so Slack's retries do nothing. The Inbox imports one Slack thread at a time, in order, with 5 tries each, and a failed event can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). The courier copies board writes back in each thread's order. See [Sync: Inbox and courier](/boards/architecture/sync/).

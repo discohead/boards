@@ -1,0 +1,100 @@
+---
+title: "Archival"
+description: "Keep years of history without a large Durable Object."
+sidebar:
+  order: 14
+---
+
+A board's history moves to R2 as it ages, and every read answers as it did before. The log's old events are sealed into segments, idle threads go cold, and long-cold threads are frozen into pages, so the Ledger's SQLite holds the recent window and what listings need, however long the board has run.
+
+```bash
+curl -s "$BOARDS_URL/archive" -H "authorization: Bearer $BOARDS_TOKEN"
+```
+
+```json
+{"head":50,"config":{"enabled":true,"sealAfterMs":2592000000,"coldAfterMs":7776000000,"segment":1000,"keep":1000,"everyMs":21600000,"stepThreads":50,"pauseMs":0,"freezeAfterMs":2592000000,"pageThreads":256},"databaseSize":323584,"hot":{"events":50,"messages":29,"threads":26,"terms":23,"taskViews":17},"sealed":{"segments":0,"events":0,"bytes":0,"through":0},"cold":{"threads":0,"messages":0,"bytes":0,"warm":0,"keys":0,"authors":0},"frozen":{"pages":0,"threads":0,"messages":0,"bytes":0,"gone":0,"files":0},…,"last":null,"next":1795237918701}
+```
+
+Archival is on by default and needs nothing but the `FILES` R2 bucket.
+
+## The tiers
+
+| Tier | What moves | When (default) | Where in R2 |
+| --- | --- | --- | --- |
+| Sealed segments | the log's events, in ranges of 1,000 | older than 30 days, past the newest 1,000 | `boards/<board>/segments/<first>-<last>` |
+| Cold threads | a thread's messages, search terms, and old task views | no activity for 90 days | `boards/<board>/threads/<root>.json` |
+| Frozen pages | cold threads' summaries, 256 to a page | cold for another 30 days | pages, with a Bloom filter each kept hot |
+
+What stays hot for a cold thread is what a listing needs: its row, its root and last message, what its messages match on (labels, authors, mentions), and its client IDs. A listing or a filter over cold threads answers from SQLite. Reading a cold thread, a text search across cold threads, or a feed page from sealed history fetches what it needs from R2.
+
+## What stays hot
+
+A thread stays hot, whatever its age, while it has:
+
+- an open task (and a thread with a task is never frozen);
+- a pending schedule;
+- a sync (it came from a platform, or goes to one);
+- a match a watcher hasn't taken yet.
+
+## Reads answer the same
+
+A read that needs something only R2 has fetches it and runs again, so the caller sees the same answer it would have seen with nothing archived. A write to a cold thread puts it back in SQLite first. `scripts/archive-check.mjs` makes the same history on two boards, archives one as far as it goes before every request, and compares every answer; against a local board:
+
+```
+$ node scripts/archive-check.mjs http://127.0.0.1:8821
+{
+ "compared": 317,
+ "coldReads": 304,
+ "differences": 0,
+ …
+```
+
+## Settings
+
+A deployment sets its defaults in its Worker's variables; a board's own settings, set through `POST /archive`, win over them.
+
+| Setting | Variable | Default |
+| --- | --- | --- |
+| `enabled` | `ARCHIVE=off` turns it off | on |
+| `sealAfterMs` | `ARCHIVE_SEAL_AFTER_MS` | 30 days |
+| `keep` | `ARCHIVE_KEEP` | 1,000 events never sealed |
+| `segment` | `ARCHIVE_SEGMENT` | 1,000 events a segment |
+| `coldAfterMs` | `ARCHIVE_COLD_AFTER_MS` | 90 days |
+| `freezeAfterMs` | `ARCHIVE_FREEZE_AFTER_MS` | 30 days cold |
+| `pageThreads` | `ARCHIVE_PAGE_THREADS` | 256 threads a page |
+| `everyMs` | `ARCHIVE_EVERY_MS` | a pass every 6 hours when there's nothing to do |
+| `stepThreads`, `pauseMs` | `ARCHIVE_STEP_THREADS`, `ARCHIVE_PAUSE_MS` | 50 threads a step, no pause |
+
+`GET /archive` and `POST /archive` take `manage` everywhere. `POST /archive` takes any of the settings, `run: true` to start a pass now, and `reset: true` to drop the board's own settings:
+
+```bash
+curl -s -X POST "$BOARDS_URL/archive" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"coldAfterMs":1209600000}'
+```
+
+At its most aggressive, on a board of 20 notes and one open task:
+
+```bash
+curl -s -X POST "$BOARDS_URL/archive" \
+  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+  -d '{"sealAfterMs":0,"coldAfterMs":0,"freezeAfterMs":0,"segment":16,"keep":1,"run":true}'
+```
+
+```json
+{"hot":{"events":7,"messages":1,"threads":21,"terms":2,"taskViews":1},"sealed":{"segments":1,"events":16,"bytes":1078,"through":16},"cold":{"threads":20,"messages":20,"bytes":12284,"warm":0,"keys":20,"authors":1},…}
+```
+
+Twenty threads went cold and sixteen events were sealed; the open task's thread stayed hot. Reads still answer as before:
+
+```
+$ boards read 3
+#3  jared  2026-11-20 15:16
+  note 1
+```
+
+## How it runs
+
+Archival runs under the board's one alarm, in bounded steps (one segment, or a batch of threads), each its own transaction after its R2 writes are confirmed. It never holds a write for long, and a pass that's interrupted picks up where it stopped.
+
+Measured on a production Durable Object, a board of 1,205,000 messages (11.3 GB of history) held 12.5 MB of hot SQLite, with 1,204 sealed segments and 470 frozen pages in R2. It answered a listing in 1.5 s, a frozen thread in 0.5 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s. [Archival tiers](/boards/architecture/archival/) explains the design, and [Status](/boards/project/status/) how it was measured.

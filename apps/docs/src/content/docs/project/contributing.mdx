@@ -1,0 +1,123 @@
+---
+title: "Contributing"
+description: "Run, test, and change Boards."
+sidebar:
+  order: 2
+---
+
+import { FileTree } from '@astrojs/starlight/components'
+
+Boards is one package, [`packages/boards`](https://github.com/discohead/boards/blob/main/packages/boards), and one template, [`templates/factory`](https://github.com/discohead/boards/blob/main/templates/factory). To work on it: install, run a board, and run the checks below. Verify a claim with a real run, and break the code a test covers once to see the test fail.
+
+```bash
+npx pnpm@11.23.0 install
+cd packages/boards
+npx tsc --noEmit -p .        # TS2589 "excessively deep" is known noise
+npx vitest run               # the workerd suite: the real Ledger, Relay, Mailbox, and Inbox
+```
+
+```
+ Test Files  10 passed (10)
+      Tests  40 passed (40)
+   Start at  15:21:24
+   Duration  36.25s (tests 83%, transform 15%, import 2%)
+```
+
+## Where things are
+
+<FileTree>
+
+- packages/boards/src
+  - ledger/
+    - ledger.ts the Ledger: `call()`, the alarm, rings, dispatch
+    - ops.ts `op(name, fn, { read })`, `hooks`, `Ctx`, timers
+    - core.ts principals, callers, access, actors, the log, views
+    - messages.ts, feed.ts, tasks.ts, grants.ts, schemas.ts, schedules.ts, files.ts, watchers.ts, sync.ts
+    - archive.ts sealed segments, cold threads, frozen pages
+    - schema.ts the tables
+  - protocol/ the routes and their zod schemas, per domain; `rpc.ts` (Cap'n Web), `mcp.ts` (MCP)
+  - gateway/ routing, `auth.ts`, held waits, SSE
+  - sync/ GitHub, Slack, and Linear providers, `inbox.ts`, `courier.ts`, `secrets.ts`
+  - binding.ts the `Boards` entrypoint and the `Board`, `Tasks`, and `Claim` capabilities
+  - relay.ts, mailbox.ts
+  - index.ts `defineBoards`
+- packages/boards/cli/ the `boards` CLI and its tests
+- packages/boards/scripts/ the issuer, benchmarks, and archival checks
+- packages/boards/test/ the workerd suite and the external checks
+- templates/factory/
+
+</FileTree>
+
+An operation is a function registered with `op(name, fn)`. It gets a `Ctx` (the board, the caller, what it may do, and now), runs in one synchronous transaction, and throws a `BoardsError` to refuse. A domain that extends messages or reads sets a `hooks` entry. A route is `route({ name, method, path, query | body })` in `protocol/`, and the Gateway and the `Board` capability both check inputs against it. [The Ledger](/boards/architecture/ledger/) explains why.
+
+Code is erasable TypeScript only (`erasableSyntaxOnly` is on): no parameter properties, enums, or namespaces.
+
+## Run a board
+
+```bash
+cd packages/boards
+node scripts/issuer.mjs key                                          # .issuer.json and .dev.vars, once
+npx wrangler dev --port 8787 --ip 127.0.0.1
+node scripts/issuer.mjs token jared http://127.0.0.1:8787/b/dev      # a person's token, 12 hours
+```
+
+Then use it with the CLI from source:
+
+```bash
+export BOARDS_URL=http://127.0.0.1:8787/b/dev BOARDS_TOKEN=<token>
+node cli/boards.mjs whoami
+```
+
+## The checks
+
+| Check | Command | What it covers |
+| --- | --- | --- |
+| Types | `npx tsc --noEmit -p .` | the package |
+| The workerd suite | `npx vitest run` | the Ledger, Relay, Mailbox, and Inbox on real SQLite storage, with the Gateway in front |
+| The CLI | `BOARDS_TEST_ORIGIN=http://127.0.0.1:8787 node --test cli/test/` | 36 end-to-end tests against a running board |
+| Webhook verification | `node --test test/sync/providers.node-test.ts` | each provider's signatures and mapping |
+| Archival | `node scripts/archive-check.mjs http://127.0.0.1:8787` | every answer the same on a board archived before each request |
+| Slack and Linear | [`test/providers-worker/check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/test/providers-worker/check.mjs) | signed requests, each delivery twice, recording stand-ins; setup at its top |
+| The service binding | [`test/binding-client/`](https://github.com/discohead/boards/blob/main/packages/boards/test/binding-client/index.ts) | narrowing, pinning, forged props, no principal; setup at its top |
+| Cap'n Web | `node test/capnweb-client.mjs <board url> <token>` | WebSocket and HTTP batch sessions |
+| The Factory's GitHub sync | [`templates/factory/test/github-check.mjs`](https://github.com/discohead/boards/blob/main/templates/factory/test/github-check.mjs) | issues, comments, and replies, with GitHub's API stood in |
+
+Runs of the first four and the archival check while these docs were written:
+
+```
+$ BOARDS_TEST_ORIGIN=http://127.0.0.1:8823 node --test cli/test/
+ℹ tests 36
+ℹ suites 8
+ℹ pass 36
+ℹ fail 0
+
+$ node --test test/sync/providers.node-test.ts
+✔ Slack: the bot's own reaction is the courier's echo, a person's is an event (0.059708ms)
+ℹ tests 13
+ℹ pass 13
+ℹ fail 0
+
+$ node scripts/archive-check.mjs http://127.0.0.1:8823
+{
+ "compared": 317,
+ "coldReads": 304,
+ "differences": 0,
+```
+
+The workerd suite gets a fresh issuer key each run and runs with archival off (`ARCHIVE: 'off'` in `vitest.config.ts`).
+
+## The conformance kit: an outside check
+
+The protocol's conformance kit checks a board as a black box, over HTTP, with no knowledge of how it's built. Run its `conformance --json` with `BOARD_URL` set to a fresh board's URL and `BOARD_TOKEN` to a token for it. The board serves its routes at `/b/<name>/openapi.json`.
+
+On `wrangler dev` and on the live deployment it passes 85 and skips 6 as an owner, and passes 86 and skips 5 as a member. A change to behavior that the protocol describes should keep it there.
+
+## Changing Boards
+
+- **Prove it with a real run.** A claim in a doc, a commit, or a status line is backed by a test or a run you can paste.
+- **Break it once.** A new test fails when you break the code it covers, before you trust it.
+- **Keep a write one transaction.** An operation never awaits. If it needs something in R2, it faults and runs again (see [Archival tiers](/boards/architecture/archival/#fault-and-rerun)).
+- **Keep provenance server-side.** Who wrote something comes from the verified caller, never from a request body.
+- **Never commit secrets.** `.dev.vars` and `.issuer*.json` are gitignored.
+
+[`AGENTS.md`](https://github.com/discohead/boards/blob/main/AGENTS.md) is the same guide for agents working in the repo, and [Status](/boards/project/status/) is what's built and how it's verified.

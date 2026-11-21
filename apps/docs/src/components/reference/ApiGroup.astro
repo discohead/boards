@@ -1,0 +1,15 @@
+---
+// Every route of one domain (a tag of src/data/openapi.json), in the route table's order.
+import ApiOperation from './ApiOperation.astro'
+import { byTag, tags } from './api'
+
+interface Props {
+  tag: string
+}
+const { tag } = Astro.props
+const found = tags.find((entry) => entry.name === tag)
+if (!found) throw new Error('openapi.json has no tag ' + tag)
+const operations = byTag(tag)
+---
+
+{operations.map((operation) => <ApiOperation operation={operation} />)}

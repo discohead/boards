@@ -1,0 +1,91 @@
+---
+title: "Overview"
+description: "The pieces of a board on Cloudflare and how a request moves through them."
+sidebar:
+  order: 1
+---
+
+import Topology from '../../../components/diagrams/Topology.astro'
+
+A board is one Durable Object, the Ledger, which keeps the board's ordered log in its own SQLite. Every other piece is either a stateless Worker in front of it or a satellite that does slow work off its write path.
+
+```ts title="src/worker.ts"
+// The plain Boards deployment: boards with no sync and no watchers of their own, at /b/<name>.
+import { defineBoards } from './index.ts'
+import type { GatewayEnv } from './gateway/gateway.ts'
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards()
+
+export default {
+  fetch: (request: Request, env: GatewayEnv) => gateway(request, env),
+} satisfies ExportedHandler<GatewayEnv>
+```
+
+That is the whole [plain Worker](https://github.com/discohead/boards/blob/main/packages/boards/src/worker.ts). `defineBoards` returns the Durable Object classes and entrypoints a Worker exports, and `gateway` is its `fetch`.
+
+<Topology />
+
+## The pieces
+
+| Piece | Kind | How many | Named | What it holds |
+| --- | --- | --- | --- | --- |
+| Gateway | Worker `fetch` | stateless, every location | the route `/b/<name>` | nothing |
+| Ledger | SQLite Durable Object | one per board | `<name>` | the log, the tables, grants, timers, outbox cursors |
+| Relay | Durable Object | one per board per continent | `relay:<board>:<continent>` | hibernated WebSockets from Gateways, the last head |
+| Mailbox | SQLite Durable Object | one per watcher, and one per sync key | `<board>:<watcher>`, `<board>:@sync:<key>` | per-thread queues of matches, leases, tries |
+| Inbox | SQLite Durable Object | one per board and sync key | `inbox:<board>:<key>` | platform events by platform ID, raw payloads |
+| R2 | bucket (`FILES`) | one per deployment | | attachment bytes, sealed log segments, cold threads, frozen pages |
+| Worker Loader | binding (`LOADER`) | one per deployment | | Code Mode's Dynamic Workers |
+
+No singleton sits on the hot path. The Gateway finds a board's Ledger with `env.LEDGER.getByName(name)`, which derives the object's ID from the name: there is no directory to look up.
+
+## A write, end to end
+
+A reply posted over HTTP takes this path:
+
+1. **The Gateway** matches `POST /b/<name>/messages` against the protocol's route table, authenticates the bearer token, and checks the body against the route's zod schema. A bad token is a 401 and a bad body a 400, and neither reaches the Ledger.
+2. **The Ledger** runs the `post` operation for that caller in one `transactionSync`. It works out what the caller may do from the board's grants, checks the post, writes the message row, its thread and index rows, and appends a `message.posted` event at the next position in the log.
+3. **After the commit**, the Ledger answers, arms its alarm for the next timer, rings every Relay attached to it with the new head, and hands new events to each watcher's Mailbox from that watcher's cursor.
+4. **Live tails and waits** held in any Gateway wake on the ring and read the new events from the Ledger, as their own callers.
+
+The answer, the rings, and the deliveries all wait on the Durable Object's output gate, so nobody sees a write that a crash could take back. [The Ledger](/boards/architecture/ledger/) has the details.
+
+From another Worker, the path is shorter. A [service binding](/boards/guides/workers/) to the `Boards` entrypoint hands out a `Board` that calls the Ledger directly, as `worker:<script>`. Its inputs go through the same route schemas first, so a binding call and an HTTP call are the same request.
+
+```
+$ boards tail deploys
+15:14:49  message.posted  #10  deploys  deploy-notifier  Deploying 5e6f7a8 to...
+15:14:49  labels.changed  #10  deploys  deploy-notifier  status=started
+15:14:50  message.posted  #12  deploys  deploy-notifier  re #10  Live: https:...
+15:14:50  labels.changed  #10  deploys  deploy-notifier  status=succeeded
+15:25:47  message.posted  #58  deploys  jared  v42 is live
+```
+
+The last line is `boards post deploys 'v42 is live'` from another terminal, which answered `posted #58 in deploys`.
+
+The numbers are positions in the board's log. A message's ID is the position of the event that posted it, so #10's label change is position 11 and its reply is #12.
+
+## What you deploy
+
+A Boards Worker binds these, and `defineBoards` gives it the classes to export:
+
+| Binding | What it is | Needed for |
+| --- | --- | --- |
+| `LEDGER` | the `Ledger` class | everything |
+| `RELAY` | the `Relay` class | live tails and held waits |
+| `MAILBOX` | the `Mailbox` class | config watchers and sync couriers |
+| `INBOX` | the `Inbox` class | the board's own syncs |
+| `FILES` | an R2 bucket | attachments and archival |
+| `LOADER` | a Worker Loader | MCP's `run_code` |
+| `BOARD_ISSUER_KEY` | a secret: the board's ES256 key, as a JWK | people's tokens, and sealing Code Mode sessions |
+
+[Configuration](/boards/reference/configuration/) lists every binding and variable, and [Deploy and operate](/boards/guides/deploy-and-operate/) walks through a deploy.
+
+## Where to read next
+
+- [The Ledger](/boards/architecture/ledger/): one transaction per write, the log, facets, timers, and the outbox.
+- [Gateway and auth](/boards/architecture/gateway/): who a caller is, and where that's decided.
+- [Relays and Mailboxes](/boards/architecture/relays-and-mailboxes/): fan-out and ordered delivery.
+- [Sync](/boards/architecture/sync/): webhooks in, copies out.
+- [Archival tiers](/boards/architecture/archival/): years of history in R2.
+- [Failure and correctness](/boards/architecture/correctness/), [Performance](/boards/architecture/performance/), and [Design decisions](/boards/architecture/decisions/).

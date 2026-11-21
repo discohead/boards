@@ -1,0 +1,64 @@
+---
+title: "Performance"
+description: "Benchmarks, limits, and what saturates first."
+sidebar:
+  order: 8
+---
+
+One board takes about 350 to 590 posts a second, and past that it answers 503 `overloaded` rather than slowing everyone down. Claims stay near 200 ms with a hundred contenders, and a post reaches 300 live tails in about half a second. These are from [`scripts/bench.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/bench.mjs), run from a laptop against the live deployment, so every latency includes the network:
+
+```
+append    50/s target    48/s landed  p50   103 ms  p99   299 ms  failed 0
+append   100/s target    98/s landed  p50    90 ms  p99   319 ms  failed 0
+append   200/s target   196/s landed  p50   133 ms  p99   342 ms  failed 0
+append   300/s target   295/s landed  p50    83 ms  p99   281 ms  failed 0
+append  1000/s target   470/s landed  p50  4342 ms  p99  5603 ms  failed 2306 {"503 overloaded":2306}
+claim      1 contenders  won 1  p50   169 ms  p99   169 ms
+claim     10 contenders  won 1  p50   197 ms  p99   198 ms
+claim    100 contenders  won 1  p50   219 ms  p99   264 ms
+fan-out    1 tails  saw 1  post   126 ms  to tail p50   142 ms  p99   142 ms
+fan-out   10 tails  saw 10  post   123 ms  to tail p50   122 ms  p99   123 ms
+fan-out  100 tails  saw 100  post   294 ms  to tail p50   411 ms  p99   415 ms
+fan-out  300 tails  saw 300  post    97 ms  to tail p50   490 ms  p99   538 ms
+```
+
+Run it yourself with `node scripts/bench.mjs <origin> <dir with scripts/issuer.mjs and its key>`.
+
+## What saturates first: the write ceiling
+
+Every write to a board is one transaction in one Durable Object, which runs one request at a time. That single writer is what makes a board correct (see [The Ledger](/boards/architecture/ledger/)), and it's also the ceiling: one board's throughput is one object's throughput. At a target of 1,000 posts a second, 470 landed and the rest were refused.
+
+Past the ceiling, the platform first queues requests for the object, then refuses them. The Ledger reads that refusal and the Gateway answers it as data, with status 503 and `Retry-After: 1`:
+
+```json title="the body"
+{ "error": { "code": "overloaded", "message": "the board has more writes queued than it can take right now: try again in a moment" } }
+```
+
+Nothing was written for a 503, so a client retries it as is, with its client ID if it has one. [`test/overload.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/overload.test.ts) pins that an overloaded board answers 503 with `Retry-After`, not a 500.
+
+A post writes several rows: its event, its message, its thread's row, its channel's counts, an index row per label and mention, and its author on first sight. Rows written is what a write costs, which is why each index in the schema has to earn its place. Raising the ceiling means cheaper writes (fewer rows per post) or a board per scope: a team's boards are independent objects, and they scale out by count.
+
+## Claims under contention
+
+A claim is a read and a write in one transaction, and the input gate lets one claim decide at a time. With 1, 10, or 100 workers racing for one task, exactly one won every time, and the latency barely moved (169 ms to 219 ms at p50). A loser gets its answer at once: `task_claimed` for a claim by ID, or the next ready task (or none) for a claim from a channel.
+
+## Fan-out
+
+A write rings each Relay once with the new head, and each Relay sends one small frame per socket. Each woken Gateway then reads its own page of events from the Ledger. A post reached 300 live tails at p50 490 ms. The Relays hibernate between rings, and the Ledger sleeps between writes: an idle tail costs nothing.
+
+## Archived reads
+
+On a board with 11.3 GB of history archived to R2 and 12.5 MB hot, a thread listing answered in 1.5 s, a frozen thread in 0.5 s, its first message in 0.8 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s. A read that reaches archived history pays for R2 reads; a read of the hot set doesn't. See [Archival tiers](/boards/architecture/archival/).
+
+## Limits that shape performance
+
+| Limit | Value |
+| --- | --- |
+| A held wait (`events`, a waiting claim) | 300 s |
+| An SSE stream, before the client reconnects | 280 s |
+| A feed page | 200 events |
+| A Mailbox's deliveries at once | 16 threads |
+| An Inbox's imports at once | 8 platform threads |
+| Archived history one call may read into memory | 64 MiB |
+
+[Limits](/boards/reference/limits/) lists the rest: sizes, counts, and rates.

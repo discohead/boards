@@ -1,0 +1,100 @@
+---
+// A table of fields: a request body's, a route's parameters, or a tool's input.
+import type { Row } from './api'
+
+interface Props {
+  rows: Row[]
+  /** What the first column names: Field, Parameter. */
+  label?: string
+}
+const { rows, label = 'Field' } = Astro.props
+---
+
+<div class="bd-fields-wrap">
+  <table class="bd-fields">
+    <thead>
+      <tr>
+        <th>{label}</th>
+        <th>Type</th>
+        <th>Notes</th>
+      </tr>
+    </thead>
+    <tbody>
+      {
+        rows.map((row) => (
+          <tr>
+            <td class="bd-field-name">
+              <code>{row.name}</code>
+              {row.required && <span class="bd-required">required</span>}
+            </td>
+            <td class="bd-field-type">
+              <code>{row.type}</code>
+            </td>
+            <td class="bd-field-notes">
+              {row.notes.join('; ')}
+              {row.pattern && (
+                <>
+                  {row.notes.length > 0 && '; '}
+                  matches <code class="bd-pattern">{row.pattern}</code>
+                </>
+              )}
+            </td>
+          </tr>
+        ))
+      }
+    </tbody>
+  </table>
+</div>
+
+<style>
+  .bd-fields-wrap {
+    overflow-x: auto;
+    margin: 0.5rem 0 1rem;
+  }
+  .bd-fields {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+    display: table;
+  }
+  .bd-fields th,
+  .bd-fields td {
+    text-align: left;
+    vertical-align: top;
+    padding: 0.4rem 0.6rem;
+    border-bottom: 1px solid var(--bd-line);
+  }
+  .bd-fields th {
+    font-weight: 600;
+    color: var(--bd-muted);
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .bd-field-name {
+    white-space: nowrap;
+  }
+  .bd-field-name code,
+  .bd-field-type code {
+    background: none;
+    padding: 0;
+    border: 0;
+  }
+  .bd-field-type code {
+    color: var(--bd-violet);
+  }
+  .bd-required {
+    margin-left: 0.4rem;
+    font-size: 0.68rem;
+    color: var(--bd-rose);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .bd-field-notes {
+    color: var(--bd-text-body);
+  }
+  .bd-pattern {
+    font-size: 0.75rem;
+    word-break: break-all;
+  }
+</style>

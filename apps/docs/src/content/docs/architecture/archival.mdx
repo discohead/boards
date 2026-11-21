@@ -1,0 +1,98 @@
+---
+title: "Archival tiers"
+description: "Sealed segments, cold threads, and frozen pages on R2."
+sidebar:
+  order: 6
+---
+
+import ArchivalTiers from '../../../components/diagrams/ArchivalTiers.astro'
+
+A board's history grows far past what one Durable Object should keep hot, and every read must still answer as it did. Archival moves old history to R2 in three tiers, under the Ledger's alarm, and a read that needs it faults it back in. Measured on a production Durable Object, a board with 11.3 GB of history kept 12.5 MB hot.
+
+```json title="GET /b/docs/archive"
+{
+  "head": 59,
+  "config": { "enabled": true, "sealAfterMs": 2592000000, "coldAfterMs": 7776000000, "segment": 1000, "keep": 1000,
+              "everyMs": 21600000, "stepThreads": 50, "pauseMs": 0, "freezeAfterMs": 2592000000, "pageThreads": 256 },
+  "databaseSize": 348160,
+  "hot": { "events": 59, "messages": 27, "threads": 17, "terms": 32, "taskViews": 22 },
+  "sealed": { "segments": 0, "events": 0, "bytes": 0, "through": 0 },
+  "cold": { "threads": 0, "messages": 0, "bytes": 0, "warm": 0, "keys": 0, "authors": 0 },
+  "frozen": { "pages": 0, "threads": 0, "messages": 0, "bytes": 0, "gone": 0, "files": 0 },
+  ...
+}
+```
+
+That's a young board: everything is hot. The [archival guide](/boards/guides/archival/) covers turning the knobs; this page is how it works ([`ledger/archive.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/archive.ts)).
+
+<ArchivalTiers />
+
+## Three tiers
+
+**Sealed segments.** The log's events older than 30 days go to R2 in fixed ranges of 1,000 positions, as gzipped NDJSON at `boards/<board>/segments/<first>-<last>`, one event row a line. The newest 1,000 events are never sealed, and neither is anything a watcher, a registration, or a pending match hasn't taken yet. A segment is written once and listed in `segments` in the same transaction that deletes its rows.
+
+**Cold threads.** A thread with no activity for 90 days, no open task, no pending schedule, no sync, and nothing a watcher still has to take moves to one R2 object, `boards/<board>/threads/<root>.json`: its messages, its index terms (but files), and its task views (but the latest). What stays hot is what a listing needs: its `threads` row, its root and last message (`cold_rows`), what its messages match on but their text (`cold_facets`), its client IDs by hash, and who wrote in which channel.
+
+**Frozen pages.** A thread cold for 30 more days, and not a task, leaves SQLite altogether. Its summary goes into an immutable page of 256 threads, `boards/<board>/pages/<id>.json`, ordered as `/threads` lists them. What stays hot is the page's index row: its key range, each channel's range in it, and a Bloom filter of its client IDs (32 bits and 22 probes per key, about one false pass in a million).
+
+## Fault and rerun
+
+An operation is synchronous and runs in one transaction, so it can't await R2. Archived history faults instead:
+
+1. The operation runs. Where it reaches something only in R2 (an event in a sealed range, a cold thread's message, a frozen page), it records what it needs.
+2. The Ledger throws that run away. A write's transaction rolls back, and its positions are given back.
+3. The Ledger loads everything the run asked for at once: segments into memory, cold threads into memory or back into their tables, frozen pages into memory.
+4. It runs the operation again, up to 16 rounds.
+
+While it waits on R2, the Durable Object's input gate is open, so other requests go on. A loaded thread is either read in place or put back:
+
+- **Read in place:** listings and searches (threads, tasks, channel pages, the feed) read cold threads from memory, in parallel, and restore nothing.
+- **Put back:** `GET /messages/:id` and every write restore the thread to its tables first, so a write always finds the thread whole. A thread a call put back isn't archived again until that call ends.
+
+Listings over cold threads answer from SQLite: a thread's row from `cold_rows`, a filter from `cold_facets`. Only a text search, or a `re` filter that names a reply, reads the threads it passes from R2. A call may read 64 MiB of archived threads; past that, or when its history doesn't load in time, it answers 503 `archive_unavailable` with `Retry-After: 1`.
+
+The Ledger reads R2, not the Gateway, so access, the faults, and the caches are in one place.
+
+## The work, in bounded steps
+
+Archival is the `archive` timer on the Ledger's one alarm. Each pass runs steps (seal one segment, then cool a batch of up to 50 idle threads, then freeze full pages), each step its own transaction, committed only after its R2 writes are confirmed. A thread that changed while its bytes were on their way stays hot, and the next pass looks again. A pass with nothing to do sleeps 6 hours.
+
+Settings come from the deployment's environment (`ARCHIVE=off`, `ARCHIVE_SEAL_AFTER_MS`, `ARCHIVE_COLD_AFTER_MS`, and the rest), then from the board's own, set with `POST /b/<board>/archive` by someone who manages it.
+
+## How it's checked
+
+[`scripts/archive-check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-check.mjs) sends the same requests to two boards, one that never archives and one archived as far as it goes before each request, and compares every answer. On a local board:
+
+```
+$ node scripts/archive-check.mjs http://127.0.0.1:8823
+{
+ "compared": 317,
+ "coldReads": 304,
+ "differences": 0,
+ ...
+```
+
+It gives the same result on the live deployment with real R2, and the conformance kit passes with archival at its most aggressive.
+
+## Past 10 GB
+
+[`scripts/archive-10g.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-10g.mjs) fills a board in rounds, each round's history dated past the horizon, and archives it before the next, as a board ages. On a production Durable Object:
+
+| Measure | Value |
+| --- | --- |
+| Messages | 1,205,000 |
+| History (the SQLite bytes it would hold unarchived) | 11.3 GB |
+| Hot SQLite (`databaseSize`) | 12.5 MB |
+| In R2 | 1,204 sealed segments, 470 frozen pages |
+| A thread listing | 1.5 s |
+| A frozen thread, read | 0.5 s |
+| Its first message | 0.8 s |
+| A feed page from the sealed log | 1.9 s |
+| A reply to a frozen thread | 0.4 s |
+
+## What's open
+
+- Past archival, the hot set is the recent window (30 days of log, threads active in 90 days) plus about 4.5 bytes per archived message.
+- The frozen pages' index lives in memory and grows with history, about 4 bytes per keyed message. Past about 25 GB it needs a second level.
+- Threads with tasks never freeze, and threads with sync, imports, or pending matches stay hot.
+- A text search over cold or frozen history reads each thread it scans from R2. Full-text search is not built yet.

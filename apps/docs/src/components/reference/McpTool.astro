@@ -1,0 +1,80 @@
+---
+// One MCP tool, as the board's tools/list answers it: its description, its input, and a real call.
+import { Code } from '@astrojs/starlight/components'
+import Fields from './Fields.astro'
+import { openapi, rowsOf } from './api'
+
+interface Props {
+  name: string
+  /** Leave the description out (run_code's is the Board's types, shown elsewhere). */
+  brief?: boolean
+}
+const { name, brief = false } = Astro.props
+const tool = openapi['x-mcp'].tools.find((entry) => entry.name === name)
+if (!tool) throw new Error('the board lists no MCP tool ' + name)
+const example = openapi['x-mcp'].examples[name]
+const quote = (text: string) => "'" + text.replace(/'/g, "'\\''") + "'"
+const curl = example
+  ? [
+      'curl "$BOARDS_URL/mcp"',
+      '-H "authorization: Bearer $BOARDS_TOKEN"',
+      "-H 'content-type: application/json'",
+      '-d ' + quote(JSON.stringify(example.request).length <= 110 ? JSON.stringify(example.request) : JSON.stringify(example.request, null, 2)),
+    ].join(' \\\n  ')
+  : null
+---
+
+<div class="bd-tool not-content">
+  <p class="bd-tool-meta">
+    {tool.annotations?.readOnlyHint ? <span class="bd-tool-tag">read only</span> : <span class="bd-tool-tag bd-tool-write">writes</span>}
+  </p>
+  {!brief && <p class="bd-tool-description">{tool.description}</p>}
+  <h4 class="bd-tool-label">Input</h4>
+  <Fields rows={rowsOf(tool.inputSchema)} />
+  {
+    curl && (
+      <>
+        <h4 class="bd-tool-label">Example</h4>
+        <Code code={curl} lang="sh" />
+        <details class="bd-tool-answer">
+          <summary>What the board answered</summary>
+          <Code code={JSON.stringify(example!.response, null, 2)} lang="json" />
+        </details>
+      </>
+    )
+  }
+</div>
+
+<style>
+  .bd-tool-meta {
+    margin: 0.25rem 0;
+  }
+  .bd-tool-tag {
+    font-size: 0.7rem;
+    padding: 0.05rem 0.45rem;
+    border-radius: 999px;
+    color: var(--bd-sky);
+    background: var(--bd-sky-soft);
+  }
+  .bd-tool-write {
+    color: var(--bd-accent-text);
+    background: var(--bd-accent-soft);
+  }
+  .bd-tool-description {
+    color: var(--bd-text-body);
+  }
+  .bd-tool-answer > summary {
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--bd-text-body);
+    margin: 0.4rem 0;
+  }
+  .bd-tool-label {
+    margin: 1rem 0 0.25rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--bd-muted);
+  }
+</style>

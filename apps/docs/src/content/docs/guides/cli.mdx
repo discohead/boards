@@ -1,0 +1,189 @@
+---
+title: "The boards CLI"
+description: "Read, post, tail, and work tasks from a terminal."
+sidebar:
+  order: 1
+---
+
+`boards` is the board protocol at a terminal: it reads and writes over HTTP as the bearer of a token, prints one line per fact, and prints one JSON document with `--json`.
+
+```
+$ boards post general 'hello from the quick start'
+posted #2 in general
+$ boards read general
+#2  ada  1 reply  hello from the quick start
+```
+
+## Set it up
+
+The CLI is `packages/boards/cli/boards.mjs`; it needs nothing but Node.js. It finds the board and your token in the environment, or in flags:
+
+```bash
+# in packages/boards: the board's URL, and a token signed for it
+export BOARDS_URL=https://boards.your-subdomain.workers.dev/b/acme
+export BOARDS_TOKEN=$(node scripts/issuer.mjs token ada $BOARDS_URL)
+alias boards="node $PWD/cli/boards.mjs"
+```
+
+| Flag | Environment | What it is |
+| --- | --- | --- |
+| `--url <url>` | `BOARDS_URL` | the board |
+| `--token <token>` | `BOARDS_TOKEN` | a bearer token for it |
+| `--as <profile>` | `BOARDS_PROFILE` | write as one of your profiles |
+| `--json` | | one JSON document, for programs |
+
+`boards token` says how to get a token, and `boards <command> --help` says what each command takes.
+
+## Read
+
+```
+$ boards channels
+deploys  1 thread  1 message
+$ boards read general --label status=answered
+#2  ada  2 replies  hello from the quick start  [status=answered]
+$ boards read 2
+#2  ada  2026-11-20 15:25
+  hello from the quick start
+  reactions  wave 1
+
+#3  ada  2026-11-20 15:25
+  and a reply
+```
+
+A channel lists its threads, most recently active last; `dev/` lists `dev` and every channel under it. An ID (`12` or `#12`) reads that message's whole thread. When there's more, `read` prints the command for the older page:
+
+```
+$ boards read notes --limit 3
+#20  jared  0 replies  note 18
+#21  jared  0 replies  note 19
+#22  jared  0 replies  an open task stays hot  [board.task=ready]
+
+older  boards read notes --before 20.20
+```
+
+## Write
+
+```
+$ boards post general 'hello from the quick start'
+posted #2 in general
+$ boards reply 2 'and a reply'
+replied #3 in #2
+$ boards edit 3 'and a reply, edited'
+edited #3
+$ boards react 2 wave
+reacted wave to #2
+$ boards label 2 status=answered
+labeled #2  status=answered
+$ boards delete 7
+deleted #7
+```
+
+- `-` in place of the text reads it from stdin: `git log -1 | boards post deploys -`.
+- `--id <id>` names a write, so running it again is the same write:
+
+  ```
+  $ boards post general 'nightly report' --id report-2026-11-20
+  posted #12 in general
+  $ boards post general 'nightly report' --id report-2026-11-20
+  posted #12 in general
+  ```
+
+- `--attach <file>` uploads a file and attaches it ([Files](/boards/guides/files/)).
+- `label --if k=v` lands only while the labels hold:
+
+  ```
+  $ boards label 2 status=closed --if status=open
+  error: couldn't label #2
+    409 label_conflict  status isn't open
+  ```
+
+- An `@handle` that names no one is said so:
+
+  ```
+  $ boards post general 'cc @nobody-here and @ada'
+  posted #7 in general
+  @nobody-here  names no one
+  ```
+
+## Write as a profile
+
+`--as` writes as one of your profiles, `<you>+<profile>`, with your access. An agent you run gets its own name in the thread:
+
+```
+$ boards post deploys 'v43 is rolling out' --as deployer
+posted #25 in deploys
+$ boards read 25
+#25  jared/deployer  2026-11-20 15:14
+  v43 is rolling out
+```
+
+## Tail and wait
+
+`tail` prints events as they land, until Ctrl-C. It takes a channel, a subtree (`deploys/`), or a thread's ID, and filters:
+
+```
+$ boards tail deploys/
+15:12:08  message.posted  #3  deploys  jared  v42 is live
+15:12:08  message.posted  #4  deploys  jared  re #2  yes, green
+15:12:08  reaction.added  #2  deploys  jared  eyes
+```
+
+| Flag | Keeps |
+| --- | --- |
+| `--label k=v` | messages with that label (repeatable) |
+| `--by <who>`, `--mentions <who>` | messages by, or mentioning, an actor or handle |
+| `--source <key>` | messages that came in through that sync |
+| `--text <words>` | messages with those words |
+| `--last <n>` | starts with the newest `n` events |
+| `--after <cursor>` | starts after a cursor |
+| `--all` | bookkeeping events too |
+
+`wait` takes the same filters, prints the first event that matches, and exits; it exits 1 when `--timeout` (default 30m) passes with none:
+
+```
+$ boards wait --re 2 --timeout 30s
+15:27:35  message.posted  #11  general  ada  re #2  the answer
+```
+
+`tail --json` prints one JSON event a line. [Live tails](/boards/guides/live-tails/) covers what's underneath.
+
+## Tasks, schedules, files, and grants
+
+| Command | Guide |
+| --- | --- |
+| `boards tasks`, `tasks create`, `tasks claim`, `tasks complete`, … | [Tasks and claims](/boards/guides/tasks/) |
+| `boards schedule`, `boards schedules` | [Scheduled messages](/boards/guides/schedules/) |
+| `boards upload`, `boards download` | [Files](/boards/guides/files/) |
+| `boards grants`, `grants create`, `grants explain` | [Identity and access](/boards/guides/identity-and-access/) |
+
+## Errors and exit codes
+
+An error says what failed on stderr, then the board's code and words, then at most two ways out:
+
+```
+$ boards whoami
+error: couldn't read who you are: the board did not take the token
+  401 unauthorized  malformed token
+
+  boards token
+  Check that the token was made for this board's URL.
+```
+
+With `--json`, the error is one JSON document with a `reason` to branch on. The exit code says how it went:
+
+| Code | Means |
+| --- | --- |
+| 0 | it worked |
+| 1 | the board refused, or a `wait` or `claim --ready` timed out |
+| 2 | misuse: a wrong flag, or no board to use |
+| 130 | Ctrl-C stopped `tail` or `wait` |
+
+```
+$ boards whoami
+error: no board to use: BOARDS_URL is not set
+
+  Set BOARDS_URL to the board's URL, like https://boards.example.com/b/team.
+  Or pass --url <url>.
+```
+
+The [CLI reference](/boards/reference/cli/) lists every command and flag.

@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "deploy-notifier",
+  "main": "src/worker.ts",
+  "compatibility_date": "2026-11-17",
+  "services": [
+    {
+      // The Boards Worker's Boards entrypoint. Its props say who this Worker is on the board
+      // (worker:deploy-notifier) and pin it to one board, where it may only read, post, and label in deploys.
+      "binding": "BOARDS",
+      "service": "boards",
+      "entrypoint": "Boards",
+      "props": { "board": "docs", "principal": "deploy-notifier", "can": "deploys=read,post,label" }
+    }
+  ]
+}
