@@ -8,12 +8,12 @@ sidebar:
 GitHub sync makes each issue and pull request in a repo a thread in a board channel, its comments and reviews replies, and its state labels on the root. What's written on the board in those threads goes back to GitHub as comments, posted with the token you give it.
 
 ```ts title="src/worker.ts"
-import { defineBoards, githubProvider, type Secret } from 'boards'
-import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+import { defineWorkbus, githubProvider, type Secret } from 'workbus'
+import type { GatewayEnv } from 'workbus/gateway/gateway.ts'
 
 type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; GITHUB_WEBHOOK_SECRET: Secret; GITHUB_TOKEN: Secret }
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   sync: {
     // Issues and pull requests in acme/web become threads in github/web.
     github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'github/web' }, token: env.GITHUB_TOKEN }),
@@ -26,7 +26,7 @@ export default { fetch: (request: Request, env: Env) => gateway(request, env) }
 An issue opened, a comment, a reply from the board, and the issue closed:
 
 ```
-$ boards read 8
+$ wb read 8
 #8  ada  2026-11-20 15:20
   **Issue #7: Checkout button does nothing on Safari**
 
@@ -42,7 +42,7 @@ $ boards read 8
 
 ## Set it up
 
-1. **Deploy a board with the sync.** The sync's key (`github` above) names its webhook route and prefixes its users and threads. The deployment needs the `INBOX` and `MAILBOX` bindings ([Deploy and operate](/boards/guides/deploy-and-operate/#bindings)).
+1. **Deploy a board with the sync.** The sync's key (`github` above) names its webhook route and prefixes its users and threads. The deployment needs the `INBOX` and `MAILBOX` bindings ([Deploy and operate](/guides/deploy-and-operate/#bindings)).
 
 2. **Give it its secrets.** The webhook secret is any long random string; the token is one that may comment on the repo's issues and pull requests.
 
@@ -80,10 +80,10 @@ $ boards read 8
 | a review | a reply (`**Review: approved**`), and `review=approved` or `changes-requested` on the root |
 | an edit or a delete | the board message edited or deleted |
 
-Each message is written by its GitHub author, `github:user:<id>`, with `from: "github"` and an `origin` naming the GitHub thread. Repos you didn't map are ignored. `starts` decides which events may start a thread: the [factory](/boards/templates/factory/) uses it to skip forks' pull requests and its own app's.
+Each message is written by its GitHub author, `github:user:<id>`, with `from: "github"` and an `origin` naming the GitHub thread. Repos you didn't map are ignored. `starts` decides which events may start a thread: the [factory](/templates/factory/) uses it to skip forks' pull requests and its own app's.
 
 ```
-$ boards tail github/web
+$ wb tail github/web
 15:20:59  message.posted  #8  github/web  ada  **Issue #7: Checkout button do...
 15:21:07  message.posted  #10  github/web  jared  re #8  Reproduced on Safari...
 15:21:23  message.posted  #13  github/web  bo  re #8  Still broken on 19.1
@@ -127,7 +127,7 @@ The courier retries a comment until it lands, and the receipt it records is the 
 
 ## Markdown docs
 
-With `docs`, the Markdown files under a directory of a repo are [docs](/boards/guides/docs/) on the board, both ways. `docs/runbooks/deploy.md` in `acme/web` is the doc `docs/web/runbooks/deploy`:
+With `docs`, the Markdown files under a directory of a repo are [docs](/guides/docs/) on the board, both ways. `docs/runbooks/deploy.md` in `acme/web` is the doc `docs/web/runbooks/deploy`:
 
 ```ts
 // in githubProvider's options
@@ -140,9 +140,9 @@ The webhook needs **Pushes** too, and the token needs to write the repo's conten
 **A push imports each changed file.** A push to the branch imports every Markdown file under `dir` that it added or changed, as a whole-body merge against the file as it was before the push (`base`). What was written on the board since stays; a new file makes a new doc:
 
 ```
-$ boards docs docs/
+$ wb docs docs/
 docs/web/runbooks/deploy  revision 2  2026-11-20 19:24  Deploy
-$ boards doc read docs/web/runbooks/deploy --outline
+$ wb doc read docs/web/runbooks/deploy --outline
 docs/web/runbooks/deploy  revision 2  Deploy
 
     ship             Ship        changed 2
@@ -150,12 +150,12 @@ docs/web/runbooks/deploy  revision 2  Deploy
     monitoring       Monitoring  changed 2
 ```
 
-**A board write commits as the app.** A doc made, edited, or moved on the board is written to its file by the sync's courier, with the token, as a commit like `docs: update docs/runbooks/deploy.md from the board (revision 7, boards:user:jared)`. A file that already says what the doc says gets no commit, which is the retry guard. A doc made under the channel gets its file (`docs: add docs/onboarding.md from the board`):
+**A board write commits as the app.** A doc made, edited, or moved on the board is written to its file by the sync's courier, with the token, as a commit like `docs: update docs/runbooks/deploy.md from the board (revision 7, workbus:user:jared)`. A file that already says what the doc says gets no commit, which is the retry guard. A doc made under the channel gets its file (`docs: add docs/onboarding.md from the board`):
 
 ```
-$ boards doc edit docs/web/runbooks/deploy --section monitoring --revision 2 'Watch the error rate and p95 latency for an hour.'
+$ wb doc edit docs/web/runbooks/deploy --section monitoring --revision 2 'Watch the error rate and p95 latency for an hour.'
 edited docs/web/runbooks/deploy  revision 7
-$ printf '## First day\n\nGet access to the repo and the board.\n' | boards doc create docs/web/onboarding -
+$ printf '## First day\n\nGet access to the repo and the board.\n' | wb doc create docs/web/onboarding -
 made docs/web/onboarding  #14  revision 14
 
     first-day  First day  changed 14
@@ -166,33 +166,33 @@ made docs/web/onboarding  #14  revision 14
 **A conflict makes a task.** When a push and the board changed the same section, the board keeps its version, and a task in the doc's channel links the file as the push left it:
 
 ```
-$ boards doc edit docs/web/runbooks/deploy --section ship/rollback --revision 9 'Roll back with deploy rollback <id>, the ID of the last green version.'
+$ wb doc edit docs/web/runbooks/deploy --section ship/rollback --revision 9 'Roll back with deploy rollback <id>, the ID of the last green version.'
 edited docs/web/runbooks/deploy  revision 10
-$ boards tasks docs/web/ --state all
+$ wb tasks docs/web/ --state all
 #11  docs/web/runbooks  ready  github-sync  acme/web/docs/runbooks/deploy.md...
-$ boards read 11
+$ wb read 11
 #11  github-sync  2026-11-20 19:24
   acme/web/docs/runbooks/deploy.md and [[docs/web/runbooks/deploy]] both changed `ship/rollback`. The board kept its version; the other is at https://github.com/acme/web/blob/6c1ed3abffa16133d4e04d59a72a9f78f6bb8636/docs/runbooks/deploy.md. Fold them together in the doc, then complete this task.
   task  ready
-$ boards doc read docs/web/runbooks/deploy --section ship/rollback
+$ wb doc read docs/web/runbooks/deploy --section ship/rollback
 Roll back with deploy rollback <id>, the ID of the last green version.
 ```
 
 The doc's history says which edits came from the repo:
 
 ```
-$ boards doc history docs/web/runbooks/deploy
-2   2026-11-20 19:24  boards:sync:github  created
-7   2026-11-20 19:24  boards:user:jared   edited monitoring
-8   2026-11-20 19:24  boards:sync:github  edited ship/rollback
-9   2026-11-20 19:24  boards:user:jared   edited ship
-10  2026-11-20 19:24  boards:user:jared   edited ship/rollback
+$ wb doc history docs/web/runbooks/deploy
+2   2026-11-20 19:24  workbus:sync:github  created
+7   2026-11-20 19:24  workbus:user:jared   edited monitoring
+8   2026-11-20 19:24  workbus:sync:github  edited ship/rollback
+9   2026-11-20 19:24  workbus:user:jared   edited ship
+10  2026-11-20 19:24  workbus:user:jared   edited ship/rollback
 ```
 
 **A move deletes the old file.** Moving a doc commits its file at the new path and deletes the old one (`docs: move docs/runbooks/deploy.md to docs/ops/deploy.md (from the board)`):
 
 ```
-$ boards doc move docs/web/runbooks/deploy docs/web/ops/deploy
+$ wb doc move docs/web/runbooks/deploy docs/web/ops/deploy
 moved to docs/web/ops/deploy
 ```
 
@@ -205,8 +205,8 @@ A few things stay on one side:
 
 ## Projects
 
-An organization's GitHub Projects ride on the same sync: with `projects` and `orgToken`, a Project item is its issue's thread (or a thread in the Project's channel), its fields are labels on that thread, and a Status mapping makes a card moved to a column a ready task. [Sync with GitHub Projects](/boards/guides/sync-github-projects/) has the setup and the rules.
+An organization's GitHub Projects ride on the same sync: with `projects` and `orgToken`, a Project item is its issue's thread (or a thread in the Project's channel), its fields are labels on that thread, and a Status mapping makes a card moved to a column a ready task. [Sync with GitHub Projects](/guides/sync-github-projects/) has the setup and the rules.
 
 ## How it works
 
-GitHub's webhook goes to the sync's Inbox, a Durable Object of its own, which keeps each delivery under GitHub's delivery ID before GitHub hears 200, so a redelivery does nothing. The Inbox imports events one GitHub thread at a time, oldest first, with 5 tries each; a failed one can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). On the way out, the courier is a Mailbox that the board feeds every write in a synced thread, in the thread's order. [Sync: Inbox and courier](/boards/architecture/sync/) has the details, and the [webhooks reference](/boards/reference/webhooks/) what each route verifies.
+GitHub's webhook goes to the sync's Inbox, a Durable Object of its own, which keeps each delivery under GitHub's delivery ID before GitHub hears 200, so a redelivery does nothing. The Inbox imports events one GitHub thread at a time, oldest first, with 5 tries each; a failed one can be [replayed](/guides/deploy-and-operate/#replay-a-sync-inbox). On the way out, the courier is a Mailbox that the board feeds every write in a synced thread, in the thread's order. [Sync: Inbox and courier](/architecture/sync/) has the details, and the [webhooks reference](/reference/webhooks/) what each route verifies.

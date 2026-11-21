@@ -9,10 +9,10 @@ A watcher is a tail expression and somewhere to deliver what matches it. The boa
 
 ```ts title="src/worker.ts"
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { defineBoards } from 'boards'
-import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+import { defineWorkbus } from 'workbus'
+import type { GatewayEnv } from 'workbus/gateway/gateway.ts'
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards(() => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus(() => ({
   watch: {
     // Every event under deploys/, delivered in order per thread to this Worker's Ops entrypoint.
     ops: { tail: 'deploys/', sink: { kind: 'service', binding: 'OPS', method: 'onEvent' } },
@@ -34,18 +34,18 @@ export class Ops extends WorkerEntrypoint<GatewayEnv> {
 export default { fetch: (request: Request, env: GatewayEnv) => gateway(request, env) }
 ```
 
-This is the Worker of a deployment that depends on `boards` ([Deploy and operate](/boards/guides/deploy-and-operate/#a-deployment-of-your-own) sets one up). The `OPS` binding is the Worker's own `Ops` entrypoint, in its `wrangler.jsonc`:
+This is the Worker of a deployment that depends on `workbus` ([Deploy and operate](/guides/deploy-and-operate/#a-deployment-of-your-own) sets one up). The `OPS` binding is the Worker's own `Ops` entrypoint, in its `wrangler.jsonc`:
 
 ```jsonc title="wrangler.jsonc"
-"services": [{ "binding": "OPS", "service": "boards", "entrypoint": "Ops" }]
+"services": [{ "binding": "OPS", "service": "workbus", "entrypoint": "Ops" }]
 ```
 
 A post under `deploys/`, and the watcher's answer in its thread:
 
 ```
-$ boards post deploys/web 'v7 is live'
+$ wb post deploys/web 'v7 is live'
 posted #23 in deploys/web
-$ boards read 23
+$ wb read 23
 #23  jared  2026-11-20 15:33
   v7 is live
 
@@ -55,14 +55,14 @@ $ boards read 23
 
 ## Config watchers
 
-A deployment's own watchers are in its `defineBoards` config, under `watch`, by ID. Each has a `tail` and a `sink`, and runs on every board the deployment serves. A watcher sees what lands after it's deployed: a new watcher on a board in use starts at the head, and gets nothing from before.
+A deployment's own watchers are in its `defineWorkbus` config, under `watch`, by ID. Each has a `tail` and a `sink`, and runs on every board the deployment serves. A watcher sees what lands after it's deployed: a new watcher on a board in use starts at the head, and gets nothing from before.
 
 | Sink | Delivers |
 | --- | --- |
 | `{ kind: 'service', binding, method? }` | calls `env[binding][method](event, context)`, a Worker entrypoint over RPC; `method` is `onEvent` unless you name another |
 | `{ kind: 'url', url, secret? }` | POSTs `{ event, board, watcher, match, attempt }` as JSON, with `x-board-match`, and `x-board-signature: sha256=<hex HMAC of the body>` when there's a secret |
 
-A service sink's `context` holds `watcher`, `match` (the delivery's ID, the same on every try), `attempt`, `name` (the board's name), and `board`: the board, acting as the watcher. It has `me`, `message`, `threads`, `post`, `reply`, `react`, `label`, and `typing`, and what it writes is by `boards:watch:<id>`. Its writes are events like any other, so a watcher whose tail matches its own channel skips its own messages.
+A service sink's `context` holds `watcher`, `match` (the delivery's ID, the same on every try), `attempt`, `name` (the board's name), and `board`: the board, acting as the watcher. It has `me`, `message`, `threads`, `post`, `reply`, `react`, `label`, and `typing`, and what it writes is by `workbus:watch:<id>`. Its writes are events like any other, so a watcher whose tail matches its own channel skips its own messages.
 
 A delivery fails when the sink throws (or a URL answers anything but 2xx). Here a URL sink refused the first two tries of one alert:
 
@@ -92,8 +92,8 @@ A program that isn't part of the deployment registers watchers on a board and pu
 
 ```js title="pull-watcher.mjs"
 // A watcher that runs anywhere: register a tail, then pull matches, handle each, and ack it.
-const url = process.env.BOARDS_URL
-const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN, 'content-type': 'application/json' }
+const url = process.env.WORKBUS_URL
+const headers = { authorization: 'Bearer ' + process.env.WORKBUS_TOKEN, 'content-type': 'application/json' }
 const call = async (method, path, body) => {
   const response = await fetch(url + path, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) })
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + (await response.text()))
@@ -134,7 +134,7 @@ A registrant sees only what its principal may read, worked out again at each pul
 
 ## Tail expressions
 
-A watcher's `tail` is what you'd type after `boards tail`:
+A watcher's `tail` is what you'd type after `wb tail`:
 
 | Expression | Matches |
 | --- | --- |
@@ -143,7 +143,7 @@ A watcher's `tail` is what you'd type after `boards tail`:
 | `''` | the whole board |
 | `--label env=prod` | messages with that label |
 | `--by ada`, `--mentions ada` | messages by, or mentioning, someone |
-| `--for @ada` | what [reaches](/boards/guides/follows/) Ada: what mentions her, or is in a thread or doc discussion she follows, and isn't hers |
+| `--for @ada` | what [reaches](/guides/follows/) Ada: what mentions her, or is in a thread or doc discussion she follows, and isn't hers |
 | `--roots` | events about thread roots only: new threads, and later events about a root |
 | `--re 12` | one thread |
 | `--source slack` | what came in through a sync |
@@ -154,7 +154,7 @@ Filters combine: `deploys/ --label env=prod --by deployer`. A watcher has no "me
 
 ### What reaches someone
 
-An agent that owns channels wants each new thread there, and otherwise only what reaches it. The [Factory](/boards/templates/factory/) wakes its agent with three watchers on one sink; a wake-up is kept once by its event's cursor, so an event two of them match wakes it once:
+An agent that owns channels wants each new thread there, and otherwise only what reaches it. The [Factory](/templates/factory/) wakes its agent with three watchers on one sink; a wake-up is kept once by its event's cursor, so an event two of them match wakes it once:
 
 ```ts title="templates/factory/src/worker.ts"
 watch: {
@@ -171,15 +171,15 @@ watch: {
 A registered watcher takes the same filters:
 
 ```
-$ curl -s "$BOARDS_URL/watchers" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}}}' | jq -c '.watchers // .'
-{"owner":"boards:user:bo","watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}},"sync":[],"hash":"1cf18902ce1fa0a8b303a0b7d0e01927","url":null}
-$ boards reply 9 'Ten minutes, I think.'
+$ curl -s "$WORKBUS_URL/watchers" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{"watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}}}' | jq -c '.watchers // .'
+{"owner":"workbus:user:bo","watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}},"sync":[],"hash":"1cf18902ce1fa0a8b303a0b7d0e01927","url":null}
+$ wb reply 9 'Ten minutes, I think.'
 replied #20 in #2
-$ printf '## Steps\n\nCall the on-call first.\n' | boards doc create docs/runbooks/incident -
+$ printf '## Steps\n\nCall the on-call first.\n' | wb doc create docs/runbooks/incident -
 made docs/runbooks/incident  #21  revision 21
 
     steps  Steps  changed 21
-$ curl -s "$BOARDS_URL/watchers/matches?limit=10" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '.matches[] | {watcher, type: .event.type, message: .event.message.id}'
+$ curl -s "$WORKBUS_URL/watchers/matches?limit=10" -H "authorization: Bearer $WORKBUS_TOKEN" | jq -c '.matches[] | {watcher, type: .event.type, message: .event.message.id}'
 {"watcher":"jared","type":"message.posted","message":"20"}
 {"watcher":"threads","type":"message.posted","message":"21"}
 ```

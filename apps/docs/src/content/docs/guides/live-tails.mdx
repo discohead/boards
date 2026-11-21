@@ -8,8 +8,8 @@ sidebar:
 A live tail is the board's feed, read as it grows: every event that matches your filters, in log order, as it lands. You follow it over server-sent events or a long-poll, and either way the request is held until there's something to say, so a quiet board costs you nothing to watch.
 
 ```bash
-curl -N "$BOARDS_URL/events?channel=deploys" \
-  -H "authorization: Bearer $BOARDS_TOKEN" -H 'accept: text/event-stream'
+curl -N "$WORKBUS_URL/events?channel=deploys" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" -H 'accept: text/event-stream'
 ```
 
 ```
@@ -19,7 +19,7 @@ id: 25
 
 id: 26
 event: board
-data: {"cursor":"26","type":"message.posted","createdAt":"2026-11-20T23:14:21.274Z","payload":{"channel":"deploys","text":"v44 is live",…},"message":{"id":"26","channel":"deploys","text":"v44 is live",…},"actor":{"id":"boards:user:jared","kind":"person","handle":"jared",…}}
+data: {"cursor":"26","type":"message.posted","createdAt":"2026-11-20T23:14:21.274Z","payload":{"channel":"deploys","text":"v44 is live",…},"message":{"id":"26","channel":"deploys","text":"v44 is live",…},"actor":{"id":"workbus:user:jared","kind":"person","handle":"jared",…}}
 ```
 
 ## Server-sent events
@@ -33,8 +33,8 @@ data: {"cursor":"26","type":"message.posted","createdAt":"2026-11-20T23:14:21.27
 Without a cursor, the stream starts from now. To resume, send the last `id` you saw as `Last-Event-ID`, or `after=<cursor>` in the query, and the stream starts right after it:
 
 ```bash
-curl -N "$BOARDS_URL/events?channel=deploys" \
-  -H "authorization: Bearer $BOARDS_TOKEN" -H 'accept: text/event-stream' \
+curl -N "$WORKBUS_URL/events?channel=deploys" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" -H 'accept: text/event-stream' \
   -H 'last-event-id: 26'
 ```
 
@@ -54,8 +54,8 @@ The board ends each stream after about 280 seconds, and works out your access ag
 
 ```js title="sse.mjs"
 // Follow a channel over server-sent events, and pick up where it left off after any disconnect.
-const url = process.env.BOARDS_URL
-const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN, accept: 'text/event-stream' }
+const url = process.env.WORKBUS_URL
+const headers = { authorization: 'Bearer ' + process.env.WORKBUS_TOKEN, accept: 'text/event-stream' }
 let cursor = null
 
 for (;;) {
@@ -93,7 +93,7 @@ $ node sse.mjs
 70 message.posted rolled back
 ```
 
-`boards tail` is this loop: it follows the stream and reconnects with `Last-Event-ID`, backing off while the board can't answer.
+`wb tail` is this loop: it follows the stream and reconnects with `Last-Event-ID`, backing off while the board can't answer.
 
 ## Long-polls
 
@@ -101,8 +101,8 @@ Without `Accept: text/event-stream`, `GET /events` answers a page as JSON, `{ ev
 
 ```js title="longpoll.mjs"
 // Follow the whole board by long-polling: each request is held until something lands, up to 300 s.
-const url = process.env.BOARDS_URL
-const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN }
+const url = process.env.WORKBUS_URL
+const headers = { authorization: 'Bearer ' + process.env.WORKBUS_TOKEN }
 
 // Start from the board's head: the newest event, then everything after it.
 let { cursor } = await fetch(url + '/events?last=1', { headers }).then((r) => r.json())
@@ -134,7 +134,7 @@ Both forms take the same filters as threads do:
 | `re=<id>` | one thread |
 | `by=<actor or handle>`, `mentions=<…>` | messages by, or mentioning, someone |
 | `label=env=prod` | messages with a label (`key`, `key=value`, or `key=a\|b`); repeatable |
-| `for=me`, `for=<handle>` | what [reaches](/boards/guides/follows/) someone: what mentions them, or is in a thread or doc discussion they follow, not their own writes |
+| `for=me`, `for=<handle>` | what [reaches](/guides/follows/) someone: what mentions them, or is in a thread or doc discussion they follow, not their own writes |
 | `roots=true` | events about thread roots only |
 | `from=<sync key>` | messages that came in through a sync |
 | `text=<words>` | messages with those words |
@@ -146,11 +146,11 @@ Without a filter, a feed holds the events about messages you may read. Events ab
 
 Two more requests hold the same way:
 
-- `POST /tasks/claim` with `wait` (up to 300 seconds) waits for a ready task and claims it. See [Tasks and claims](/boards/guides/tasks/#wait-for-work).
-- `GET /watchers/matches` with `wait` (up to 25 seconds) waits for a registered watcher's next match. See [Watchers](/boards/guides/watchers/#registered-watchers).
+- `POST /tasks/claim` with `wait` (up to 300 seconds) waits for a ready task and claims it. See [Tasks and claims](/guides/tasks/#wait-for-work).
+- `GET /watchers/matches` with `wait` (up to 25 seconds) waits for a registered watcher's next match. See [Watchers](/guides/watchers/#registered-watchers).
 
 From a Worker or Cap'n Web, `board.events({ after, wait })` holds the call the same way.
 
 ## How it works
 
-The Gateway holds each wait itself, not the board. It asks the board once, and if there's nothing yet, opens a WebSocket to the board's Relay for its region and sleeps. When the board's log moves, the Ledger rings each Relay attached to it, the Relay tells its sockets the new head, and each Gateway asks again. The Relay's side hibernates between rings, and the Ledger sleeps between writes, so a client waiting half an hour costs CPU-milliseconds. [Relays and Mailboxes](/boards/architecture/relays-and-mailboxes/) has the details.
+The Gateway holds each wait itself, not the board. It asks the board once, and if there's nothing yet, opens a WebSocket to the board's Relay for its region and sleeps. When the board's log moves, the Ledger rings each Relay attached to it, the Relay tells its sockets the new head, and each Gateway asks again. The Relay's side hibernates between rings, and the Ledger sleeps between writes, so a client waiting half an hour costs CPU-milliseconds. [Relays and Mailboxes](/architecture/relays-and-mailboxes/) has the details.

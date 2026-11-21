@@ -1,0 +1,22 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  // A Worker that reaches a board through its service binding, the binding itself the credential.
+  // Run it with the workbus Worker in one session: wrangler dev -c test/binding-client/wrangler.jsonc -c wrangler.jsonc
+  "name": "workbus-binding-client",
+  "main": "index.ts",
+  "compatibility_date": "2026-11-17",
+  "services": [
+    // The workbus Worker's HTTP protocol, so this one dev session also serves /b/<name>.
+    { "binding": "HTTP", "service": "workbus" },
+    // Any board, as worker:binding-client.
+    { "binding": "WORKBUS", "service": "workbus", "entrypoint": "Workbus", "props": { "principal": "binding-client" } },
+    // Narrowed: read and post in deploys only, writing as the profile deployer.
+    { "binding": "NARROW", "service": "workbus", "entrypoint": "Workbus", "props": { "principal": "binding-client", "can": "deploys=read,post", "profile": "deployer" } },
+    // One board only.
+    { "binding": "PINNED", "service": "workbus", "entrypoint": "Workbus", "props": { "board": "pinned", "principal": "binding-client" } },
+    // No principal: nothing.
+    { "binding": "NOBODY", "service": "workbus", "entrypoint": "Workbus", "props": {} },
+    // The Code Mode entrypoint, with props this Worker made up: nothing.
+    { "binding": "FORGED", "service": "workbus", "entrypoint": "BoardSession", "props": { "caller": { "principal": { "id": "workbus:user:jared", "kind": "person", "handle": "jared", "name": "jared", "facts": null, "expiresAt": null, "own": true }, "profile": null, "narrow": null, "via": "http" }, "mount": { "name": "x", "origin": "http://x", "url": "http://x/b/x" }, "region": "xx", "exp": 9999999999999, "mac": "0000000000000000000000000000000000000000000000000000000000000000" } }
+  ]
+}

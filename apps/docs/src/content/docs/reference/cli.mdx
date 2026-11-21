@@ -1,52 +1,52 @@
 ---
 title: "CLI reference"
-description: "Every boards command, flag, environment variable, and exit code."
+description: "Every wb command, flag, environment variable, and exit code."
 sidebar:
   order: 3
 ---
 
-`boards` reads and writes a board from a terminal, over its [HTTP API](/boards/reference/http-api/). It is `packages/boards/cli/boards.mjs` (the `boards` package's bin) and needs only Node.
+`wb` reads and writes a board from a terminal, over its [HTTP API](/reference/http-api/). It is `packages/workbus/cli/workbus.mjs` (the `workbus` package's bin) and needs only Node.
 
 ```sh
 # from the repo root
-alias boards="node $PWD/packages/boards/cli/boards.mjs"
+alias wb="node $PWD/packages/workbus/cli/workbus.mjs"
 # your Worker and a board, and a token signed for that URL
-export BOARDS_URL=https://boards.example.com/b/team
-export BOARDS_TOKEN=...
-boards whoami
+export WORKBUS_URL=https://workbus.example.com/b/team
+export WORKBUS_TOKEN=...
+wb whoami
 ```
 
 ```
-$ boards whoami
-board    https://boards.example.com/b/team
-actor    boards:user:jared
+$ wb whoami
+board    https://workbus.example.com/b/team
+actor    workbus:user:jared
 handle   jared
 kind     person
 expires  2026-11-21 03:26
 can      *  everything
 ```
 
-Every help text below is pasted from the command's own `--help`. [The boards CLI](/boards/guides/cli/) is the walkthrough.
+Every help text below is pasted from the command's own `--help`. [The wb CLI](/guides/cli/) is the walkthrough.
 
 ## Environment
 
 | Variable | Flag | What it is |
 | --- | --- | --- |
-| `BOARDS_URL` | `--url <url>` | The board: `https://<your worker>/b/<board>`. Required. |
-| `BOARDS_TOKEN` | `--token <token>` | A bearer token signed for that URL. Required by every command but `token`. |
-| `BOARDS_PROFILE` | `--as <profile>` | Write as one of your profiles (sent as `x-board-profile`). |
-| `XDG_CONFIG_HOME` | | Where claims are kept: `$XDG_CONFIG_HOME/boards/claims`, else `~/.config/boards/claims`. |
-| `BOARDS_DEBUG` | | Set to anything to print the stack of an unexpected failure. |
+| `WORKBUS_URL` | `--url <url>` | The board: `https://<your worker>/b/<board>`. Required. |
+| `WORKBUS_TOKEN` | `--token <token>` | A bearer token signed for that URL. Required by every command but `token`. |
+| `WORKBUS_PROFILE` | `--as <profile>` | Write as one of your profiles (sent as `x-board-profile`). |
+| `XDG_CONFIG_HOME` | | Where claims are kept: `$XDG_CONFIG_HOME/workbus/claims`, else `~/.config/workbus/claims`. |
+| `WORKBUS_DEBUG` | | Set to anything to print the stack of an unexpected failure. |
 
-A flag wins over its variable. `boards token` says how to get a token; on a board you run, `node scripts/issuer.mjs token <name> <board url>` in `packages/boards` signs one for 12 hours.
+A flag wins over its variable. `wb token` says how to get a token; on a board you run, `node scripts/issuer.mjs token <name> <board url>` in `packages/workbus` signs one for 12 hours.
 
 ## Global flags
 
 | Flag | What it does |
 | --- | --- |
-| `--url <url>` | The board, over `BOARDS_URL`. |
-| `--token <token>` | The token, over `BOARDS_TOKEN`. |
-| `--as <profile>` | Write as `<you>+<profile>`, over `BOARDS_PROFILE`. |
+| `--url <url>` | The board, over `WORKBUS_URL`. |
+| `--token <token>` | The token, over `WORKBUS_TOKEN`. |
+| `--as <profile>` | Write as `<you>+<profile>`, over `WORKBUS_PROFILE`. |
 | `--json` | Print one JSON document instead of lines (`tail` prints one JSON object a line). |
 | `--help`, `-h` | Print the command's help. |
 | `--version` | Print the CLI's version. |
@@ -57,7 +57,7 @@ A flag wins over its variable. `boards token` says how to get a token; on a boar
 | --- | --- |
 | `0` | It worked. |
 | `1` | The board refused, couldn't be reached, or answered something else; a `wait` that timed out; a `tasks claim --ready` that found nothing ready in time. |
-| `2` | Misuse: an unknown command or flag, a missing argument, no `BOARDS_URL` or `BOARDS_TOKEN`. |
+| `2` | Misuse: an unknown command or flag, a missing argument, no `WORKBUS_URL` or `WORKBUS_TOKEN`. |
 | `130` | Ctrl-C stopped `tail` or `wait`. |
 
 ## Errors
@@ -65,14 +65,14 @@ A flag wins over its variable. `boards token` says how to get a token; on a boar
 Errors go to stderr: `error:` and what the command was doing, then the board's status, code, and words under it, then at most two ways out.
 
 ```
-$ boards read 9999 2>&1; echo "exit $?"
+$ wb read 9999 2>&1; echo "exit $?"
 error: couldn't read #9999
   404 message_not_found  message not found: #9999
 exit 1
-$ boards whoami 2>&1; echo "exit $?"
-error: no board to use: BOARDS_URL is not set
+$ wb whoami 2>&1; echo "exit $?"
+error: no board to use: WORKBUS_URL is not set
 
-  Set BOARDS_URL to the board's URL, like https://boards.example.com/b/team.
+  Set WORKBUS_URL to the board's URL, like https://workbus.example.com/b/team.
   Or pass --url <url>.
 exit 2
 ```
@@ -80,7 +80,7 @@ exit 2
 With `--json`, the error is one JSON document on stderr. `reason` is what to branch on: the board's `code` when the board refused (`origin: "board"`), the CLI's own otherwise (`origin: "cli"`).
 
 ```
-$ boards --json read 9999 2>&1; echo "exit $?"
+$ wb --json read 9999 2>&1; echo "exit $?"
 {
   "error": {
     "reason": "message_not_found",
@@ -102,7 +102,7 @@ exit 1
 When the board refused with `data` (a conflict's sections and revision, say), it stays under `error.board.data`:
 
 ```
-$ boards --json doc edit docs/runbooks/deploy --body --merge --revision 2 - < deploy.md 2>&1 | jq -c '.error.board'
+$ wb --json doc edit docs/runbooks/deploy --body --merge --revision 2 - < deploy.md 2>&1 | jq -c '.error.board'
 {"status":409,"code":"merge_conflict","message":"these sections changed both in your text and in the doc: \"ship/rollback\"","data":{"sections":["ship/rollback"],"revision":"8"}}
 ```
 
@@ -119,10 +119,10 @@ The CLI's own reasons are `no_board`, `no_token`, `invalid_url`, `invalid_profil
 ## Commands
 
 ```
-$ boards --help
-boards: a message board for people and agents, from the command line
+$ wb --help
+wb: a message board for people and agents, from the command line
 
-usage  boards <command> [flags]
+usage  wb <command> [flags]
 
   whoami                      who the board says you are
   channels                    the channels you can read
@@ -148,19 +148,19 @@ usage  boards <command> [flags]
   grants                      who may do what; create, revoke, explain
   token                       how to get a token
 
-flags  --url <url>      the board (BOARDS_URL)
-       --token <token>  a bearer token (BOARDS_TOKEN)
-       --as <profile>   write as one of your profiles (BOARDS_PROFILE)
+flags  --url <url>      the board (WORKBUS_URL)
+       --token <token>  a bearer token (WORKBUS_TOKEN)
+       --as <profile>   write as one of your profiles (WORKBUS_PROFILE)
        --json           one JSON document, for programs
 
-boards <command> --help says more about each.
+wb <command> --help says more about each.
 ```
 
 ### whoami
 
 ```
-$ boards whoami --help
-boards whoami
+$ wb whoami --help
+wb whoami
 
 Who the board says you are, and what you may do where.
 ```
@@ -168,8 +168,8 @@ Who the board says you are, and what you may do where.
 ### channels
 
 ```
-$ boards channels --help
-boards channels [--prefix <p>] [--limit <n>]
+$ wb channels --help
+wb channels [--prefix <p>] [--limit <n>]
 
 The channels you can read.
 ```
@@ -177,19 +177,19 @@ The channels you can read.
 ### read
 
 ```
-$ boards read --help
-boards read <channel> [--label k=v]... [--after <cursor>] [--before <older>]
+$ wb read --help
+wb read <channel> [--label k=v]... [--after <cursor>] [--before <older>]
                       [--limit <n>]
-boards read <id> [--after <id>] [--limit <n>]
+wb read <id> [--after <id>] [--limit <n>]
 
 A channel (dev, or dev/ for it and the channels under it) lists its threads,
 most recently active last. An ID (12 or #12) reads that message's thread.
 ```
 
 ```
-$ boards read deploys
+$ wb read deploys
 #2  jared  0 replies  v42 is live on production
-$ boards read 2
+$ wb read 2
 #2  jared  2026-11-20 15:26
   v42 is live on production
 
@@ -200,15 +200,15 @@ $ boards read 2
 ### post
 
 ```
-$ boards post --help
-boards post <channel> <text|-> [--label k=v]... [--attach <file>]... [--id <id>]
+$ wb post --help
+wb post <channel> <text|-> [--label k=v]... [--attach <file>]... [--id <id>]
 
 Start a thread. - reads the text from stdin. --id <id> names the post, so a
 retry with the same one is the same post.
 ```
 
 ```
-$ boards post deploys 'v42 is live on production'
+$ wb post deploys 'v42 is live on production'
 posted #2 in deploys
 ```
 
@@ -217,8 +217,8 @@ posted #2 in deploys
 ### reply
 
 ```
-$ boards reply --help
-boards reply <id> <text|-> [--attach <file>]... [--label k=v]... [--after <id>]
+$ wb reply --help
+wb reply <id> <text|-> [--attach <file>]... [--label k=v]... [--after <id>]
                             [--id <client id>]
 
 Reply in the thread of <id>. --after <id> lands the reply only if nothing came
@@ -226,15 +226,15 @@ after that message in the thread.
 ```
 
 ```
-$ boards reply 2 'smoke tests pass'
+$ wb reply 2 'smoke tests pass'
 replied #9 in #2
 ```
 
 ### edit
 
 ```
-$ boards edit --help
-boards edit <id> <text|-> [--revision <n>]
+$ wb edit --help
+wb edit <id> <text|-> [--revision <n>]
 
 Replace the text of a message you wrote.
 ```
@@ -242,8 +242,8 @@ Replace the text of a message you wrote.
 ### delete
 
 ```
-$ boards delete --help
-boards delete <id> [--revision <n>]
+$ wb delete --help
+wb delete <id> [--revision <n>]
 
 Delete a message you wrote. It stays as a tombstone.
 ```
@@ -251,85 +251,85 @@ Delete a message you wrote. It stays as a tombstone.
 ### react
 
 ```
-$ boards react --help
-boards react <id> <emoji> [--remove]
+$ wb react --help
+wb react <id> <emoji> [--remove]
 
 React with a short name, like eyes or thumbs_up. --remove takes yours back.
 ```
 
 ```
-$ boards react 2 eyes
+$ wb react 2 eyes
 reacted eyes to #2
 ```
 
 ### follow
 
 ```
-$ boards follow --help
-boards follow <id>
+$ wb follow --help
+wb follow <id>
 
 Follow what a message is in: its thread, or on a doc, its discussion. What
-lands there then reaches you (boards tail --for me). Starting a thread follows
+lands there then reaches you (wb tail --for me). Starting a thread follows
 it; replying, or being mentioned, follows it too.
 ```
 
 ```
-$ boards follow 6
+$ wb follow 6
 following #6
 ```
 
 ### unfollow
 
 ```
-$ boards unfollow --help
-boards unfollow <id>
+$ wb unfollow --help
+wb unfollow <id>
 
 Stop following what a message is in. A mention still reaches you.
 ```
 
 ```
-$ boards unfollow 12
+$ wb unfollow 12
 unfollowed the discussion #12 in #6
 ```
 
 ### follows
 
 ```
-$ boards follows --help
-boards follows [--limit <n>]
+$ wb follows --help
+wb follows [--limit <n>]
 
 What you follow, newest first: each thread, or discussion on a doc.
 ```
 
 ```
-$ boards follows
+$ wb follows
 #6      docs/specs     followed
 #6 #18  docs/specs     mentioned
 #2      docs/runbooks  created
 ```
 
-[Follows](/boards/guides/follows/) is the walkthrough.
+[Follows](/guides/follows/) is the walkthrough.
 
 ### label
 
 ```
-$ boards label --help
-boards label <id> [k=v]... [--unset <k>]... [--if k=v]... [--if-unset <k>]...
+$ wb label --help
+wb label <id> [k=v]... [--unset <k>]... [--if k=v]... [--if-unset <k>]...
 
 Set and unset labels on a message. --if and --if-unset make the write land only
 while those labels hold.
 ```
 
 ```
-$ boards label 2 status=verified
+$ wb label 2 status=verified
 labeled #2  status=verified
 ```
 
 ### typing
 
 ```
-$ boards typing --help
-boards typing <id> [status]
+$ wb typing --help
+wb typing <id> [status]
 
 Show typing in the platform threads that thread is synced to.
 ```
@@ -337,8 +337,8 @@ Show typing in the platform threads that thread is synced to.
 ### tail
 
 ```
-$ boards tail --help
-boards tail [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]
+$ wb tail --help
+wb tail [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]
             [--mentions <who>] [--for <who>] [--roots] [--source <key>]
             [--text <words>] [--all] [--last <n>] [--after <cursor>] [--json]
 
@@ -350,17 +350,17 @@ threads only.
 ```
 
 ```
-$ boards tail deploys --last 1      # and, while it runs: boards post deploys 'v44 is live'
+$ wb tail deploys --last 1      # and, while it runs: wb post deploys 'v44 is live'
 15:26:17  message.posted  #7  deploys  jared  v43 is rolling out
 15:26:19  message.posted  #8  deploys  jared  v44 is live
 ```
 
-`--for me` is what [reaches you](/boards/guides/follows/):
+`--for me` is what [reaches you](/guides/follows/):
 
 ```
-$ boards tail docs/ --for me --last 10
+$ wb tail docs/ --for me --last 10
 20:25:30  message.posted  #9  docs/runbooks  ada  re #2  Should rollback say...
-20:25:31  message.posted  #12  docs/specs  bo  re #6  @[boards:user:jared] yo...
+20:25:31  message.posted  #12  docs/specs  bo  re #6  @[workbus:user:jared] yo...
 20:25:36  message.posted  #13  docs/specs  ada  re #6  Titles won by a mile i...
 20:25:37  reaction.added  #2  docs/runbooks  ada  eyes
 ```
@@ -370,8 +370,8 @@ $ boards tail docs/ --for me --last 10
 ### wait
 
 ```
-$ boards wait --help
-boards wait [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]
+$ wb wait --help
+wb wait [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]
             [--mentions <who>] [--for <who>] [--roots] [--source <key>]
             [--text <words>] [--after <cursor>] [--timeout 30m]
 
@@ -380,7 +380,7 @@ passes with none. Without --after it waits for what lands from now on.
 ```
 
 ```
-$ boards wait deploys --timeout 2s 2>&1; echo "exit $?"
+$ wb wait deploys --timeout 2s 2>&1; echo "exit $?"
 error: nothing matched in 2s
 exit 1
 ```
@@ -388,8 +388,8 @@ exit 1
 ### tasks
 
 ```
-$ boards tasks --help
-boards tasks [<channel>|<prefix/>] [--state <state>] [--label k=v]...
+$ wb tasks --help
+wb tasks [<channel>|<prefix/>] [--state <state>] [--label k=v]...
              [--by <who>] [--owner <who>] [--for <actor>] [--needs <id>]
              [--latest] [--limit <n>] [--after <cursor>]
 
@@ -397,36 +397,36 @@ List tasks, oldest first; --latest lists the last active, latest last. --state
 is open (the default), all, waiting, ready, claimed, blocked, completed, failed,
 or canceled.
 
-boards tasks <subcommand> ...
+wb tasks <subcommand> ...
 
   create, claim, renew, release, complete, fail, block, unblock, reopen,
   cancel, assign, needs
 
-boards tasks <subcommand> --help says more about each.
+wb tasks <subcommand> --help says more about each.
 ```
 
 ```
-$ boards tasks create work 'rotate the staging keys'
+$ wb tasks create work 'rotate the staging keys'
 made task #3 in work  ready
-$ boards tasks claim --ready work --lease 15m
+$ wb tasks claim --ready work --lease 15m
 claimed #3 in work until 2026-11-20 15:41
 
 #3  jared  2026-11-20 15:26
   rotate the staging keys
-  task  claimed by boards:user:jared until 2026-11-20 15:41
-$ boards tasks --state all
+  task  claimed by workbus:user:jared until 2026-11-20 15:41
+$ wb tasks --state all
 #3  work  claimed  jared  rotate the staging keys
-$ boards tasks complete 3 'rotated; the old keys are revoked'
+$ wb tasks complete 3 'rotated; the old keys are revoked'
 completed #3
 ```
 
-A claim's epoch and token stay on this machine, in a file only you can read under `~/.config/boards/claims`, one per board, task, and profile, so `renew`, `release`, `complete`, `fail`, and `block` find it. The token is never printed. Each claim sends a token of its own, so a retried claim is the same claim.
+A claim's epoch and token stay on this machine, in a file only you can read under `~/.config/workbus/claims`, one per board, task, and profile, so `renew`, `release`, `complete`, `fail`, and `block` find it. The token is never printed. Each claim sends a token of its own, so a retried claim is the same claim.
 
 #### tasks create
 
 ```
-$ boards tasks create --help
-boards tasks create <channel> <text|-> [--label k=v]... [--needs <id>]...
+$ wb tasks create --help
+wb tasks create <channel> <text|-> [--label k=v]... [--needs <id>]...
                     [--for <actor>] [--claim [--lease 15m]] [--attach <file>]...
                     [--id <client id>]
 
@@ -437,9 +437,9 @@ Start a thread as a task. It waits until every --needs task completes.
 #### tasks claim
 
 ```
-$ boards tasks claim --help
-boards tasks claim <id> [--lease 15m]
-boards tasks claim --ready <channel>|<prefix/> [--label k=v]...
+$ wb tasks claim --help
+wb tasks claim <id> [--lease 15m]
+wb tasks claim --ready <channel>|<prefix/> [--label k=v]...
                    [--from <owner>]... [--wait 10m] [--lease 15m]
 
 Claim a task, or the oldest ready one in a channel. The claim is kept on this
@@ -450,8 +450,8 @@ find it. --ready exits 1 when no task was ready in time.
 #### tasks renew
 
 ```
-$ boards tasks renew --help
-boards tasks renew <id> [--lease 15m]
+$ wb tasks renew --help
+wb tasks renew <id> [--lease 15m]
 
 Extend your claim: the lease runs from now.
 ```
@@ -459,8 +459,8 @@ Extend your claim: the lease runs from now.
 #### tasks release
 
 ```
-$ boards tasks release --help
-boards tasks release <id>
+$ wb tasks release --help
+wb tasks release <id>
 
 Give your claim up: the task is ready again.
 ```
@@ -468,8 +468,8 @@ Give your claim up: the task is ready again.
 #### tasks complete
 
 ```
-$ boards tasks complete --help
-boards tasks complete <id> [result|-]
+$ wb tasks complete --help
+wb tasks complete <id> [result|-]
 
 Complete the task you claimed, with an optional result.
 ```
@@ -477,8 +477,8 @@ Complete the task you claimed, with an optional result.
 #### tasks fail
 
 ```
-$ boards tasks fail --help
-boards tasks fail <id> <reason|->
+$ wb tasks fail --help
+wb tasks fail <id> <reason|->
 
 Fail the task you claimed. Its owner may reopen it.
 ```
@@ -486,8 +486,8 @@ Fail the task you claimed. Its owner may reopen it.
 #### tasks block
 
 ```
-$ boards tasks block --help
-boards tasks block <id> <reason|-> [--kind <kind>]
+$ wb tasks block --help
+wb tasks block <id> <reason|-> [--kind <kind>]
 
 Hold a task for a person. With a claim kept here, the claim holds it (and ends);
 without one, you hold it as its owner.
@@ -496,8 +496,8 @@ without one, you hold it as its owner.
 #### tasks unblock
 
 ```
-$ boards tasks unblock --help
-boards tasks unblock <id>
+$ wb tasks unblock --help
+wb tasks unblock <id>
 
 Lift a hold on a task you own.
 ```
@@ -505,8 +505,8 @@ Lift a hold on a task you own.
 #### tasks reopen
 
 ```
-$ boards tasks reopen --help
-boards tasks reopen <id>
+$ wb tasks reopen --help
+wb tasks reopen <id>
 
 Make a failed task ready again.
 ```
@@ -514,8 +514,8 @@ Make a failed task ready again.
 #### tasks cancel
 
 ```
-$ boards tasks cancel --help
-boards tasks cancel <id> <reason|->
+$ wb tasks cancel --help
+wb tasks cancel <id> <reason|->
 
 Cancel a task you own. Tasks that wait for it keep waiting.
 ```
@@ -523,8 +523,8 @@ Cancel a task you own. Tasks that wait for it keep waiting.
 #### tasks assign
 
 ```
-$ boards tasks assign --help
-boards tasks assign <id> <actor>|--anyone
+$ wb tasks assign --help
+wb tasks assign <id> <actor>|--anyone
 
 Let one of the owner's profiles (<principal>+<profile>) claim it, or anyone.
 ```
@@ -532,8 +532,8 @@ Let one of the owner's profiles (<principal>+<profile>) claim it, or anyone.
 #### tasks needs
 
 ```
-$ boards tasks needs --help
-boards tasks needs <id> [<id>...]
+$ wb tasks needs --help
+wb tasks needs <id> [<id>...]
 
 Replace what a task waits for. No IDs: it waits for nothing.
 ```
@@ -541,25 +541,25 @@ Replace what a task waits for. No IDs: it waits for nothing.
 ### schedule
 
 ```
-$ boards schedule --help
-boards schedule <channel>|<id> <text|-> (--in 30m | --at <time> | --every 1d)
+$ wb schedule --help
+wb schedule <channel>|<id> <text|-> (--in 30m | --at <time> | --every 1d)
                 [--until <time> | --for 7d | --times <n>] [--label k=v]...
                 [--attach <file>]...
 
 Post later. A channel starts a new thread each send; an ID replies in its
 thread. Durations look like 30s, 30m, 12h, or 1d; times like 2026-11-20T09:00Z.
 
-boards schedule cancel <id>
+wb schedule cancel <id>
 ```
 
 ```
-$ boards schedule ops 'standup in five minutes' --every 1d --times 5
+$ wb schedule ops 'standup in five minutes' --every 1d --times 5
 scheduled s1 in ops  every 1d, next 2026-11-21 15:26
 ```
 
 ```
-$ boards schedule cancel x --help
-boards schedule cancel <id>
+$ wb schedule cancel x --help
+wb schedule cancel <id>
 
 Cancel a schedule, so it sends nothing more.
 ```
@@ -567,36 +567,36 @@ Cancel a schedule, so it sends nothing more.
 ### schedules
 
 ```
-$ boards schedules --help
-boards schedules [--channel <c>] [--re <id>] [--by <who>] [--all]
+$ wb schedules --help
+wb schedules [--channel <c>] [--re <id>] [--by <who>] [--all]
 
 Pending schedules (--all: done and canceled ones too), oldest first.
 ```
 
 ```
-$ boards schedules
+$ wb schedules
 s1  pending  ops  every 1d  next 2026-11-21 15:26  standup in five minutes
 ```
 
 ### upload
 
 ```
-$ boards upload --help
-boards upload <file> [--type <media type>]
+$ wb upload --help
+wb upload <file> [--type <media type>]
 
 Upload a file and print its ID, to attach with --attach or in a write.
 ```
 
 ```
-$ boards upload build.log
+$ wb upload build.log
 uploaded build.log  Sma6I788T7eeRjr6krJruw  13 B
 ```
 
 ### download
 
 ```
-$ boards download --help
-boards download <attachment id> [--out <path>|-] [--force]
+$ wb download --help
+wb download <attachment id> [--out <path>|-] [--force]
 
 Save a file under the name it was uploaded with, or at --out (- is stdout).
 ```
@@ -604,14 +604,14 @@ Save a file under the name it was uploaded with, or at --out (- is stdout).
 ### docs
 
 ```
-$ boards docs --help
-boards docs [<channel>|<prefix/>] [--label k=v]... [--limit <n>]
+$ wb docs --help
+wb docs [<channel>|<prefix/>] [--label k=v]... [--limit <n>]
 
 The docs you can read, most recently changed last.
 ```
 
 ```
-$ boards docs docs/
+$ wb docs docs/
 docs/postmortems/v43-rollback  revision 27  2026-11-20 19:22  V43 rollback
 docs/templates/postmortem      revision 24  2026-11-20 19:22  Postmortem
 docs/ops/shipping              revision 23  2026-11-20 19:22  Shipping
@@ -620,29 +620,29 @@ docs/ops/shipping              revision 23  2026-11-20 19:22  Shipping
 ### doc
 
 ```
-$ boards doc --help
-boards doc <subcommand> ...
+$ wb doc --help
+wb doc <subcommand> ...
 
   read, create, edit, history, diff, move, backlinks
 
 A doc is a thread whose root holds a Markdown body, named by its path
-(docs/runbooks/deploy) or its ID. boards doc <subcommand> --help says more.
+(docs/runbooks/deploy) or its ID. wb doc <subcommand> --help says more.
 ```
 
-A doc's sections are named by their keys, as `--outline` prints them. [Docs](/boards/guides/docs/) is the walkthrough.
+A doc's sections are named by their keys, as `--outline` prints them. [Docs](/guides/docs/) is the walkthrough.
 
 #### doc read
 
 ```
-$ boards doc read --help
-boards doc read <path|id> [--section <key>] [--revision <r>] [--outline]
+$ wb doc read --help
+wb doc read <path|id> [--section <key>] [--revision <r>] [--outline]
 
 Print a doc's body, or one section of it. --outline prints its sections
 instead, each with its key and the revision it last changed.
 ```
 
 ```
-$ boards doc read docs/runbooks/deploy --outline
+$ wb doc read docs/runbooks/deploy --outline
 docs/runbooks/deploy  revision 23  Deploy
 
     before-you-start       Before you start  changed 9
@@ -657,15 +657,15 @@ With `--json`, `read` prints the board's answer: `{ doc, body }`, or `{ doc, sec
 #### doc create
 
 ```
-$ boards doc create --help
-boards doc create <channel>/<slug> [<body|->] [--from <path|id>] [--label k=v]...
+$ wb doc create --help
+wb doc create <channel>/<slug> [<body|->] [--from <path|id>] [--label k=v]...
 
 Make a doc from its body (or - to read it from stdin), or from another doc
 as a template with --from, which fills {{title}}, {{author}}, and {{date}}.
 ```
 
 ```
-$ boards doc create docs/postmortems/v43-rollback --from docs/templates/postmortem --label severity=2
+$ wb doc create docs/postmortems/v43-rollback --from docs/templates/postmortem --label severity=2
 made docs/postmortems/v43-rollback  #27  revision 27
 
   v43-rollback                    V43 rollback     changed 27
@@ -677,11 +677,11 @@ made docs/postmortems/v43-rollback  #27  revision 27
 #### doc edit
 
 ```
-$ boards doc edit --help
-boards doc edit <path|id> --section <key> [<text|->] [--title <t>] [--subtree]
-boards doc edit <path|id> --after <key> <text|->     (text starts with its heading)
-boards doc edit <path|id> --remove <key>
-boards doc edit <path|id> --body [<text|->] [--merge]
+$ wb doc edit --help
+wb doc edit <path|id> --section <key> [<text|->] [--title <t>] [--subtree]
+wb doc edit <path|id> --after <key> <text|->     (text starts with its heading)
+wb doc edit <path|id> --remove <key>
+wb doc edit <path|id> --body [<text|->] [--merge]
                 [--revision <r>] [--propose [--note <why>]]
 
 Change a section's own text, insert or remove a section, or replace the whole
@@ -691,9 +691,9 @@ refused instead of overwritten (without it, the revision is read now).
 ```
 
 ```
-$ boards doc edit docs/runbooks/deploy --section ship/rollback --revision 2 'Roll back with deploy rollback <id>, the ID of the last green version.'
+$ wb doc edit docs/runbooks/deploy --section ship/rollback --revision 2 'Roll back with deploy rollback <id>, the ID of the last green version.'
 edited docs/runbooks/deploy  revision 5
-$ boards doc edit docs/runbooks/deploy --section ship/rollback --revision 2 'Roll back to the last tag.'
+$ wb doc edit docs/runbooks/deploy --section ship/rollback --revision 2 'Roll back to the last tag.'
 error: couldn't edit docs/runbooks/deploy
   409 section_conflict  "ship/rollback" changed at revision 5, after revision 2: read it again and redo your change
 ```
@@ -703,8 +703,8 @@ Text from stdin is sent as it is, and the board keeps one blank line around each
 #### doc history
 
 ```
-$ boards doc history --help
-boards doc history <path|id> [--after <r>] [--limit <n>]
+$ wb doc history --help
+wb doc history <path|id> [--after <r>] [--limit <n>]
 
 The edits to a doc, oldest first: revision, when, who, which sections.
 ```
@@ -712,8 +712,8 @@ The edits to a doc, oldest first: revision, when, who, which sections.
 #### doc diff
 
 ```
-$ boards doc diff --help
-boards doc diff <path|id> --from <r> [--to <r>]
+$ wb doc diff --help
+wb doc diff <path|id> --from <r> [--to <r>]
 
 The sections that changed between two revisions (--to: now).
 ```
@@ -721,8 +721,8 @@ The sections that changed between two revisions (--to: now).
 #### doc move
 
 ```
-$ boards doc move --help
-boards doc move <path|id> <channel>/<slug>
+$ wb doc move --help
+wb doc move <path|id> <channel>/<slug>
 
 Move a doc. Its ID, its comments, and every link to it come along.
 ```
@@ -730,8 +730,8 @@ Move a doc. Its ID, its comments, and every link to it come along.
 #### doc backlinks
 
 ```
-$ boards doc backlinks --help
-boards doc backlinks <path|id>
+$ wb doc backlinks --help
+wb doc backlinks <path|id>
 
 The threads, replies, and docs that link a doc.
 ```
@@ -739,12 +739,12 @@ The threads, replies, and docs that link a doc.
 ### grants
 
 ```
-$ boards grants --help
-boards grants
+$ wb grants --help
+wb grants
 
 The board's grants. Listing them needs manage at *.
 
-boards grants create <who>... --can <pattern=permissions>... [--lock-me-out]
+wb grants create <who>... --can <pattern=permissions>... [--lock-me-out]
 
 who   --user <id or email>
       --github <owner/name> [--workflow <w>] [--branch <b>] [--event <e>]
@@ -754,15 +754,15 @@ can   a pattern (* every channel, dev one, dev/ it and its subtree) and its
       permissions (read, post, react, label, edit, sync, manage, or all), like
       --can dev/=read,post
 
-boards grants revoke <id> [--lock-me-out]
-boards grants explain <channel> [--user <id>|--github <owner/name>|--app <id>]
+wb grants revoke <id> [--lock-me-out]
+wb grants explain <channel> [--user <id>|--github <owner/name>|--app <id>]
 ```
 
 #### grants create
 
 ```
-$ boards grants create --help
-boards grants create <who>... --can <pattern=permissions>... [--lock-me-out]
+$ wb grants create --help
+wb grants create <who>... --can <pattern=permissions>... [--lock-me-out]
 
 who   --user <id or email>
       --github <owner/name> [--workflow <w>] [--branch <b>] [--event <e>]
@@ -776,8 +776,8 @@ can   a pattern (* every channel, dev one, dev/ it and its subtree) and its
 #### grants revoke
 
 ```
-$ boards grants revoke --help
-boards grants revoke <id> [--lock-me-out]
+$ wb grants revoke --help
+wb grants revoke <id> [--lock-me-out]
 
 Revoke a grant: its principals are judged without it from their next request.
 ```
@@ -785,8 +785,8 @@ Revoke a grant: its principals are judged without it from their next request.
 #### grants explain
 
 ```
-$ boards grants explain --help
-boards grants explain <channel> [--user <id>|--github <owner/name>|--app <id>]
+$ wb grants explain --help
+wb grants explain <channel> [--user <id>|--github <owner/name>|--app <id>]
 
 What a principal (you, without one) may do in a channel, and which grant
 says so.
@@ -795,8 +795,8 @@ says so.
 ### token
 
 ```
-$ boards token --help
-boards token
+$ wb token --help
+wb token
 
 How to get a token for a board. Prints nothing secret.
 ```

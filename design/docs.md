@@ -1,6 +1,6 @@
 # Docs on a board: a design
 
-Boards covers chat (threads in channels) and issues (tasks). This section adds the third piece of a
+Workbus covers chat (threads in channels) and issues (tasks). This section adds the third piece of a
 team's stack, docs, the way tasks were added: not as a new kind of thing, but as a thread that does
 more. **A task is a thread with a state. A doc is a thread with a body.**
 
@@ -213,7 +213,7 @@ proposal can't be a reply in the doc's thread):
   edits to the same sections fails with `section_conflict` and stays open for its author to redo;
 - failing or canceling the task drops the proposal; the edit never lands.
 
-Approval is therefore a task like any other: it shows in `boards tasks`, a watcher can wake a
+Approval is therefore a task like any other: it shows in `wb tasks`, a watcher can wake a
 reviewer, and an agent proposes while a person approves without a review system of its own.
 Proposing with `edit` is allowed too, for a change its author wants reviewed.
 
@@ -248,7 +248,7 @@ A message's facet holds its full text and terms, which is right for a message an
 KiB body. A doc root's facet holds its **title and its changed sections' headings** as `text`, and
 its labels and mentions as terms. So:
 
-- `boards tail docs/` shows every doc change;
+- `wb tail docs/` shows every doc change;
 - a watcher on `docs/specs/ --label status=approved` wakes when an approved spec changes;
 - a watcher on `docs/ --text Rollback` wakes when a section titled Rollback changes.
 
@@ -318,9 +318,9 @@ until a grant gives it `edit`. Narrowed tokens hold:
   `backlinks`, on `Board`, checked against the same route schemas.
 - **MCP:** `doc_read` (outline, section, or whole), `doc_edit` (section edits with `revision`;
   `propose: true` without `edit`), `doc_create`, and `doc_search`. `run_code` gets `BOARD.docs`.
-- **CLI:** `boards doc read <path|id> [--section k]`, `boards doc edit <path> --section k` (the new
-  text from stdin, the revision read first and sent back), `boards doc history`, `boards doc diff`.
-- **Feed:** `doc.*` events in `GET /events` and `boards tail`, as `task.*` are.
+- **CLI:** `wb doc read <path|id> [--section k]`, `wb doc edit <path> --section k` (the new
+  text from stdin, the revision read first and sent back), `wb doc history`, `wb doc diff`.
+- **Feed:** `doc.*` events in `GET /events` and `wb tail`, as `task.*` are.
 
 ## 10. Sync
 
@@ -375,7 +375,7 @@ again and folds the two together. A watcher on the doc tells the team when it ch
   started from. The board's model doesn't change.
 - **Blocks, databases, and embeds.** Labels and thread filters are the database for agents. People
   who want rich pages keep them in Notion and sync.
-- **A docs UI.** Boards has no web UI yet for anything. A reader (rendered Markdown, outline,
+- **A docs UI.** Workbus has no web UI yet for anything. A reader (rendered Markdown, outline,
   history, backlinks) is worth building, and it belongs with the board's UI, not here.
 
 ## 13. Build plan

@@ -1,14 +1,14 @@
-// The factory: its board (a Ledger and its satellites, from Boards, with GitHub as its own sync), an
+// The factory: its board (a Ledger and its satellites, from Workbus, with GitHub as its own sync), an
 // agent per thread, the sandbox's GitHub egress, and its page. One Worker.
-import { defineBoards } from 'boards'
-import { notionProvider } from 'boards/sync/notion.ts'
+import { defineWorkbus } from 'workbus'
+import { notionProvider } from 'workbus/sync/notion.ts'
 import { NOTION_PAGES } from './config.ts'
 import { HOME, NAME } from './config.ts'
 import { github } from './github.ts'
 import { launcher } from './launcher.ts'
 import type { Env } from './env.ts'
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   // What wakes the agent, handed to this Worker's FactoryWake by a Mailbox (design/follows.md). A
   // wake-up is kept once by its event cursor, so an event two of these match wakes it once.
   watch: {

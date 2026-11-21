@@ -7,8 +7,8 @@ const { caption = "The Gateway authenticates every call; one Ledger per board wr
 
 <Diagram caption={caption} minWidth={560}>
   <svg viewBox="0 0 720 592" role="img" aria-labelledby="topo-title topo-desc" xmlns="http://www.w3.org/2000/svg">
-    <title id="topo-title">Boards topology</title>
-    <desc id="topo-desc">People, agents, programs, and Workers call the Gateway, a stateless Worker that authenticates them over HTTP, SSE, MCP, Cap'n Web, or the Boards entrypoint. The Gateway calls the board's Ledger, a Durable Object holding one log. The Ledger rings Relays, which hold live tails and waits for the Gateway, and hands matches to Mailboxes, which deliver to watchers and, as each sync's courier, copy board writes to GitHub, Slack, Linear, and Notion. Platform webhooks reach the Gateway, are kept in an Inbox, and are imported into the Ledger in order. The Ledger keeps files and archived history in R2.</desc>
+    <title id="topo-title">Workbus topology</title>
+    <desc id="topo-desc">People, agents, programs, and Workers call the Gateway, a stateless Worker that authenticates them over HTTP, SSE, MCP, Cap'n Web, or the Workbus entrypoint. The Gateway calls the board's Ledger, a Durable Object holding one log. The Ledger rings Relays, which hold live tails and waits for the Gateway, and hands matches to Mailboxes, which deliver to watchers and, as each sync's courier, copy board writes to GitHub, Slack, Linear, and Notion. Platform webhooks reach the Gateway, are kept in an Inbox, and are imported into the Ledger in order. The Ledger keeps files and archived history in R2.</desc>
     <defs>
       <marker id="topo-a" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head" d="M0,1 L9,5 L0,9 z" /></marker>
       <marker id="topo-aa" viewBox="0 0 10 10" refX="8.5" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="head accent" d="M0,1 L9,5 L0,9 z" /></marker>
@@ -38,7 +38,7 @@ const { caption = "The Gateway authenticates every call; one Ledger per board wr
     <text class="t lg" x="36" y="162">Gateway</text>
     <text class="s" x="36" y="184">a stateless Worker</text>
     <text class="s" x="36" y="201">authenticates every call</text>
-    <rect class="chip" x="270" y="158" width="72" height="26" rx="6" /><text class="s ink" x="306" y="175.5" text-anchor="middle">HTTP v1</text><rect class="chip" x="350" y="158" width="48" height="26" rx="6" /><text class="s ink" x="374" y="175.5" text-anchor="middle">SSE</text><rect class="chip" x="406" y="158" width="48" height="26" rx="6" /><text class="s ink" x="430" y="175.5" text-anchor="middle">MCP</text><rect class="chip" x="462" y="158" width="88" height="26" rx="6" /><text class="s ink" x="506" y="175.5" text-anchor="middle">Cap'n Web</text><rect class="chip" x="558" y="158" width="136" height="26" rx="6" /><text class="s ink" x="626" y="175.5" text-anchor="middle">Boards entrypoint</text>
+    <rect class="chip" x="270" y="158" width="72" height="26" rx="6" /><text class="s ink" x="306" y="175.5" text-anchor="middle">HTTP v1</text><rect class="chip" x="350" y="158" width="48" height="26" rx="6" /><text class="s ink" x="374" y="175.5" text-anchor="middle">SSE</text><rect class="chip" x="406" y="158" width="48" height="26" rx="6" /><text class="s ink" x="430" y="175.5" text-anchor="middle">MCP</text><rect class="chip" x="462" y="158" width="88" height="26" rx="6" /><text class="s ink" x="506" y="175.5" text-anchor="middle">Cap'n Web</text><rect class="chip" x="558" y="158" width="136" height="26" rx="6" /><text class="s ink" x="626" y="175.5" text-anchor="middle">Workbus entrypoint</text>
 
     <rect class="n sky" x="16" y="270" width="160" height="88" rx="12" />
     <text class="t" x="32" y="298">Relays</text>

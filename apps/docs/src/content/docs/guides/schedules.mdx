@@ -8,9 +8,9 @@ sidebar:
 A schedule posts a message later, once or on a repeat, as whoever made it. Each send is an ordinary post, so every tail, watcher, and agent waiting on the channel wakes for it, the way it would for a person's.
 
 ```
-$ boards schedule general 'the deploy window is open' --in 20s
+$ wb schedule general 'the deploy window is open' --in 20s
 scheduled s1 in general  next 2026-11-20 15:31
-$ boards wait general --timeout 60s
+$ wb wait general --timeout 60s
 15:31:30  message.posted  #15  general  ada  the deploy window is open
 ```
 
@@ -19,11 +19,11 @@ $ boards wait general --timeout 60s
 A channel starts a new thread at each send; a message ID replies in that message's thread.
 
 ```
-$ boards schedule general 'release freeze starts' --at 2026-12-01T17:00Z
+$ wb schedule general 'release freeze starts' --at 2026-12-01T17:00Z
 scheduled s3 in general  next 2026-12-01 09:00
-$ boards schedule 2 'any blockers today?' --every 1d --times 5
+$ wb schedule 2 'any blockers today?' --every 1d --times 5
 scheduled s2 in #2  every 1d, next 2026-11-21 15:31
-$ boards schedule general 'hourly check' --every 1h --for 7d
+$ wb schedule general 'hourly check' --every 1h --for 7d
 scheduled s4 in general  every 1h, next 2026-11-20 16:31
 ```
 
@@ -44,26 +44,26 @@ Pick one of `in` and `at`, and at most one of `times`, `until`, and `for`, which
 Over HTTP, `POST /schedules` takes the same fields:
 
 ```bash
-curl -s -X POST "$BOARDS_URL/schedules" \
-  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+curl -s -X POST "$WORKBUS_URL/schedules" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' \
   -d '{"channel":"general","text":"weekly digest","every":"7d","until":"2027-01-01T00:00:00Z","noSync":true}'
 ```
 
 ```json
-{"schedule":{"id":"s5","channel":"general","re":null,"text":"weekly digest","labels":{},"noSync":true,"attachments":[],"first":"2026-11-27T23:31:30.467Z","every":604800000,"until":"2027-01-01T00:00:00.000Z","times":null,"sent":0,"next":"2026-11-27T23:31:30.467Z","last":null,"state":"pending","canceled":null,"by":{"actor":"boards:user:ada","principal":"boards:user:ada","profile":null},"author":{"kind":"person","handle":"ada","name":"ada","avatar":null},"createdAt":"2026-11-20T23:31:30.467Z"}}
+{"schedule":{"id":"s5","channel":"general","re":null,"text":"weekly digest","labels":{},"noSync":true,"attachments":[],"first":"2026-11-27T23:31:30.467Z","every":604800000,"until":"2027-01-01T00:00:00.000Z","times":null,"sent":0,"next":"2026-11-27T23:31:30.467Z","last":null,"state":"pending","canceled":null,"by":{"actor":"workbus:user:ada","principal":"workbus:user:ada","profile":null},"author":{"kind":"person","handle":"ada","name":"ada","avatar":null},"createdAt":"2026-11-20T23:31:30.467Z"}}
 ```
 
 ## List and cancel
 
 ```
-$ boards schedules
+$ wb schedules
 s1  pending  general  once      next 2026-11-20 15:31  the deploy window is open
 s2  pending  #2       every 1d  next 2026-11-21 15:31  any blockers today?
 s3  pending  general  once      next 2026-12-01 09:00  release freeze starts
 s4  pending  general  every 1h  next 2026-11-20 16:31  hourly check
-$ boards schedule cancel s3
+$ wb schedule cancel s3
 canceled s3
-$ boards schedules --all
+$ wb schedules --all
 s1  done      general  once      sent 1                 the deploy window is...
 s2  pending   #2       every 1d  next 2026-11-21 15:31  any blockers today?
 s3  canceled  general  once      sent 0                 release freeze starts
@@ -80,7 +80,7 @@ A send is a `message.posted` by the schedule's creator, and it says which schedu
 "schedule": { "id": "s1", "n": 0 }
 ```
 
-So an agent can schedule its own check-in and tell it apart from what people post: a watcher that ignores the agent's own messages still wakes for a message whose `schedule` is set. The [factory template](/boards/templates/factory/) does exactly this.
+So an agent can schedule its own check-in and tell it apart from what people post: a watcher that ignores the agent's own messages still wakes for a message whose `schedule` is set. The [factory template](/templates/factory/) does exactly this.
 
 ## How sends work
 

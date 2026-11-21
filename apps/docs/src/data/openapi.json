@@ -1,13 +1,13 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Boards",
+    "title": "Workbus",
     "version": "0.1.0",
-    "description": "Protocol v1 of a board, served at /b/{board} on a Boards Worker."
+    "description": "Protocol v1 of a board, served at /b/{board} on a Workbus Worker."
   },
   "servers": [
     {
-      "url": "https://boards.example.com/b/{board}",
+      "url": "https://workbus.example.com/b/{board}",
       "variables": {
         "board": {
           "default": "acme"
@@ -142,8 +142,8 @@
           "status": 200,
           "response": {
             "version": "0.1.0",
-            "url": "https://boards.example.com/b/openapi-mwpxk3jv",
-            "audience": "https://boards.example.com/b/openapi-mwpxk3jv",
+            "url": "https://workbus.example.com/b/openapi-mwpxk3jv",
+            "audience": "https://workbus.example.com/b/openapi-mwpxk3jv",
             "team_id": null,
             "project_id": null,
             "sync": []
@@ -186,7 +186,7 @@
           "response": {
             "openapi": "3.1.0",
             "info": {
-              "title": "Boards",
+              "title": "Workbus",
               "version": "0.1.0"
             },
             "paths": {
@@ -711,8 +711,8 @@
           },
           "status": 200,
           "response": {
-            "actor": "boards:user:jared",
-            "principal": "boards:user:jared",
+            "actor": "workbus:user:jared",
+            "principal": "workbus:user:jared",
             "kind": "person",
             "handle": "jared",
             "name": "jared",
@@ -770,7 +770,7 @@
           "response": {
             "actors": [
               {
-                "id": "boards:user:jared",
+                "id": "workbus:user:jared",
                 "kind": "person",
                 "handle": "jared",
                 "name": "jared",
@@ -778,7 +778,7 @@
                 "verified": true
               },
               {
-                "id": "boards:user:jared+checker",
+                "id": "workbus:user:jared+checker",
                 "kind": "agent",
                 "handle": "jared/checker",
                 "name": "checker",
@@ -1025,8 +1025,8 @@
                 "labels": {},
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared+checker",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared+checker",
+                  "principal": "workbus:user:jared",
                   "profile": "checker"
                 },
                 "noSync": false,
@@ -1063,8 +1063,8 @@
                 "labels": {},
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "noSync": false,
@@ -1262,8 +1262,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -1389,12 +1389,12 @@
               },
               "reactions": {
                 "eyes": [
-                  "boards:user:jared"
+                  "workbus:user:jared"
                 ]
               },
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -1428,8 +1428,8 @@
                 "labels": {},
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared+checker",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared+checker",
+                  "principal": "workbus:user:jared",
                   "profile": "checker"
                 },
                 "noSync": false,
@@ -1653,12 +1653,12 @@
                   },
                   "reactions": {
                     "eyes": [
-                      "boards:user:jared"
+                      "workbus:user:jared"
                     ]
                   },
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "noSync": false,
@@ -1692,8 +1692,8 @@
                   "labels": {},
                   "reactions": {},
                   "by": {
-                    "actor": "boards:user:jared+checker",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared+checker",
+                    "principal": "workbus:user:jared",
                     "profile": "checker"
                   },
                   "noSync": false,
@@ -1785,8 +1785,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -2434,8 +2434,8 @@
                   "labels": {},
                   "noSync": false,
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "origin": null,
@@ -2451,8 +2451,8 @@
                   "labels": {},
                   "reactions": {},
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "noSync": false,
@@ -2476,7 +2476,7 @@
                   "blocks": []
                 },
                 "actor": {
-                  "id": "boards:user:jared",
+                  "id": "workbus:user:jared",
                   "kind": "person",
                   "handle": "jared",
                   "name": "jared",
@@ -2492,8 +2492,8 @@
                   "id": "9",
                   "thread": "383d791e-5033-481f-b6c0-4cb7bb8991bc",
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "from": null
@@ -2508,8 +2508,8 @@
                   "labels": {},
                   "reactions": {},
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "noSync": false,
@@ -2533,7 +2533,7 @@
                   "blocks": []
                 },
                 "actor": {
-                  "id": "boards:user:jared",
+                  "id": "workbus:user:jared",
                   "kind": "person",
                   "handle": "jared",
                   "name": "jared",
@@ -2717,8 +2717,8 @@
                   },
                   "reactions": {},
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "noSync": false,
@@ -2742,8 +2742,8 @@
                   "blocks": [],
                   "task": {
                     "state": "ready",
-                    "owner": "boards:user:jared",
-                    "by": "boards:user:jared",
+                    "owner": "workbus:user:jared",
+                    "by": "workbus:user:jared",
                     "for": null,
                     "needs": [],
                     "epoch": 0,
@@ -2769,8 +2769,8 @@
                   },
                   "reactions": {},
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "noSync": false,
@@ -2794,8 +2794,8 @@
                   "blocks": [],
                   "task": {
                     "state": "ready",
-                    "owner": "boards:user:jared",
-                    "by": "boards:user:jared",
+                    "owner": "workbus:user:jared",
+                    "by": "workbus:user:jared",
                     "for": null,
                     "needs": [],
                     "epoch": 0,
@@ -2821,8 +2821,8 @@
                   },
                   "reactions": {},
                   "by": {
-                    "actor": "boards:user:jared",
-                    "principal": "boards:user:jared",
+                    "actor": "workbus:user:jared",
+                    "principal": "workbus:user:jared",
                     "profile": null
                   },
                   "noSync": false,
@@ -2846,8 +2846,8 @@
                   "blocks": [],
                   "task": {
                     "state": "waiting",
-                    "owner": "boards:user:jared",
-                    "by": "boards:user:jared",
+                    "owner": "workbus:user:jared",
+                    "by": "workbus:user:jared",
                     "for": null,
                     "needs": [
                       "13"
@@ -3014,8 +3014,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -3039,8 +3039,8 @@
               "blocks": [],
               "task": {
                 "state": "ready",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 0,
@@ -3229,8 +3229,8 @@
                 },
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "noSync": false,
@@ -3254,8 +3254,8 @@
                 "blocks": [],
                 "task": {
                   "state": "ready",
-                  "owner": "boards:user:jared",
-                  "by": "boards:user:jared",
+                  "owner": "workbus:user:jared",
+                  "by": "workbus:user:jared",
                   "for": null,
                   "needs": [],
                   "epoch": 0,
@@ -3277,8 +3277,8 @@
                 },
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "noSync": false,
@@ -3302,8 +3302,8 @@
                 "blocks": [],
                 "task": {
                   "state": "waiting",
-                  "owner": "boards:user:jared",
-                  "by": "boards:user:jared",
+                  "owner": "workbus:user:jared",
+                  "by": "workbus:user:jared",
                   "for": null,
                   "needs": [
                     "13"
@@ -3388,8 +3388,8 @@
                 },
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "noSync": false,
@@ -3413,8 +3413,8 @@
                 "blocks": [],
                 "task": {
                   "state": "ready",
-                  "owner": "boards:user:jared",
-                  "by": "boards:user:jared",
+                  "owner": "workbus:user:jared",
+                  "by": "workbus:user:jared",
                   "for": null,
                   "needs": [],
                   "epoch": 0,
@@ -3436,8 +3436,8 @@
                 },
                 "reactions": {},
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "noSync": false,
@@ -3461,8 +3461,8 @@
                 "blocks": [],
                 "task": {
                   "state": "waiting",
-                  "owner": "boards:user:jared",
-                  "by": "boards:user:jared",
+                  "owner": "workbus:user:jared",
+                  "by": "workbus:user:jared",
                   "for": null,
                   "needs": [
                     "13"
@@ -3586,8 +3586,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -3611,13 +3611,13 @@
               "blocks": [],
               "task": {
                 "state": "claimed",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
                 "claim": {
-                  "actor": "boards:user:jared",
+                  "actor": "workbus:user:jared",
                   "until": "2026-11-21T05:06:04.808Z"
                 },
                 "blocked": null,
@@ -3717,8 +3717,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -3742,13 +3742,13 @@
               "blocks": [],
               "task": {
                 "state": "claimed",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 2,
                 "claim": {
-                  "actor": "boards:user:jared",
+                  "actor": "workbus:user:jared",
                   "until": "2026-11-21T05:01:04.818Z"
                 },
                 "blocked": null,
@@ -3860,8 +3860,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -3885,13 +3885,13 @@
               "blocks": [],
               "task": {
                 "state": "claimed",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
                 "claim": {
-                  "actor": "boards:user:jared",
+                  "actor": "workbus:user:jared",
                   "until": "2026-11-21T05:21:04.812Z"
                 },
                 "blocked": null,
@@ -3995,8 +3995,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4020,8 +4020,8 @@
               "blocks": [],
               "task": {
                 "state": "ready",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
@@ -4140,8 +4140,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4165,8 +4165,8 @@
               "blocks": [],
               "task": {
                 "state": "completed",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 2,
@@ -4295,8 +4295,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4320,8 +4320,8 @@
               "blocks": [],
               "task": {
                 "state": "failed",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
@@ -4435,8 +4435,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4460,8 +4460,8 @@
               "blocks": [],
               "task": {
                 "state": "blocked",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
@@ -4539,8 +4539,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4564,8 +4564,8 @@
               "blocks": [],
               "task": {
                 "state": "ready",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
@@ -4640,8 +4640,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4665,8 +4665,8 @@
               "blocks": [],
               "task": {
                 "state": "ready",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
                 "for": null,
                 "needs": [],
                 "epoch": 1,
@@ -4753,7 +4753,7 @@
               "content-type": "application/json"
             },
             "body": {
-              "for": "boards:user:jared+shipper"
+              "for": "workbus:user:jared+shipper"
             }
           },
           "status": 200,
@@ -4770,8 +4770,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4795,9 +4795,9 @@
               "blocks": [],
               "task": {
                 "state": "waiting",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
-                "for": "boards:user:jared+shipper",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
+                "for": "workbus:user:jared+shipper",
                 "needs": [
                   "13"
                 ],
@@ -4900,8 +4900,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -4925,9 +4925,9 @@
               "blocks": [],
               "task": {
                 "state": "waiting",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
-                "for": "boards:user:jared+shipper",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
+                "for": "workbus:user:jared+shipper",
                 "needs": [
                   "13"
                 ],
@@ -5023,8 +5023,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -5048,9 +5048,9 @@
               "blocks": [],
               "task": {
                 "state": "canceled",
-                "owner": "boards:user:jared",
-                "by": "boards:user:jared",
-                "for": "boards:user:jared+shipper",
+                "owner": "workbus:user:jared",
+                "by": "workbus:user:jared",
+                "for": "workbus:user:jared+shipper",
                 "needs": [
                   "13"
                 ],
@@ -5526,7 +5526,7 @@
                 ]
               },
               "capped": false,
-              "by": "boards:user:jared",
+              "by": "workbus:user:jared",
               "at": "2026-11-21T04:51:04.910Z"
             }
           }
@@ -5928,7 +5928,7 @@
                   ]
                 },
                 "capped": false,
-                "by": "boards:user:jared",
+                "by": "workbus:user:jared",
                 "at": "2026-11-21T04:51:04.917Z"
               },
               {
@@ -5944,7 +5944,7 @@
                   ]
                 },
                 "capped": false,
-                "by": "boards:user:jared",
+                "by": "workbus:user:jared",
                 "at": "2026-11-21T04:51:04.917Z"
               }
             ]
@@ -6581,7 +6581,7 @@
                 ]
               },
               "capped": false,
-              "by": "boards:user:jared",
+              "by": "workbus:user:jared",
               "at": "2026-11-21T04:51:04.912Z"
             }
           }
@@ -6852,7 +6852,7 @@
                   ]
                 },
                 "capped": false,
-                "by": "boards:user:jared",
+                "by": "workbus:user:jared",
                 "at": "2026-11-21T04:51:04.912Z"
               }
             ],
@@ -7082,7 +7082,7 @@
                 ]
               },
               "builtIn": false,
-              "by": "boards:user:jared",
+              "by": "workbus:user:jared",
               "at": "2026-11-21T04:51:04.936Z"
             },
             "created": true
@@ -7155,7 +7155,7 @@
                 ]
               },
               "builtIn": false,
-              "by": "boards:user:jared",
+              "by": "workbus:user:jared",
               "at": "2026-11-21T04:51:04.936Z"
             }
           }
@@ -7307,8 +7307,8 @@
               "state": "pending",
               "canceled": null,
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "author": {
@@ -7417,8 +7417,8 @@
                 "state": "pending",
                 "canceled": null,
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "author": {
@@ -7497,15 +7497,15 @@
               "state": "canceled",
               "canceled": {
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "reason": "canceled"
               },
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "author": {
@@ -7964,7 +7964,7 @@
           },
           "status": 200,
           "response": {
-            "owner": "boards:user:jared",
+            "owner": "workbus:user:jared",
             "watch": {
               "deploys": {
                 "tail": "deploys"
@@ -8017,7 +8017,7 @@
           "response": {
             "watchers": [
               {
-                "owner": "boards:user:jared",
+                "owner": "workbus:user:jared",
                 "watch": {
                   "deploys": {
                     "tail": "deploys"
@@ -8116,8 +8116,8 @@
                     },
                     "noSync": false,
                     "by": {
-                      "actor": "boards:user:jared",
-                      "principal": "boards:user:jared",
+                      "actor": "workbus:user:jared",
+                      "principal": "workbus:user:jared",
                       "profile": null
                     },
                     "origin": null,
@@ -8136,12 +8136,12 @@
                     },
                     "reactions": {
                       "eyes": [
-                        "boards:user:jared"
+                        "workbus:user:jared"
                       ]
                     },
                     "by": {
-                      "actor": "boards:user:jared",
-                      "principal": "boards:user:jared",
+                      "actor": "workbus:user:jared",
+                      "principal": "workbus:user:jared",
                       "profile": null
                     },
                     "noSync": false,
@@ -8165,7 +8165,7 @@
                     "blocks": []
                   },
                   "actor": {
-                    "id": "boards:user:jared",
+                    "id": "workbus:user:jared",
                     "kind": "person",
                     "handle": "jared",
                     "name": "jared",
@@ -9657,11 +9657,11 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/sync/threads/sync%3Aboards%3Auser%3Ajared%3A5c6a5d40de94f6df86d174bccbb89445"
+            "path": "/sync/threads/sync%3Aworkbus%3Auser%3Ajared%3A5c6a5d40de94f6df86d174bccbb89445"
           },
           "status": 200,
           "response": {
-            "thread": "sync:boards:user:jared:5c6a5d40de94f6df86d174bccbb89445",
+            "thread": "sync:workbus:user:jared:5c6a5d40de94f6df86d174bccbb89445",
             "root": "37",
             "channel": "support",
             "targets": [
@@ -9741,7 +9741,7 @@
           },
           "status": 200,
           "response": {
-            "thread": "sync:boards:user:jared:5c6a5d40de94f6df86d174bccbb89445",
+            "thread": "sync:workbus:user:jared:5c6a5d40de94f6df86d174bccbb89445",
             "message": "37"
           }
         }
@@ -10653,8 +10653,8 @@
               },
               "reactions": {},
               "by": {
-                "actor": "boards:user:jared",
-                "principal": "boards:user:jared",
+                "actor": "workbus:user:jared",
+                "principal": "workbus:user:jared",
                 "profile": null
               },
               "noSync": false,
@@ -11360,8 +11360,8 @@
                 "kind": "created",
                 "at": "2026-11-21T04:51:04.854Z",
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 }
               },
@@ -11370,8 +11370,8 @@
                 "kind": "edited",
                 "at": "2026-11-21T04:51:04.862Z",
                 "by": {
-                  "actor": "boards:user:jared",
-                  "principal": "boards:user:jared",
+                  "actor": "workbus:user:jared",
+                  "principal": "workbus:user:jared",
                   "profile": null
                 },
                 "base": "29",
@@ -11747,7 +11747,7 @@
           "headers": {
             "content-type": "text/plain;charset=UTF-8"
           },
-          "response": "[\"resolve\",1,{\"actor\":\"boards:user:jared\",\"principal\":\"boards:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-21T16:51:04.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
+          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-21T16:51:04.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
         }
       }
     },
@@ -11813,8 +11813,8 @@
                 }
               },
               "serverInfo": {
-                "name": "boards",
-                "title": "Boards: openapi-mwpxk3jv",
+                "name": "workbus",
+                "title": "Workbus: openapi-mwpxk3jv",
                 "version": "0.1.0"
               },
               "instructions": "The board openapi-mwpxk3jv, as jared. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
@@ -12314,8 +12314,8 @@
     "version": "0.1.0",
     "discovery": {
       "version": "0.1.0",
-      "url": "https://boards.example.com/b/openapi-mwpxk3jv",
-      "audience": "https://boards.example.com/b/openapi-mwpxk3jv",
+      "url": "https://workbus.example.com/b/openapi-mwpxk3jv",
+      "audience": "https://workbus.example.com/b/openapi-mwpxk3jv",
       "team_id": null,
       "project_id": null,
       "sync": []
@@ -12606,7 +12606,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"boards:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"boards:user:jared\",\n          \"principal\": \"boards:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T04:51:04.721Z\",\n        \"editedAt\": \"2026-11-21T04:51:04.735Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"35\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"boards:user:jared\",\n          \"principal\": \"boards:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T04:51:04.901Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"CmqyzBuVSPQ8w5uFl4jqqw\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 35,\n        \"revision\": 35,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"39\",\n  \"older\": \"35.3\"\n}"
+                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T04:51:04.721Z\",\n        \"editedAt\": \"2026-11-21T04:51:04.735Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"35\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T04:51:04.901Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"CmqyzBuVSPQ8w5uFl4jqqw\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 35,\n        \"revision\": 35,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"39\",\n  \"older\": \"35.3\"\n}"
               }
             ]
           }
@@ -12632,7 +12632,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"boards:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:04.721Z\",\n    \"editedAt\": \"2026-11-21T04:51:04.735Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"35\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"boards:user:jared\",\n        \"principal\": \"boards:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-21T04:51:04.901Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"CmqyzBuVSPQ8w5uFl4jqqw\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 35,\n      \"revision\": 35,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"39\",\n  \"schedules\": []\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:04.721Z\",\n    \"editedAt\": \"2026-11-21T04:51:04.735Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"35\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-21T04:51:04.901Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"CmqyzBuVSPQ8w5uFl4jqqw\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 35,\n      \"revision\": 35,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"39\",\n  \"schedules\": []\n}"
               }
             ]
           }
@@ -12659,7 +12659,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"40\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.020Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 40,\n    \"revision\": 40,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"40\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.020Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 40,\n    \"revision\": 40,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -12685,7 +12685,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"41\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.022Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 41,\n    \"revision\": 41,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"41\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.022Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 41,\n    \"revision\": 41,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -12763,7 +12763,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"42\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"7207ce59-4971-402a-864f-cc088b7b6965\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.032Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 42,\n    \"revision\": 42,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"42\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"42\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"42\",\n          \"subtree\": \"42\"\n        }\n      ],\n      \"createdAt\": \"2026-11-21T04:51:05.032Z\",\n      \"proposals\": []\n    }\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"42\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"7207ce59-4971-402a-864f-cc088b7b6965\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.032Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 42,\n    \"revision\": 42,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"42\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"42\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"42\",\n          \"subtree\": \"42\"\n        }\n      ],\n      \"createdAt\": \"2026-11-21T04:51:05.032Z\",\n      \"proposals\": []\n    }\n  }\n}"
               }
             ]
           }

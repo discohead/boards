@@ -17,12 +17,12 @@ CI calls this Worker when a deploy starts and when it ends, and it keeps one thr
 
 ## How it works
 
-- **The binding is the credential.** `env.BOARDS.board()` hands back a `Board` acting as `worker:deploy-notifier`. The props pin it to the board `docs` and narrow it to `deploys=read,post,label`, so it can't write anywhere else, whatever its code does.
+- **The binding is the credential.** `env.WORKBUS.board()` hands back a `Board` acting as `worker:deploy-notifier`. The props pin it to the board `docs` and narrow it to `deploys=read,post,label`, so it can't write anywhere else, whatever its code does.
 - **One thread per deploy, by client ID.** Every call posts the root with `id: deploy-<env>-<sha>`. The first call starts the thread; every later one, including a retry from CI, gets the same message back. The reply has a client ID of its own, so a retried "succeeded" replies once.
 - **Labels say where it stands.** `env` and `sha` are set with the root, and `status` moves from `started` to `succeeded` or `failed`. Anyone can list the failed ones:
 
   ```
-  $ boards read deploys --label status=failed
+  $ wb read deploys --label status=failed
   #7  deploy-notifier  1 reply  Deploying 0b1c2d3 to staging  [env=staging, sha...
   ```
 
@@ -30,7 +30,7 @@ CI calls this Worker when a deploy starts and when it ends, and it keeps one thr
 
 <Steps>
 
-1. Run a board, from `packages/boards`:
+1. Run a board, from `packages/workbus`:
 
    ```bash
    npx wrangler dev --port 8823
@@ -40,10 +40,10 @@ CI calls this Worker when a deploy starts and when it ends, and it keeps one thr
 2. Make one request to the board as yourself, so it knows its own URL (a binding call carries none):
 
    ```bash
-   BOARDS_URL=http://127.0.0.1:8823/b/docs BOARDS_TOKEN=<token> boards whoami
+   WORKBUS_URL=http://127.0.0.1:8823/b/docs WORKBUS_TOKEN=<token> wb whoami
    ```
 
-3. In another terminal, run the notifier. Its `BOARDS` binding connects to the board's dev session by the service name `boards`:
+3. In another terminal, run the notifier. Its `WORKBUS` binding connects to the board's dev session by the service name `workbus`:
 
    ```bash
    echo 'DEPLOY_SECRET=local-only-secret' > .dev.vars
@@ -71,7 +71,7 @@ Four calls, the second one sent twice as a CI retry would:
 The thread on the board has one reply, not two:
 
 ```
-$ boards read 2
+$ wb read 2
 #2  deploy-notifier  2026-11-20 15:14
   Deploying 9f3c2a1 to production
   labels  env=production, sha=9f3c2a17b4e8d0c6a5f1e2d3c4b5a69788d0e1f2, status=succeeded
@@ -83,7 +83,7 @@ $ boards read 2
 And a live tail shows the next deploy as it happens:
 
 ```
-$ boards tail deploys
+$ wb tail deploys
 15:14:49  message.posted  #10  deploys  deploy-notifier  Deploying 5e6f7a8 to...
 15:14:49  labels.changed  #10  deploys  deploy-notifier  status=started
 15:14:50  message.posted  #12  deploys  deploy-notifier  re #10  Live: https:...
@@ -91,15 +91,15 @@ $ boards tail deploys
 ```
 
 :::note
-Without a first request, the binding's call answers `no_mount: this board hasn't been served at its URL yet`. Any request to the board's URL is enough, discovery (`GET /b/docs/`) included. In production, set `BOARD_ORIGIN` on the Boards Worker and it never comes up.
+Without a first request, the binding's call answers `no_mount: this board hasn't been served at its URL yet`. Any request to the board's URL is enough, discovery (`GET /b/docs/`) included. In production, set `BOARD_ORIGIN` on the Workbus Worker and it never comes up.
 
-The binding finds the board's dev session by its Worker name, `boards`. If more than one Worker named `boards` runs on your machine, start yours with `--name` and point the binding's `service` at that name.
+The binding finds the board's dev session by its Worker name, `workbus`. If more than one Worker named `workbus` runs on your machine, start yours with `--name` and point the binding's `service` at that name.
 :::
 
 ## Make it yours
 
 - Point the props at your board, and the `can` at your channel.
-- Call it from your CI's deploy step, with `DEPLOY_SECRET` as a CI secret. Or have CI post to the board directly with its own OIDC token: see [Identity and access](/boards/guides/identity-and-access/).
-- Add a [watcher](/boards/guides/watchers/) with the tail `deploys --label status=failed` to wake whoever fixes failed deploys.
+- Call it from your CI's deploy step, with `DEPLOY_SECRET` as a CI secret. Or have CI post to the board directly with its own OIDC token: see [Identity and access](/guides/identity-and-access/).
+- Add a [watcher](/guides/watchers/) with the tail `deploys --label status=failed` to wake whoever fixes failed deploys.
 
-[Boards from a Worker](/boards/guides/workers/) covers the binding and the `Board` capability in full.
+[Workbus from a Worker](/guides/workers/) covers the binding and the `Board` capability in full.

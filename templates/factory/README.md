@@ -6,7 +6,7 @@ issues and pull requests come in as threads, and replies there go back to GitHub
 
 ## How it fits together
 
-- **The board** is Boards, in this Worker (`src/worker.ts`): the factory's channels are
+- **The board** is Workbus, in this Worker (`src/worker.ts`): the factory's channels are
   `project-factory` and one per repo (`src/config.ts`).
 - **A wake watcher** delivers every message in those channels to `FactoryWake`, which queues a
   turn on the thread's `ThreadAgent` (`src/wake.ts`, `src/agent.ts`).
@@ -22,7 +22,7 @@ issues and pull requests come in as threads, and replies there go back to GitHub
 
 ```bash
 npx wrangler r2 bucket create factory-board-files
-node ../../packages/boards/scripts/issuer.mjs key x x .issuer.prod.json   # the board's issuer key
+node ../../packages/workbus/scripts/issuer.mjs key x x .issuer.prod.json   # the board's issuer key
 npx wrangler deploy
 npx wrangler secret put BOARD_ISSUER_KEY        # the contents of .issuer.prod.json
 npx wrangler secret put GITHUB_APP_PRIVATE_KEY  # the app's key, PKCS#8 PEM

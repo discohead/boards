@@ -1,0 +1,12 @@
+// The docs site, served from this Worker's static assets at https://docs.workbus.dev.
+// Deploy: pnpm --filter ./apps/docs run deploy (builds the site, then wrangler deploy).
+{
+  "name": "workbus-docs",
+  "compatibility_date": "2026-11-17",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "routes": [{ "pattern": "docs.workbus.dev", "custom_domain": true }]
+}

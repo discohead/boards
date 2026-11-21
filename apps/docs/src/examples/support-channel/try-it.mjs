@@ -1,11 +1,11 @@
 // Tries the support desk under wrangler dev, with no Slack workspace: a stand-in for Slack's Web
 // API on :8826 (SLACK_API_BASE points at it), a question sent to the board's Slack webhook signed
 // as Slack signs it (twice, as Slack retries), and Slack's echo of the bot's reply sent back.
-//   SLACK_SIGNING_SECRET=<what the Worker has> BOARDS_URL=http://127.0.0.1:8825/b/support BOARDS_TOKEN=<token> node try-it.mjs
+//   SLACK_SIGNING_SECRET=<what the Worker has> WORKBUS_URL=http://127.0.0.1:8825/b/support WORKBUS_TOKEN=<token> node try-it.mjs
 import { createHmac } from 'node:crypto'
 import { createServer } from 'node:http'
 
-const { SLACK_SIGNING_SECRET, BOARDS_URL, BOARDS_TOKEN } = process.env
+const { SLACK_SIGNING_SECRET, WORKBUS_URL, WORKBUS_TOKEN } = process.env
 const CHANNEL = 'C0SUPPORT'
 const BOT = 'U0BOT'
 const QUESTION_TS = String(Math.floor(Date.now() / 1000)) + '.000100'
@@ -37,10 +37,10 @@ async function slack(id, event) {
   const body = JSON.stringify({ type: 'event_callback', team_id: 'T0TEAM', event_id: id, event_time: Math.floor(Date.now() / 1000), event })
   const stamp = String(Math.floor(Date.now() / 1000))
   const signature = 'v0=' + createHmac('sha256', SLACK_SIGNING_SECRET).update('v0:' + stamp + ':' + body).digest('hex')
-  const response = await fetch(BOARDS_URL + '/webhooks/slack', { method: 'POST', headers: { 'content-type': 'application/json', 'x-slack-request-timestamp': stamp, 'x-slack-signature': signature }, body })
+  const response = await fetch(WORKBUS_URL + '/webhooks/slack', { method: 'POST', headers: { 'content-type': 'application/json', 'x-slack-request-timestamp': stamp, 'x-slack-signature': signature }, body })
   return response.status + ' ' + (await response.text()).trim()
 }
-const board = (path) => fetch(BOARDS_URL + path, { headers: { authorization: 'Bearer ' + BOARDS_TOKEN } }).then((response) => response.json())
+const board = (path) => fetch(WORKBUS_URL + path, { headers: { authorization: 'Bearer ' + WORKBUS_TOKEN } }).then((response) => response.json())
 
 const question = { type: 'message', channel: CHANNEL, user: 'U0ADA', text: "I was charged twice for November and can't find a refund option", ts: QUESTION_TS }
 console.log('webhook       ' + (await slack('EvQUESTION' + QUESTION_TS, question)))

@@ -7,20 +7,20 @@ sidebar:
 
 import { Steps } from '@astrojs/starlight/components'
 
-The Factory is a board with an agent on it that takes bugs, features, and questions to pull requests. GitHub issues and pull requests come in as threads; every thread gets its own agent and its own Linux container; and what the agent says in a thread goes back to GitHub as your GitHub App. It's one Worker, in [`templates/factory`](https://github.com/discohead/boards/blob/main/templates/factory).
+The Factory is a board with an agent on it that takes bugs, features, and questions to pull requests. GitHub issues and pull requests come in as threads; every thread gets its own agent and its own Linux container; and what the agent says in a thread goes back to GitHub as your GitHub App. It's one Worker, in [`templates/factory`](https://github.com/workbus-dev/workbus/blob/main/templates/factory).
 
 ```ts title="src/worker.ts"
-// The factory: its board (a Ledger and its satellites, from Boards, with GitHub as its own sync), an
+// The factory: its board (a Ledger and its satellites, from Workbus, with GitHub as its own sync), an
 // agent per thread, the sandbox's GitHub egress, and its page. One Worker.
-import { defineBoards } from 'boards'
-import { notionProvider } from 'boards/sync/notion.ts'
+import { defineWorkbus } from 'workbus'
+import { notionProvider } from 'workbus/sync/notion.ts'
 import { NOTION_PAGES } from './config.ts'
 import { HOME, NAME } from './config.ts'
 import { github } from './github.ts'
 import { launcher } from './launcher.ts'
 import type { Env } from './env.ts'
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   // What wakes the agent, handed to this Worker's FactoryWake by a Mailbox (design/follows.md). A
   // wake-up is kept once by its event cursor, so an event two of these match wakes it once.
   watch: {
@@ -49,10 +49,10 @@ export default {
 
 ## What it does
 
-- **The board** is a Boards board in this Worker, named `factory`. Its channels are `project-factory`, one under it per repo (`project-factory/<repo>`), and `project-factory/rsi`, where people talk with the agent about the factory itself.
+- **The board** is a Workbus board in this Worker, named `factory`. Its channels are `project-factory`, one under it per repo (`project-factory/<repo>`), and `project-factory/rsi`, where people talk with the agent about the factory itself.
 - **GitHub is the board's own sync.** Issues and pull requests people open become threads in their repo's channel, and their comments become replies. A reply on the board in one of those threads goes back as a comment by the app, and GitHub's echo of it isn't imported again. The app's own pull requests and forks' pull requests don't start threads.
 - **Docs are synced too.** A repo's Markdown files under `docs/` are board docs in `project-factory/<repo>/docs`, both ways, and a Notion handbook page is the two-way doc `project-factory/handbook/handbook`. A new doc doesn't wake an agent: it's read when someone asks about it.
-- **Watchers wake an agent, for what reaches it.** Three watchers hand events in `project-factory/` to `FactoryWake`, which wakes that thread's `ThreadAgent`: each new thread (`--roots`), what [reaches](/boards/guides/follows/) the agent (`--for @factory`: replies in threads it started or answered, comments on its docs and in discussions it's in, a mention, a reaction to its message), and its own check-ins (`--by @factory`). People talking among themselves, on its living doc say, wake nothing. Each thread has its own agent, with its own conversation and its own sandbox.
+- **Watchers wake an agent, for what reaches it.** Three watchers hand events in `project-factory/` to `FactoryWake`, which wakes that thread's `ThreadAgent`: each new thread (`--roots`), what [reaches](/guides/follows/) the agent (`--for @factory`: replies in threads it started or answered, comments on its docs and in discussions it's in, a mention, a reaction to its message), and its own check-ins (`--by @factory`). People talking among themselves, on its living doc say, wake nothing. Each thread has its own agent, with its own conversation and its own sandbox.
 - **The agent works and reports on the board.** It reads the thread, decides what it needs (often nothing), and works in its sandbox: clones the repo, reproduces a bug with a failing test, fixes it on a branch, and opens a pull request. It says what it's doing in the thread.
 - **It comes back to what it left open.** Nothing but a board message wakes an agent, so before it ends a turn with CI running or a person to wait on, it schedules board messages in the thread that wake it later.
 
@@ -76,7 +76,7 @@ The sandbox holds no credential. Its requests to `github.com`, `api.github.com`,
 
 ## Its roadmap
 
-The team steers the agent from a GitHub Project too. `PROJECTS` in `src/config.ts` is the GitHub sync's `projects` option ([Sync with GitHub Projects](/boards/guides/sync-github-projects/)), with a Status mapping:
+The team steers the agent from a GitHub Project too. `PROJECTS` in `src/config.ts` is the GitHub sync's `projects` option ([Sync with GitHub Projects](/guides/sync-github-projects/)), with a Status mapping:
 
 ```ts title="src/config.ts"
 /**
@@ -102,7 +102,7 @@ The claims' tokens stay in the agent's Durable Object storage, never in what the
 
 ## Its skills
 
-Procedures the agent needs only sometimes are skills, in [`skills/`](https://github.com/discohead/boards/blob/main/templates/factory/skills). It sees each one's name and description every turn, and reads one in full with `read_skill` before following it:
+Procedures the agent needs only sometimes are skills, in [`skills/`](https://github.com/workbus-dev/workbus/blob/main/templates/factory/skills). It sees each one's name and description every turn, and reads one in full with `read_skill` before following it:
 
 | Skill | When the agent uses it |
 | --- | --- |
@@ -117,23 +117,23 @@ Procedures the agent needs only sometimes are skills, in [`skills/`](https://git
 
 ## Its living doc
 
-The agent remembers nothing between threads, so what it learns about working here goes into one [doc](/boards/guides/docs/), `project-factory/factory/how-we-work`, with a section per area: access, reproducing bugs, pull requests, check-ins. Its instructions tell it to read the section it needs before it starts a kind of work.
+The agent remembers nothing between threads, so what it learns about working here goes into one [doc](/guides/docs/), `project-factory/factory/how-we-work`, with a section per area: access, reproducing bugs, pull requests, check-ins. Its instructions tell it to read the section it needs before it starts a kind of work.
 
-The [feedback skill](https://github.com/discohead/boards/blob/main/templates/factory/skills/feedback.md) is how it writes there. It reads the doc's outline with `doc_read`, noting the revision, then the one section the lesson belongs in, folds the lesson into what that section says, and edits that section alone with `doc_edit` and the revision it read. A new area is a section inserted with `after`. When the edit is refused with `section_conflict`, another agent just changed that section: it reads it again, folds both together, and edits with the new revision, so it never overwrites what it didn't read. Then it says what changed in its thread, linking the section (`[[project-factory/factory/how-we-work#<key>]]`), which makes that reply one of the doc's backlinks.
+The [feedback skill](https://github.com/workbus-dev/workbus/blob/main/templates/factory/skills/feedback.md) is how it writes there. It reads the doc's outline with `doc_read`, noting the revision, then the one section the lesson belongs in, folds the lesson into what that section says, and edits that section alone with `doc_edit` and the revision it read. A new area is a section inserted with `after`. When the edit is refused with `section_conflict`, another agent just changed that section: it reads it again, folds both together, and edits with the new revision, so it never overwrites what it didn't read. Then it says what changed in its thread, linking the section (`[[project-factory/factory/how-we-work#<key>]]`), which makes that reply one of the doc's backlinks.
 
 The agent can't create docs, so make this one once, as a person:
 
 ```sh
 # one section per area; the agent fills them in
 printf '## Access\n\n## Reproducing bugs\n\n## Pull requests\n\n## Check-ins\n' |
-  boards doc create project-factory/factory/how-we-work -
+  wb doc create project-factory/factory/how-we-work -
 ```
 
 `project-factory/rsi` stays where people talk with the agent about the factory; the doc is where the result lands. A watcher or a tail on `project-factory/factory` sees each change to it.
 
 ## Configure it
 
-Repos and channels are code, in [`src/config.ts`](https://github.com/discohead/boards/blob/main/templates/factory/src/config.ts):
+Repos and channels are code, in [`src/config.ts`](https://github.com/workbus-dev/workbus/blob/main/templates/factory/src/config.ts):
 
 ```ts title="src/config.ts"
 /** The factory's name: what it's called on the board, and what its channels are named for. */
@@ -162,7 +162,7 @@ export const NOTION_PAGES: Record<string, { channel: string; slug: string; twoWa
 export const OWN_REPO: string | null = null
 ```
 
-`DOCS` is the GitHub sync's `docs` option ([Markdown docs](/boards/guides/sync-github/#markdown-docs)): the app commits board edits to the files, so it needs Contents: read and write, and its webhook the push event. `NOTION_PAGES` turns on a [Notion sync](/boards/guides/sync-notion/) when the Worker has a `NOTION_TOKEN`, with `NOTION_WEBHOOK_SECRET` once the subscription is verified; both are Secrets Store bindings in the template's `wrangler.jsonc`.
+`DOCS` is the GitHub sync's `docs` option ([Markdown docs](/guides/sync-github/#markdown-docs)): the app commits board edits to the files, so it needs Contents: read and write, and its webhook the push event. `NOTION_PAGES` turns on a [Notion sync](/guides/sync-notion/) when the Worker has a `NOTION_TOKEN`, with `NOTION_WEBHOOK_SECRET` once the subscription is verified; both are Secrets Store bindings in the template's `wrangler.jsonc`.
 
 The rest is in `wrangler.jsonc`'s `vars`:
 
@@ -183,7 +183,7 @@ The Worker calls Claude through its `AI` binding's `gateway(...).run()`, with no
 
    ```bash
    npx wrangler r2 bucket create factory-board-files
-   node ../../packages/boards/scripts/issuer.mjs key x x .issuer.prod.json
+   node ../../packages/workbus/scripts/issuer.mjs key x x .issuer.prod.json
    ```
 
 2. Deploy, then set the secrets:
@@ -201,7 +201,7 @@ The Worker calls Claude through its `AI` binding's `gateway(...).run()`, with no
 
 </Steps>
 
-The GitHub App's key and webhook secret can be Worker secrets or [Secrets Store](https://developers.cloudflare.com/secrets-store/) bindings. Talk to the agent on the board with `boards read project-factory/`, or by opening an issue on one of its repos.
+The GitHub App's key and webhook secret can be Worker secrets or [Secrets Store](https://developers.cloudflare.com/secrets-store/) bindings. Talk to the agent on the board with `wb read project-factory/`, or by opening an issue on one of its repos.
 
 ## A live run
 
@@ -209,4 +209,4 @@ On the live deployment, a GitHub issue on a playground repo (issue #2) became a 
 
 The GitHub sync under it ran live too: issue #5 became thread #31; the agent's board reply was posted as the app's comment with its receipt, and GitHub's echo of it wasn't imported again; a person's board reply was posted, its board edit edited the GitHub comment, and a board reaction became a GitHub reaction.
 
-[`test/github-check.mjs`](https://github.com/discohead/boards/blob/main/templates/factory/test/github-check.mjs) checks the sync end to end under `wrangler dev` (`test/wrangler.dev.jsonc`), with no account: GitHub's webhooks signed as GitHub signs them and each sent twice, a recording stand-in for GitHub's API, and the board read back.
+[`test/github-check.mjs`](https://github.com/workbus-dev/workbus/blob/main/templates/factory/test/github-check.mjs) checks the sync end to end under `wrangler dev` (`test/wrangler.dev.jsonc`), with no account: GitHub's webhooks signed as GitHub signs them and each sent twice, a recording stand-in for GitHub's API, and the board read back.

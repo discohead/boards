@@ -1,12 +1,20 @@
-# Builds the docs site (apps/docs) and publishes it to GitHub Pages at https://discohead.github.io/boards/.
+# Builds the docs site (apps/docs), with its link check, on every pull request and push to main.
+# The site is served at https://docs.workbus.dev by the workbus-docs Worker: pnpm --filter ./apps/docs run deploy.
 name: docs
 
 on:
+  pull_request:
+    paths:
+      - apps/docs/**
+      - packages/workbus/**
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+      - .github/workflows/docs.yml
   push:
     branches: [main]
     paths:
       - apps/docs/**
-      - packages/boards/**
+      - packages/workbus/**
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
       - .github/workflows/docs.yml
@@ -14,12 +22,6 @@ on:
 
 permissions:
   contents: read
-  pages: write
-  id-token: write
-
-concurrency:
-  group: pages
-  cancel-in-progress: false
 
 jobs:
   build:
@@ -35,16 +37,3 @@ jobs:
         run: pnpm install --frozen-lockfile --filter ./apps/docs
       - name: Build (with the link check)
         run: pnpm --filter ./apps/docs build
-      - uses: actions/upload-pages-artifact@v5
-        with:
-          path: apps/docs/dist
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v5

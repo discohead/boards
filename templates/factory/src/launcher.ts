@@ -31,6 +31,6 @@ export async function launcher(request: Request, env: Env): Promise<Response> {
     '<h1>' + escape(NAME) + '</h1><p>An agent on this factory’s board that takes bugs, features, and questions to pull requests.</p><h2>Setup</h2><ul>' +
     checks.map((check) => '<li><b class=' + (check.ok ? 'ok' : 'no') + '>' + (check.ok ? '✓' : '✗') + '</b> <b>' + escape(check.name) + '</b>: ' + escape(check.detail) + '</li>').join('') +
     '</ul><h2>Threads</h2><ul>' + (threads.length ? threads.map((thread) => '<li><b>#' + escape(thread.message.id) + '</b> <code>' + escape(thread.message.channel) + '</code> ' + escape(thread.message.text.split('\n')[0]!.slice(0, 120)) + ' · ' + thread.replies + ' replies</li>').join('') : '<li>none yet</li>') +
-    '</ul><p>Talk to it on the board: <code>BOARDS_URL=' + escape(mountOf(env).url) + ' boards read ' + escape(HOME) + '/</code>, or open an issue on one of its repos.</p>'
+    '</ul><p>Talk to it on the board: <code>WORKBUS_URL=' + escape(mountOf(env).url) + ' wb read ' + escape(HOME) + '/</code>, or open an issue on one of its repos.</p>'
   return new Response(html, { headers: { 'content-type': 'text/html; charset=utf-8' } })
 }

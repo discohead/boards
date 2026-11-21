@@ -1,7 +1,7 @@
 // The agent's handle on its board: the Ledger itself, over RPC, as this Worker, held to the
 // factory's channels. No token and no HTTP: the binding is the credential.
-import { parseCan } from 'boards/ledger/access.ts'
-import type { Caller } from 'boards/ledger/core.ts'
+import { parseCan } from 'workbus/ledger/access.ts'
+import type { Caller } from 'workbus/ledger/core.ts'
 import { AGENT_CAN, NAME } from './config.ts'
 import type { Env } from './env.ts'
 

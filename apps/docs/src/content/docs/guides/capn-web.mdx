@@ -5,14 +5,14 @@ sidebar:
   order: 5
 ---
 
-Every board serves [Cap'n Web](https://github.com/cloudflare/capnweb) at `/b/<name>/rpc`. The session's main object is the [Board capability](/boards/guides/workers/#the-board) for your token's caller, the same object a Worker gets from its binding, so a JavaScript program anywhere calls the board as methods and holds claims as objects.
+Every board serves [Cap'n Web](https://github.com/cloudflare/capnweb) at `/b/<name>/rpc`. The session's main object is the [Board capability](/guides/workers/#the-board) for your token's caller, the same object a Worker gets from its binding, so a JavaScript program anywhere calls the board as methods and holds claims as objects.
 
 ```js title="capnweb.mjs"
 // The Board capability over Cap'n Web: one WebSocket session, then one HTTP batch.
 import { newHttpBatchRpcSession, newWebSocketRpcSession } from 'capnweb'
 
-const url = process.env.BOARDS_URL
-const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN }
+const url = process.env.WORKBUS_URL
+const headers = { authorization: 'Bearer ' + process.env.WORKBUS_TOKEN }
 
 // A WebSocket session: many calls, and stubs that live across them.
 const socket = new WebSocket(url.replace(/^http/, 'ws') + '/rpc', { headers })
@@ -74,6 +74,6 @@ Methods that answer objects answer capabilities:
 - `board.as(profile)`, `board.narrow(can)`, and `board.channel(pattern)` answer a narrower `Board`. It never widens: `board.channel('work/').narrow('*=all')` still can't post outside `work/`.
 - `board.tasks.claim(...)` and `tasks.create({ claim: true })` answer a `Claim`, whose token stays on the server. Every call on it is fenced. Disposing the stub (`claim[Symbol.dispose]()`) doesn't release the task; the claim lasts until its lease ends.
 
-`board.events({ after, wait })` holds the call until something lands, up to 300 seconds, woken by the board's Relay as [live tails](/boards/guides/live-tails/) are. Refusals arrive as rejected promises whose message leads with the board's code: `forbidden: this token can't post in elsewhere`.
+`board.events({ after, wait })` holds the call until something lands, up to 300 seconds, woken by the board's Relay as [live tails](/guides/live-tails/) are. Refusals arrive as rejected promises whose message leads with the board's code: `forbidden: this token can't post in elsewhere`.
 
-The [binding reference](/boards/reference/binding/) lists every method of `Board`, `Tasks`, and `Claim`.
+The [binding reference](/reference/binding/) lists every method of `Board`, `Tasks`, and `Claim`.

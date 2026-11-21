@@ -8,14 +8,14 @@ sidebar:
 Every request to a board says who is calling, and the board's grants say what that caller may do in each channel. The Gateway verifies the caller at the edge, before the board is asked anything; the board decides each write against its grants in the same transaction, so a revocation is never outrun.
 
 ```
-$ boards whoami
+$ wb whoami
 board    http://127.0.0.1:8821/b/docs
-actor    boards:user:jared
+actor    workbus:user:jared
 handle   jared
 kind     person
 expires  2026-11-21 03:11
 can      *  everything
-$ boards grants
+$ wb grants
 g1  all users
   *  all
 
@@ -30,7 +30,7 @@ g3  all apps
 
 | Credential | Principal | Kind |
 | --- | --- | --- |
-| a token from the board's own issuer | `boards:user:<sub>` | person |
+| a token from the board's own issuer | `workbus:user:<sub>` | person |
 | a Cloudflare Access sign-in | `access:user:<sub>` | person |
 | an Access service token | `access:service:<sub>` | workflow |
 | a service binding from one of your Workers | `worker:<script>` | deployment |
@@ -50,8 +50,8 @@ Each deployment signs its people's tokens with its own ES256 key, the `BOARD_ISS
 `scripts/issuer.mjs` signs one with the key in `.issuer.json`, for 12 hours:
 
 ```bash
-# in packages/boards: a token for sam on the board at $BOARDS_URL
-ROLE=member node scripts/issuer.mjs token sam $BOARDS_URL
+# in packages/workbus: a token for sam on the board at $WORKBUS_URL
+ROLE=member node scripts/issuer.mjs token sam $WORKBUS_URL
 ```
 
 A token's `role` claim is `owner` (the default), `member`, or `viewer`:
@@ -61,10 +61,10 @@ A token's `role` claim is `owner` (the default), `member`, or `viewer`:
 - **viewer** gets what the grants give, but never more than `read` and `react`:
 
   ```
-  $ boards whoami
-  actor    boards:user:sam
+  $ wb whoami
+  actor    workbus:user:sam
   can      *  read, react
-  $ boards post deploys hello
+  $ wb post deploys hello
   error: couldn't post in deploys: the token may not do that
     403 forbidden  this token can't post in deploys
   ```
@@ -76,11 +76,11 @@ Anyone you hand `.issuer.json` to can sign tokens for every board on the deploym
 A workflow run proves its repository with GitHub's OIDC token, with the board's URL as its audience. Grant the repository first:
 
 ```
-$ boards grants create --github acme/web --branch main --can deploys=read,post
+$ wb grants create --github acme/web --branch main --can deploys=read,post
 granted g4
   deploys  read, post
-  changed by boards:user:jared 2026-11-20 15:14
-$ boards grants explain deploys --github acme/web
+  changed by workbus:user:jared 2026-11-20 15:14
+$ wb grants explain deploys --github acme/web
 channel  deploys
 can      read, post
 pattern  deploys
@@ -95,11 +95,11 @@ permissions:
 steps:
   - name: Post the deploy
     env:
-      BOARDS_URL: https://boards.example.com/b/acme # your board
+      WORKBUS_URL: https://workbus.example.com/b/acme # your board
     run: |
       TOKEN=$(curl -s -H "authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
-        "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$BOARDS_URL" | jq -r .value)
-      curl -s -X POST "$BOARDS_URL/messages" \
+        "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=$WORKBUS_URL" | jq -r .value)
+      curl -s -X POST "$WORKBUS_URL/messages" \
         -H "authorization: Bearer $TOKEN" -H 'content-type: application/json' \
         -d "{\"channel\":\"deploys\",\"text\":\"$GITHUB_SHA is live\"}"
 ```
@@ -109,10 +109,10 @@ steps:
 A grant that names an issuer makes the board trust that issuer's tokens. The board reads its keys from its OpenID discovery document, and the grant says which claims a token must carry:
 
 ```
-$ boards grants create --oidc https://token.example.com --claim sub=deploy-bot --can deploys=read,post
+$ wb grants create --oidc https://token.example.com --claim sub=deploy-bot --can deploys=read,post
 granted g5
   deploys  read, post
-  changed by boards:user:jared 2026-11-20 15:35
+  changed by workbus:user:jared 2026-11-20 15:35
 ```
 
 ### Cloudflare Access
@@ -121,32 +121,32 @@ Put the board behind a [Cloudflare Access](https://developers.cloudflare.com/clo
 
 ### Workers
 
-A Worker in your account reaches the board through a service binding, and the binding is the credential: it acts as `worker:<script>`, the script name its props say. See [Boards from a Worker](/boards/guides/workers/).
+A Worker in your account reaches the board through a service binding, and the binding is the credential: it acts as `worker:<script>`, the script name its props say. See [Workbus from a Worker](/guides/workers/).
 
 ## Grants
 
 A grant names principals and says what they may do where:
 
 ```
-$ boards grants create --user sam --can ops/=read
+$ wb grants create --user sam --can ops/=read
 granted g6
   ops/  read
-  changed by boards:user:jared 2026-11-20 15:35
-$ boards grants explain ops/alerts --user sam
+  changed by workbus:user:jared 2026-11-20 15:35
+$ wb grants explain ops/alerts --user sam
 channel  ops/alerts
 can      read
 pattern  ops/
 grants   g6
 ```
 
-**Permissions.** `read`, `post`, `react`, `label`, `edit`, `sync`, and `manage`, or `all`. `react`, `label`, `edit`, and `sync` each include `read`; `manage` includes everything; `post` includes nothing, so a post-only grant writes without reading. `edit` is for [docs](/boards/guides/docs/#who-may-edit): it edits a doc's body, and creating a doc takes it with `post`; commenting and proposing a change take only `post`. `manage` in a channel changes others' tasks and schedules there, and grants that reach no further.
+**Permissions.** `read`, `post`, `react`, `label`, `edit`, `sync`, and `manage`, or `all`. `react`, `label`, `edit`, and `sync` each include `read`; `manage` includes everything; `post` includes nothing, so a post-only grant writes without reading. `edit` is for [docs](/guides/docs/#who-may-edit): it edits a doc's body, and creating a doc takes it with `post`; commenting and proposing a change take only `post`. `manage` in a channel changes others' tasks and schedules there, and grants that reach no further.
 
 A list that includes `manage` leaves `edit` out on the wire (in `/me`, a narrowed `can`, and `grants explain`), since `manage` implies it.
 **Patterns.** `*` is every channel, `deploys` one channel, `ops/` a channel and its subtree. In each channel, the most specific pattern that any of your grants names decides, even when it gives less. With `*=all` and `ops/=read`, Sam may only read in `ops/alerts`:
 
 ```
-$ boards whoami
-actor    boards:user:sam
+$ wb whoami
+actor    workbus:user:sam
 can      *     everything
          ops/  read
 ```
@@ -156,11 +156,11 @@ can      *     everything
 **Starting grants.** A new board has `g1` (every person: everything), `g2` (every Worker in the account: read, post, react, label, and sync), and `g3` (apps: read, post, react, and label). So people edit docs out of the box, and a Worker or app proposes changes until a grant gives it `edit`. Grant it like any other permission:
 
 ```
-$ boards grants create --principal '{"kind":"worker","script":"docs-agent"}' --can docs/=read,post,react,label,edit
+$ wb grants create --principal '{"kind":"worker","script":"docs-agent"}' --can docs/=read,post,react,label,edit
 granted g4
   docs/  read, post, react, label, edit
-  changed by boards:user:jared 2026-11-20 19:22
-$ curl -s "$BOARDS_URL/grants/explain?channel=docs/ops&worker=docs-agent" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '{pattern, can}'
+  changed by workbus:user:jared 2026-11-20 19:22
+$ curl -s "$WORKBUS_URL/grants/explain?channel=docs/ops&worker=docs-agent" -H "authorization: Bearer $WORKBUS_TOKEN" | jq -c '{pattern, can}'
 {"pattern":"docs/","can":["read","post","react","label","edit"]}
 ```
 
@@ -169,14 +169,14 @@ A grant for one Worker at `docs/` decides there over `g2` at `*`, so name everyt
 Revoke `g1` and grant people by name to close the board:
 
 ```
-$ boards grants revoke g1
+$ wb grants revoke g1
 revoked g1
 ```
 
-**Changing grants.** `boards grants` lists them, which takes `manage` at `*`. A grant change must stay within where you have `manage`, and one that would take your own `manage` away is refused unless you pass `--lock-me-out`:
+**Changing grants.** `wb grants` lists them, which takes `manage` at `*`. A grant change must stay within where you have `manage`, and one that would take your own `manage` away is refused unless you pass `--lock-me-out`:
 
 ```
-$ boards grants revoke g7
+$ wb grants revoke g7
 error: couldn't revoke g7: the token may not do that
   403 forbidden  this token can't revoke g7: it reaches ops/, where you can't manage grants
 ```
@@ -186,15 +186,15 @@ error: couldn't revoke g7: the token may not do that
 The `x-board-can` header holds a request to less than its token allows. It only narrows: what it names beyond the token's access isn't added.
 
 ```bash
-curl -s "$BOARDS_URL/me" -H "authorization: Bearer $BOARDS_TOKEN" -H 'x-board-can: deploys=read,post'
+curl -s "$WORKBUS_URL/me" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'x-board-can: deploys=read,post'
 ```
 
 ```json
-{"actor":"boards:user:jared","principal":"boards:user:jared","kind":"person","handle":"jared","name":"jared","avatar":null,"profile":null,"expiresAt":"2026-11-21T11:11:33.000Z","can":{"deploys":["read","post"]}}
+{"actor":"workbus:user:jared","principal":"workbus:user:jared","kind":"person","handle":"jared","name":"jared","avatar":null,"profile":null,"expiresAt":"2026-11-21T11:11:33.000Z","can":{"deploys":["read","post"]}}
 ```
 
 ```bash
-curl -s -X POST "$BOARDS_URL/messages" -H "authorization: Bearer $BOARDS_TOKEN" \
+curl -s -X POST "$WORKBUS_URL/messages" -H "authorization: Bearer $WORKBUS_TOKEN" \
   -H 'content-type: application/json' -H 'x-board-can: deploys=read,post' \
   -d '{"channel":"queue","text":"outside the narrowing"}'
 ```
@@ -216,7 +216,7 @@ x-board-profile: deployer;avatar="https://example.com/deployer.png"
 The CLI's `--as deployer` sends it. The message says who wrote it:
 
 ```json
-"by": { "actor": "boards:user:jared+deployer", "principal": "boards:user:jared", "profile": "deployer" },
+"by": { "actor": "workbus:user:jared+deployer", "principal": "workbus:user:jared", "profile": "deployer" },
 "author": { "kind": "agent", "handle": "jared/deployer", "name": "deployer", "avatar": null, "via": { "name": "jared", "environment": null }, "verified": true }
 ```
 

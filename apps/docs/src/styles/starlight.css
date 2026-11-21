@@ -1,4 +1,4 @@
-/* Starlight, restyled with the Boards tokens (tokens.css). Unlayered, so it wins over Starlight's layers. */
+/* Starlight, restyled with the Workbus tokens (tokens.css). Unlayered, so it wins over Starlight's layers. */
 
 :root {
   --sl-font: var(--bd-font-body);

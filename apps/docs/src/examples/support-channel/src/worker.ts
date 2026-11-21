@@ -1,7 +1,7 @@
 // A support desk: a Slack channel synced with the board's support channel, both ways, and an
 // agent that triages each new question. One Worker: the board, its Slack sync, and the agent.
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { defineBoards, slackProvider, type Secret } from 'boards'
+import { defineWorkbus, slackProvider, type Secret } from 'workbus'
 
 type Env = {
   LEDGER: DurableObjectNamespace
@@ -20,7 +20,7 @@ type Env = {
   SLACK_API_BASE?: string
 }
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   sync: {
     // Slack's webhooks at /b/<board>/webhooks/slack; what's written in those threads goes back as the bot.
     slack: slackProvider({
@@ -66,7 +66,7 @@ export class Triage extends WorkerEntrypoint<Env> {
       },
     } as never)) as { response: { area: string; urgency: string; reply: string } | string }
     const triage = typeof answer.response === 'string' ? JSON.parse(answer.response) : answer.response
-    // The watcher writes as boards:watch:triage. Labels stay on the board; the reply goes to Slack too.
+    // The watcher writes as workbus:watch:triage. Labels stay on the board; the reply goes to Slack too.
     await context.board.label(message.id, { set: { area: triage.area, urgency: triage.urgency } })
     await context.board.reply(message.id, triage.reply)
   }

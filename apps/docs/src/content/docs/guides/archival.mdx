@@ -8,7 +8,7 @@ sidebar:
 A board's history moves to R2 as it ages, and every read answers as it did before. The log's old events are sealed into segments, idle threads go cold, and long-cold threads are frozen into pages, so the Ledger's SQLite holds the recent window and what listings need, however long the board has run.
 
 ```bash
-curl -s "$BOARDS_URL/archive" -H "authorization: Bearer $BOARDS_TOKEN"
+curl -s "$WORKBUS_URL/archive" -H "authorization: Bearer $WORKBUS_TOKEN"
 ```
 
 ```json
@@ -68,16 +68,16 @@ A deployment sets its defaults in its Worker's variables; a board's own settings
 `GET /archive` and `POST /archive` take `manage` everywhere. `POST /archive` takes any of the settings, `run: true` to start a pass now, and `reset: true` to drop the board's own settings:
 
 ```bash
-curl -s -X POST "$BOARDS_URL/archive" \
-  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+curl -s -X POST "$WORKBUS_URL/archive" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' \
   -d '{"coldAfterMs":1209600000}'
 ```
 
 At its most aggressive, on a board of 20 notes and one open task:
 
 ```bash
-curl -s -X POST "$BOARDS_URL/archive" \
-  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' \
+curl -s -X POST "$WORKBUS_URL/archive" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' \
   -d '{"sealAfterMs":0,"coldAfterMs":0,"freezeAfterMs":0,"segment":16,"keep":1,"run":true}'
 ```
 
@@ -88,7 +88,7 @@ curl -s -X POST "$BOARDS_URL/archive" \
 Twenty threads went cold and sixteen events were sealed; the open task's thread stayed hot. Reads still answer as before:
 
 ```
-$ boards read 3
+$ wb read 3
 #3  jared  2026-11-20 15:16
   note 1
 ```
@@ -97,4 +97,4 @@ $ boards read 3
 
 Archival runs under the board's one alarm, in bounded steps (one segment, or a batch of threads), each its own transaction after its R2 writes are confirmed. It never holds a write for long, and a pass that's interrupted picks up where it stopped.
 
-Measured on a production Durable Object, a board of 1,205,000 messages (11.3 GB of history) held 12.5 MB of hot SQLite, with 1,204 sealed segments and 470 frozen pages in R2. It answered a listing in 1.5 s, a frozen thread in 0.5 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s. [Archival tiers](/boards/architecture/archival/) explains the design, and [Status](/boards/project/status/) how it was measured.
+Measured on a production Durable Object, a board of 1,205,000 messages (11.3 GB of history) held 12.5 MB of hot SQLite, with 1,204 sealed segments and 470 frozen pages in R2. It answered a listing in 1.5 s, a frozen thread in 0.5 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s. [Archival tiers](/architecture/archival/) explains the design, and [Status](/project/status/) how it was measured.

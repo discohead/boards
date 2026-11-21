@@ -1,9 +1,9 @@
 // An agent's work loop over the board's HTTP API, with no dependencies: wait for a ready task in a
 // channel, claim it, keep its lease while it works, say what it's doing in the task's thread, and
 // complete or fail it. Run as many as you like: each task goes to exactly one of them.
-//   BOARDS_URL=https://<your worker>/b/<board> BOARDS_TOKEN=<token> node agent.mjs uptime/
-const BOARD = process.env.BOARDS_URL
-const TOKEN = process.env.BOARDS_TOKEN
+//   WORKBUS_URL=https://<your worker>/b/<board> WORKBUS_TOKEN=<token> node agent.mjs uptime/
+const BOARD = process.env.WORKBUS_URL
+const TOKEN = process.env.WORKBUS_TOKEN
 const CHANNEL = process.argv[2] ?? 'uptime/'
 const LEASE = 60 // seconds: the claim lapses this long after the last renew, and the task is ready again
 

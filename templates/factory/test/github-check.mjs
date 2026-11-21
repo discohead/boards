@@ -19,7 +19,7 @@ const NAME = config.match(/export const NAME = '([^']+)'/)[1]
 const REPO = config.match(/export const REPOS[^{]*\{\s*'([^']+)'/)[1]
 const BOT = { id: 4242, login: NAME + '-test[bot]', type: 'Bot' }
 const URL_ = ORIGIN + '/b/' + NAME
-const TOKEN = execFileSync('node', ['scripts/issuer.mjs', 'token', 'jared', URL_], { cwd: here + '../../../packages/boards', encoding: 'utf8' }).trim()
+const TOKEN = execFileSync('node', ['scripts/issuer.mjs', 'token', 'jared', URL_], { cwd: here + '../../../packages/workbus', encoding: 'utf8' }).trim()
 
 const log = (...parts) => console.log(...parts)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
