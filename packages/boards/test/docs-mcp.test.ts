@@ -22,7 +22,10 @@ const BODY = '# Deploy\n\nHow we ship.\n\n## Canary\n\nShip to 1% first.\n\n# Mo
 describe('docs over MCP', () => {
   it('lists the doc tools, and an agent creates, reads by section, and edits by section', async () => {
     const name = freshBoard('mcp-docs')
-    const tools = (await mcp(name, 'tools/list')).result.tools.map((entry: { name: string }) => entry.name)
+    const listed = (await mcp(name, 'tools/list')).result.tools as { name: string; description: string }[]
+    const tools = listed.map((entry) => entry.name)
+    // run_code's Board types show follows, so a model knows it can follow and read what reaches it.
+    expect(listed.find((entry) => entry.name === 'run_code')!.description).toMatch(/follow\(id: string[\s\S]*follows\(query\?[\s\S]*for\?: string; roots\?: boolean/)
     expect(tools).toEqual(expect.arrayContaining(['doc_read', 'doc_edit', 'doc_create', 'doc_search']))
     expect((await mcp(name, 'initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'test', version: '1' } })).result.instructions).toMatch(/doc_read, doc_edit, doc_create, and doc_search/)
     const made = await tool(name, 'doc_create', { channel: 'docs/runbooks', slug: 'deploy', body: BODY })

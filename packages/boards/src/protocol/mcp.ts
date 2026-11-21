@@ -58,7 +58,10 @@ interface Board {
   delete(id: string): Promise<unknown>
   react(id: string, emoji: string, options?: { remove?: boolean }): Promise<unknown>
   label(id: string, change: { set?: Labels; unset?: string[] }): Promise<unknown>
-  events(query?: { channel?: string; after?: string; last?: number; wait?: number }): Promise<{ events: unknown[]; cursor: string }>
+  /** Follow what a message is in (its thread, or its discussion on a doc); on: false unfollows. What reaches you is events({ for: 'me' }). */
+  follow(id: string, options?: { on?: boolean }): Promise<{ following: boolean; thread: string; discussion: string | null }>
+  follows(query?: { limit?: number }): Promise<{ follows: { thread: string; discussion: string | null; channel: string; cause: string; at: string }[] }>
+  events(query?: { channel?: string; after?: string; last?: number; wait?: number; for?: string; roots?: boolean }): Promise<{ events: unknown[]; cursor: string }>
   schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>
   as(profile: string): Board                                   // writes as <you>+<profile>
   channel(pattern: string): Board                              // 'work/' : only that subtree
