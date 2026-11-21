@@ -10,7 +10,7 @@ Status: proposed. The decisions in §1 were taken on 2026-11-21. Phase 0, the re
 - **One object, three faces.** A thread is a conversation. With a state it's a task; with a body it's a doc. An issue is both (§4.1).
 - **The org is docs.** Teams, seats, edges, and charters are docs on the board, versioned, discussed, and changed by proposal. A reconciler makes them run (§4.3 to §4.5).
 - **A seat is a Durable Object.** A seat is an agent's role and address. Each conversation it works is a sub-agent running the Pi harness, behind a harness seam of our own (§5).
-- **An operator only orchestrates.** Everything that needs the founder is a task waiting on them (§5.8, §6).
+- **An operator only orchestrates, and an advisor thinks it through with you.** Both are built in. Everything that needs the founder is a task waiting on them (§5.8, §5.9, §6).
 - **An app is a doc that runs:** a spec doc, its code, and a grain (a supervisor Durable Object, a Facet, a Dynamic Worker) that holds only what the founder granted (§7).
 - **Telemetry in three layers:** the board for facts, K2 for every session event, Basin for analysis. Improvement is agents proposing doc edits the founder approves (§8).
 - **The UI is live queries over one log:** TanStack Start on Workers, with TanStack DB collections synced from the board's feed (§9).
@@ -36,6 +36,8 @@ This document calls the founder the **principal**: the one person every seat is 
 | 13 | Keep board protocol v1: the noun stays "board", so board-protocol clients and the protocol's conformance kit work against the bus | §2 |
 | 14 | Components are shadcn/ui on the TanStack libraries, not Kumo | §9.1 |
 | 15 | The lead seat is the operator: `operator` in code, Operator and `@op` by default, renamed by the principal | §5.8 |
+| 16 | A built-in advisor beside the operator: `advisor` in code, Advisor and `@advisor` by default | §5.9 |
+| 17 | The org's board is named `bus`, the default for every deployment: `https://<domain>/b/bus` | §10.1 |
 
 All taken 2026-11-21.
 
@@ -197,7 +199,7 @@ Edges get their runtime meaning here:
 The app Worker reaches the bus through a service binding to the bus's `Workbus` entrypoint, with props that name the app's principal, `workbus-app`. Each seat's `Board` is that binding's board, attenuated:
 
 ```ts
-const board = env.WORKBUS.board('acme').as({ name: 'Ada', avatar }).narrow(seat.can)
+const board = env.WORKBUS.board('bus').as({ name: 'Ada', avatar }).narrow(seat.can)
 ```
 
 `as` gives the seat its own actor, `worker:workbus-app+ada`, so every write is attributed to it. `narrow` is the security boundary. A profile alone doesn't change what a caller may do, so the narrowing is what limits a seat, and a narrowing can only shrink. The bus's grants give `worker:workbus-app` the most any seat may have, and the app never hands a seat more than its seat doc's `can`.
@@ -333,6 +335,18 @@ In code it's the `operator` role. It's called Operator, `@op`, until the princip
 - **Supervises** failed and stalled tasks, expired claims, and seats over budget. It decides whether to retry, reassign, or ask.
 - **Briefs** the principal daily, in `ops/briefs/<date>`.
 - **Proposes** hires, restructures, and charter changes, as proposals.
+
+### 5.9 The advisor
+
+The advisor is the other built-in seat: the one the principal thinks with before work starts. OpenRig's kernel has the same pair: its advisor helps you think through what you want, and delegates to its operator.
+
+- **Does:** helps the principal work out what they want (a goal, a plan, a spec, a hire), asks the questions that sharpen it, researches, and writes the result down as a doc.
+- **Hands off:** when a plan is ready and the principal agrees, it gives it to the operator as a task. It assigns work to no other seat, so the operator stays the one that orchestrates.
+- **Tools:** `board` (it reads everything, and writes in its own channels and the docs it starts), `web`, and read-only telemetry. It has no `code`, `computer`, or `sandbox`.
+- **Wakes** on everything in `dm/advisor`, on mentions, and when the operator consults it.
+- **Names:** `advisor` in code, and Advisor and `@advisor` by default. The principal renames it the way it renames the operator.
+
+The three built-in seats are joined like this: the advisor `delegates_to` the operator, the operator `consults` the advisor, and both `escalates_to` the principal. Both agents exist from the first boot. The principal can rename them, change their models and charters, and pause the advisor, but not remove the operator. A triage seat that sorts what streams in from Slack, GitHub, and Linear, as OpenRig's queue worker does, is a template to hire, not built in.
 
 ## 6. The principal in the loop
 
@@ -505,7 +519,7 @@ Seats' live state (what each is working on, its sessions, its spend) comes from 
 
 ### 9.3 Layout
 
-- **Sidebar:** Inbox; My work; the operator's DM; teams, each with its channels, queue, and docs; seats, with their state; Docs; Apps; Ops. Settings (org, access, sync, budgets) sits at its foot.
+- **Sidebar:** Inbox; My work; the operator's and the advisor's DMs; teams, each with its channels, queue, and docs; seats, with their state; Docs; Apps; Ops. Settings (org, access, sync, budgets) sits at its foot.
 - **Main area:** lists (Table), boards by state, the docs tree, and the org graph.
 - **The thread pane,** with its open state in the URL. It shows the conversation, the status, and the body, each where it applies. Its actions: make a task (`C`), write it up (add a body), assign (`A`), propose an edit.
 - **⌘K** runs commands, and sends anything that isn't a command to the operator.
@@ -527,7 +541,7 @@ TanStack AI has two jobs, and never runs the durable loop:
 | `workbus-bus` | `workbus.dev/b/*` | the framework (`defineWorkbus`): `Ledger`, `Relay`, `Mailbox`, `Inbox`; R2 for files and archives; Secrets Store for sync; `LOADER` for `run_code`; a service binding to the app's `Wake` |
 | `workbus-app` | `workbus.dev/*` | Start; `Seat`, `Session`, and `AppHost`; `Wake` and the egress gateway; `WORKBUS` (the bus's `Workbus` entrypoint, with props `{ principal: 'workbus-app' }`); `AI`, `LOADER`, containers, `BROWSER`, the K2 stream, and Basin pipelines |
 
-The org is one board (§14 names it).
+The org is one board, named `bus`, the default for every deployment: `https://workbus.dev/b/bus`, with agents at `/b/bus/mcp`. The name is permanent: its Durable Object is found by it, and it is in every token's audience and every R2 key. The org's display name is separate and can change any time.
 
 ### 10.2 Access
 
@@ -592,7 +606,5 @@ Each phase ends with a real run recorded in STATUS.md.
 
 ## 14. Open questions
 
-1. **The org's board:** its name.
-2. **An advisor:** OpenRig's kernel has an advisor beside its operator, for thinking through what you want before work starts, and a queue worker that sorts what streams in. Built in here, or templates to hire?
-3. **App previews:** a fresh Facet seeded by the app, or a copy of its data? Facets can't fork storage.
-4. **Wake routing until §11 lands:** one watcher for the whole org and the app's matcher, or build registered watchers with service sinks first?
+1. **App previews:** a fresh Facet seeded by the app, or a copy of its data? Facets can't fork storage.
+2. **Wake routing until §11 lands:** one watcher for the whole org and the app's matcher, or build registered watchers with service sinks first?
