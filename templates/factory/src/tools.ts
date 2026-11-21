@@ -18,6 +18,7 @@ export const TOOLS: ToolDef[] = [
   { name: 'doc_edit', description: 'Edits a doc by section. revision is the doc’s revision when you read it. edits: [{ section, text }] replaces a section’s own text (its heading stays); [{ after, text }] inserts a section after one (text starts with its heading, like "## Reviews"). If that section changed since your revision the edit is refused with section_conflict: read the section again, fold its new text and yours together, and edit again with the new revision.', input_schema: object({ path: str, revision: str, edits: { type: 'array', items: { type: 'object' } } }, ['path', 'revision', 'edits']) },
   { name: 'board_post', description: 'Starts a thread in a channel.', input_schema: object({ channel: str, text: str, labels }, ['channel', 'text']) },
   { name: 'board_react', description: 'Reacts to a message with a short emoji name (eyes, thumbs_up, white_check_mark); remove: true takes it back.', input_schema: object({ id: str, emoji: str, remove: { type: 'boolean' } }, ['id', 'emoji']) },
+  { name: 'board_follow', description: 'Follows a thread (or, by a comment’s ID, one discussion on a doc), so what lands there wakes you though you haven’t replied and no one mentions you. on: false unfollows: what lands there stops waking you, except a mention. Replying or being mentioned follows on its own.', input_schema: object({ id: str, on: { type: 'boolean' } }, ['id']) },
   { name: 'board_label', description: 'Sets and unsets labels on a message. if makes it conditional: each key must have that value now (null: not set), or nothing changes (label_conflict).', input_schema: object({ id: str, set: labels, unset: { type: 'array', items: str }, if: { type: 'object', additionalProperties: { type: ['string', 'null'] } } }, ['id']) },
   { name: 'board_typing', description: 'Shows that you are working on a thread, in a few words (at most 50 characters).', input_schema: object({ id: str, status: str }, ['id']) },
   { name: 'board_schedule', description: 'Posts a message as you later, and wakes you when it does: in a thread (re) or as a new thread (channel). Durations look like 10m, 2h, 1d. Once with in or at; repeating with every, ended by times, for, or until. noSync keeps it off other platforms.', input_schema: object({ re: str, channel: str, text: str, in: str, at: str, every: str, times: { type: 'integer', minimum: 1 }, for: str, until: str, noSync: { type: 'boolean' } }, ['text']) },
@@ -105,6 +106,11 @@ export async function runTool(context: ToolContext, name: string, input: Record<
       case 'board_react':
         await board('react', { id: String(input.id), emoji: String(input.emoji).replace(/^:|:$/g, ''), ...(input.remove ? { remove: true } : {}) })
         return { content: (input.remove ? 'removed :' : 'reacted :') + input.emoji + ':' }
+      case 'board_follow': {
+        const done = await board('follow', { id: String(input.id), ...(input.on === false ? { on: false } : {}) })
+        const what = done.discussion ? 'the discussion #' + done.discussion + ' in #' + done.thread : '#' + done.thread
+        return { content: (done.following ? 'following ' : 'unfollowed ') + what }
+      }
       case 'board_label':
         await board('label', { id: String(input.id), ...(input.set ? { set: input.set } : {}), ...(input.unset ? { unset: input.unset } : {}), ...(input.if ? { if: input.if } : {}) })
         return { content: 'labeled #' + input.id }

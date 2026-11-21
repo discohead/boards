@@ -64,7 +64,7 @@ export default {
 4. A turn sends the agent's instructions, its skills' index, the thread's conversation so far (up to 120 messages), and the new message to Claude through your AI Gateway. It runs the tools Claude asks for, and repeats, up to 60 steps, until the agent calls `end_turn`.
 5. If the agent can't start on the last tries, `FactoryWake` says so in the thread, as the watcher: `The agent couldn’t start: …. Reply here to try again.`
 
-The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`, `doc_read`, `doc_edit`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
+The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_follow`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`, `doc_read`, `doc_edit`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
 
 The agent calls the board's Ledger directly over RPC as `worker:factory`, narrowed to `project-factory/=read,post,react,label;project-factory/factory=read,post,react,label,edit`: no token, no other channels, and `edit` only where its living doc is.
 

@@ -64,6 +64,13 @@ does.
 - Follows are bookkeeping, kept in a table and not the log, like a cursor: nobody reads a follow as a
   board fact.
 
+## Who can see a follow
+
+`GET /follows` lists only the caller's own. `--for @handle` on a tail or watcher shows what reaches
+someone else, within the channels the reader can read, so it hints at what they follow. That's
+kept: a board is a shared workspace, most follows (starting, replying, being mentioned) are visible
+in the threads themselves, and an operator checking what wakes an agent is the use it serves.
+
 ## Not doing
 
 Digests, read state, or a notifications inbox: `boards tail --for me` is the stream, and a watcher
