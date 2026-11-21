@@ -5,12 +5,12 @@
 import assert from 'node:assert/strict'
 import { createHmac } from 'node:crypto'
 import { test } from 'node:test'
-import { docText, notionProvider, pageText, sectionUpdates, SYNCED_LABEL } from '../../src/sync/notion.ts'
+import { docText, notionProvider, pageText, revert, sectionUpdates, SYNCED_LABEL } from '../../src/sync/notion.ts'
 
 const SECRET = 'secret_verify'
 const MIRROR = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 const TWO = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
-type Page = { title: string; markdown: string }
+type Page = { title: string; markdown: string; missNext?: boolean }
 const notionPages = new Map<string, Page>()
 const requests: { method: string; path: string; body?: any }[] = []
 
@@ -31,6 +31,11 @@ globalThis.fetch = (async (input: string, init: RequestInit = {}) => {
   if (method === 'GET') return Response.json({ object: 'page_markdown', id: found[1], markdown: page.markdown, truncated: false, unknown_block_ids: [] })
   if (body.type === 'update_content') {
     const warnings: unknown[] = []
+    // Someone typed in the page between the read and this write.
+    if (page.missNext) {
+      page.missNext = false
+      return Response.json({ object: 'page_markdown', markdown: page.markdown, warnings: [{ code: 'no_match' }] })
+    }
     for (const update of body.update_content.content_updates) {
       if (!page.markdown.includes(update.old_str)) warnings.push({ code: 'no_match' })
       else page.markdown = page.markdown.replace(update.old_str, update.new_str)
@@ -66,7 +71,7 @@ function board() {
     if (method === 'createDoc') {
       doc = { id: '5', revision: '5', body: input.body, labels: {} }
       bodies.set('5', input.body)
-      return { message: { id: '5' } }
+      return { message: { id: '5', doc: { revision: '5' } } }
     }
     if (method === 'editDoc') {
       const next = String(Number(doc!.revision) + 1)
@@ -77,6 +82,7 @@ function board() {
     }
     if (method === 'message') return { message: { labels: doc!.labels } }
     if (method === 'doc') return { body: input.revision ? bodies.get(input.revision) : doc!.body }
+    if (method === 'createTask') return { message: { id: '70' } }
     if (method === 'label') {
       Object.assign(doc!.labels, input.set)
       return {}
@@ -115,45 +121,97 @@ test('a mirror is made from the page, then is what the page says', async () => {
   assert.deepEqual(b.calls.at(-1), ['editDoc', { id: '5', revision: '5', body: '# Handbook\n\n## Hours\n\nTen to six.\n' }])
 })
 
-test("two-way: Notion's change merges against what Notion last held, and that becomes the base when the doc agrees", async () => {
-  const held = '# Deploy\n\n## Canary\n\nFive percent.\n\n## Rollback\n\nBy version ID.\n'
+const HELD = '# Deploy\n\nHow we ship.\n\n## Canary\n\nFive percent.\n\n## Rollback\n\nBy version ID.\n'
+const content = (body: string) => pageText(body).markdown
+/** A two-way page and its doc, both at HELD, recorded as in step at revision 9. */
+function inStep() {
+  notionPages.set(TWO, { title: 'Deploy', markdown: content(HELD) })
   const b = board()
-  b.set(held.replace('By version ID.', 'By version ID, within an hour.'), { [SYNCED_LABEL]: '9' })
-  b.bodies.set('9', held)
-  notionPages.set(TWO, { title: 'Deploy', markdown: '## Canary\n\nTen percent.\n\n## Rollback\n\nBy version ID.' })
-  await provider.import({ kind: 'page', page: TWO }, tools(b.call))
-  const edit = b.calls.find(([method]) => method === 'editDoc')!
-  assert.deepEqual(edit[1], { id: '5', base: held, body: '# Deploy\n\n## Canary\n\nTen percent.\n\n## Rollback\n\nBy version ID.\n', merge: true })
-  // The doc took Notion's text whole here (the fake doesn't merge): it agrees, so it's the base now.
+  b.set(HELD, { [SYNCED_LABEL]: '9' })
+  return b
+}
+const write = (b: ReturnType<typeof board>) => provider.doc!({ target: 'notion:' + TWO + ':5', event: 'edited', doc: { id: '5', path: 'handbook/deploy', title: 'Deploy', revision: b.doc!.revision }, body: b.doc!.body }, { key: 'notion', call: b.call })
+const patches = () => requests.filter((request) => request.method === 'PATCH').map((request) => request.body.type ?? 'title')
+
+test("a board write goes to Notion as a replacement of the section it changed, and Notion's own change in another comes in", async () => {
+  const b = inStep()
+  b.set(HELD.replace('By version ID.', 'By version ID, within an hour.'), { [SYNCED_LABEL]: '9' })
+  b.bodies.set('9', HELD)
+  notionPages.get(TWO)!.markdown = content(HELD.replace('Five percent.', 'Ten percent.'))
+  requests.length = 0
+  await write(b)
+  const both = HELD.replace('Five percent.', 'Ten percent.').replace('By version ID.', 'By version ID, within an hour.')
+  assert.deepEqual(requests.find((request) => request.body?.type === 'update_content')!.body.update_content.content_updates, [{ old_str: '## Rollback\n\nBy version ID.', new_str: '## Rollback\n\nBy version ID, within an hour.' }])
+  assert.equal(notionPages.get(TWO)!.markdown, content(both))
+  assert.equal(b.doc!.body, both)
   assert.equal(b.doc!.labels[SYNCED_LABEL], b.doc!.revision)
 })
 
-test('a board write goes back as one replacement per changed section, and the title as the page title', async () => {
-  notionPages.set(TWO, { title: 'Deploy', markdown: 'How we ship.\n\n## Canary\n\nFive percent.\n\n## Rollback\n\nBy version ID.\n' })
-  const b = board()
-  b.set('x')
+test("a change in Notion comes in against what Notion last held, and is recorded as held", async () => {
+  const b = inStep()
+  notionPages.get(TWO)!.markdown = content(HELD.replace('How we ship.', 'How we ship, from main.'))
   requests.length = 0
-  await provider.doc!({ target: 'notion:' + TWO + ':5', event: 'edited', doc: { id: '5', path: 'handbook/deploy', title: 'Shipping', revision: '12' }, body: '# Shipping\n\nHow we ship.\n\n## Canary\n\nTen percent.\n\n## Rollback\n\nBy version ID.\n' }, { key: 'notion', call: b.call })
-  const writes = requests.filter((request) => request.method === 'PATCH')
-  assert.deepEqual(writes.map((request) => request.body.type ?? 'title'), ['title', 'update_content'])
-  assert.deepEqual(writes[1]!.body.update_content.content_updates, [{ old_str: '## Canary\n\nFive percent.', new_str: '## Canary\n\nTen percent.' }])
-  assert.deepEqual(notionPages.get(TWO), { title: 'Shipping', markdown: 'How we ship.\n\n## Canary\n\nTen percent.\n\n## Rollback\n\nBy version ID.\n' })
-  assert.equal(b.doc!.labels[SYNCED_LABEL], '12')
-  // The retry guard: Notion says it already, so nothing is written, and it's recorded.
-  requests.length = 0
-  await provider.doc!({ target: 'notion:' + TWO + ':5', event: 'edited', doc: { id: '5', path: 'handbook/deploy', title: 'Shipping', revision: '12' }, body: '# Shipping\n\nHow we ship.\n\n## Canary\n\nTen percent.\n\n## Rollback\n\nBy version ID.\n' }, { key: 'notion', call: b.call })
-  assert.deepEqual(requests.filter((request) => request.method === 'PATCH'), [])
+  await provider.import({ kind: 'page', page: TWO }, tools(b.call))
+  assert.equal(b.doc!.body, HELD.replace('How we ship.', 'How we ship, from main.'))
+  assert.deepEqual(patches(), [])
+  assert.equal(b.doc!.labels[SYNCED_LABEL], b.doc!.revision)
 })
 
-test('a section added or removed replaces the content whole; a mirror is never written', async () => {
-  notionPages.set(TWO, { title: 'Deploy', markdown: '## Canary\n\nFive percent.\n' })
+test("both changing a section: the board's text stands on both sides, and a task keeps Notion's", async () => {
+  const b = inStep()
+  b.set(HELD.replace('Five percent.', 'One percent.'), { [SYNCED_LABEL]: '9' })
+  b.bodies.set('9', HELD)
+  notionPages.get(TWO)!.markdown = content(HELD.replace('Five percent.', 'Ten percent.').replace('How we ship.', 'How we ship, from main.'))
+  await provider.import({ kind: 'page', page: TWO }, tools(b.call))
+  const task = b.calls.find(([method]) => method === 'createTask')![1]
+  assert.match(task.text, /both changed \u0060deploy\/canary\u0060/)
+  assert.match(task.text, /> Ten percent\./)
+  const want = HELD.replace('Five percent.', 'One percent.').replace('How we ship.', 'How we ship, from main.')
+  assert.equal(b.doc!.body, want)
+  assert.equal(notionPages.get(TWO)!.markdown, content(want))
+})
+
+test('in step already: nothing is written; a section added on the board replaces the content whole; a mirror is never written', async () => {
+  const b = inStep()
   requests.length = 0
-  await provider.doc!({ target: 'notion:' + TWO + ':5', event: 'edited', doc: { id: '5', path: 'handbook/deploy', title: 'Deploy', revision: '13' }, body: '# Deploy\n\n## Canary\n\nFive percent.\n\n## Rollback\n\nBy version ID.\n' }, { key: 'notion' })
-  assert.deepEqual(requests.filter((request) => request.method === 'PATCH').map((request) => request.body.type), ['replace_content'])
-  assert.equal(notionPages.get(TWO)!.markdown, '## Canary\n\nFive percent.\n\n## Rollback\n\nBy version ID.')
+  await write(b)
+  assert.deepEqual(patches(), [])
+  b.set(HELD + '\n## Monitoring\n\nWatch errors.\n', { [SYNCED_LABEL]: '9' })
+  b.bodies.set('9', HELD)
+  await write(b)
+  assert.deepEqual(patches(), ['replace_content'])
+  assert.equal(notionPages.get(TWO)!.markdown, content(HELD + '\n## Monitoring\n\nWatch errors.\n'))
   requests.length = 0
-  await provider.doc!({ target: 'notion:' + MIRROR + ':6', event: 'edited', doc: { id: '6', path: 'handbook/mirror', title: 'Handbook', revision: '3' }, body: '# Handbook\n\nchanged on the board\n' }, { key: 'notion' })
+  await provider.doc!({ target: 'notion:' + MIRROR + ':6', event: 'edited', doc: { id: '6', path: 'handbook/mirror', title: 'Handbook', revision: '3' }, body: '# Handbook\n\nchanged on the board\n' }, { key: 'notion', call: b.call })
   assert.deepEqual(requests, [])
+})
+
+test("a replacement that misses (the page changed as it was written) is tried again, not taken as written", async () => {
+  const b = inStep()
+  b.set(HELD.replace('Five percent.', 'Ten percent.'), { [SYNCED_LABEL]: '9' })
+  b.bodies.set('9', HELD)
+  notionPages.get(TWO)!.missNext = true
+  await assert.rejects(write(b), (error: Error) => error.constructor.name === 'SyncRetry')
+  assert.equal(b.doc!.labels[SYNCED_LABEL], '9')
+  await write(b)
+  assert.equal(notionPages.get(TWO)!.markdown, content(HELD.replace('Five percent.', 'Ten percent.')))
+})
+
+test('a new title on the board is the page title', async () => {
+  const b = inStep()
+  b.set(HELD.replace('# Deploy', '# Shipping'), { [SYNCED_LABEL]: '9' })
+  b.bodies.set('9', HELD)
+  await write(b)
+  assert.equal(notionPages.get(TWO)!.title, 'Shipping')
+  assert.equal(notionPages.get(TWO)!.markdown, content(HELD))
+})
+
+
+
+test('revert: the sections named go back to what base had, a removed one where base had it', () => {
+  const base = '# T\n\n## A\n\na\n\n## B\n\nb\n'
+  assert.equal(revert('# T\n\n## A\n\nA!\n\n## B\n\nB!\n', base, ['t/a']), '# T\n\n## A\n\na\n\n## B\n\nB!\n')
+  assert.equal(revert('# T\n\n## B\n\nb\n', base, ['t/a']), '# T\n\n## A\n\na\n\n## B\n\nb\n')
 })
 
 test("sectionUpdates: one per changed section of the content; null when its shape changed or an old text isn't once in it", () => {

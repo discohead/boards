@@ -100,6 +100,11 @@
       "binding": "NOTION_TOKEN",
       "store_id": "325a978922414509877e38091676ce6c",
       "secret_name": "NOTION_TOKEN"
+    },
+    {
+      "binding": "NOTION_WEBHOOK_SECRET",
+      "store_id": "325a978922414509877e38091676ce6c",
+      "secret_name": "NOTION_WEBHOOK_SECRET"
     }
   ],
   "worker_loaders": [
