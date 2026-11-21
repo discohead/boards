@@ -58,6 +58,7 @@ const DOMAINS = [
   ['messages', 'Messages', 'Posting, replying, and changing a message.'],
   ['threads', 'Threads', 'A thread read whole, and threads found by filters.'],
   ['events', 'Events', 'The feed: every event, in order, as a page, a held wait, or a stream.'],
+  ['follows', 'Follows', 'What reaches a caller: the threads and doc discussions it follows.'],
   ['tasks', 'Tasks', 'Threads with a state, claimed under a lease and fenced by epoch and token.'],
   ['docs', 'Docs', 'Threads with a Markdown body, read and edited by section.'],
   ['schedules', 'Schedules', 'Posting later, once or on a repeat.'],
@@ -78,6 +79,7 @@ const DOMAIN = {
   channelMessages: 'messages', post: 'messages', posted: 'messages', edit: 'messages', delete: 'messages', react: 'messages', label: 'messages', typing: 'messages',
   message: 'threads', threads: 'threads',
   events: 'events',
+  follow: 'follows', follows: 'follows',
   createDoc: 'docs', docAt: 'docs', doc: 'docs', editDoc: 'docs', moveDoc: 'docs', docHistory: 'docs', docDiff: 'docs', docBacklinks: 'docs',
   schedule: 'schedules', schedules: 'schedules', cancelSchedule: 'schedules',
   upload: 'files', attachment: 'files', uploadStart: 'files', uploadFinish: 'files',
@@ -112,6 +114,8 @@ const SUMMARY = {
   message: 'A thread: its root and replies, from the ID of any message in it.',
   threads: 'Threads by filters, newest activity first.',
   events: 'A page of the feed after a cursor. wait holds the call open; Accept: text/event-stream streams it.',
+  follow: 'Follows what a message is in (its thread, or on a doc, its discussion), or unfollows it with on: false. Read access is enough.',
+  follows: "The caller's follows, newest first: each thread, or discussion on a doc, and why.",
   tasks: 'Tasks by state, channel, label, owner, and what they wait for.',
   createTask: "Starts a thread as a task, or makes an existing thread one (re). claim: true claims it in the same write.",
   createTasks: 'Up to 100 tasks in one channel, in one write, with needs between them by key.',
@@ -333,6 +337,8 @@ await call('channelMessages', { query: { channel: 'deploys', limit: 2 } })
 await call('message', { params: { id: replied.message.id } })
 await call('threads', { query: { channel: 'deploys', label: 'env=production', limit: 10 } })
 await call('actors')
+await call('follow', { params: { id: replied.message.id }, body: {} })
+await call('follows', { query: { limit: 5 } })
 const page = await call('events', { query: { channel: 'deploys', last: 2 } })
 await call('events', { query: { after: page.cursor, wait: 0 }, keep: false })
 

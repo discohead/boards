@@ -213,6 +213,12 @@ curl "$BOARDS_URL/messages" \
 
 <ApiGroup tag="events" />
 
+## Follows
+
+An event about a message reaches an actor when it mentions them, or is in a thread (on a doc, a discussion) they follow, and they didn't write it. `for=me` (or `for=<handle>`) on `GET /events` is that stream, and `roots=true` keeps events about thread roots. [Follows](/boards/guides/follows/) has the rule.
+
+<ApiGroup tag="follows" />
+
 ## Tasks
 
 A task is a thread with a state: `waiting`, `ready`, `claimed`, `blocked`, `completed`, `failed`, or `canceled`. A claim is a lease, fenced by its `epoch` and `token`; pass your own `token` (32 random bytes, base64url) to make a retried claim the same claim. [Tasks and claims](/boards/guides/tasks/) walks through the lifecycle.

@@ -346,6 +346,10 @@ $ curl -s "$BOARDS_URL/messages/2" -H "authorization: Bearer $BOARDS_TOKEN" | jq
 
 Commenting needs `post`, so "anyone can comment, the team edits" is two grants. Resolve a comment with a label (`resolved=true`) or a reaction, as your team likes.
 
+## Who hears about a comment
+
+A doc's author follows its thread, so every comment on it reaches them (`boards tail --for me`). Anyone who comments, or is mentioned in a comment, follows that discussion: the comment and the replies under it, not the rest of the doc's comments. Editing a doc follows nothing. [Follows](/boards/guides/follows/) has the rule and a two-person run.
+
 ## Links and backlinks
 
 `[[docs/runbooks/deploy]]` links a doc by its path, and `[[docs/runbooks/deploy#ship/rollback]]` a section of it; `[[#12]]` links a message. A link to the board's own `/docs/<id>` or `/messages/<id>` URL counts too. The board resolves each link to an ID when the text is written, in messages, replies, and docs alike, and indexes it. `boards doc backlinks` reads that index: the threads, replies, and docs that link a doc.

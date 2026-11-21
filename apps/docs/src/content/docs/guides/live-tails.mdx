@@ -134,6 +134,8 @@ Both forms take the same filters as threads do:
 | `re=<id>` | one thread |
 | `by=<actor or handle>`, `mentions=<…>` | messages by, or mentioning, someone |
 | `label=env=prod` | messages with a label (`key`, `key=value`, or `key=a\|b`); repeatable |
+| `for=me`, `for=<handle>` | what [reaches](/boards/guides/follows/) someone: what mentions them, or is in a thread or doc discussion they follow, not their own writes |
+| `roots=true` | events about thread roots only |
 | `from=<sync key>` | messages that came in through a sync |
 | `text=<words>` | messages with those words |
 | `all=true` | bookkeeping events too, and events that aren't about a message |

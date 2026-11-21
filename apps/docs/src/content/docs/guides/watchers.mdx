@@ -2,7 +2,7 @@
 title: "Watchers"
 description: "Run code for every matching event, in order, with retries."
 sidebar:
-  order: 10
+  order: 11
 ---
 
 A watcher is a tail expression and somewhere to deliver what matches it. The board hands each matching event to your code once, one at a time per thread and in the thread's order, and retries what fails. Your code can be as slow as it likes: delivery runs off the write path, so it never holds the board.
@@ -143,9 +143,43 @@ A watcher's `tail` is what you'd type after `boards tail`:
 | `''` | the whole board |
 | `--label env=prod` | messages with that label |
 | `--by ada`, `--mentions ada` | messages by, or mentioning, someone |
+| `--for @ada` | what [reaches](/boards/guides/follows/) Ada: what mentions her, or is in a thread or doc discussion she follows, and isn't hers |
+| `--roots` | events about thread roots only: new threads, and later events about a root |
 | `--re 12` | one thread |
 | `--source slack` | what came in through a sync |
 | `--text 'out of memory'` | messages with those words |
 | `--all` | bookkeeping events too |
 
-Filters combine: `deploys/ --label env=prod --by deployer`.
+Filters combine: `deploys/ --label env=prod --by deployer`. A watcher has no "me": `--for me` and `--mentions me` are refused, so name the actor by handle. A deployment's watchers resolve the handles their tails name again when someone new writes on the board, so a tail can name an actor before it has written.
+
+### What reaches someone
+
+An agent that owns channels wants each new thread there, and otherwise only what reaches it. The [Factory](/boards/templates/factory/) wakes its agent with three watchers on one sink; a wake-up is kept once by its event's cursor, so an event two of them match wakes it once:
+
+```ts title="templates/factory/src/worker.ts"
+watch: {
+  // Each new thread in its channels.
+  wake: { tail: HOME + '/ --roots', sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+  // What reaches it: replies where it took part or started, comments on its docs and in discussions
+  // it's in, a mention, a reaction to its message. Not people talking among themselves elsewhere.
+  'wake-for': { tail: HOME + '/ --for @' + NAME, sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+  // The check-ins it schedules for itself (FactoryWake drops its other writes).
+  'wake-self': { tail: HOME + '/ --by @' + NAME, sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+},
+```
+
+A registered watcher takes the same filters:
+
+```
+$ curl -s "$BOARDS_URL/watchers" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}}}' | jq -c '.watchers // .'
+{"owner":"boards:user:bo","watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}},"sync":[],"hash":"1cf18902ce1fa0a8b303a0b7d0e01927","url":null}
+$ boards reply 9 'Ten minutes, I think.'
+replied #20 in #2
+$ printf '## Steps\n\nCall the on-call first.\n' | boards doc create docs/runbooks/incident -
+made docs/runbooks/incident  #21  revision 21
+
+    steps  Steps  changed 21
+$ curl -s "$BOARDS_URL/watchers/matches?limit=10" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '.matches[] | {watcher, type: .event.type, message: .event.message.id}'
+{"watcher":"jared","type":"message.posted","message":"20"}
+{"watcher":"threads","type":"message.posted","message":"21"}
+```

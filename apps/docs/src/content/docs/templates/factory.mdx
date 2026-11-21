@@ -13,18 +13,27 @@ The Factory is a board with an agent on it that takes bugs, features, and questi
 // The factory: its board (a Ledger and its satellites, from Boards, with GitHub as its own sync), an
 // agent per thread, the sandbox's GitHub egress, and its page. One Worker.
 import { defineBoards } from 'boards'
-import { HOME } from './config.ts'
+import { notionProvider } from 'boards/sync/notion.ts'
+import { NOTION_PAGES } from './config.ts'
+import { HOME, NAME } from './config.ts'
 import { github } from './github.ts'
 import { launcher } from './launcher.ts'
 import type { Env } from './env.ts'
 
 export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  // What wakes the agent, handed to this Worker's FactoryWake by a Mailbox (design/follows.md). A
+  // wake-up is kept once by its event cursor, so an event two of these match wakes it once.
   watch: {
-    // Every message in the factory's channels, handed to this Worker's FactoryWake by a Mailbox.
-    wake: { tail: HOME + '/', sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+    // Each new thread in its channels.
+    wake: { tail: HOME + '/ --roots', sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+    // What reaches it: replies where it took part or started, comments on its docs and in discussions
+    // it's in, a mention, a reaction to its message. Not people talking among themselves elsewhere.
+    'wake-for': { tail: HOME + '/ --for @' + NAME, sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
+    // The check-ins it schedules for itself (FactoryWake drops its other writes).
+    'wake-self': { tail: HOME + '/ --by @' + NAME, sink: { kind: 'service', binding: 'WAKE', method: 'onEvent' } },
   },
   // GitHub's webhooks in (/b/<board>/webhooks/github), and what's written in its threads back, as the app.
-  sync: { github: github(env) },
+  sync: { github: github(env), ...(env.NOTION_TOKEN ? { notion: notionProvider({ token: env.NOTION_TOKEN, ...(env.NOTION_WEBHOOK_SECRET ? { webhookSecret: env.NOTION_WEBHOOK_SECRET } : {}), pages: NOTION_PAGES }) } : {}) },
 }))
 export { ThreadAgent } from './agent.ts'
 export { FactoryWake, GitHubEgress } from './wake.ts'
@@ -43,13 +52,13 @@ export default {
 - **The board** is a Boards board in this Worker, named `factory`. Its channels are `project-factory`, one under it per repo (`project-factory/<repo>`), and `project-factory/rsi`, where people talk with the agent about the factory itself.
 - **GitHub is the board's own sync.** Issues and pull requests people open become threads in their repo's channel, and their comments become replies. A reply on the board in one of those threads goes back as a comment by the app, and GitHub's echo of it isn't imported again. The app's own pull requests and forks' pull requests don't start threads.
 - **Docs are synced too.** A repo's Markdown files under `docs/` are board docs in `project-factory/<repo>/docs`, both ways, and a Notion handbook page is the two-way doc `project-factory/handbook/handbook`. A new doc doesn't wake an agent: it's read when someone asks about it.
-- **A watcher wakes an agent.** The `wake` watcher hands every message in `project-factory/` to `FactoryWake`, which wakes that thread's `ThreadAgent`. Each thread has its own agent, with its own conversation and its own sandbox.
+- **Watchers wake an agent, for what reaches it.** Three watchers hand events in `project-factory/` to `FactoryWake`, which wakes that thread's `ThreadAgent`: each new thread (`--roots`), what [reaches](/boards/guides/follows/) the agent (`--for @factory`: replies in threads it started or answered, comments on its docs and in discussions it's in, a mention, a reaction to its message), and its own check-ins (`--by @factory`). People talking among themselves, on its living doc say, wake nothing. Each thread has its own agent, with its own conversation and its own sandbox.
 - **The agent works and reports on the board.** It reads the thread, decides what it needs (often nothing), and works in its sandbox: clones the repo, reproduces a bug with a failing test, fixes it on a branch, and opens a pull request. It says what it's doing in the thread.
 - **It comes back to what it left open.** Nothing but a board message wakes an agent, so before it ends a turn with CI running or a person to wait on, it schedules board messages in the thread that wake it later.
 
 ## How a turn works
 
-1. A message lands in a factory channel. The `wake` watcher's Mailbox delivers it to `FactoryWake.onEvent`, in order per thread, retrying on failure.
+1. A new thread lands in a factory channel, or something reaches the agent, or one of its check-ins fires. That watcher's Mailbox delivers it to `FactoryWake.onEvent`, in order per thread, retrying on failure. An event two watchers match wakes the agent once.
 2. `FactoryWake` skips the agent's own messages (but not the check-ins it scheduled) and the app's own GitHub comments, then calls `wake()` on the thread's agent, `thread-<root>`, an [Agents SDK](https://developers.cloudflare.com/agents/) Durable Object.
 3. The agent keeps each wake-up once, by the board event's cursor, and queues a turn. Turns run one at a time, in order.
 4. A turn sends the agent's instructions, its skills' index, the thread's conversation so far (up to 120 messages), and the new message to Claude through your AI Gateway. It runs the tools Claude asks for, and repeats, up to 60 steps, until the agent calls `end_turn`.

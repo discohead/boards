@@ -67,6 +67,14 @@ Every limit a board enforces, from its route schemas and the constants in [`pack
 | A page of history | 100 by default, up to 500 |
 | A snapshot of the body in the log | after its creation, every 64 edits, and after any edit whose changed sections pass 65,536 characters |
 
+## Follows
+
+| What | Limit |
+| --- | --- |
+| A page of `GET /follows` | `limit` 1 to 500, 100 by default |
+| Followers kept in an event's facet | 200 |
+| The `for` filter | 1 to 200 characters |
+
 ## Schedules
 
 | What | Limit |

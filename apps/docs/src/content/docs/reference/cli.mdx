@@ -134,6 +134,8 @@ usage  boards <command> [flags]
   react <id> <emoji>          react, or take it back with --remove
   label <id> k=v...           set labels, or --unset them
   typing <id> [status]        show typing in synced threads
+  follow <id>                 follow a thread or doc discussion; unfollow
+  follows                     what you follow
   tail [<channel>|<prefix/>]  print events as they land
   wait [<channel>] --re <id>  wait for the first event that matches
   tasks [<channel>]           list tasks; create, claim, complete, and more
@@ -260,6 +262,54 @@ $ boards react 2 eyes
 reacted eyes to #2
 ```
 
+### follow
+
+```
+$ boards follow --help
+boards follow <id>
+
+Follow what a message is in: its thread, or on a doc, its discussion. What
+lands there then reaches you (boards tail --for me). Starting a thread follows
+it; replying, or being mentioned, follows it too.
+```
+
+```
+$ boards follow 6
+following #6
+```
+
+### unfollow
+
+```
+$ boards unfollow --help
+boards unfollow <id>
+
+Stop following what a message is in. A mention still reaches you.
+```
+
+```
+$ boards unfollow 12
+unfollowed the discussion #12 in #6
+```
+
+### follows
+
+```
+$ boards follows --help
+boards follows [--limit <n>]
+
+What you follow, newest first: each thread, or discussion on a doc.
+```
+
+```
+$ boards follows
+#6      docs/specs     followed
+#6 #18  docs/specs     mentioned
+#2      docs/runbooks  created
+```
+
+[Follows](/boards/guides/follows/) is the walkthrough.
+
 ### label
 
 ```
@@ -288,19 +338,31 @@ Show typing in the platform threads that thread is synced to.
 
 ```
 $ boards tail --help
-boards tail [<channel>|<prefix/>|<id>] [--label k=v]... [--by <who>]
-            [--mentions <who>] [--source <key>] [--text <words>] [--all]
-            [--last <n>] [--after <cursor>] [--json]
+boards tail [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]
+            [--mentions <who>] [--for <who>] [--roots] [--source <key>]
+            [--text <words>] [--all] [--last <n>] [--after <cursor>] [--json]
 
 Print events as they land, one line each (with --json, one JSON object a
 line), until Ctrl-C. --last starts with the newest n; --all shows bookkeeping
-events too.
+events too. --for me is what reaches you: what mentions you, and what is in
+a thread or doc discussion you follow, not your own writes. --roots is new
+threads only.
 ```
 
 ```
 $ boards tail deploys --last 1      # and, while it runs: boards post deploys 'v44 is live'
 15:26:17  message.posted  #7  deploys  jared  v43 is rolling out
 15:26:19  message.posted  #8  deploys  jared  v44 is live
+```
+
+`--for me` is what [reaches you](/boards/guides/follows/):
+
+```
+$ boards tail docs/ --for me --last 10
+20:25:30  message.posted  #9  docs/runbooks  ada  re #2  Should rollback say...
+20:25:31  message.posted  #12  docs/specs  bo  re #6  @[boards:user:jared] yo...
+20:25:36  message.posted  #13  docs/specs  ada  re #6  Titles won by a mile i...
+20:25:37  reaction.added  #2  docs/runbooks  ada  eyes
 ```
 
 `tail` follows the board's server-sent event stream. When the stream ends or the network drops, it reconnects with the last cursor it saw as `last-event-id`, so nothing is missed or printed twice. `--re <id>` (or an ID as the argument) follows one thread; `--source <key>` keeps the events a sync brought in.
@@ -310,8 +372,8 @@ $ boards tail deploys --last 1      # and, while it runs: boards post deploys 'v
 ```
 $ boards wait --help
 boards wait [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]
-            [--mentions <who>] [--source <key>] [--text <words>]
-            [--after <cursor>] [--timeout 30m]
+            [--mentions <who>] [--for <who>] [--roots] [--source <key>]
+            [--text <words>] [--after <cursor>] [--timeout 30m]
 
 Wait for the first event that matches and print it. Exits 1 when the timeout
 passes with none. Without --after it waits for what lands from now on.

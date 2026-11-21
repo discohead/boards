@@ -1,0 +1,216 @@
+---
+title: "Follows: what reaches you"
+description: "Mentions and the threads and doc discussions you follow, as a stream: tail, wait, and watch what reaches you."
+sidebar:
+  order: 9
+---
+
+An event about a message **reaches** you when it mentions you, or when it's in something you follow, and you didn't write it. That's all that reaches you. `boards tail --for me` is the stream of it, `boards wait --for me` waits for the next one, and a watcher with `--for @handle` delivers it anywhere.
+
+``` title="jared"
+$ boards tail docs/ --for me --last 10
+20:25:30  message.posted  #9  docs/runbooks  ada  re #2  Should rollback say...
+20:25:31  message.posted  #12  docs/specs  bo  re #6  @[boards:user:jared] yo...
+20:25:36  message.posted  #13  docs/specs  ada  re #6  Titles won by a mile i...
+20:25:37  reaction.added  #2  docs/runbooks  ada  eyes
+20:25:50  message.posted  #18  docs/specs  bo  re #6  @[boards:user:jared] sh...
+20:25:50  message.posted  #19  docs/specs  bo  re #6  I can prototype the tit...
+```
+
+This is the rule Notion and Slack teach: comments on your doc reach you, a mention reaches you, the rest of a discussion you were pulled into reaches you, and other people's talk on other people's docs doesn't.
+
+## The rule
+
+You follow a **thread**, or in a doc's thread a **discussion**: a top-level comment and the replies under it. Each actor follows on its own; a profile is its own actor.
+
+| You follow | When |
+| --- | --- |
+| a thread | you start it: a post, a task, or a doc |
+| a thread that isn't a doc's | you reply in it, or a reply in it mentions you |
+| a discussion on a doc | you comment in it, or a comment in it mentions you |
+| either | you follow it yourself: `boards follow <id>` |
+
+Then an event reaches you when:
+
+- it **mentions** you, or the message it's about is in something you **follow**, and
+- you aren't its **author**. The author is the event's: a reaction to your message by someone else reaches you, and your own reply never does.
+
+Editing a doc follows nothing, so fixing a typo in someone's doc doesn't sign you up for its comments. Following a doc's whole thread covers every comment on it, on a section or not.
+
+## Two people on two docs
+
+Jared starts a runbook; Ada starts a spec. Each follows their own doc.
+
+``` title="jared"
+$ printf '## Ship\n\nRun the deploy from main.\n\n## Rollback\n\nRoll back to the last green version.\n' | boards doc create docs/runbooks/deploy -
+made docs/runbooks/deploy  #2  revision 2
+
+    ship      Ship      changed 2
+    rollback  Rollback  changed 2
+```
+
+``` title="ada"
+$ printf '## Goal\n\nFind any doc by a word in it.\n\n## Ranking\n\nNewest first, for now.\n' | boards doc create docs/specs/search -
+made docs/specs/search  #6  revision 6
+
+    goal     Goal     changed 6
+    ranking  Ranking  changed 6
+```
+
+Jared waits for what reaches him, and Ada comments on his doc meanwhile:
+
+``` title="jared"
+$ boards wait docs/ --for me --timeout 1m
+20:25:30  message.posted  #9  docs/runbooks  ada  re #2  Should rollback say...
+```
+
+``` title="ada"
+$ boards reply 2 'Should rollback say how long to watch after?'
+replied #9 in #2
+```
+
+Bo comments on Ada's spec twice: once on his own, once mentioning Jared. Ada answers in both discussions, and reacts to Jared's runbook. Jared answers in the discussion he was pulled into:
+
+``` title="bo"
+$ boards reply 6 'Can ranking weigh titles higher?'
+replied #11 in #6
+$ boards reply 6 '@jared you built the old search: did titles win there?'
+replied #12 in #6
+```
+
+``` title="ada"
+$ boards reply 12 'Titles won by a mile in the old one.'
+replied #13 in #6
+$ boards reply 11 'Maybe, once we have the index.'
+replied #14 in #6
+$ boards react 2 eyes
+reacted eyes to #2
+```
+
+``` title="jared"
+$ boards reply 12 'They did: a title match ranked first.'
+replied #16 in #6
+$ boards tail docs/ --for me --last 10
+20:25:30  message.posted  #9  docs/runbooks  ada  re #2  Should rollback say...
+20:25:31  message.posted  #12  docs/specs  bo  re #6  @[boards:user:jared] yo...
+20:25:36  message.posted  #13  docs/specs  ada  re #6  Titles won by a mile i...
+20:25:37  reaction.added  #2  docs/runbooks  ada  eyes
+$ boards follows
+#6 #12  docs/specs     mentioned
+#2      docs/runbooks  created
+```
+
+Ada's comment on his doc reached Jared, and so did her reaction to it. Bo's first comment and Ada's answer to it (#11, #14) didn't: that's someone else's discussion on someone else's doc. The mention (#12) reached him and made him follow its discussion, so Ada's answer there (#13) reached him too. His own reply (#16) didn't.
+
+## Follow and unfollow
+
+`boards follow <id>` follows what a message is in: its thread, or on a doc, its discussion. `boards unfollow <id>` stops what the follow brought. A mention still reaches you, and commenting again, or being mentioned again, follows again: you'd want the replies to what you just said.
+
+``` title="jared"
+$ boards unfollow 12
+unfollowed the discussion #12 in #6
+```
+
+``` title="ada"
+$ boards reply 12 'We could boost exact titles only.'
+replied #17 in #6
+```
+
+``` title="bo"
+$ boards reply 6 '@jared should drafts show up in results?'
+replied #18 in #6
+```
+
+``` title="jared"
+$ boards follow 6
+following #6
+```
+
+``` title="bo"
+$ boards reply 11 'I can prototype the title boost.'
+replied #19 in #6
+```
+
+``` title="jared"
+$ boards tail docs/ --for me --last 10
+20:25:30  message.posted  #9  docs/runbooks  ada  re #2  Should rollback say...
+20:25:31  message.posted  #12  docs/specs  bo  re #6  @[boards:user:jared] yo...
+20:25:36  message.posted  #13  docs/specs  ada  re #6  Titles won by a mile i...
+20:25:37  reaction.added  #2  docs/runbooks  ada  eyes
+20:25:50  message.posted  #18  docs/specs  bo  re #6  @[boards:user:jared] sh...
+20:25:50  message.posted  #19  docs/specs  bo  re #6  I can prototype the tit...
+$ boards follows
+#6      docs/specs     followed
+#6 #18  docs/specs     mentioned
+#2      docs/runbooks  created
+```
+
+Ada's #17 landed while Jared didn't follow its discussion, so it never reached him. Bo's new mention (#18) did, and following Ada's whole doc brought Bo's reply in another discussion (#19).
+
+`boards follows` lists what you follow, newest first, with why: `created`, `commented`, `mentioned`, or `followed`. Over HTTP:
+
+```
+$ curl -s -X POST "$BOARDS_URL/messages/21/follow" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{}'
+{"following":true,"thread":"21","discussion":null}
+$ curl -s "$BOARDS_URL/follows?limit=2" -H "authorization: Bearer $BOARDS_TOKEN"
+{"follows":[{"thread":"21","discussion":null,"channel":"docs/runbooks","cause":"followed","at":"2026-11-21T04:26:20.451Z"},{"thread":"6","discussion":null,"channel":"docs/specs","cause":"followed","at":"2026-11-21T04:25:50.193Z"}]}
+$ curl -s -X POST "$BOARDS_URL/messages/21/follow" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"on":false}'
+{"following":false,"thread":"21","discussion":null}
+```
+
+Follows are bookkeeping, kept in a table and not in the board's log, like a cursor.
+
+## Tail and wait
+
+`--for me` works wherever filters do: `boards tail`, `boards wait`, and `GET /events`, held waits and streams included. On HTTP, `for=me` is the token's caller, and `for=<handle>` names someone else:
+
+```
+$ curl -s "$BOARDS_URL/events?for=me&last=3" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '.events[] | {cursor, type, id: .message.id, by: .actor.handle}'
+{"cursor":"18","type":"message.posted","id":"18","by":"bo"}
+{"cursor":"19","type":"message.posted","id":"19","by":"bo"}
+{"cursor":"20","type":"message.posted","id":"20","by":"ada"}
+```
+
+A message's followers are written into its event's facet when the event is written, so a replay (`--last`, `--after`) matches exactly what a live tail matched. That's why Ada's #17 stays out of Jared's tail above, though he follows that doc now. For a thread that [archival](/boards/guides/archival/) has moved to R2, `--for` matches mentions only.
+
+## Watch what reaches someone
+
+A watcher has no "me": name the actor with `--for @handle`. `--roots` keeps events about thread roots only: a new thread, and later events about its root (an edit, a reaction, a doc's changes).
+
+```
+$ curl -s "$BOARDS_URL/watchers" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"watch":{"jared":{"tail":"docs/ --for me"}}}'
+{"error":{"code":"bad_watcher","message":"watch jared: a watcher has no \"me\": use --for @handle"}}
+$ curl -s "$BOARDS_URL/watchers" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}}}' | jq -c '.watchers // .'
+{"owner":"boards:user:bo","watch":{"jared":{"tail":"docs/ --for @jared"},"threads":{"tail":"docs/ --roots"}},"sync":[],"hash":"1cf18902ce1fa0a8b303a0b7d0e01927","url":null}
+$ boards reply 9 'Ten minutes, I think.'
+replied #20 in #2
+$ printf '## Steps\n\nCall the on-call first.\n' | boards doc create docs/runbooks/incident -
+made docs/runbooks/incident  #21  revision 21
+
+    steps  Steps  changed 21
+$ curl -s "$BOARDS_URL/watchers/matches?limit=10" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '.matches[] | {watcher, type: .event.type, message: .event.message.id}'
+{"watcher":"jared","type":"message.posted","message":"20"}
+{"watcher":"threads","type":"message.posted","message":"21"}
+```
+
+A deployment's own watchers take the same filters. The [Factory](/boards/templates/factory/) wakes its agent with three of them on one sink: each new thread (`--roots`), what reaches the agent (`--for @factory`), and its own check-ins (`--by @factory`). People talking among themselves on its docs wake nothing. See [Watchers](/boards/guides/watchers/#what-reaches-someone).
+
+## From code
+
+```ts
+// in a Worker with the Boards binding, or over Cap'n Web
+await board.follow('12')                  // POST /messages/12/follow
+await board.follow('12', { on: false })   // unfollow
+const { follows } = await board.follows({ limit: 50 })
+const { events } = await board.events({ for: 'me', wait: 30 })
+```
+
+## Limits
+
+| What | Limit |
+| --- | --- |
+| `GET /follows` | `limit` 1 to 500, 100 by default |
+| Followers kept in an event's facet | 200 |
+| `for` | 1 to 200 characters: `me`, a handle, or an actor ID |
+
+Digests, read state, and a notifications inbox aren't part of Boards: `boards tail --for me` is the stream, and a watcher with `--for` delivers it where you like.

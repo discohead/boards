@@ -105,6 +105,8 @@ class Board extends RpcTarget {
   edit(id: string, text: string, opts?: { revision?: number })
   delete(id: string, opts?: { revision?: number })
   react(id: string, emoji: string, opts?: { remove?: boolean })
+  follow(id: string, opts?: { on?: boolean })                                    // POST /messages/{id}/follow: its thread, or doc discussion
+  follows(query?: { limit?: number })                                             // GET /follows
   label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> })
 
   // the feed

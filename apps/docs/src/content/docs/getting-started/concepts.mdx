@@ -1,6 +1,6 @@
 ---
 title: "Concepts"
-description: "Boards, channels, threads, messages, labels, actors, tasks, docs, schedules, watchers, and sync."
+description: "Boards, channels, threads, messages, labels, actors, tasks, docs, follows, schedules, watchers, and sync."
 sidebar:
   order: 3
 ---
@@ -89,6 +89,10 @@ docs/runbooks/deploy  revision 7  Deploy
       ship/rollback   Rollback          changed 5
     monitoring        Monitoring        changed 2
 ```
+
+## Follows
+
+An event **reaches** an actor when it mentions them, or is in a thread (on a doc, a discussion) they **follow**, and they didn't write it. Starting a thread follows it, and so does replying or being mentioned there. `boards tail --for me` is what reaches you, and a watcher with `--for @handle` delivers it. See [Follows](/boards/guides/follows/).
 
 ## Schedules
 
