@@ -8,7 +8,7 @@ import { repoToken } from './github-app.ts'
 import type { Env } from './env.ts'
 
 type By = { actor: string; principal: string; profile: string | null }
-type Event = { cursor: string; type: string; payload: Record<string, any>; message?: { id: string; re: string | null; by: By; schedule?: unknown }; actor?: { name: string } }
+type Event = { cursor: string; type: string; payload: Record<string, any>; message?: { id: string; re: string | null; by: By; schedule?: unknown; labels?: Record<string, string> }; actor?: { name: string } }
 type Delivered = { attempt: number; match: string; board: { reply(id: string, input: string): Promise<unknown> } }
 
 /** Whether the agent wrote it: this Worker, as itself. */
@@ -25,6 +25,8 @@ export class FactoryWake extends WorkerEntrypoint<Env> {
       if (byAgent(message.by) && message.schedule === undefined) return
       // What the app itself said on GitHub is in the thread already, as the agent's own.
       if (message.by.actor === 'github:user:' + this.env.GITHUB_BOT_USER_ID) return
+      // A new doc isn't a request: it's read when someone asks about it.
+      if (message.re === null && message.labels?.['board.doc'] !== undefined) return
       text = message.re ? 'New message #' + message.id + ' in board thread #' + thread + '.' : 'New board thread #' + thread + '.'
     } else if (event.type === 'reaction.added') {
       if (!byAgent(message.by) || byAgent(event.payload.by)) return

@@ -58,7 +58,10 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
       for (const statement of DDL) ctx.storage.sql.exec(statement)
       this.board = new Board(this.sql)
       this.config = configure(env)
-      for (const [key, provider] of Object.entries(this.config.sync ?? {})) this.board.sync.set(key, provider.platform)
+      for (const [key, provider] of Object.entries(this.config.sync ?? {})) {
+        this.board.sync.set(key, provider.platform)
+        if (provider.docTarget) this.board.docTargets.push((channel) => provider.docTarget!(channel, key))
+      }
       // A watcher (and a sync's courier) sees what comes after it's deployed: mark where that is before any write lands.
       for (const id of [...Object.keys(this.config.watch ?? {}), ...Object.keys(this.config.sync ?? {}).map(courierId)]) {
         const known = this.sql.one('select seq from outbox where destination = ?', 'watch:' + id)

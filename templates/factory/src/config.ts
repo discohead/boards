@@ -16,6 +16,11 @@ export const REPOS: Record<string, string> = {
   'discohead/factory-playground': channel('playground'),
 }
 
+/** Markdown docs kept in step with board docs, per repo: the files under dir are the docs under channel, both ways. */
+export const DOCS: Record<string, { dir: string; channel: string }> = {
+  'discohead/factory-playground': { dir: 'docs', channel: channel('playground') + '/docs' },
+}
+
 /** The factory's own repo, where it changes itself when asked, or null. */
 export const OWN_REPO: string | null = null
 

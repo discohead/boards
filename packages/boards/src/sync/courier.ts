@@ -7,7 +7,7 @@
 import { satelliteCall, SyncRefused, type Call, type Copy, type OutboundMessage, type SyncProvider } from './provider.ts'
 
 type Ledger = Parameters<typeof satelliteCall>[0]
-type View = { id: string; re: string | null; thread: string; text: string; from: string | null; noSync: boolean; deleted: boolean; author?: { name: string; handle: string } | null }
+type View = { id: string; re: string | null; thread: string; text: string; from: string | null; noSync: boolean; deleted: boolean; author?: { name: string; handle: string } | null; doc?: { id: string; path: string; title: string; revision: string } }
 type Event = { cursor: string; type: string; payload: Record<string, any>; message?: View }
 
 const keyOf = (target: string) => target.slice(0, target.indexOf(':'))
@@ -24,12 +24,33 @@ export async function courier(input: { ledger: Ledger; key: string; provider: Sy
   const message = event.message
   if (!message) return
 
+
   /** Where each of the thread's targets (under this key) has it on the platform. */
   const targetsOf = async (thread: string) => {
     const sync = await call('syncThread', { thread })
     return { targets: (sync.targets as string[]).filter((target) => keyOf(target) === key), external: { ...(sync.external as Record<string, string>) } }
   }
   const copyOf = async (id: string, target: string): Promise<Copy | null> => (await call('syncCopies', { message: id })).copies?.[id]?.[target] ?? null
+
+  // A doc: written to the platform as it is now, when it's attached (a new doc, or one moved into a
+  // synced channel), edited, or moved. Retried until it lands; a provider's write that finds the
+  // platform already holding this body does nothing, which is the retry guard.
+  if (message.doc && (event.type.startsWith('doc.') || event.type === 'thread.synced')) {
+    if (!provider.doc || message.deleted) return
+    const only = event.type === 'thread.synced' ? String(event.payload.target) : null
+    const kind = event.type === 'doc.edited' ? 'edited' : event.type === 'doc.moved' ? 'moved' : 'created'
+    const { targets } = await targetsOf(message.thread)
+    for (const target of targets) {
+      if (only !== null && target !== only) continue
+      try {
+        await provider.doc({ target, event: kind, doc: { id: message.doc.id, path: message.doc.path, title: message.doc.title, revision: message.doc.revision }, body: message.text, ...(kind === 'moved' ? { from: String(event.payload.path), to: String(event.payload.to) } : {}), ...(event.payload.by?.actor ? { by: String(event.payload.by.actor) } : {}) }, tools)
+      } catch (error) {
+        if (!last && !(error instanceof SyncRefused)) throw error
+        console.warn('[boards] sync ' + key + ': ' + event.type + ' of doc #' + message.id + ' not written to ' + target + ':', reason(error))
+      }
+    }
+    return
+  }
 
   if (event.type === 'message.posted' || event.type === 'thread.synced') {
     const only = event.type === 'thread.synced' ? String(event.payload.target) : null

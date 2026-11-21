@@ -2,15 +2,18 @@
 // writes (signed by an x-test-signature of "good"), what it imports and posts is recorded here, and
 // a message's text scripts how it fails. The board runs it as its own sync under the key "test".
 import { SyncRefused, type InboxEvent, type SyncProvider } from '../src/sync/provider.ts'
+import { importDocFile } from '../src/sync/docfiles.ts'
 
 export type TestEvent =
   | { kind: 'root'; thread: string; message: string; channel: string; text: string }
   | { kind: 'reply'; thread: string; message: string; text: string }
   /** Fails its first `fails` tries (all of them for a big number), then imports nothing. */
   | { kind: 'flaky'; thread: string; message: string; fails: number }
+  /** The platform's copy of a doc changed: imported as the GitHub provider imports a pushed Markdown file. */
+  | { kind: 'docfile'; thread: string; message: string; channel: string; slug: string; before: string | null; after: string }
 
 export type Imported = { board: string; id: string; thread: string; attempt: number; ok: boolean; at: number }
-export type Sent = { board: string; op: 'post' | 'edit' | 'delete' | 'react' | 'typing'; target: string; thread: string | null; message: string | null; text?: string; copy?: string; at: number; ok: boolean }
+export type Sent = { board: string; op: 'post' | 'edit' | 'delete' | 'react' | 'typing' | 'doc'; event?: string; path?: string; from?: string; target: string; thread: string | null; message: string | null; text?: string; copy?: string; at: number; ok: boolean }
 
 export const imported: Imported[] = []
 export const sent: Sent[] = []
@@ -33,6 +36,14 @@ function scripted(op: string, id: string, text: string) {
 export function testProvider(): SyncProvider<TestEvent & { board: string }> {
   return {
     platform: 'test',
+    // Docs under docsync/<board> are kept in step: the channel's second segment is the board, so a test reads its own.
+    docTarget(channel, key) {
+      const [top, board] = channel.split('/')
+      return top === 'docsync' && board ? key + ':' + board + ':doc' : null
+    },
+    async doc({ target, event, doc, body, from }) {
+      sent.push({ board: boardOf(target), op: 'doc', event, target, thread: null, message: doc.revision, path: doc.path, text: body, ...(from ? { from } : {}), at: Date.now(), ok: true })
+    },
     async receive(request, { key }) {
       if (request.headers.get('x-test-signature') !== 'good') return { events: [], response: new Response('not signed\n', { status: 401 }) }
       const body = (await request.json()) as { board: string; events: (TestEvent & { id: string })[] }
@@ -50,6 +61,7 @@ export function testProvider(): SyncProvider<TestEvent & { board: string }> {
       }
       record(true)
       if (event.kind === 'flaky') return { message: null }
+      if (event.kind === 'docfile') return importDocFile(tools.call, { channel: event.channel, slug: event.slug, before: event.before, after: event.after, name: event.thread, link: 'https://platform.test/' + event.thread })
       const origin = { channel: tools.key + ':' + event.board, thread, subthread: null, message: event.message, context: null }
       if (event.kind === 'root') return tools.call('syncImport', { op: 'post', from: tools.key, author: author(tools.key), origin, channel: event.channel, text: event.text, labels: {}, id: thread + ':' + event.message })
       const re = await tools.rootOf(thread)

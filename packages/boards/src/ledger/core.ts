@@ -214,6 +214,8 @@ export type ViewOptions = {
 
 export class Board {
   head = 0
+  /** The syncs that keep docs in step (a deployment's providers with docTarget): for a doc's channel, a target prefix or null. */
+  docTargets: ((channel: string) => string | null)[] = []
   /** Asked for each message ID that has no row: archival (archive.ts) answers an archived one, or faults it in. */
   miss: ((id: number) => MessageRow | null) | null = null
   /** The board's own syncs, as its deployment declares them: each key, and its platform. */

@@ -4,6 +4,7 @@
 // goes back as comments, as the app (the token it's given).
 import { ownEcho, SyncRefused, SyncRetry, type InboxEvent, type SyncProvider } from './provider.ts'
 import { isSecret, readSecret, secretReader, type Secret } from './secrets.ts'
+import { importDocFile } from './docfiles.ts'
 
 export type GitHubOptions = {
   /** The webhook secret GitHub signs deliveries with: a Worker secret, or a Secrets Store binding. */
@@ -18,6 +19,13 @@ export type GitHubOptions = {
   botUserId?: string
   /** Where GitHub's REST API is: https://api.github.com unless a test says otherwise. */
   apiBase?: string
+  /**
+   * Markdown docs kept in step with board docs (ledger/docs.ts), per repo: the files under dir
+   * (docs/runbooks/deploy.md) are the docs under channel (docs/runbooks/deploy), both ways. A push to
+   * branch (the repo's default) imports each changed file as a merge against what it was before; a
+   * doc written on the board is committed as the app.
+   */
+  docs?: Record<string, { dir: string; channel: string; branch?: string }>
 }
 
 export type Author = { id: string; handle: string; name: string; avatar: string | null; isBot: boolean }
@@ -29,6 +37,7 @@ export type PlatformEvent =
   | { kind: 'edit'; key: string; thread: string; message: string | null; author: Author; text: string; raw: unknown }
   | { kind: 'delete'; key: string; thread: string; message: string; author: Author; raw: unknown }
   | { kind: 'labels'; key: string; thread: string; author: Author; set: Record<string, string>; unset: string[]; raw: unknown }
+  | { kind: 'docfile'; key: string; thread: string; repo: string; path: string; before: string; after: string; removed: boolean; author: Author; raw: unknown }
 
 const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
 
@@ -71,6 +80,22 @@ export function githubEvents(key: string, delivery: { event: string; payload: an
   const sender = authorOf(key, payload.sender)
   const threadOf = (number: number) => key + ':' + repo + ':' + number
   const out: PlatformEvent[] = []
+  if (event === 'push') {
+    const docs = docsOf(options, repo)
+    if (!docs) return out
+    const branch = docs.branch ?? payload.repository?.default_branch ?? 'main'
+    if (payload.ref !== 'refs/heads/' + branch) return out
+    // The courier's own commits: the board has them already.
+    if (options.botUserId !== undefined && String(payload.sender?.id) === options.botUserId) return out
+    const files = new Map<string, boolean>()
+    for (const commit of payload.commits ?? []) {
+      for (const path of [...(commit.added ?? []), ...(commit.modified ?? [])]) files.set(path, false)
+      for (const path of commit.removed ?? []) files.set(path, true)
+    }
+    for (const [path, removed] of files)
+      if (path.startsWith(docs.dir + '/') && path.endsWith('.md')) out.push({ kind: 'docfile', key, thread: key + ':' + repo + ':file:' + path, repo, path, before: String(payload.before), after: String(payload.after), removed, author: sender, raw: payload })
+    return out
+  }
   const start = (root: Extract<PlatformEvent, { kind: 'root' }>) => {
     if (!channel) return
     if (options.starts && !options.starts(root)) return
@@ -130,6 +155,23 @@ export function githubEvents(key: string, delivery: { event: string; payload: an
   }
   return out
 }
+/** A repo's docs mapping, by its name as GitHub writes it (any case). */
+function docsOf(options: GitHubOptions, repo: string) {
+  const found = Object.entries(options.docs ?? {}).find(([name]) => name.toLowerCase() === repo.toLowerCase())
+  return found ? found[1] : null
+}
+
+const CHANNEL_SEGMENT = /^[a-z0-9][a-z0-9_-]*$/
+const SLUG = /^[a-z0-9][a-z0-9_-]{0,127}$/
+const encodePath = (path: string) => path.split('/').map(encodeURIComponent).join('/')
+function toBase64(text: string): string {
+  const bytes = new TextEncoder().encode(text)
+  let binary = ''
+  for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000))
+  return btoa(binary)
+}
+const fromBase64 = (value: string) => new TextDecoder().decode(Uint8Array.from(atob(value.replace(/\s/g, '')), (char) => char.charCodeAt(0)))
+
 /** GitHub's reaction for a board emoji, when it has one. */
 const REACTIONS: Record<string, string> = { '+1': '+1', thumbsup: '+1', thumbs_up: '+1', '-1': '-1', thumbsdown: '-1', thumbs_down: '-1', laughing: 'laugh', laugh: 'laugh', smile: 'laugh', confused: 'confused', heart: 'heart', tada: 'hooray', party: 'hooray', hooray: 'hooray', rocket: 'rocket', eyes: 'eyes' }
 
@@ -156,8 +198,76 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
     if (response.status === 429 || response.status >= 500 || (response.status === 403 && /rate limit/i.test(text))) throw new SyncRetry(said)
     throw new SyncRefused(said)
   }
+  /** A file's contents and blob SHA at a ref, or null when it isn't there. */
+  const contents = async (repo: string, path: string, ref: string): Promise<{ sha: string; text: string } | null> => {
+    if (!token) throw new SyncRefused('no GitHub token is configured')
+    const response = await fetch(api + '/repos/' + repo + '/contents/' + encodePath(path) + '?ref=' + encodeURIComponent(ref), {
+      headers: { authorization: 'Bearer ' + (await token(repo)), accept: 'application/vnd.github+json', 'user-agent': 'boards-sync', 'x-github-api-version': '2022-11-28' },
+    })
+    if (response.status === 404) return null
+    if (!response.ok) {
+      const said = 'GitHub answered ' + response.status + ' to GET contents/' + path + ': ' + (await response.text()).slice(0, 300)
+      if (response.status === 429 || response.status >= 500) throw new SyncRetry(said)
+      throw new SyncRefused(said)
+    }
+    const file = (await response.json()) as { sha: string; content?: string; encoding?: string; type?: string }
+    if (file.type !== 'file' || file.content === undefined) return null
+    return { sha: file.sha, text: fromBase64(file.content) }
+  }
+  /** The board doc a repo file is: its channel and slug, or null when its path can't be one. */
+  const docOfFile = (repo: string, path: string) => {
+    const docs = docsOf(options, repo)
+    if (!docs || !path.startsWith(docs.dir + '/') || !path.endsWith('.md')) return null
+    const parts = path.slice(docs.dir.length + 1, -3).split('/')
+    const slug = parts.pop()!
+    if (!SLUG.test(slug) || !parts.every((part) => CHANNEL_SEGMENT.test(part))) return null
+    return { channel: [docs.channel, ...parts].join('/'), slug }
+  }
+  /** The repo file a board doc is, or null when its path is outside the repo's docs channel. */
+  const fileOfDoc = (repo: string, docPath: string) => {
+    const docs = docsOf(options, repo)
+    if (!docs || !docPath.startsWith(docs.channel + '/')) return null
+    return docs.dir + '/' + docPath.slice(docs.channel.length + 1) + '.md'
+  }
+
   return {
     platform: 'github',
+
+    docTarget(channel, key) {
+      for (const [repo, docs] of Object.entries(options.docs ?? {})) if (channel === docs.channel || channel.startsWith(docs.channel + '/')) return key + ':' + repo + ':doc'
+      return null
+    },
+
+    async doc(input, { key }) {
+      const found = input.target.slice(key.length + 1).match(/^([^/:]+\/[^/:]+):doc:\d+$/)
+      if (!found) throw new SyncRefused(input.target + " isn't a GitHub doc target")
+      const repo = found[1]!
+      const branch = docsOf(options, repo)?.branch ?? 'main'
+      const write = async (method: 'PUT' | 'DELETE', path: string, body: Record<string, unknown>) => {
+        try {
+          await github(repo, method, '/contents/' + encodePath(path), { ...body, branch })
+        } catch (error) {
+          // A file changed between our read and our write: read it again on the next try.
+          if (error instanceof SyncRefused && / answered 409 /.test(error.message)) throw new SyncRetry(error.message)
+          throw error
+        }
+      }
+      if (input.event === 'moved' && input.from) {
+        const old = fileOfDoc(repo, input.from)
+        const there = old ? await contents(repo, old, branch) : null
+        if (old && there) await write('DELETE', old, { message: 'docs: move ' + old + ' to ' + (fileOfDoc(repo, input.doc.path) ?? input.doc.path) + ' (from the board)', sha: there.sha })
+      }
+      const path = fileOfDoc(repo, input.doc.path)
+      if (!path) return
+      const there = await contents(repo, path, branch)
+      // The retry guard: a file that already says this needs no commit.
+      if (there && there.text === input.body) return
+      await write('PUT', path, {
+        message: (there ? 'docs: update ' : 'docs: add ') + path + ' from the board (revision ' + input.doc.revision + (input.by ? ', ' + input.by : '') + ')',
+        content: toBase64(input.body),
+        ...(there ? { sha: there.sha } : {}),
+      })
+    },
     async receive(request, { key }) {
       const delivery = await verifyGitHub(request, await webhookSecret())
       if (!delivery) return { events: [], response: new Response('not signed by this app\n', { status: 401 }) }
@@ -193,6 +303,19 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
           return call('syncImport', { op: 'delete', from, author: event.author, origin: origin(event.message) })
         case 'labels':
           return call('syncImport', { op: 'labels', from, author: event.author, origin: origin(null), set: event.set, unset: event.unset })
+        case 'docfile': {
+          const at = docOfFile(event.repo, event.path)
+          if (!at) {
+            console.warn('[boards] sync ' + key + ': ' + event.path + " can't be a doc's path: left out")
+            return null
+          }
+          // A file removed in the repo leaves its doc on the board: deleting is a person's call.
+          if (event.removed) return null
+          const after = await contents(event.repo, event.path, event.after)
+          if (after === null) return null
+          const before = /^0+$/.test(event.before) ? null : await contents(event.repo, event.path, event.before)
+          return importDocFile(call, { channel: at.channel, slug: at.slug, before: before?.text ?? null, after: after.text, name: event.repo + '/' + event.path, link: 'https://github.com/' + event.repo + '/blob/' + event.after + '/' + encodePath(event.path) })
+        }
       }
     },
 

@@ -343,7 +343,7 @@ function importChange(ctx: Ctx, body: ImportBody, platform: string, entries: Syn
 // -- receipts ---------------------------------------------------------------------------------------
 
 /** Attaches a thread to a target: a thread.synced, once. */
-function attach(ctx: Ctx, root: MessageRow, target: string, kind: 'channel' | 'thread', cause: string): boolean {
+export function attach(ctx: Ctx, root: MessageRow, target: string, kind: 'channel' | 'thread', cause: string, extra: Record<string, unknown> = {}): boolean {
   if (ctx.sql.one('select 1 as there from sync_threads where thread = ? and target = ?', root.id, target)) return false
   if (kind === 'thread') {
     const other = threadOfExternal(ctx, target)
@@ -354,7 +354,7 @@ function attach(ctx: Ctx, root: MessageRow, target: string, kind: 'channel' | 't
   }
   ctx.sql.run('insert into sync_threads (thread, target, cause, kind, external) values (?, ?, ?, ?, ?)', root.id, target, cause, kind, kind === 'thread' ? target : null)
   ctx.board.seen(ctx.actor, ctx.now)
-  ctx.board.append('thread.synced', { thread: root.thread_key, target, cause, kind, by: ctx.author }, { at: ctx.now, thread: root.id })
+  ctx.board.append('thread.synced', { thread: root.thread_key, target, cause, kind, by: ctx.author, ...extra }, { at: ctx.now, thread: root.id })
   return true
 }
 
@@ -561,7 +561,7 @@ op('typing', (ctx, { id }: { id: string; status?: string }) => {
 // -- the courier's subscription: @sync:<key> -----------------------------------------------------------
 
 /** What a board's own sync copies out: these, in threads synced with a target of its key. */
-const COURIER_TYPES = new Set(['message.posted', 'message.edited', 'message.deleted', 'reaction.added', 'reaction.removed', 'labels.changed', 'thread.synced'])
+const COURIER_TYPES = new Set(['message.posted', 'message.edited', 'message.deleted', 'reaction.added', 'reaction.removed', 'labels.changed', 'thread.synced', 'doc.edited', 'doc.moved'])
 
 type CourierRow = { seq: number; type: string; thread: number | null; message: number | null; at: number; payload: string }
 
@@ -574,6 +574,8 @@ export function courierMatch(ctx: Ctx, row: CourierRow, key: string): { thread: 
   if (row.type === 'thread.synced') {
     if (!String(payload.target ?? '').startsWith(prefix)) return null
   } else if (!ctx.sql.one('select 1 as there from sync_threads where thread = ? and substr(target, 1, ?) = ? limit 1', row.thread, prefix.length, prefix)) return null
+  // A doc's thread syncs as the doc: its body as it is now, not its messages.
+  if (!row.type.startsWith('doc.') && row.type !== 'thread.synced' && ctx.sql.one('select 1 as there from docs where root = ?', row.thread)) return null
   const message = ctx.board.message(row.message ?? row.thread)
   if (row.type === 'message.posted' && message?.no_sync) return null
   const event: Record<string, unknown> = { cursor: ref(row.seq), type: row.type, createdAt: iso(row.at), payload: payloadView(ctx, payload) }

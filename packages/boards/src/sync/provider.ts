@@ -66,7 +66,14 @@ export interface SyncProvider<E = any> {
   delete?(input: { target: string; copy: Copy }, tools: CourierTools): Promise<void>
   react?(input: { target: string; copy: Copy; emoji: string; remove: boolean }, tools: CourierTools): Promise<void>
   startTyping?(input: { target: string; thread: string; status?: string }, tools: CourierTools): Promise<void>
+  /** Docs (ledger/docs.ts) this sync keeps in step: for a doc's channel, the target prefix its threads attach to, or null. */
+  docTarget?(channel: string, key: string): string | null
+  /** A doc written on the board, written to the platform as it is now: created, edited, or moved (from and to are paths). */
+  doc?(input: { target: string; event: 'created' | 'edited' | 'moved'; doc: OutboundDoc; body: string; from?: string; to?: string; by?: string }, tools: CourierTools): Promise<void>
 }
+
+/** A doc, as the courier hands it to a provider. */
+export type OutboundDoc = { id: string; path: string; title: string; revision: string }
 
 /** The platform refused for good (a 4xx that isn't a rate limit): the courier records the failure now. */
 export class SyncRefused extends Error {}

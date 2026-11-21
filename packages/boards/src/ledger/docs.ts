@@ -10,6 +10,26 @@ import { DDL } from './schema.ts'
 import { json } from './sql.ts'
 import { mentionTerms } from './text.ts'
 import { applyEdit, bodyOf, diff, EditError, merge, parseDoc, replay, track, type Meta, type Patch, type Section, type SectionEdit } from './doctext.ts'
+import { satelliteKey } from '../sync/provider.ts'
+import { attach } from './sync.ts'
+
+/**
+ * What a sync's own write carries, so its courier doesn't echo it back: only a doc it created, which
+ * the platform holds as it is. An edit it imported is a merge, which can hold what the platform's
+ * copy lacks, so it goes back (a provider writes nothing when its copy already says it).
+ */
+const fromOf = (ctx: Ctx) => {
+  const key = satelliteKey(ctx.caller)
+  return key ? { from: key } : {}
+}
+
+/** Attaches a doc's thread to each sync that keeps its channel in step: its courier writes the doc there (not back to the sync it came from). */
+function attachSyncs(ctx: Ctx, row: MessageRow, channel: string) {
+  for (const targetOf of ctx.board.docTargets) {
+    const prefix = targetOf(channel)
+    if (prefix !== null) attach(ctx, row, prefix + ':' + row.id, 'thread', 'doc', fromOf(ctx))
+  }
+}
 
 /** A doc's body, in bytes of UTF-8 (a message stays at 10,000 characters). */
 export const DOC_BODY_MAX = 512 * 1024
@@ -170,10 +190,11 @@ op('createDoc', (ctx, body: CreateDoc) => {
   // The post's own event keeps the doc's facet, not its body twice.
   ctx.sql.run('update events set facets = ? where seq = ?', JSON.stringify({ before: null, after: ctx.board.facet(row.id) }), row.id)
   const before = ctx.board.facet(row.id)
-  ctx.board.append('doc.created', { id: row.id, thread: row.thread_key, path, title, ...(from !== null ? { from: ref(from) } : {}), by: ctx.author }, { at: ctx.now, message: row.id, thread: row.id, before })
+  ctx.board.append('doc.created', { id: row.id, thread: row.thread_key, path, title, ...(from !== null ? { template: ref(from) } : {}), by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before })
   ctx.sql.run("insert into doc_versions (root, seq, kind, rev) values (?, ?, 'edit', ?)", row.id, row.id, row.id)
   snapshot(ctx, row.id, row.id, row.text)
   ctx.sql.run('update docs set facet_text = ?, facet_terms = ? where root = ?', title, '[]', row.id)
+  attachSyncs(ctx, ctx.board.message(row.id)!, body.channel)
   return { message: ctx.board.view(ctx.board.message(row.id)!, viewOptions(ctx)), ...(mentions ? { mentions } : {}) }
 })
 
@@ -346,7 +367,8 @@ op('moveDoc', (ctx, body: { id: string; channel?: string; slug?: string }) => {
   ctx.sql.run('update messages set labels = ?, version = ? where id = ?', JSON.stringify(labels), seq, row.id)
   ctx.sql.run('update docs set channel = ?, slug = ? where root = ?', channel, slug, row.id)
   writeTerms(ctx, { id: row.id, thread: row.thread, text: row.text, deleted: 0, labels, attachments: json(row.attachments, []) })
-  ctx.board.append('doc.moved', { id: row.id, thread: row.thread_key, from, to, by: ctx.author }, { at: ctx.now, message: row.id, thread: row.id, before, seq })
+  ctx.board.append('doc.moved', { id: row.id, thread: row.thread_key, path: from, to, by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before, seq })
+  attachSyncs(ctx, ctx.board.message(row.id)!, channel)
   return answer(ctx, row.id)
 })
 
