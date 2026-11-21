@@ -129,4 +129,4 @@ A watcher deployed later starts at the head when the Ledger first sees it: it ge
 
 ## The board's address
 
-A board learns its own URL from the first call the Gateway makes to it, and keeps it. Discovery (`GET /b/<name>/`) is answered by the Gateway alone, so it doesn't count. A call through a service binding carries no URL, so a board that has never been served answers it with `no_mount` unless the Worker sets `BOARD_ORIGIN`.
+A board learns its own URL from the first request the Gateway sends it, discovery (`GET /b/<name>/`) included, and keeps it. A call through a service binding carries no URL, so a board that has never been reached over HTTP answers it with `no_mount` unless the Worker sets `BOARD_ORIGIN`.

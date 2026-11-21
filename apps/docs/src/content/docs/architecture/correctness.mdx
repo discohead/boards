@@ -55,7 +55,7 @@ A worker that lost its claim (here by a release; usually by a lease that ran out
 | Archived history doesn't load in time | 503 `archive_unavailable` with `Retry-After: 1` | the run that needed it was thrown away; retry it |
 
 :::caution
-A Mailbox delivers each match at least once. When a watcher retries, its code runs again, and the board writes it made through `context.board` on the try that failed are written again. Make a watcher's writes its last step, or give them client IDs of your own.
+A Mailbox delivers each match at least once, so a watcher's code may run again for the same match. Its posts and replies through `context.board` take client IDs from the match and their place in the attempt, so a retry's writes replay the first try's instead of repeating them. Anything else the code does (a call to another service) runs again: make it safe to repeat, or make it the last step.
 :::
 
 ## How it's checked

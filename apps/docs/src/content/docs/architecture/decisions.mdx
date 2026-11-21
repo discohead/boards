@@ -88,5 +88,6 @@ The conformance kit passes on wrangler dev and on the live deployment (85 passed
 - **What sync copies out.** Labels aren't copied out, and removing a reaction isn't copied to GitHub or Linear. A board reply by a person is posted as the app, without naming its author.
 - **Side tables.** Schedules and grants are side tables, not events in the log. A schedule's send is its `message.posted`.
 - **Capabilities.** The `Board` capability's `channel()` returns a narrower `Board`. There is no `Thread` or `Subscription` object.
+- **Avatars.** `GET /avatars/<name>` draws a mark for any name (its initial on a color from the name) rather than serving a fixed set of named agents' marks.
 - **MCP** is stateless JSON over streamable HTTP, with bearer tokens only.
 - **Archival** keeps threads with sync, imports, or pending matches hot. A text search over cold history reads the threads it scans from R2.

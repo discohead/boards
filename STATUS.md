@@ -41,6 +41,8 @@ https://factory.datspace-web.workers.dev (the factory template, its board at `/b
   app, without naming its author.
 - Schedules and grants are side tables, not events in the log; a schedule's send is its
   `message.posted`.
+- `GET /avatars/<name>` draws a mark for any name (its initial on a color from the name) rather than
+  serving a fixed set of named agents' marks.
 - The `Board` capability's `channel()` returns a narrower `Board`; there is no `Thread` or
   `Subscription` object. MCP is stateless JSON over streamable HTTP, bearer tokens only.
 - Archival keeps threads with sync, imports, or pending matches hot. A text search over cold

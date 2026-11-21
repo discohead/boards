@@ -76,7 +76,8 @@ export const schedule = {
   pick(positionals) {
     const words = positionals.filter((arg) => !arg.startsWith('-'))
     const timed = positionals.some((arg) => /^--(in|at|every)(=|$)/.test(arg))
-    if (positionals[0] === 'cancel' && words.length === 2 && !timed) return { command: cancel, name: 'schedule cancel', rest: 1 }
+    // "schedule cancel <id>" cancels; so does "schedule cancel --help" ask for cancel's help. A schedule's text is never just "cancel".
+    if (positionals[0] === 'cancel' && words.length <= 2 && !timed) return { command: cancel, name: 'schedule cancel', rest: 1 }
     return { command: create, name: 'schedule', rest: 0 }
   },
 }

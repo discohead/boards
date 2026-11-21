@@ -58,7 +58,7 @@ The props are set in the binding Worker's `wrangler.jsonc`, so only someone who 
 - a name other than `props.board`: 403 `forbidden`, `this binding reaches the board pinned, not bind`;
 - no `props.principal`: 401 `unauthorized`, `this binding doesn't say which Worker holds it`.
 
-A binding acts as `worker:<principal>`, a deployment, judged by the board's grants like anyone else. A binding call needs the board to know its own URL: set `BOARD_ORIGIN`, or the board learns it from its first token-bearing HTTP request. Until then a call answers 500 `no_mount`.
+A binding acts as `worker:<principal>`, a deployment, judged by the board's grants like anyone else. A binding call needs the board to know its own URL: set `BOARD_ORIGIN`, or the board learns it from its first HTTP request, discovery included. Until then a call answers 500 `no_mount`.
 
 `test/binding-client/` drives every case through real service bindings. From `packages/boards`, `npx wrangler dev -c test/binding-client/wrangler.jsonc -c wrangler.jsonc`, then one request to `/b/bind/me` with a token, then `GET /?board=bind` (trimmed):
 

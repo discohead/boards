@@ -170,9 +170,15 @@ export function createGateway(configure: Configure = () => ({})) {
     if (!found) return failureResponse({ status: 404, code: 'not_found', message: 'no route: ' + request.method + ' ' + url.pathname })
     const { route: definition, params } = found
     try {
+      if (definition.name === 'discovery') await (ledger as unknown as { remember(mount: Mount): Promise<void> }).remember(mount)
       if (definition.name === 'discovery') return json({ version: VERSION, url: mount.url, audience: mount.url, team_id: null, project_id: null, sync: [...SYNC_ENTRIES, ...Object.entries(syncsOf(env)).map(([key, provider]) => ({ key, platform: provider.platform }))] })
       if (definition.name === 'webhook') return await webhook(request, env, mount, params.key!, syncsOf(env))
-      if (definition.name === 'openapi') return json({ openapi: '3.1.0', info: { title: 'Boards', version: VERSION }, paths: Object.fromEntries(ROUTES.map((entry) => [entry.path.replace(/:(\w+)/g, '{$1}'), { [entry.method.toLowerCase()]: { operationId: entry.name } }])) })
+      if (definition.name === 'openapi') {
+        // Every method of every path: two routes on one path are two operations under it.
+        const paths: Record<string, Record<string, { operationId: string }>> = {}
+        for (const entry of ROUTES) (paths[entry.path.replace(/:(\w+)/g, '{$1}')] ??= {})[entry.method.toLowerCase()] = { operationId: entry.name }
+        return json({ openapi: '3.1.0', info: { title: 'Boards', version: VERSION }, paths })
+      }
       if (definition.open && GATEWAY[definition.name]) return GATEWAY[definition.name]!(request, env, { mount, caller: null, params, input: undefined, ledger })
       if (request.headers.has('x-board-scope')) throw new BoardsError(400, 'invalid_scope', 'x-board-scope is x-board-can now: send the same value as x-board-can')
       const profile = parseProfile(request.headers.get('x-board-profile'))

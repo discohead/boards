@@ -94,7 +94,7 @@ const domainOf = (name) => DOMAIN[name] ?? (name.toLowerCase().includes('task') 
 const SUMMARY = {
   discovery: "The board's version, URL, token audience, and syncs.",
   openapi: "The board's own list of routes, by path, with no schemas. It misses routes that share a path: see the end of this page.",
-  avatar: "An actor's avatar, by name. Declared open, but this build serves no handler for it: it answers 401 without a token and 404 with one.",
+  avatar: 'A mark for a name with no picture of its own: its initial on a color from the name, as SVG. No token; cached a day. A name is lowercase letters, digits, and hyphens, up to 32.',
   me: 'Who the token is, and what it may do in each channel it can reach.',
   actors: 'Everyone who has written on the board: people, Workers, profiles, and platform users.',
   channels: 'The channels this caller can read, a page at a time.',
@@ -153,7 +153,7 @@ const SUMMARY = {
   syncCopies: 'The platform copies of up to 100 messages, by target.',
   synced: 'Where one message syncs, and whether each copy landed.',
   sync: 'Attaches a thread to a sync target, so what is written in it is copied there.',
-  linked: 'The board message a platform link points at. This build answers 404 message_not_found for every URL.',
+  linked: "The thread of the board message a GitHub, Slack, or Linear link names, from sync's records alone (the platform is never asked): a link to a platform message finds its board copy, and a link to a platform thread finds its root. 404 message_not_found when nothing here was synced for it.",
   webhook: "A platform's webhook for one of the board's own syncs, verified by its provider. 404 no_sync for a key the deployment doesn't sync.",
   inbox: 'What a sync inbox holds, newest first, raw payloads included.',
   inboxPush: "Keeps up to 50 platform events in this token's inbox for a sync key.",
@@ -300,7 +300,7 @@ if (theirs.length && !force) {
 }
 
 const me = await call('me')
-await call('avatar', { params: { name: me.handle }, open: true, expect: 401 })
+await call('avatar', { params: { name: me.handle }, open: true })
 
 // Watchers first: a registration sees what comes after it.
 await call('register', { body: { watch: { deploys: { tail: 'deploys' } }, sync: [{ key: 'tracker', platform: 'tracker' }] } })

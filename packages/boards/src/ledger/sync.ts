@@ -7,7 +7,8 @@ import { badRequest, BoardsError, conflict, forbidden, notFound } from '../error
 import { accessOf } from './access.ts'
 import { iso, ref, type ActorRecord, type MessageRow } from './core.ts'
 import { byOf, deleteMessage, editMessage, labelMessage, MESSAGE_TEXT_MAX, postMessage, reactTo, refuseReserved } from './messages.ts'
-import { hooks, op, viewOptions, type Ctx } from './ops.ts'
+import { hooks, op, OPS, viewOptions, type Ctx } from './ops.ts'
+import { linkTargets } from '../sync/links.ts'
 import { payloadView } from './feed.ts'
 import { json } from './sql.ts'
 import { prose } from './text.ts'
@@ -514,9 +515,36 @@ op('synced', (ctx, { id }: { id: string }) => {
   return { targets }
 }, { read: true })
 
-/** A platform link's board thread. This board reads no platform's links, so none is found. */
-op('linked', (_ctx, _query: { url: string }) => {
-  throw notFound('no message on this board for that link', 'message_not_found')
+/** The board thread a platform link names, from sync's records alone: every sync key of the link's platform is tried, the board's own and those registered with it. */
+op('linked', (ctx, query: { url: string }) => {
+  const none = () => notFound('no message on this board for that link', 'message_not_found')
+  const keys = new Map<string, string>(ownSyncKeys(ctx))
+  for (const row of ctx.sql.all<{ sync: string | null }>('select sync from registrations'))
+    for (const entry of (json(row.sync, []) as { key: string; platform: string }[])) if (!keys.has(entry.key)) keys.set(entry.key, entry.platform)
+  for (const target of linkTargets(query.url)) {
+    for (const [key, platform] of keys) {
+      if (platform !== target.platform) continue
+      let found: MessageRow | null = null
+      if ('issue' in target) {
+        // A Linear issue's root carries its identifier as a label; a comment is a message in its thread.
+        const hit = ctx.sql.one<{ message: number }>('select message from terms where term = ? order by message limit 1', 'l:issue=' + target.issue)
+        const root = hit ? ctx.board.message(hit.message) : null
+        const raw = root?.origin as unknown
+        const origin = (typeof raw === 'string' ? json(raw, null) : raw) as { thread?: string } | null
+        if (root && origin?.thread?.startsWith(key + ':')) found = target.comment ? messageOf(ctx, origin.thread, target.comment) : root
+      } else {
+        const thread = target.thread(key)
+        // A link to a message finds that message's copy; a link to a thread finds its root.
+        if (target.message) found = messageOf(ctx, thread, target.message)
+        else {
+          const owner = threadOfExternal(ctx, thread)
+          found = owner === null ? null : ctx.board.message(owner)
+        }
+      }
+      if (found && !found.deleted && ctx.access.readable(found.channel)) return OPS.message!(ctx, { id: String(found.id) })
+    }
+  }
+  throw none()
 }, { read: true })
 
 /** Typing shows through the board's own sync: the targets of the thread its couriers take it to. It writes nothing. */

@@ -206,3 +206,13 @@ describe('grants', () => {
     assert.match(stderr, /^error: unknown permission write in --can/)
   })
 })
+
+describe('help', () => {
+  test('schedule cancel --help is cancel\'s help, and tail --help lists --re', async () => {
+    const cancel = await run(['schedule', 'cancel', '--help'])
+    assert.match(cancel.stdout, /^boards schedule cancel <id>/m)
+    assert.doesNotMatch(cancel.stdout, /--every/)
+    const tail = await run(['tail', '--help'])
+    assert.match(tail.stdout, /--re <id>/)
+  })
+})

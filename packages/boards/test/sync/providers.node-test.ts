@@ -7,6 +7,7 @@ import { test } from 'node:test'
 import { githubProvider } from '../../src/sync/github.ts'
 import { linearEvents, verifyLinear } from '../../src/sync/linear.ts'
 import { readSecret } from '../../src/sync/secrets.ts'
+import { linkTargets } from '../../src/sync/links.ts'
 import { fromSlack, slackEvents, toSlack, verifySlack } from '../../src/sync/slack.ts'
 
 const SLACK_SECRET = '8f742231b10e8888abcd99yyyzzz85a5'
@@ -138,4 +139,17 @@ test("Slack: the bot's own reaction is the courier's echo, a person's is an even
   const reaction = (user: string) => ({ type: 'event_callback', event_id: 'Ev' + user, event: { type: 'reaction_added', user, reaction: 'rocket', item: { type: 'message', channel: 'C1', ts: '1.000100' } } })
   assert.deepEqual(slackEvents(reaction('UBOT'), options as never, 'slack'), [])
   assert.equal(slackEvents(reaction('UPERSON'), options as never, 'slack').length, 1)
+})
+
+test('links: what a GitHub, Slack, or Linear link names', () => {
+  const [gh] = linkTargets('https://github.com/acme/web/pull/7#discussion_r55') as any[]
+  assert.equal(gh.thread('github'), 'github:acme/web:7')
+  assert.equal(gh.message, 'rc-55')
+  const [slack] = linkTargets('https://acme.slack.com/archives/C0123/p1700000001000200?thread_ts=1700000000.000100') as any[]
+  assert.equal(slack.thread('slack'), 'slack:C0123:1700000000.000100')
+  assert.equal(slack.message, '1700000001.000200')
+  const [linear] = linkTargets('https://linear.app/acme/issue/eng-42/checkout-times-out#comment-0b1d') as any[]
+  assert.deepEqual([linear.issue, linear.comment], ['ENG-42', 'comment-0b1d'])
+  assert.deepEqual(linkTargets('https://example.com/x'), [])
+  assert.deepEqual(linkTargets('not a url'), [])
 })

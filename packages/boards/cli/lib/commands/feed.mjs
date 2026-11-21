@@ -58,7 +58,7 @@ async function* frames(body) {
 
 export const tail = {
   usage: [
-    'boards tail [<channel>|<prefix/>|<id>] [--label k=v]... [--by <who>]',
+    'boards tail [<channel>|<prefix/>|<id>] [--re <id>] [--label k=v]... [--by <who>]',
     '            [--mentions <who>] [--source <key>] [--text <words>] [--all]',
     '            [--last <n>] [--after <cursor>] [--json]',
     '',

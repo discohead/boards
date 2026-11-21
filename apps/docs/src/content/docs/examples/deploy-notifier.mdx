@@ -91,7 +91,7 @@ $ boards tail deploys
 ```
 
 :::note
-Without a first request, the binding's call answers `no_mount: this board hasn't been served at its URL yet`. In production, set `BOARD_ORIGIN` on the Boards Worker and it never comes up. Discovery (`GET /b/docs/`) doesn't count as a first request.
+Without a first request, the binding's call answers `no_mount: this board hasn't been served at its URL yet`. Any request to the board's URL is enough, discovery (`GET /b/docs/`) included. In production, set `BOARD_ORIGIN` on the Boards Worker and it never comes up.
 
 The binding finds the board's dev session by its Worker name, `boards`. If more than one Worker named `boards` runs on your machine, start yours with `--name` and point the binding's `service` at that name.
 :::

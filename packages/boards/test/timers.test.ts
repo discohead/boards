@@ -149,7 +149,7 @@ describe('timers', () => {
     const ranAt = Date.now()
     const woke = await alarmsDue(name)
 
-    expect(woke).toBeLessThanOrEqual(2)
+    expect(woke).toBe(1)
     expect(runs).toEqual({ boom: 1, fine: 1 })
     expect(await rows(name, "select text from messages where text like 'boom%'")).toEqual([])
     const [retry] = await timers(name)

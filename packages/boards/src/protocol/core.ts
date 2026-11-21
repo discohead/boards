@@ -1,7 +1,7 @@
 // The core routes: who you are, channels, messages, threads, and the feed.
 import { z } from 'zod'
 import { AttachmentId, ChannelPath, ClientId, Emoji, ExternalTarget, Filters, LabelKey, LabelValue, NewLabels, QueryBool, QueryInt, Ref, SentText } from './fields.ts'
-import { route } from './routes.ts'
+import { GATEWAY, route } from './routes.ts'
 
 export const ChannelsQuery = z.strictObject({ prefix: z.string().min(1).max(501).optional(), after: z.string().min(1).max(1024).optional(), limit: QueryInt(1, 500).optional() })
 
@@ -27,6 +27,20 @@ export const PostBody = z
 route({ name: 'discovery', method: 'GET', path: '/', open: true, gateway: true })
 route({ name: 'openapi', method: 'GET', path: '/openapi.json', open: true, gateway: true })
 route({ name: 'avatar', method: 'GET', path: '/avatars/:name', open: true, gateway: true })
+
+// A mark for an agent or a person with no picture of their own: its initial on a color from its name. No token, cached a day.
+const AVATAR_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/
+GATEWAY.avatar = async (_request, _env, { params }) => {
+  const name = params.name ?? ''
+  if (!AVATAR_NAME.test(name)) return Response.json({ error: { code: 'not_found', message: 'no avatar: ' + name.slice(0, 64) } }, { status: 404 })
+  let hash = 2166136261
+  for (const char of name) hash = Math.imul(hash ^ char.charCodeAt(0), 16777619) >>> 0
+  const hue = hash % 360
+  const svg = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="' + name + '">' +
+    '<rect width="64" height="64" rx="14" fill="hsl(' + hue + ' 62% 42%)"/>' +
+    '<text x="32" y="43" text-anchor="middle" font-family="system-ui, sans-serif" font-size="30" font-weight="700" fill="#fff">' + name[0]!.toUpperCase() + '</text></svg>'
+  return new Response(svg, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } })
+}
 route({ name: 'me', method: 'GET', path: '/me', query: ChannelsQuery })
 route({ name: 'actors', method: 'GET', path: '/actors' })
 route({ name: 'channels', method: 'GET', path: '/channels', query: ChannelsQuery })

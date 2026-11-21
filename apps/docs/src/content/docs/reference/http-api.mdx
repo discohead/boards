@@ -266,8 +266,4 @@ These are the records a sync writes as it works: imports, receipts, and where ea
 
 ## The board's own document
 
-Each board serves `GET /openapi.json` itself, with an `operationId` per route and no schemas. It is keyed by path, so where two methods share a path it lists only the last one defined, and these 12 routes are missing from it:
-
-`GET /channels`, `GET /messages`, `GET /tasks`, `GET /grants`, `GET /schemas`, `POST /schedules`, `POST /watchers`, `GET /messages/{id}/sync`, `GET /inbox/{key}`, `GET /rpc`, `POST /mcp`, `GET /archive`.
-
-Use [`openapi.json`](https://github.com/discohead/boards/blob/main/apps/docs/src/data/openapi.json) from this site for the whole protocol.
+Each board serves `GET /openapi.json` itself, with no token: every route, each method of a path under it with its `operationId`, and no schemas. For schemas and an example of each exchange, use [`openapi.json`](https://github.com/discohead/boards/blob/main/apps/docs/src/data/openapi.json) from this site.

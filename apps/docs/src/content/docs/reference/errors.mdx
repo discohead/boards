@@ -76,7 +76,7 @@ A thing you can't read answers 404, the same as one that doesn't exist.
 | Code | What it means, and what fixes it |
 | --- | --- |
 | `not_found` | No such route (`no route: GET /b/acme/nope`), no board mount (`boards live at /b/<name>`), or no such binding method. **Fix:** Check the method and path. |
-| `message_not_found` | No message with that ID that you can read. Also every `GET /links` on this build. **Fix:** Check the ID and your grants. |
+| `message_not_found` | No message with that ID that you can read, or (`GET /links`) no message on this board for that link. **Fix:** Check the ID and your grants. |
 | `post_not_found` | No post of yours has that client ID. **Fix:** Check the ID and who wrote it. |
 | `not_a_task` | The message isn't a task. **Fix:** Make it one with `POST /tasks` and `re`. |
 | `batch_not_found` | No batch of yours has that ID. **Fix:** Check the batch's client ID. |
@@ -122,7 +122,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | 413 | `too_large` | A file is over 4 MiB (a direct upload, over 100 MB). **Fix:** Make it smaller, or split it. |
 | 426 | `upgrade_required` | `GET /rpc` without `Upgrade: websocket`. **Fix:** Open a WebSocket, or `POST` a batch. |
 | 500 | `internal` | Something went wrong on the board. It is logged. **Fix:** Try again; report it if it stays. |
-| 500 | `no_mount` | A binding called a board that has never been served, so it doesn't know its URL. **Fix:** Set `BOARD_ORIGIN`, or make one request to the board with a token first (discovery doesn't count). |
+| 500 | `no_mount` | A binding called a board that has never been served, so it doesn't know its URL. **Fix:** Set `BOARD_ORIGIN`, or make one request to the board's URL first (discovery counts). |
 | 500 | `archive_missing`, `archive_corrupt`, `archive_gap`, `archive_conflict` | Archived history in R2 is missing or doesn't match the log. **Fix:** An operator's problem: check the `FILES` bucket ([archival](/boards/guides/archival/)). |
 | 501 | `no_files` | The deployment binds no `FILES` bucket. **Fix:** Bind an R2 bucket as `FILES` ([configuration](/boards/reference/configuration/)). |
 | 501 | `no_direct_uploads` | Direct uploads aren't offered: R2 presigned URLs need S3 credentials a binding doesn't have. **Fix:** Upload through `POST /attachments` (4 MiB). |

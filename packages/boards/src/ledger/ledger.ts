@@ -17,6 +17,8 @@ import { courierMatch } from './sync.ts'
 import './messages.ts'
 import './feed.ts'
 import './domains.ts'
+import { ROUTES } from '../protocol/routes.ts'
+import '../protocol/core.ts'
 
 export type Answer = { ok: true; value: unknown } | { ok: false; failure: Failure }
 
@@ -62,6 +64,11 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
         const known = this.sql.one('select seq from outbox where destination = ?', 'watch:' + id)
         if (!known && this.ctx.storage.kv.get('watchStart:' + id) === undefined) this.ctx.storage.kv.put('watchStart:' + id, this.board.head)
       }
+    }
+
+    /** Where this board is reached: its first discovery request is enough for a binding to find it. */
+    async remember(given: Mount): Promise<void> {
+      this.mount(given)
     }
 
     private mount(given?: Mount): Mount {
@@ -132,7 +139,8 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
 
     /** What a committed write starts: the next alarm, rings, watcher deliveries, and its own after-work. */
     private async settle(startHead: number, after: Ctx['after']) {
-      await this.arm()
+      // The alarm arms once when it's done: arming after each timer it runs would wake it again at once.
+      if (!this.alarming) await this.arm()
       for (const task of after) this.ctx.waitUntil(Promise.resolve().then(task).catch((error) => console.error('[boards] after a write:', error)))
       if (this.board.head > startHead) {
         this.ring()
@@ -152,9 +160,20 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
       return false
     }
 
+    private alarming = false
     async alarm(): Promise<void> {
       const mount = this.ctx.storage.kv.get<Mount>('mount')
       if (!mount) return
+      this.alarming = true
+      try {
+        await this.runTimers(mount)
+      } finally {
+        this.alarming = false
+      }
+      await this.arm()
+    }
+
+    private async runTimers(mount: Mount): Promise<void> {
       prepare(this.runtime(mount))
       const started = Date.now()
       for (;;) {
@@ -202,7 +221,6 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
           }
         }
       }
-      await this.arm()
     }
 
     /** The OIDC issuers this board's grants name: the Gateway trusts their tokens. */
@@ -311,10 +329,12 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
     }
 
     /** A watcher's write or read, from its Mailbox: as the watcher, IDs derived from the match. */
-    async act(watcher: string, match: string, method: string, args: unknown[]): Promise<unknown> {
+    async act(watcher: string, match: string, method: string, args: unknown[], seq?: number): Promise<unknown> {
       const caller = selfCaller('boards:watch:' + watcher, watcher)
-      const writes = (this.writes.get(match) ?? 0) + 1
-      this.writes.set(match, writes)
+      // A write's ID comes from its place in its delivery attempt, so a retried delivery's writes replay instead of repeating.
+      const writes = seq && seq > 0 ? seq : (this.writes.get(match) ?? 0) + 1
+      if (!seq) this.writes.set(match, writes)
+      checkWatcherCall(method, args)
       const call = (name: string, input: unknown) => this.call(caller, name, input).then((answer) => {
         if (!answer.ok) throw new BoardsError(answer.failure.status, answer.failure.code, answer.failure.message)
         return answer.value
@@ -333,5 +353,39 @@ export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAIL
       }
     }
     private writes = new Map<string, number>()
+  }
+}
+
+const MESSAGE_ID = /^[1-9]\d{0,15}$/
+/** A watcher's call, checked as the HTTP route would check it: a mistake is a 400, never a 500 from deep in a write. */
+function checkWatcherCall(method: string, args: unknown[]) {
+  const bad = (message: string) => new BoardsError(400, 'invalid_request', message)
+  const id = (value: unknown, what: string) => {
+    if (typeof value !== 'string' || !MESSAGE_ID.test(value)) throw bad(what + ' takes a message ID like "12", got ' + JSON.stringify(value ?? null))
+  }
+  const body = (name: string, value: unknown) => {
+    const schema = ROUTES.find((route) => route.name === name)?.body
+    if (!schema) return
+    const parsed = schema.safeParse(value)
+    if (!parsed.success) throw bad(parsed.error.issues.map((issue) => (issue.path.length ? issue.path.join('.') + ': ' : '') + issue.message).join('; '))
+  }
+  const text = (input: unknown) => (typeof input === 'string' ? { text: input } : input)
+  switch (method) {
+    case 'post':
+      if (typeof args[0] !== 'string' || args[0] === '') throw bad('post takes a channel, got ' + JSON.stringify(args[0] ?? null))
+      return body('post', { channel: args[0], ...(text(args[1]) as object) })
+    case 'reply':
+      id(args[0], 'reply')
+      return body('post', { re: args[0], ...(text(args[1]) as object) })
+    case 'message':
+      return id(args[0], 'message')
+    case 'react':
+      id(args[0], 'react')
+      return body('react', { emoji: args[1] })
+    case 'label':
+      id(args[0], 'label')
+      return body('label', args[1] ?? {})
+    case 'typing':
+      return id(args[0], 'typing')
   }
 }

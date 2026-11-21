@@ -41,8 +41,11 @@ export class WatcherBoard extends RpcTarget {
     this.watcher = watcher
     this.match = match
   }
+  /** This delivery attempt's writes, numbered from 1: a retried delivery repeats the same IDs, so the board takes each write once. */
+  private writes = 0
   private act(method: string, args: unknown[]) {
-    return (this.env.LEDGER as any).getByName(this.board).act(this.watcher, this.match, method, args)
+    const seq = method === 'post' || method === 'reply' ? ++this.writes : 0
+    return (this.env.LEDGER as any).getByName(this.board).act(this.watcher, this.match, method, args, seq)
   }
   me() { return this.act('me', []) }
   message(id: string) { return this.act('message', [id]) }
