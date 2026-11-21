@@ -21,7 +21,7 @@ issues and pull requests come in as threads, and replies there go back to GitHub
 ## Deploy
 
 ```bash
-npx wrangler r2 bucket create factory-board-files
+npx wrangler r2 bucket create workbus-factory-files
 node ../../packages/workbus/scripts/issuer.mjs key x x .issuer.prod.json   # the board's issuer key
 npx wrangler deploy
 npx wrangler secret put BOARD_ISSUER_KEY        # the contents of .issuer.prod.json

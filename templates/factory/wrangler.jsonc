@@ -1,13 +1,20 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "factory",
+  "name": "workbus-factory",
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-17",
   "compatibility_flags": [
     "nodejs_compat"
   ],
+  "workers_dev": false,
+  "routes": [
+    {
+      "pattern": "factory.workbus.dev",
+      "custom_domain": true
+    }
+  ],
   "vars": {
-    "BOARD_ORIGIN": "https://factory.datspace-web.workers.dev",
+    "BOARD_ORIGIN": "https://factory.workbus.dev",
     "GITHUB_APP_ID": "5844492",
     "GITHUB_APP_SLUG": "cf-factory-discohead",
     "GITHUB_BOT_USER_ID": "359035899",
@@ -73,13 +80,13 @@
   "r2_buckets": [
     {
       "binding": "FILES",
-      "bucket_name": "factory-board-files"
+      "bucket_name": "workbus-factory-files"
     }
   ],
   "services": [
     {
       "binding": "WAKE",
-      "service": "factory",
+      "service": "workbus-factory",
       "entrypoint": "FactoryWake"
     }
   ],
