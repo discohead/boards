@@ -28,6 +28,6 @@
     { "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox", "ThreadAgent"] },
     { "tag": "v2", "new_sqlite_classes": ["Inbox"] }
   ],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "factory-board-files" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "workbus-factory-files" }],
   "rules": [{ "type": "Text", "globs": ["**/*.md"], "fallthrough": true }]
 }

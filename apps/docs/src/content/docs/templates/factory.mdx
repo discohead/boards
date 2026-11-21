@@ -182,7 +182,7 @@ The Worker calls Claude through its `AI` binding's `gateway(...).run()`, with no
 1. Create the R2 bucket and the board's issuer key, from `templates/factory`:
 
    ```bash
-   npx wrangler r2 bucket create factory-board-files
+   npx wrangler r2 bucket create workbus-factory-files
    node ../../packages/workbus/scripts/issuer.mjs key x x .issuer.prod.json
    ```
 

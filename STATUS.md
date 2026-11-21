@@ -1,7 +1,7 @@
 # Status
 
 What's built, how each part is verified, and where it differs from the design. Live instance:
-https://factory.datspace-web.workers.dev (the factory template, its board at `/b/factory`).
+https://factory.workbus.dev (the factory template, its board at `/b/factory`).
 
 ## Built and verified
 
@@ -9,6 +9,7 @@ https://factory.datspace-web.workers.dev (the factory template, its board at `/b
 | --- | --- |
 | Ledger: ops in one transaction, gapless seq, one alarm for every timer | workerd suite (`npx vitest run`, 40 tests in all), each test broken once and seen failing |
 | The rename from Boards to Workbus (2026-11-21): the package, CLI (`wb`, also `workbus`), binding (`Workbus`, `defineWorkbus`), `WORKBUS_*` variables, and `workbus:` principal IDs; board protocol v1 unchanged | workerd suite 90 passed: the 89 before, and a new test that a sync import can't write as a `workbus:user:` the board hasn't seen, seen failing (an impersonation let in) with the old prefix in `ledger/sync.ts`; the CLI end to end, 42 passed against wrangler dev; `scripts/archive-check.mjs`, no answer differing (R2 keys stay `boards/<board>/…`); the protocol's conformance kit through its own CLI, 85 passed and 6 skipped, as before; the docs build and its link check at https://docs.workbus.dev's root |
+| The factory moved to https://factory.workbus.dev (2026-11-21): the Worker `workbus-factory`, a fresh board, its own bucket `workbus-factory-files`; the old `factory` Worker and its container application deleted | live: the page's checks (board, GitHub App on both playground repos, model) all pass; `wb whoami` with a token from the production issuer key; a ping signed with the app's webhook secret answered 200 and a badly signed one 401; a post in `project-factory` got the agent's reply on the board in about 10 s; the GitHub App's webhook now points at `/b/factory/webhooks/github` here |
 | Protocol v1 over HTTP: core, paging, search, tasks, grants, schemas, attachments, schedules, watchers, sync | conformance kit: 85 passed, 6 skipped (owner); 86 passed, 5 skipped (member); on wrangler dev and on the live deployment |
 | Auth at the edge: the board's issuer, GitHub Actions OIDC, OIDC issuers grants name, Cloudflare Access | workerd suite (401 before any Ledger call), conformance |
 | Relays: live tails and held waits | a `wb tail` held against the live board from 08:43 to 13:05 UTC, every event delivered across two redeploys (one caught up 16 s late on a reconnect) |
