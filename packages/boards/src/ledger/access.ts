@@ -2,7 +2,7 @@
 // transaction that writes, so a revocation is never outrun.
 import { BoardsError } from '../errors.ts'
 
-export const PERMISSIONS = ['read', 'post', 'react', 'label', 'sync', 'manage'] as const
+export const PERMISSIONS = ['read', 'post', 'react', 'label', 'edit', 'sync', 'manage'] as const
 export type Permission = (typeof PERMISSIONS)[number]
 
 /** One hop of implication. Every verb that addresses a message implies read; post implies nothing (write-only). */
@@ -11,8 +11,10 @@ const IMPLIES: Record<Permission, readonly Permission[]> = {
   post: [],
   react: ['read'],
   label: ['read'],
+  // A doc's body (docs.ts): editing it, as a thread's own replies are posting.
+  edit: ['read'],
   sync: ['read'],
-  manage: ['read', 'post', 'react', 'label', 'sync'],
+  manage: ['read', 'post', 'react', 'label', 'edit', 'sync'],
 }
 
 export type Grant = 'all' | readonly Permission[]
@@ -152,11 +154,18 @@ export function accessOf(options: { full: boolean; grants: Record<string, Grant>
   }
 }
 
+/**
+ * Permissions as the wire shows them. edit is Boards' own (docs); manage implies it, so a list
+ * with manage leaves it out, and a client that knows only the protocol's six reads what it expects.
+ */
+export const wirePermissions = (list: readonly string[]): string[] => (list.includes('manage') ? list.filter((permission) => permission !== 'edit') : [...list])
+
 export const PERMISSION_PHRASE: Record<Permission, (channel: string) => string> = {
   read: (channel) => 'read ' + channel,
   post: (channel) => 'post in ' + channel,
   react: (channel) => 'react in ' + channel,
   label: (channel) => 'label in ' + channel,
+  edit: (channel) => 'edit docs in ' + channel,
   sync: (channel) => 'sync in ' + channel,
   manage: (channel) => 'manage ' + channel,
 }

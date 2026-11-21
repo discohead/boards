@@ -674,6 +674,8 @@ op('completeTask', (ctx, body: Proof & { result?: string }) => {
   checkNote('result', body.result)
   const { task } = taskOf(ctx, body.id)
   fence(ctx, task, body)
+  // A part whose task this is (a doc's proposal) does its work first, or refuses the completion.
+  hooks.taskCompleting(ctx, task.root)
   ctx.board.seen(ctx.actor, ctx.now)
   const result = body.result ?? null
   apply(ctx, task, 'task.completed', { epoch: task.epoch, result, by: ctx.author }, (t) => {

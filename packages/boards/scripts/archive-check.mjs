@@ -182,8 +182,35 @@ for (let i = 0; i < 20; i++) await same('filler ' + i, 'POST', '/messages', { ch
 await same('needle', 'POST', '/messages', { channel: 'deep', text: 'the needle is here', labels: { depth: 'bottom' } })
 for (let i = 0; i < 150; i++) for (const side of [plain, archived]) await side.call('POST', '/messages', { channel: 'deep', text: 'deep ' + i, labels: { depth: String(i) } })
 
+// -- docs: a body edited by section, comments on sections, links, a template, history across a snapshot --
+const DOC = '# Deploy\n\nHow we ship.\n\n## Rollback\n\nRevert the release.\n\n## Canary\n\nShip to 1% first.\n\n# Monitoring\n\nWatch the dashboards.\n'
+const [d1] = await same('doc create', 'POST', '/docs', { channel: 'docs/runbooks', slug: 'deploy', body: DOC, labels: { status: 'live' } })
+const doc1 = d1.json.message.id
+const docRevisions = [d1.json.message.doc.revision]
+let docRevision = docRevisions[0]
+for (let i = 0; i < 70; i++) {
+  const key = ['deploy', 'deploy/rollback', 'deploy/canary', 'monitoring'][i % 4]
+  const [edited] = await same('doc edit ' + i, 'POST', '/docs/' + doc1 + '/edit', { revision: docRevision, edits: [{ section: key, text: '\nEdit ' + i + ' of ' + key + '.\n\n' }] })
+  docRevision = edited.json.revision
+  docRevisions.push(docRevision)
+}
+await same('doc comment on a section', 'POST', '/messages', { re: doc1, text: 'is 1% enough?', section: 'deploy/canary' })
+await same('a thread that links the doc', 'POST', '/messages', { channel: 'ops', text: 'See [[docs/runbooks/deploy#rollback]].' })
+const [tpl] = await same('template', 'POST', '/docs', { channel: 'docs/templates', slug: 'postmortem', body: '# {{title}}\n\nBy {{author}}.\n\n## Impact\n\n{{impact}}\n', labels: { template: 'true' } })
+await same('doc from a template', 'POST', '/docs', { channel: 'docs/incidents', slug: 'outage', from: tpl.json.message.id })
+
 // -- reads -------------------------------------------------------------------------------------------
 async function reads(phase) {
+  await same(phase + ' doc', 'GET', '/docs/' + doc1)
+  await same(phase + ' doc at its path', 'GET', '/docs?path=docs/runbooks/deploy')
+  await same(phase + ' doc section', 'GET', '/docs/' + doc1 + '?section=deploy/canary')
+  for (const rev of [docRevisions[0], docRevisions[33], docRevisions[64], docRevisions[66]]) await same(phase + ' doc at ' + rev, 'GET', '/docs/' + doc1 + '?revision=' + rev)
+  await same(phase + ' doc history', 'GET', '/docs/' + doc1 + '/history')
+  await same(phase + ' doc diff', 'GET', '/docs/' + doc1 + '/diff?from=' + docRevisions[1] + '&to=' + docRevisions[67])
+  await same(phase + ' doc backlinks', 'GET', '/docs/' + doc1 + '/backlinks')
+  await same(phase + ' docs as threads', 'GET', '/threads?label=board.doc')
+  await same(phase + ' docs from a template', 'GET', '/threads?label=board.doc.from=' + tpl.json.message.id)
+  await same(phase + ' doc thread', 'GET', '/messages/' + doc1)
   for (const id of [...roots, replies[0], replies[7], replies[4], task1]) await same(phase + ' message ' + id, 'GET', '/messages/' + id)
   await same(phase + ' message limit', 'GET', '/messages/' + roots[0] + '?limit=1')
   await same(phase + ' message after', 'GET', '/messages/' + roots[0] + '?after=' + replies[0])
@@ -268,6 +295,16 @@ await sameKept('kept: edit', 'POST', '/messages/' + roots[2] + '/edit', { text: 
 await sameKept('kept: react', 'POST', '/messages/' + replies[2] + '/reactions', { emoji: 'eyes' })
 await sameKept('kept: channel after', 'GET', '/messages?channel=eng/frontend&limit=50')
 await sameKept('kept: text after', 'GET', '/threads?text=edited')
+// Docs written while cold: a section edit, a stale one, a merge, a proposal completed, a move.
+await same('cold doc: section edit', 'POST', '/docs/' + doc1 + '/edit', { revision: docRevision, edits: [{ section: 'monitoring', text: '\nWatch p99, cold.\n' }] })
+await same('cold doc: stale section edit', 'POST', '/docs/' + doc1 + '/edit', { revision: docRevision, edits: [{ section: 'monitoring', text: '\nlate\n' }] })
+await same('cold doc: merge from an old revision', 'POST', '/docs/' + doc1 + '/edit', { revision: docRevisions[64], body: '# Deploy\n\nHow we ship, merged.\n\n## Rollback\n\nEdit 61 of deploy/rollback.\n\n## Canary\n\nEdit 62 of deploy/canary.\n\n# Monitoring\n\nEdit 63 of monitoring.\n\n', merge: true })
+const [prop] = await same('cold doc: propose', 'POST', '/docs/' + doc1 + '/edit', { revision: (await plain.call('GET', '/docs/' + doc1)).json.doc.revision, edits: [{ section: 'deploy/canary', text: '\nShip to 5%.\n\n' }], propose: true }, { headers: { 'x-board-can': '*=read,post' } })
+await both('cold doc: complete the proposal', async (side) => {
+  const claim = await side.call('POST', '/tasks/' + prop.json.proposal.id + '/claim', {})
+  return side.call('POST', '/tasks/' + prop.json.proposal.id + '/complete', { epoch: claim.json.claim.epoch, token: claim.json.claim.token })
+})
+await same('cold doc: move', 'POST', '/docs/' + doc1 + '/move', { channel: 'docs/ops', slug: 'shipping' })
 await same('task under a thread id', 'POST', '/tasks', { channel: 'general', text: 'x', id: 'r-' + run + '-4' })
 await same('task of a cold thread', 'POST', '/tasks', { re: roots[8] })
 await same('reopen a cold task', 'POST', '/tasks/' + task1 + '/reopen', {})

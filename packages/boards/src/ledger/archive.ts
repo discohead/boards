@@ -5,7 +5,7 @@
 //   boards/<board>/segments/<first>-<last> (gzipped NDJSON, one event row a line), written once,
 //   and are listed in segments in the same transaction that deletes their rows.
 // - Cold threads. A thread with no activity for a while, no open task, no pending schedule, no
-//   sync, and nothing a watcher still has to take, has its messages, its terms (but files, ^id),
+//   sync, and nothing a watcher still has to take, has its messages, its terms (but files, ^id, and links, k:id),
 //   and its task views (but the latest) moved to boards/<board>/threads/<root>.json. What stays
 //   hot is what a listing needs: its threads row, its root and last messages (cold_rows), what
 //   its messages match on but their text (cold_facets), its client IDs by hash, and who wrote where.
@@ -998,7 +998,7 @@ type Snapshot = Candidate & { body: string | null; keys: string[]; authors: [str
 function snapshot(rt: Runtime, candidate: Candidate): Snapshot {
   const { root } = candidate
   const messages = rt.sql.all<MessageRow & Record<string, unknown>>('select * from messages where thread = ? order by id', root)
-  const terms = rt.sql.all<{ term: string; message: number }>("select term, message from terms where root = ? and substr(term, 1, 1) != '^'", root).map((row): [string, number] => [row.term, row.message])
+  const terms = rt.sql.all<{ term: string; message: number }>("select term, message from terms where root = ? and substr(term, 1, 1) != '^' and substr(term, 1, 2) != 'k:'", root).map((row): [string, number] => [row.term, row.message])
   const taskViews = rt.sql.all<{ seq: number; view: string }>('select seq, view from task_views where root = ?', root).map((row): [number, string] => [row.seq, row.view])
   const rootRow = messages.find((row) => row.id === root)!
   const thread = rt.sql.one<{ last: number }>('select last from threads where root = ?', root)
@@ -1048,7 +1048,7 @@ async function coolSome(rt: Runtime, config: ArchiveConfig, bucket: R2Bucket): P
       // Changed while its bytes were on their way: it stays hot, and the next pass looks again.
       if (eligible(rt, snap.root, cutoff, config.coldAfterMs)?.fingerprint !== snap.fingerprint) continue
       rt.sql.run('delete from messages where thread = ?', snap.root)
-      rt.sql.run("delete from terms where root = ? and substr(term, 1, 1) != '^'", snap.root)
+      rt.sql.run("delete from terms where root = ? and substr(term, 1, 1) != '^' and substr(term, 1, 2) != 'k:'", snap.root)
       rt.sql.run('delete from task_views where root = ?1 and seq < (select max(seq) from task_views where root = ?1)', snap.root)
       rt.sql.run(
         "insert into cold_threads (root, channel, state, fingerprint, last_id, count, active, root_deleted, digest, bytes, at, warmed) values (?, ?, 'cold', ?, ?, ?, ?, ?, ?, ?, ?, null) on conflict (root) do update set channel = excluded.channel, state = 'cold', fingerprint = excluded.fingerprint, last_id = excluded.last_id, count = excluded.count, active = excluded.active, root_deleted = excluded.root_deleted, digest = excluded.digest, bytes = excluded.bytes, at = excluded.at, warmed = null",
@@ -1073,7 +1073,7 @@ async function coolSome(rt: Runtime, config: ArchiveConfig, bucket: R2Bucket): P
 async function freezeSome(rt: Runtime, config: ArchiveConfig, bucket: R2Bucket): Promise<boolean> {
   const state = stateOf(rt.board)
   const rows = rt.sql.all<{ root: number }>(
-    "select c.root from cold_threads c join threads t on t.root = c.root where c.state = 'cold' and c.at <= ? and not exists (select 1 from tasks k where k.root = c.root) order by t.last, t.root limit ?",
+    "select c.root from cold_threads c join threads t on t.root = c.root where c.state = 'cold' and c.at <= ? and not exists (select 1 from tasks k where k.root = c.root) and not exists (select 1 from docs d where d.root = c.root) order by t.last, t.root limit ?",
     Date.now() - config.freezeAfterMs, config.pageThreads * 4,
   ).filter((row) => !state.pinned.has(row.root))
   const count = Math.floor(rows.length / config.pageThreads)
@@ -1109,7 +1109,7 @@ async function freezeSome(rt: Runtime, config: ArchiveConfig, bucket: R2Bucket):
         rt.sql.run('delete from cold_facets where root = ?', thread.root)
         rt.sql.run('delete from cold_keys where root = ?', thread.root)
         for (const [term, message] of thread.files) rt.sql.run('insert or ignore into frozen_files (term, message, root, channel) values (?, ?, ?, ?)', term, message, thread.root, thread.channel)
-        rt.sql.run("delete from terms where root = ? and substr(term, 1, 1) = '^'", thread.root)
+        rt.sql.run("delete from terms where root = ? and (substr(term, 1, 1) = '^' or substr(term, 1, 2) = 'k:')", thread.root)
       }
       const min = keyOfThread(page.threads[0]!)
       const max = keyOfThread(page.threads.at(-1)!)
@@ -1134,7 +1134,7 @@ function frozenOf(rt: Runtime, root: number): FrozenThread {
     rows: rt.sql.all<{ id: number; row: string }>('select id, row from cold_rows where root = ?', root).map((row): [number, string] => [row.id, row.row]),
     facets: rt.sql.one<{ facets: string }>('select facets from cold_facets where root = ?', root)?.facets ?? '[]',
     keys: rt.sql.all<{ hash: number }>('select hash from cold_keys where root = ?', root).map((row) => row.hash),
-    files: rt.sql.all<{ term: string; message: number }>("select term, message from terms where root = ? and substr(term, 1, 1) = '^'", root).map((row): [string, number] => [row.term, row.message]),
+    files: rt.sql.all<{ term: string; message: number }>("select term, message from terms where root = ? and (substr(term, 1, 1) = '^' or substr(term, 1, 2) = 'k:')", root).map((row): [string, number] => [row.term, row.message]),
   }
 }
 

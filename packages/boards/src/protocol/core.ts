@@ -18,7 +18,10 @@ export const PostBody = z
     id: ClientId.optional(),
     attachments: z.array(AttachmentId).optional(),
     after: Ref.optional(),
+    // A comment on a doc's section, by its key: the reply carries board.doc.section.
+    section: z.string().max(1024).optional(),
   })
+  .refine((body) => body.section === undefined || body.re !== undefined, { path: ['section'], message: '\u0060section\u0060 is for a comment on a doc: a reply, with \u0060re\u0060' })
   .refine((body) => body.text.trim().length > 0 || (body.attachments?.length ?? 0) > 0, { path: ['text'], message: 'message text is empty' })
   .refine((body) => (body.channel === undefined) !== (body.re === undefined), { message: 'a post needs \u0060channel\u0060; a reply needs \u0060re\u0060' })
   .refine((body) => !(body.noSync && body.sync?.length), { message: '\u0060noSync\u0060 and \u0060sync\u0060 contradict each other' })

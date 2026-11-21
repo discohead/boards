@@ -208,6 +208,8 @@ export type ViewOptions = {
   /** What the reader may read: links to messages it can't read show as unavailable. */
   access: Access
   taskView?: (root: number) => unknown | undefined
+  /** What other parts add to the view: a doc root's doc, a doc comment's section. */
+  extras?: (row: MessageRow) => Record<string, unknown> | undefined
 }
 
 export class Board {
@@ -282,7 +284,11 @@ export class Board {
     if (!row) return null
     const labels = row.deleted ? {} : json<Record<string, string>>(row.labels, {})
     const rootLabels = row.re === null ? labels : this.rootLabels(row.re)
-    return { id: row.id, channel: row.channel, re: row.re, actor: row.actor, principal: row.principal, from: row.from_key, labels: withTask(this, row, labels), rootLabels: row.re === null ? withTask(this, row, labels) : rootLabels, text: row.deleted ? '' : row.text, terms: row.deleted ? [] : mentionTerms(row.text), deleted: Boolean(row.deleted) }
+    // A doc's facet (docs.ts) is its title and the headings of what last changed, not its body.
+    const doc = row.re === null && !row.deleted ? this.sql.one<{ facet_text: string; facet_terms: string }>('select facet_text, facet_terms from docs where root = ?', row.id) : null
+    const text = row.deleted ? '' : doc ? doc.facet_text : row.text
+    const terms = row.deleted ? [] : doc ? json<string[]>(doc.facet_terms, []) : mentionTerms(row.text)
+    return { id: row.id, channel: row.channel, re: row.re, actor: row.actor, principal: row.principal, from: row.from_key, labels: withTask(this, row, labels), rootLabels: row.re === null ? withTask(this, row, labels) : rootLabels, text, terms, deleted: Boolean(row.deleted) }
   }
   private rootLabels(root: number): Record<string, string> {
     const row = this.message(root)
@@ -361,6 +367,7 @@ export class Board {
     if (schedule) view.schedule = { id: 's' + schedule.id, n: schedule.n }
     if (task) view.task = task
     if (row.blind) view.blind = true
+    if (!deleted && options.extras) Object.assign(view, options.extras(row) ?? {})
     return view
   }
 

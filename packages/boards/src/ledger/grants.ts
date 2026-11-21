@@ -3,7 +3,7 @@
 // write would leave them, in the write's own transaction, so nothing outruns it. Grants are side facts:
 // they live in the grants table, never in the board log, and every change bumps the grants version.
 import { BoardsError, badRequest, forbidden, notFound } from '../errors.ts'
-import { expand, PERMISSIONS, type Grant, type Permission } from './access.ts'
+import { expand, PERMISSIONS, wirePermissions, type Grant, type Permission } from './access.ts'
 import { iso, levelOf, type Caller, type GrantPrincipal, type Principal, type StoredGrant } from './core.ts'
 import { op, type Ctx } from './ops.ts'
 
@@ -626,7 +626,7 @@ op('explainGrants', (ctx, query: ExplainQuery) => {
     if (named === 'app') return nobody
     who = { principal: named, narrow: null }
   } else who = { principal: ctx.caller.principal, narrow: ctx.caller.narrow }
-  const scope = (permissions: Permission[]) => (who.narrow ? permissions.filter((permission) => resolve(mapOf(who.narrow!), query.channel).includes(permission)) : permissions)
+  const scope = (permissions: Permission[]) => wirePermissions(who.narrow ? permissions.filter((permission) => resolve(mapOf(who.narrow!), query.channel).includes(permission)) : permissions) as Permission[]
   if (who.principal.own) return { ...nobody, can: scope([...PERMISSIONS]) }
   const matches = matchesFor(grants, who.principal, false)
   if (!(who.principal.kind === 'person' || matches.some((match) => match.level < 2))) return nobody

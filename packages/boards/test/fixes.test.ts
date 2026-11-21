@@ -35,15 +35,16 @@ describe('a watcher', () => {
     const name = freshBoard('watch-bad')
     await root(name)
     const board = new WatcherBoard(env as never, name, 'everything', 'match-3')
-    await expect(board.reply(undefined as never, 'x')).rejects.toThrow(/reply takes a message ID/)
-    await expect(board.post('general', { text: 'x'.repeat(10_001) })).rejects.toThrow(/text/)
+    const refusal = (work: Promise<unknown>) => work.then(() => 'allowed', (error: Error) => error.message)
+    expect(await refusal(board.reply(undefined as never, 'x'))).toMatch(/reply takes a message ID/)
+    expect(await refusal(board.post('general', { text: 'x'.repeat(10_001) }))).toMatch(/text/)
   })
 })
 
 describe('discovery', () => {
   it('is enough for a binding to find a board no one has used yet', async () => {
     const name = freshBoard('mount')
-    const before = await new WatcherBoard(env as never, name, 'w', 'm').me().then(() => 'ok', (error: Error) => error.message)
+    const before = await Promise.resolve(new WatcherBoard(env as never, name, 'w', 'm').me()).then(() => 'ok', (error: Error) => error.message)
     expect(before).toMatch(/no_mount|served/)
     const discovered = await SELF.fetch(boardUrl(name) + '/')
     expect(discovered.status).toBe(200)

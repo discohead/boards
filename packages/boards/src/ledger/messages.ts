@@ -1,6 +1,7 @@
 // Messages, threads, channels, and actors: the writes people make and the reads they answer.
 import { badRequest, BoardsError, conflict, forbidden, notFound } from '../errors.ts'
 import { authorize, cursorOf, iso, ref, type ActorRecord, type Facet, type MessageRow } from './core.ts'
+import { wirePermissions } from './access.ts'
 import { hooks, op, viewOptions, type Ctx } from './ops.ts'
 import { json } from './sql.ts'
 import { isEmail, mentionTerms, mentionTokens, rewriteHandles, term, under } from './text.ts'
@@ -27,14 +28,43 @@ export function checkClientId(ctx: Ctx, id: string) {
 // -- tables ------------------------------------------------------------------------------------
 
 /** A message's index rows: its labels (l:key and l:key=value), its mentions (m:term), and its files (^id). */
-export function writeTerms(ctx: Pick<Ctx, 'sql'>, row: { id: number; thread: number; text: string; deleted: number; labels: Record<string, string>; attachments?: { id: string }[] }) {
+export function writeTerms(ctx: Pick<Ctx, 'sql'> & Partial<Pick<Ctx, 'mount'>>, row: { id: number; thread: number; text: string; deleted: number; labels: Record<string, string>; attachments?: { id: string }[] }) {
   ctx.sql.run('delete from terms where message = ?', row.id)
   if (row.deleted) return
   const terms = new Set<string>()
   for (const [key, value] of Object.entries(row.labels)) terms.add('l:' + key), terms.add('l:' + key + '=' + value)
   for (const mention of mentionTerms(row.text)) terms.add('m:' + mention)
   for (const file of row.attachments ?? []) terms.add('^' + file.id)
+  for (const id of linkedIds(ctx, row.text)) if (id !== row.id) terms.add('k:' + id)
   for (const value of terms) ctx.sql.run('insert or ignore into terms (term, message, root) values (?, ?, ?)', value, row.id, row.thread)
+}
+
+const WIKI_LINK = /\[\[(#?[^\]\n|#]+)(?:#[^\]\n|]*)?(?:\|[^\]\n]*)?\]\]/g
+/**
+ * The docs and messages a text links, as IDs, resolved when it's written: [[docs/runbooks/deploy]]
+ * and [[docs/runbooks/deploy#rollback]] name a doc by its path, [[#12]] or [[12]] a message, and a
+ * link to this board's own /docs/<id> or /messages/<id> either. Backlinks are these, by ID.
+ */
+export function linkedIds(ctx: Pick<Ctx, 'sql'> & Partial<Pick<Ctx, 'mount'>>, text: string): Set<number> {
+  const out = new Set<number>()
+  if (!text.includes('[[') && !text.includes('/docs/') && !text.includes('/messages/')) return out
+  for (const found of text.matchAll(WIKI_LINK)) {
+    const target = found[1]!.trim()
+    const id = /^#?([1-9]\d{0,15})$/.exec(target)?.[1]
+    if (id) {
+      out.add(Number(id))
+      continue
+    }
+    const split = target.lastIndexOf('/')
+    if (split <= 0) continue
+    const doc = ctx.sql.one<{ root: number }>('select root from docs where channel = ? and slug = ?', target.slice(0, split), target.slice(split + 1))
+    if (doc) out.add(doc.root)
+  }
+  if (ctx.mount) {
+    const base = ctx.mount.url.replace(/\/+$/, '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    for (const found of text.matchAll(new RegExp(base + '/(?:docs|messages)/([1-9]\\d{0,15})\\b', 'g'))) out.add(Number(found[1]))
+  }
+  return out
 }
 
 /** A thread's activity: its latest live message (or its root) and its live replies. */
@@ -107,9 +137,17 @@ export type Posting = {
   id?: string
   attachments?: string[]
   after?: string
+  /** A comment on a doc's section (docs.ts): the reply carries board.doc.section. */
+  section?: string
 }
 
-export type Imported = { origin?: unknown; from?: string | null; importedBy?: string; author?: ActorRecord; links?: unknown[]; schedule?: { id: number; n: number }; settle?: boolean; checkBlocks?: boolean; clientKey?: string }
+export type Imported = {
+  origin?: unknown; from?: string | null; importedBy?: string; author?: ActorRecord; links?: unknown[]; schedule?: { id: number; n: number }; settle?: boolean; checkBlocks?: boolean; clientKey?: string
+  /** A longer limit for this post's text (a doc's body). */
+  textMax?: number
+  /** The board's own labels (board.*) the write sets: a doc's, a doc comment's section. */
+  boardLabels?: Record<string, string>
+}
 
 type By = { actor: string; principal: string; profile: string | null }
 export const byOf = (record: ActorRecord): By => ({ actor: record.id, principal: record.id.split('+')[0]!, profile: record.id.includes('+') ? record.id.slice(record.id.indexOf('+') + 1) : null })
@@ -127,8 +165,8 @@ function replay(ctx: Ctx, key: string, channel: string, root: number | null, rep
 /** Posts a root or a reply as the context's caller, or as an import's author. One transaction. */
 export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): { row: MessageRow; replayed: boolean; mentions?: Mentioned[] } {
   const author = imported.author ? byOf(imported.author) : ctx.author
-  const labels = body.labels ?? {}
-  refuseReserved(Object.keys(labels))
+  refuseReserved(Object.keys(body.labels ?? {}))
+  const labels = { ...(body.labels ?? {}), ...(imported.boardLabels ?? {}) }
   if (body.id !== undefined) checkClientId(ctx, body.id)
   if (body.re !== undefined && body.sync?.length) throw badRequest('sync attaches whole threads: use \u0060boards sync <id> <target>\u0060')
   let channel: string
@@ -142,7 +180,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   } else channel = body.channel!
   const permission = imported.from ? 'sync' : 'post'
   authorize(ctx.access, permission, channel)
-  if (Object.keys(labels).length && !imported.from) authorize(ctx.access, 'label', channel)
+  if (Object.keys(body.labels ?? {}).length && !imported.from) authorize(ctx.access, 'label', channel)
   if (body.sync?.length) authorize(ctx.access, 'sync', channel)
   const key = imported.clientKey ?? body.id
   if (key !== undefined) {
@@ -162,7 +200,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
     text = settled.text
     mentions = settled.mentions
   }
-  if (text.length > MESSAGE_TEXT_MAX) throw textTooLong()
+  if (text.length > (imported.textMax ?? MESSAGE_TEXT_MAX)) throw textTooLong()
   if (imported.checkBlocks !== false && !imported.from && text.includes('json#')) hooks.checkBlocks(ctx, text)
   const ids = [...new Set(body.attachments ?? [])]
   if (ids.length > 10) throw badRequest('attachments: a message carries at most 10')
@@ -235,6 +273,8 @@ export function editMessage(ctx: Ctx, row: MessageRow, text: string, by: By, fro
 }
 
 op('edit', (ctx, { id, text, revision }: { id: string; text: string; revision?: number }) => {
+  if (/^[1-9]\d{0,15}$/.test(id) && hooks.docRoot(ctx, Number(id)) && ctx.access.readable(ctx.board.message(Number(id))?.channel ?? ''))
+    throw new BoardsError(400, 'use_edit_doc', '#' + id + " is a doc: change its body with POST /docs/" + id + '/edit, by section')
   const row = own(ctx, id, 'edit')
   if (row.deleted) {
     if (revision !== undefined && revision !== row.revision) throw conflict('revision_conflict', '#' + row.id + ' was deleted since revision ' + revision)
@@ -261,7 +301,10 @@ export function deleteMessage(ctx: Ctx, row: MessageRow, by: By, from: string | 
 }
 
 op('delete', (ctx, { id, revision }: { id: string; revision?: number }) => {
-  const row = own(ctx, id, 'delete')
+  // A doc is shared: whoever may edit it may delete it, not only who wrote it first.
+  const doc = /^[1-9]\d{0,15}$/.test(id) && hooks.docRoot(ctx, Number(id)) ? ctx.board.readable(id, ctx.access) : null
+  if (doc) authorize(ctx.access, 'edit', doc.channel)
+  const row = doc ?? own(ctx, id, 'delete')
   if (row.deleted) {
     if (revision !== undefined && revision !== row.revision) throw conflict('revision_conflict', '#' + row.id + ' was deleted since revision ' + revision)
     return { ok: true }
@@ -526,7 +569,8 @@ op('actors', (ctx) => {
 }, { read: true })
 
 /** A can as the protocol shows it: * first, then patterns sorted, each only where it differs from what's above it. */
-export function canonicalCan(summary: Record<string, string[]>): Record<string, string[]> {
+export function canonicalCan(given: Record<string, string[]>): Record<string, string[]> {
+  const summary = Object.fromEntries(Object.entries(given).map(([pattern, list]) => [pattern, wirePermissions(list)]))
   const out: Record<string, string[]> = {}
   const star = summary['*'] ?? []
   if (star.length) out['*'] = star

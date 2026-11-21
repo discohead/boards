@@ -63,6 +63,12 @@ export const hooks = {
   },
   /** A new root's sync targets, recorded in the post's own transaction: thread.synced events. */
   syncTargets: (_ctx: Ctx, _root: number, _thread: string, _targets: { target: string; kind?: 'channel' | 'thread' }[]): void => {},
+  /** What a part adds to a message's view (a doc root's doc, a doc comment's section). */
+  viewExtras: (_ctx: Pick<Ctx, 'board' | 'sql' | 'now'>, _row: MessageRow): Record<string, unknown> | undefined => undefined,
+  /** Whether a root is a doc (docs.ts): its body changes through editDoc, not edit. */
+  docRoot: (_ctx: Pick<Ctx, 'sql'>, _root: number): boolean => false,
+  /** A task is about to complete (in the completion's transaction): a part may refuse it by throwing. */
+  taskCompleting: (_ctx: Ctx, _root: number): void => {},
   /** Pending schedules that reply in a thread, for its view. */
   threadSchedules: (_ctx: Ctx, _root: number): unknown[] | undefined => [],
   // Archived history (archive.ts): each says where an op is about to read what may be in R2, so the
@@ -111,7 +117,7 @@ export function contextFor(board: Board, caller: Caller, mount: Mount, now: numb
 }
 
 /** The view options for a context: its access, and task views. */
-export const viewOptions = (ctx: Ctx) => ({ access: ctx.access, taskView: (root: number) => hooks.taskView(ctx, root) })
+export const viewOptions = (ctx: Ctx) => ({ access: ctx.access, taskView: (root: number) => hooks.taskView(ctx, root), extras: (row: MessageRow) => hooks.viewExtras(ctx, row) })
 export const viewOf = (ctx: Ctx, id: number) => {
   const row = ctx.board.message(id)
   return row ? ctx.board.view(row, viewOptions(ctx)) : null

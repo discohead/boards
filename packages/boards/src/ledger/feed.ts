@@ -5,7 +5,7 @@ import { cursorOf, iso, ref, type Facet } from './core.ts'
 import { compile, matches, type Compiled, type Filters } from './messages.ts'
 import { hooks, op, viewOptions, type Ctx } from './ops.ts'
 
-export const HIDDEN = new Set(['actor.seen', 'message.synced', 'message.files_synced', 'task.renewed'])
+export const HIDDEN = new Set(['actor.seen', 'message.synced', 'message.files_synced', 'task.renewed', 'doc.snapshot'])
 const PAGE = 200
 const LAST_PAGES = 10
 
