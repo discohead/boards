@@ -145,6 +145,14 @@ test("a draft item is a thread in the Project's channel", async () => {
   assert.equal(b.roots.get('20')!.task, null)
 })
 
+test("an item in a repo the app can't read (GitHub hides its content) makes no thread", async () => {
+  items.set('PVTI_hidden', { id: 'PVTI_hidden', archived: false, content: null, values: {} })
+  const b = board()
+  const [event] = await receive(itemWebhook('PVTI_hidden'))
+  await provider.import(event!.event, tools(b))
+  assert.deepEqual(b.calls.filter(([method]) => method === 'syncImport' || method === 'sync'), [])
+})
+
 test('Status moves the task: ready makes one, Done completes a ready one but never takes a claim, Won’t do cancels', async () => {
   const item = { id: 'PVTI_s', archived: false, content: { __typename: 'Issue', id: 'I_5', number: 5, title: 'x', url: 'u', repository: { nameWithOwner: 'acme/web' } }, values: { Status: 'Ready for agent' } }
   items.set('PVTI_s', item)

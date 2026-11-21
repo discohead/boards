@@ -86,8 +86,8 @@ status: { field: 'Status', ready: 'Ready for agent', claimed: 'In progress', blo
 
 | Status moves to | The thread's task |
 | --- | --- |
-| the `ready` option | becomes a ready task (`createTask { re }`), or reopens a finished one |
-| the `completed` option | completes, if it's open |
+| the `ready` option | becomes a ready task (`createTask { re }`), or reopens a failed one; a completed or canceled task stays finished |
+| the `completed` option | completes, if it's ready: the sync claims it and completes it. A task someone holds stays theirs, for its holder to complete |
 | the `canceled` option | is canceled, if it's open |
 | the `claimed` or `blocked` option, or one not mapped | nothing: a claim is an actor's, and a person dragging a card isn't one |
 
@@ -107,6 +107,20 @@ when added" workflow would otherwise make every new card a ready task.
 The courier needs task events for this (`task.ready`, `task.claimed`, `task.released`,
 `task.expired`, `task.blocked`, `task.completed`, `task.canceled`), added to the events it
 matches for threads with a Project target.
+
+## Learned building it
+
+- **Completing takes a claim.** A task completes only under a live claim, so for Done the sync
+  claims a ready task and completes it, and leaves a held one to its holder.
+- **A task made ready says `task.created`,** not `task.ready` (that's for a task that waited, or a
+  claim released). The Factory wakes on either.
+- **An item in a repo the installation can't read** (another account's private repo) comes back
+  from GraphQL with its content and its field values hidden. It's left out, with a warning, not
+  given a placeholder thread. The live run uses `datspace-ai/factory-playground` for that reason.
+- **Installing on an organization** took making the App public: a private App installs only on the
+  account that owns it.
+- **The sandbox's GitHub token** is minted per account, so the Factory's egress picks the account a
+  request names (its path, or a GraphQL query's owner).
 
 ## Configuration
 

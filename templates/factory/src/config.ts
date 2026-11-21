@@ -14,6 +14,8 @@ export const RSI = channel('rsi')
 /** Each repo the factory works on (owner/name, as GitHub writes it), and the board channel its issues and pull requests come into. */
 export const REPOS: Record<string, string> = {
   'discohead/factory-playground': channel('playground'),
+  // An organization repo, so its issues on the organization's Project are readable by the app.
+  'datspace-ai/factory-playground': channel('org-playground'),
 }
 
 /** Markdown docs kept in step with board docs, per repo: the files under dir are the docs under channel, both ways. */

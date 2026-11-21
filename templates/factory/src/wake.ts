@@ -8,7 +8,7 @@ import { repoToken } from './github-app.ts'
 import type { Env } from './env.ts'
 
 type By = { actor: string; principal: string; profile: string | null }
-type Event = { cursor: string; type: string; payload: Record<string, any>; message?: { id: string; re: string | null; by: By; schedule?: unknown; labels?: Record<string, string> }; actor?: { name: string } }
+type Event = { cursor: string; type: string; payload: Record<string, any>; message?: { id: string; re: string | null; by: By; schedule?: unknown; labels?: Record<string, string>; task?: { state: string } | null }; actor?: { name: string } }
 type Delivered = { attempt: number; match: string; board: { reply(id: string, input: string): Promise<unknown> } }
 
 /** Whether the agent wrote it: this Worker, as itself. */
@@ -28,7 +28,7 @@ export class FactoryWake extends WorkerEntrypoint<Env> {
       // A new doc isn't a request: it's read when someone asks about it.
       if (message.re === null && message.labels?.['board.doc'] !== undefined) return
       text = message.re ? 'New message #' + message.id + ' in board thread #' + thread + '.' : 'New board thread #' + thread + '.'
-    } else if (event.type === 'task.ready') {
+    } else if (event.type === 'task.ready' || (event.type === 'task.created' && event.message?.task?.state === 'ready')) {
       // A thread made a ready task (a card moved to the Project's ready column, or someone's createTask).
       if (message.re !== null) return
       text = 'Board thread #' + thread + ' is a ready task. If it’s work for you, claim it with task_claim before you start, and complete it with task_complete when it’s done.'
@@ -56,12 +56,32 @@ export function threadRepos(root: { origin?: { thread?: string } | null } | null
   return repos.filter((repo) => repo.toLowerCase() === from)
 }
 
+/** The account a request to GitHub names: in its path (api.github.com/repos/<owner>/…, github.com/<owner>/…), or in a GraphQL query's owner; null when it names none. */
+async function ownerOf(request: Request, url: URL): Promise<string | null> {
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (url.hostname === 'api.github.com' && parts[0] === 'repos' && parts[1]) return parts[1].toLowerCase()
+  if (url.hostname === 'github.com' && parts[0]) return parts[0].toLowerCase()
+  if (url.hostname === 'api.github.com' && parts[0] === 'graphql' && request.method === 'POST') {
+    const body = await request.clone().text().catch(() => '')
+    const found = body.match(/"owner"\s*:\s*"([^"]+)"/) ?? body.match(/owner\s*:\s*\\?"([^"\\]+)\\?"/)
+    return found ? found[1]!.toLowerCase() : null
+  }
+  return null
+}
+
+/** The repos a token is for: those of the account a request names, when it names one of them; else all of them (the first account's). */
+const forOwner = (repos: string[], owner: string | null) => {
+  if (!owner) return repos
+  const mine = repos.filter((repo) => repo.split('/')[0]!.toLowerCase() === owner)
+  return mine.length ? mine : repos
+}
+
 /** The thread's GitHub token, added to the sandbox's requests to GitHub as they leave it. */
 export class GitHubEgress extends WorkerEntrypoint<Env, { thread: string }> {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url)
     const root = await boardCall(this.env)('message', { id: this.ctx.props.thread }).then((view) => view.message).catch(() => null)
-    const repos = threadRepos(root, Object.keys(REPOS))
+    const repos = forOwner(threadRepos(root, Object.keys(REPOS)), await ownerOf(request, url))
     const token = repos.length ? await repoToken(this.env as never, repos).catch((error: unknown) => (console.warn('[factory] no GitHub token:', error), null)) : null
     const headers = new Headers(request.headers)
     if (token) {

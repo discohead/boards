@@ -244,6 +244,11 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
     let root = await rootOf(event.thread)
     if (!root) {
       if (!item || item.isArchived) return { message: null }
+      // An item whose issue lives where this installation can't read (another account's private repo): GitHub hides it and its fields.
+      if (!item.content) {
+        console.warn('[boards] sync ' + key + ': an item in ' + project.config.project + " is in a repo this app can't read: left out")
+        return { message: null }
+      }
       const content = item.content
       const repo = content && content.__typename !== 'DraftIssue' ? content.repository!.nameWithOwner : null
       const channel = repo ? Object.entries(options.repos).find(([name]) => name.toLowerCase() === repo.toLowerCase())?.[1] : undefined
