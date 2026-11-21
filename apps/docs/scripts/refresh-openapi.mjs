@@ -59,6 +59,7 @@ const DOMAINS = [
   ['threads', 'Threads', 'A thread read whole, and threads found by filters.'],
   ['events', 'Events', 'The feed: every event, in order, as a page, a held wait, or a stream.'],
   ['tasks', 'Tasks', 'Threads with a state, claimed under a lease and fenced by epoch and token.'],
+  ['docs', 'Docs', 'Threads with a Markdown body, read and edited by section.'],
   ['schedules', 'Schedules', 'Posting later, once or on a repeat.'],
   ['files', 'Files', 'Uploading and reading attachments, kept on R2.'],
   ['grants', 'Grants', 'Who may do what, where.'],
@@ -77,6 +78,7 @@ const DOMAIN = {
   channelMessages: 'messages', post: 'messages', posted: 'messages', edit: 'messages', delete: 'messages', react: 'messages', label: 'messages', typing: 'messages',
   message: 'threads', threads: 'threads',
   events: 'events',
+  createDoc: 'docs', docAt: 'docs', doc: 'docs', editDoc: 'docs', moveDoc: 'docs', docHistory: 'docs', docDiff: 'docs', docBacklinks: 'docs',
   schedule: 'schedules', schedules: 'schedules', cancelSchedule: 'schedules',
   upload: 'files', attachment: 'files', uploadStart: 'files', uploadFinish: 'files',
   grants: 'grants', createGrant: 'grants', createGrants: 'grants', updateGrant: 'grants', revokeGrant: 'grants', explainGrants: 'grants',
@@ -126,6 +128,14 @@ const SUMMARY = {
   assignTask: "Lets one actor claim it (one of the owner's profiles), or anyone (null).",
   setTaskNeeds: 'Replaces the tasks it waits for.',
   cancelTask: 'Cancels a task you own. Tasks that wait for it keep waiting.',
+  createDoc: 'Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). Needs post and edit in the channel.',
+  docAt: 'The doc at a path (docs/runbooks/deploy), read as GET /docs/{id} reads it.',
+  doc: "A doc's view and its body; with section, that section only; with revision, as it was then. depth sets how deep the outline goes (3 by default).",
+  editDoc: 'Edits a doc by section, checked per section against the revision you read, or as a whole body (merge: true merges by section). propose: true makes the edit a task instead.',
+  moveDoc: 'Moves a doc to a new channel, slug, or both. Its ID, its replies, and every link to it stay. Needs edit in both channels.',
+  docHistory: "A doc's versions, oldest first: who, when, and which sections each edit changed.",
+  docDiff: 'The sections that changed between two revisions, before and after (to: now).',
+  docBacklinks: 'The threads, replies, and docs whose text links the doc, by its path or ID.',
   schedule: 'Posts later, once (in, at) or on a repeat (every, until, for, times).',
   schedules: 'Pending schedules this caller can see, oldest first.',
   cancelSchedule: 'Cancels a schedule, so it sends nothing more.',
@@ -292,7 +302,7 @@ const discovery = await call('discovery', { open: true })
 await call('openapi', { open: true })
 
 const listed = await call('channels', { keep: false })
-const ours = new Set(['deploys', 'work', 'support', 'ops'])
+const ours = new Set(['deploys', 'work', 'support', 'ops', 'docs'])
 const theirs = (listed.channels ?? []).map((channel) => channel.path ?? channel).filter((path) => !ours.has(String(path).split('/')[0]))
 if (theirs.length && !force) {
   console.error('this board has channels of its own (' + theirs.slice(0, 5).join(', ') + '): the run writes to it, so give it a fresh board, or pass --force')
@@ -347,6 +357,21 @@ await call('unblockTask', { params: { id: build }, body: {} })
 await call('assignTask', { params: { id: ship }, body: { for: me.principal + '+shipper' } })
 await call('setTaskNeeds', { params: { id: ship }, body: { needs: [build] } })
 await call('cancelTask', { params: { id: ship }, body: { reason: 'v42 ships with the next train' } })
+
+// Docs.
+const runbook = 'How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n'
+const madeDoc = await call('createDoc', { body: { channel: 'docs/runbooks', slug: 'deploy', body: runbook, labels: { owner: 'ops' } } })
+const docId = madeDoc.message.id
+const docRevision = madeDoc.message.doc.revision
+await call('docAt', { query: { path: 'docs/runbooks/deploy' } })
+await call('doc', { params: { id: docId }, query: { section: 'ship/rollback' } })
+const edited = await call('editDoc', { params: { id: docId }, body: { revision: docRevision, edits: [{ section: 'ship/rollback', text: '\nRoll back with deploy rollback <id>, the ID of the last green version.\n\n' }] } })
+await call('editDoc', { params: { id: docId }, body: { revision: docRevision, edits: [{ section: 'ship/rollback', text: '\nRoll back fast.\n\n' }] }, expect: 409 })
+await call('post', { body: { channel: 'deploys', text: 'v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]' }, keep: false })
+await call('moveDoc', { params: { id: docId }, body: { channel: 'docs/ops', slug: 'shipping' } })
+await call('docHistory', { params: { id: docId } })
+await call('docDiff', { params: { id: docId }, query: { from: docRevision, to: edited.revision } })
+await call('docBacklinks', { params: { id: docId } })
 
 // Schedules.
 const scheduled = await call('schedule', { body: { channel: 'ops', text: 'standup in five minutes', every: '1d', times: 5 } })
@@ -440,9 +465,18 @@ toolCalls.board_search = { jsonrpc: '2.0', id: 3, method: 'tools/call', params: 
 toolCalls.board_read = { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'board_read', arguments: { id: root, limit: 1 } } }
 toolCalls.board_post = { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'board_post', arguments: { channel: 'deploys', text: 'v43 is rolling out', id: 'deploy-v43' } } }
 toolCalls.board_reply = { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'board_reply', arguments: { id: root, text: 'canary is healthy' } } }
+toolCalls.doc_search = { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'doc_search', arguments: { channel: 'docs/' } } }
+toolCalls.doc_read = { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'doc_read', arguments: { path: 'docs/ops/shipping', section: 'ship/rollback' } } }
+toolCalls.doc_create = { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'doc_create', arguments: { channel: 'docs/specs', slug: 'search', body: '## Goal\n\nFind any doc by a word in it.\n' } } }
 toolCalls.run_code = { jsonrpc: '2.0', id: 7, method: 'tools/call', params: { name: 'run_code', arguments: { code: 'async () => {\n  const { threads } = await board.threads({ channel: "deploys", limit: 5 })\n  return threads.filter((t) => !t.message.deleted).map((t) => t.message.text)\n}' } } }
 const toolExamples = {}
 for (const [name, message] of Object.entries(toolCalls)) toolExamples[name] = publish({ request: message, response: await mcp(message) })
+{
+  // doc_edit with the revision the doc is at now, as an agent sends it after doc_read.
+  const now = (await call('doc', { params: { id: docId }, query: { depth: 1 }, keep: false })).doc.revision
+  const message = { jsonrpc: '2.0', id: 11, method: 'tools/call', params: { name: 'doc_edit', arguments: { path: 'docs/ops/shipping', revision: now, edits: [{ section: 'monitoring', text: '\nWatch the error rate and p95 latency for an hour.\n' }] } } }
+  toolExamples.doc_edit = publish({ request: message, response: await mcp(message) })
+}
 
 // -- the document ------------------------------------------------------------------------------------
 

@@ -47,6 +47,11 @@
       "description": "Threads with a state, claimed under a lease and fenced by epoch and token."
     },
     {
+      "name": "docs",
+      "x-displayName": "Docs",
+      "description": "Threads with a Markdown body, read and edited by section."
+    },
+    {
       "name": "schedules",
       "x-displayName": "Schedules",
       "description": "Posting later, once or on a repeat."
@@ -132,8 +137,8 @@
           "status": 200,
           "response": {
             "version": "0.1.0",
-            "url": "https://boards.example.com/b/snap2-mwpnzf02",
-            "audience": "https://boards.example.com/b/snap2-mwpnzf02",
+            "url": "https://boards.example.com/b/acme-api",
+            "audience": "https://boards.example.com/b/acme-api",
             "team_id": null,
             "project_id": null,
             "sync": []
@@ -502,6 +507,44 @@
                   "operationId": "inboxAck"
                 }
               },
+              "/docs": {
+                "post": {
+                  "operationId": "createDoc"
+                },
+                "get": {
+                  "operationId": "docAt"
+                }
+              },
+              "/docs/{id}": {
+                "get": {
+                  "operationId": "doc"
+                }
+              },
+              "/docs/{id}/edit": {
+                "post": {
+                  "operationId": "editDoc"
+                }
+              },
+              "/docs/{id}/move": {
+                "post": {
+                  "operationId": "moveDoc"
+                }
+              },
+              "/docs/{id}/history": {
+                "get": {
+                  "operationId": "docHistory"
+                }
+              },
+              "/docs/{id}/diff": {
+                "get": {
+                  "operationId": "docDiff"
+                }
+              },
+              "/docs/{id}/backlinks": {
+                "get": {
+                  "operationId": "docBacklinks"
+                }
+              },
               "/rpc": {
                 "get": {
                   "operationId": "rpc"
@@ -660,7 +703,7 @@
             "name": "jared",
             "avatar": null,
             "profile": null,
-            "expiresAt": "2026-11-21T12:23:02.000Z",
+            "expiresAt": "2026-11-21T15:23:45.000Z",
             "can": {
               "*": [
                 "read",
@@ -974,7 +1017,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.185Z",
+                "createdAt": "2026-11-21T03:23:45.826Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1001,7 +1044,7 @@
                 "text": "",
                 "re": null,
                 "replyTo": null,
-                "thread": "aff3e14c-7bc4-4ef3-88df-07ad8316b8c8",
+                "thread": "d2652daa-4c2d-4fe9-9a01-af8d561166bf",
                 "labels": {},
                 "reactions": {},
                 "by": {
@@ -1012,7 +1055,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.199Z",
+                "createdAt": "2026-11-21T03:23:45.889Z",
                 "editedAt": null,
                 "deleted": true,
                 "undelivered": {},
@@ -1047,6 +1090,7 @@
           }
         ],
         "x-rules": [
+          "section: `section` is for a comment on a doc: a reply, with `re`",
           "text: message text is empty",
           "a post needs `channel`; a reply needs `re`",
           "`noSync` and `sync` contradict each other",
@@ -1138,6 +1182,10 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128
+                  },
+                  "section": {
+                    "type": "string",
+                    "maxLength": 1024
                   }
                 }
               }
@@ -1206,7 +1254,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.180Z",
+              "createdAt": "2026-11-21T03:23:45.807Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -1337,8 +1385,8 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.180Z",
-              "editedAt": "2026-11-21T00:23:03.190Z",
+              "createdAt": "2026-11-21T03:23:45.807Z",
+              "editedAt": "2026-11-21T03:23:45.851Z",
               "deleted": false,
               "undelivered": {},
               "attachments": [],
@@ -1372,7 +1420,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.185Z",
+                "createdAt": "2026-11-21T03:23:45.826Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1570,8 +1618,8 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.180Z",
-                  "editedAt": "2026-11-21T00:23:03.190Z",
+                  "createdAt": "2026-11-21T03:23:45.807Z",
+                  "editedAt": "2026-11-21T03:23:45.851Z",
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
@@ -1605,7 +1653,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.185Z",
+                  "createdAt": "2026-11-21T03:23:45.826Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -1698,7 +1746,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.180Z",
+              "createdAt": "2026-11-21T03:23:45.807Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -2299,13 +2347,13 @@
               {
                 "cursor": "9",
                 "type": "message.posted",
-                "createdAt": "2026-11-21T00:23:03.199Z",
+                "createdAt": "2026-11-21T03:23:45.889Z",
                 "payload": {
                   "channel": "deploys",
                   "text": "v41 is live (wrong build)",
                   "re": null,
                   "replyTo": null,
-                  "thread": "aff3e14c-7bc4-4ef3-88df-07ad8316b8c8",
+                  "thread": "d2652daa-4c2d-4fe9-9a01-af8d561166bf",
                   "labels": {},
                   "noSync": false,
                   "by": {
@@ -2322,7 +2370,7 @@
                   "text": "",
                   "re": null,
                   "replyTo": null,
-                  "thread": "aff3e14c-7bc4-4ef3-88df-07ad8316b8c8",
+                  "thread": "d2652daa-4c2d-4fe9-9a01-af8d561166bf",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2333,7 +2381,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.199Z",
+                  "createdAt": "2026-11-21T03:23:45.889Z",
                   "editedAt": null,
                   "deleted": true,
                   "undelivered": {},
@@ -2362,10 +2410,10 @@
               {
                 "cursor": "10",
                 "type": "message.deleted",
-                "createdAt": "2026-11-21T00:23:03.201Z",
+                "createdAt": "2026-11-21T03:23:45.892Z",
                 "payload": {
                   "id": "9",
-                  "thread": "aff3e14c-7bc4-4ef3-88df-07ad8316b8c8",
+                  "thread": "d2652daa-4c2d-4fe9-9a01-af8d561166bf",
                   "by": {
                     "actor": "boards:user:jared",
                     "principal": "boards:user:jared",
@@ -2379,7 +2427,7 @@
                   "text": "",
                   "re": null,
                   "replyTo": null,
-                  "thread": "aff3e14c-7bc4-4ef3-88df-07ad8316b8c8",
+                  "thread": "d2652daa-4c2d-4fe9-9a01-af8d561166bf",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2390,7 +2438,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.199Z",
+                  "createdAt": "2026-11-21T03:23:45.889Z",
                   "editedAt": null,
                   "deleted": true,
                   "undelivered": {},
@@ -2585,7 +2633,7 @@
                   "text": "rotate the staging keys",
                   "re": null,
                   "replyTo": null,
-                  "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+                  "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
                   "labels": {
                     "area": "infra",
                     "board.task": "ready"
@@ -2599,7 +2647,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.215Z",
+                  "createdAt": "2026-11-21T03:23:45.937Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -2638,7 +2686,7 @@
                   "text": "build v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+                  "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
                   "labels": {
                     "board.task": "ready"
                   },
@@ -2651,7 +2699,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.218Z",
+                  "createdAt": "2026-11-21T03:23:45.947Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -2690,7 +2738,7 @@
                   "text": "ship v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "02539c5b-cfef-4480-8c24-7f2060661a34",
+                  "thread": "ffd51694-0988-45dc-aad6-3d9266ba0246",
                   "labels": {
                     "board.task": "waiting"
                   },
@@ -2703,7 +2751,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T00:23:03.218Z",
+                  "createdAt": "2026-11-21T03:23:45.947Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -2882,7 +2930,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+              "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -2896,7 +2944,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.215Z",
+              "createdAt": "2026-11-21T03:23:45.937Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3098,7 +3146,7 @@
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+                "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3111,7 +3159,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.218Z",
+                "createdAt": "2026-11-21T03:23:45.947Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3146,7 +3194,7 @@
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "02539c5b-cfef-4480-8c24-7f2060661a34",
+                "thread": "ffd51694-0988-45dc-aad6-3d9266ba0246",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3159,7 +3207,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.218Z",
+                "createdAt": "2026-11-21T03:23:45.947Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3257,7 +3305,7 @@
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+                "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3270,7 +3318,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.218Z",
+                "createdAt": "2026-11-21T03:23:45.947Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3305,7 +3353,7 @@
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "02539c5b-cfef-4480-8c24-7f2060661a34",
+                "thread": "ffd51694-0988-45dc-aad6-3d9266ba0246",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3318,7 +3366,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T00:23:03.218Z",
+                "createdAt": "2026-11-21T03:23:45.947Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3454,7 +3502,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+              "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3468,7 +3516,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.215Z",
+              "createdAt": "2026-11-21T03:23:45.937Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3493,7 +3541,7 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "boards:user:jared",
-                  "until": "2026-11-21T00:38:03.236Z"
+                  "until": "2026-11-21T03:38:45.964Z"
                 },
                 "blocked": null,
                 "result": null,
@@ -3502,8 +3550,8 @@
             },
             "claim": {
               "epoch": 1,
-              "token": "8siEIoqbXLwFnXFWW_oARxzw248CJYpLOJt9eamsEqU",
-              "until": "2026-11-21T00:38:03.236Z"
+              "token": "j_qSsaRt-oB9DinAJlZzavyFM6nafhvSB_JrDW0jeDI",
+              "until": "2026-11-21T03:38:45.964Z"
             }
           }
         }
@@ -3585,7 +3633,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+              "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3599,7 +3647,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.215Z",
+              "createdAt": "2026-11-21T03:23:45.937Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3624,7 +3672,7 @@
                 "epoch": 2,
                 "claim": {
                   "actor": "boards:user:jared",
-                  "until": "2026-11-21T00:33:03.246Z"
+                  "until": "2026-11-21T03:33:45.975Z"
                 },
                 "blocked": null,
                 "result": null,
@@ -3633,8 +3681,8 @@
             },
             "claim": {
               "epoch": 2,
-              "token": "WlSCDqSUQdUUD__z9R7nYppKiZMeW5A9wrL0F8LumA4",
-              "until": "2026-11-21T00:33:03.246Z"
+              "token": "NdapOVFh9HzMpKcQo7q8pWSKzSUXMiI3ShmGp4UaKJs",
+              "until": "2026-11-21T03:33:45.975Z"
             }
           }
         }
@@ -3716,7 +3764,7 @@
             },
             "body": {
               "epoch": 1,
-              "token": "8siEIoqbXLwFnXFWW_oARxzw248CJYpLOJt9eamsEqU",
+              "token": "j_qSsaRt-oB9DinAJlZzavyFM6nafhvSB_JrDW0jeDI",
               "lease": 1800
             }
           },
@@ -3728,7 +3776,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+              "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3742,7 +3790,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.215Z",
+              "createdAt": "2026-11-21T03:23:45.937Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3767,14 +3815,14 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "boards:user:jared",
-                  "until": "2026-11-21T00:53:03.241Z"
+                  "until": "2026-11-21T03:53:45.967Z"
                 },
                 "blocked": null,
                 "result": null,
                 "reason": null
               }
             },
-            "until": "2026-11-21T00:53:03.241Z"
+            "until": "2026-11-21T03:53:45.967Z"
           }
         }
       }
@@ -3852,7 +3900,7 @@
             },
             "body": {
               "epoch": 1,
-              "token": "8siEIoqbXLwFnXFWW_oARxzw248CJYpLOJt9eamsEqU"
+              "token": "j_qSsaRt-oB9DinAJlZzavyFM6nafhvSB_JrDW0jeDI"
             }
           },
           "status": 200,
@@ -3863,7 +3911,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+              "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -3877,7 +3925,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.215Z",
+              "createdAt": "2026-11-21T03:23:45.937Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3996,7 +4044,7 @@
             },
             "body": {
               "epoch": 2,
-              "token": "WlSCDqSUQdUUD__z9R7nYppKiZMeW5A9wrL0F8LumA4",
+              "token": "NdapOVFh9HzMpKcQo7q8pWSKzSUXMiI3ShmGp4UaKJs",
               "result": "rotated; the old keys are revoked"
             }
           },
@@ -4008,7 +4056,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "491cab14-ba43-4e2b-bddf-df447cb4dcfb",
+              "thread": "29896e2f-17bd-4819-8c38-54ad867a56c3",
               "labels": {
                 "area": "infra",
                 "board.task": "completed"
@@ -4022,7 +4070,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.215Z",
+              "createdAt": "2026-11-21T03:23:45.937Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4062,7 +4110,7 @@
             },
             "body": {
               "epoch": 2,
-              "token": "WlSCDqSUQdUUD__z9R7nYppKiZMeW5A9wrL0F8LumA4"
+              "token": "NdapOVFh9HzMpKcQo7q8pWSKzSUXMiI3ShmGp4UaKJs"
             }
           },
           "status": 409,
@@ -4152,7 +4200,7 @@
             },
             "body": {
               "epoch": 1,
-              "token": "kpJCbuF2XAxqBrjXFAGjyGr5FGOR6F_RRT2UxEg8kOY",
+              "token": "JzXI-emkxEpyGyuXgOiFdgan28qzU_kinuCx8c_D4wQ",
               "reason": "the build ran out of disk"
             }
           },
@@ -4164,7 +4212,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+              "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
               "labels": {
                 "board.task": "failed"
               },
@@ -4177,7 +4225,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4304,7 +4352,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+              "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
               "labels": {
                 "board.task": "blocked"
               },
@@ -4317,7 +4365,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4408,7 +4456,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+              "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
               "labels": {
                 "board.task": "ready"
               },
@@ -4421,7 +4469,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4509,7 +4557,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "df99b5ea-3818-40b0-a320-0a48dfcd1ec3",
+              "thread": "1d4a683b-51ce-4813-9848-964ba73d0fe3",
               "labels": {
                 "board.task": "ready"
               },
@@ -4522,7 +4570,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4639,7 +4687,7 @@
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "02539c5b-cfef-4480-8c24-7f2060661a34",
+              "thread": "ffd51694-0988-45dc-aad6-3d9266ba0246",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4652,7 +4700,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4769,7 +4817,7 @@
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "02539c5b-cfef-4480-8c24-7f2060661a34",
+              "thread": "ffd51694-0988-45dc-aad6-3d9266ba0246",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4782,7 +4830,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4892,7 +4940,7 @@
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "02539c5b-cfef-4480-8c24-7f2060661a34",
+              "thread": "ffd51694-0988-45dc-aad6-3d9266ba0246",
               "labels": {
                 "board.task": "canceled"
               },
@@ -4905,7 +4953,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T00:23:03.218Z",
+              "createdAt": "2026-11-21T03:23:45.947Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -5402,7 +5450,7 @@
               },
               "capped": false,
               "by": "boards:user:jared",
-              "at": "2026-11-21T00:23:03.295Z"
+              "at": "2026-11-21T03:23:46.166Z"
             }
           }
         }
@@ -5804,7 +5852,7 @@
                 },
                 "capped": false,
                 "by": "boards:user:jared",
-                "at": "2026-11-21T00:23:03.302Z"
+                "at": "2026-11-21T03:23:46.175Z"
               },
               {
                 "id": "g6",
@@ -5820,7 +5868,7 @@
                 },
                 "capped": false,
                 "by": "boards:user:jared",
-                "at": "2026-11-21T00:23:03.302Z"
+                "at": "2026-11-21T03:23:46.175Z"
               }
             ]
           }
@@ -6457,7 +6505,7 @@
               },
               "capped": false,
               "by": "boards:user:jared",
-              "at": "2026-11-21T00:23:03.297Z"
+              "at": "2026-11-21T03:23:46.170Z"
             }
           }
         }
@@ -6728,7 +6776,7 @@
                 },
                 "capped": false,
                 "by": "boards:user:jared",
-                "at": "2026-11-21T00:23:03.297Z"
+                "at": "2026-11-21T03:23:46.170Z"
               }
             ],
             "capped": null,
@@ -6958,7 +7006,7 @@
               },
               "builtIn": false,
               "by": "boards:user:jared",
-              "at": "2026-11-21T00:23:03.312Z"
+              "at": "2026-11-21T03:23:46.188Z"
             },
             "created": true
           }
@@ -7031,7 +7079,7 @@
               },
               "builtIn": false,
               "by": "boards:user:jared",
-              "at": "2026-11-21T00:23:03.312Z"
+              "at": "2026-11-21T03:23:46.188Z"
             }
           }
         }
@@ -7172,12 +7220,12 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-22T00:23:03.273Z",
+              "first": "2026-11-22T03:23:46.119Z",
               "every": 86400000,
               "until": null,
               "times": 5,
               "sent": 0,
-              "next": "2026-11-22T00:23:03.273Z",
+              "next": "2026-11-22T03:23:46.119Z",
               "last": null,
               "state": "pending",
               "canceled": null,
@@ -7192,7 +7240,7 @@
                 "name": "jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-21T00:23:03.273Z"
+              "createdAt": "2026-11-21T03:23:46.119Z"
             }
           }
         }
@@ -7282,12 +7330,12 @@
                 "labels": {},
                 "noSync": false,
                 "attachments": [],
-                "first": "2026-11-22T00:23:03.273Z",
+                "first": "2026-11-22T03:23:46.119Z",
                 "every": 86400000,
                 "until": null,
                 "times": 5,
                 "sent": 0,
-                "next": "2026-11-22T00:23:03.273Z",
+                "next": "2026-11-22T03:23:46.119Z",
                 "last": null,
                 "state": "pending",
                 "canceled": null,
@@ -7302,7 +7350,7 @@
                   "name": "jared",
                   "avatar": null
                 },
-                "createdAt": "2026-11-21T00:23:03.273Z"
+                "createdAt": "2026-11-21T03:23:46.119Z"
               }
             ]
           }
@@ -7362,7 +7410,7 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-22T00:23:03.273Z",
+              "first": "2026-11-22T03:23:46.119Z",
               "every": 86400000,
               "until": null,
               "times": 5,
@@ -7389,7 +7437,7 @@
                 "name": "jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-21T00:23:03.273Z"
+              "createdAt": "2026-11-21T03:23:46.119Z"
             },
             "canceled": true
           }
@@ -7453,7 +7501,7 @@
           "status": 201,
           "response": {
             "attachment": {
-              "id": "i2qb5qvLql7wCzG43hb6tQ",
+              "id": "_dR23F85fBQ4MRfGdPzHBA",
               "name": "build.log",
               "type": "text/plain",
               "size": 13
@@ -7504,7 +7552,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/attachments/i2qb5qvLql7wCzG43hb6tQ"
+            "path": "/attachments/_dR23F85fBQ4MRfGdPzHBA"
           },
           "status": 200,
           "headers": {
@@ -7974,12 +8022,12 @@
                 "id": "caa2017e-be3c-8c23-86a6-9054cc4666df",
                 "watcher": "@sync",
                 "thread": "deploy-v42",
-                "lease": "facf7c319bb880b7198713703841c520",
+                "lease": "073e4234ab7b01c07f3d324d131ebe30",
                 "attempt": 0,
                 "event": {
                   "cursor": "3",
                   "type": "message.posted",
-                  "createdAt": "2026-11-21T00:23:03.180Z",
+                  "createdAt": "2026-11-21T03:23:45.807Z",
                   "payload": {
                     "channel": "deploys",
                     "text": "v42 is live on production",
@@ -8022,8 +8070,8 @@
                     "noSync": false,
                     "origin": null,
                     "from": null,
-                    "createdAt": "2026-11-21T00:23:03.180Z",
-                    "editedAt": "2026-11-21T00:23:03.190Z",
+                    "createdAt": "2026-11-21T03:23:45.807Z",
+                    "editedAt": "2026-11-21T03:23:45.851Z",
                     "deleted": false,
                     "undelivered": {},
                     "attachments": [],
@@ -8128,7 +8176,7 @@
               "content-type": "application/json"
             },
             "body": {
-              "lease": "facf7c319bb880b7198713703841c520"
+              "lease": "073e4234ab7b01c07f3d324d131ebe30"
             }
           },
           "status": 200,
@@ -9252,7 +9300,7 @@
           },
           "status": 200,
           "response": {
-            "message": "31"
+            "message": "37"
           }
         }
       }
@@ -9476,7 +9524,7 @@
             },
             "body": {
               "kind": "message",
-              "message": "32",
+              "message": "38",
               "target": "tracker:eng/T-12",
               "external": {
                 "thread": "tracker:eng/T-12",
@@ -9537,7 +9585,7 @@
           "status": 200,
           "response": {
             "thread": "sync:boards:user:jared:5c6a5d40de94f6df86d174bccbb89445",
-            "root": "31",
+            "root": "37",
             "channel": "support",
             "targets": [
               "tracker:eng/T-12"
@@ -9617,7 +9665,7 @@
           "status": 200,
           "response": {
             "thread": "sync:boards:user:jared:5c6a5d40de94f6df86d174bccbb89445",
-            "message": "31"
+            "message": "37"
           }
         }
       }
@@ -9679,12 +9727,12 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/sync/copies?message=32"
+            "path": "/sync/copies?message=38"
           },
           "status": 200,
           "response": {
             "copies": {
-              "32": {
+              "38": {
                 "tracker:eng/T-12": {
                   "thread": "tracker:eng/T-12",
                   "message": "tracker:c2"
@@ -9736,7 +9784,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/messages/32/sync"
+            "path": "/messages/38/sync"
           },
           "status": 200,
           "response": {
@@ -9813,7 +9861,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/messages/31/sync",
+            "path": "/messages/37/sync",
             "headers": {
               "content-type": "application/json"
             },
@@ -10022,7 +10070,7 @@
               {
                 "id": "bff5033e-e0c5-8be4-9838-4f41ce90c36d",
                 "channel": "tracker:eng",
-                "createdAt": "2026-11-21T00:23:03.350Z",
+                "createdAt": "2026-11-21T03:23:46.280Z",
                 "sync": "tracker",
                 "event": {
                   "kind": "message",
@@ -10294,7 +10342,7 @@
                 "id": "bff5033e-e0c5-8be4-9838-4f41ce90c36d",
                 "key": "tracker",
                 "thread": "tracker:eng/T-12",
-                "lease": "3e2cf3852462e6ded62887bc26e61a7b",
+                "lease": "011c0df31e2e1b748f2c44f745d08213",
                 "attempt": 0,
                 "event": {
                   "kind": "message",
@@ -10401,12 +10449,1000 @@
               "content-type": "application/json"
             },
             "body": {
-              "lease": "3e2cf3852462e6ded62887bc26e61a7b"
+              "lease": "011c0df31e2e1b748f2c44f745d08213"
             }
           },
           "status": 200,
           "response": {
             "ok": true
+          }
+        }
+      }
+    },
+    "/docs": {
+      "post": {
+        "operationId": "createDoc",
+        "tags": [
+          "docs"
+        ],
+        "summary": "Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). Needs post and edit in the channel.",
+        "x-order": 68,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-rules": [
+          "a doc starts from its body, or from another doc: pass one of `body` and `from`"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\/[a-z0-9][a-z0-9_-]*)*$"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 600000
+                  },
+                  "from": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "labels": {
+                    "type": "object",
+                    "propertyNames": {
+                      "type": "string",
+                      "maxLength": 64,
+                      "pattern": "^[a-z0-9][a-z0-9_.-]*$"
+                    },
+                    "additionalProperties": {
+                      "type": "string",
+                      "maxLength": 256
+                    }
+                  },
+                  "id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "mirror": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "channel",
+                  "slug"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Created"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "POST",
+            "path": "/docs",
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "channel": "docs/runbooks",
+              "slug": "deploy",
+              "body": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n",
+              "labels": {
+                "owner": "ops"
+              }
+            }
+          },
+          "status": 201,
+          "response": {
+            "message": {
+              "id": "29",
+              "channel": "docs/runbooks",
+              "text": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n",
+              "re": null,
+              "replyTo": null,
+              "thread": "1a1a5921-53e2-4e5c-ae07-2767cd889755",
+              "labels": {
+                "owner": "ops",
+                "board.doc": "docs/runbooks/deploy"
+              },
+              "reactions": {},
+              "by": {
+                "actor": "boards:user:jared",
+                "principal": "boards:user:jared",
+                "profile": null
+              },
+              "noSync": false,
+              "origin": null,
+              "from": null,
+              "createdAt": "2026-11-21T03:23:46.035Z",
+              "editedAt": null,
+              "deleted": false,
+              "undelivered": {},
+              "attachments": [],
+              "links": [],
+              "version": 29,
+              "revision": 29,
+              "author": {
+                "kind": "person",
+                "handle": "jared",
+                "name": "jared",
+                "avatar": null,
+                "verified": true
+              },
+              "blocks": [],
+              "doc": {
+                "id": "29",
+                "path": "docs/runbooks/deploy",
+                "title": "Deploy",
+                "revision": "29",
+                "size": 171,
+                "sections": [
+                  {
+                    "key": "ship",
+                    "title": "Ship",
+                    "level": 2,
+                    "changed": "29",
+                    "subtree": "29"
+                  },
+                  {
+                    "key": "ship/rollback",
+                    "title": "Rollback",
+                    "level": 3,
+                    "changed": "29",
+                    "subtree": "29"
+                  },
+                  {
+                    "key": "monitoring",
+                    "title": "Monitoring",
+                    "level": 2,
+                    "changed": "29",
+                    "subtree": "29"
+                  }
+                ],
+                "createdAt": "2026-11-21T03:23:46.035Z",
+                "proposals": []
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "operationId": "docAt",
+        "tags": [
+          "docs"
+        ],
+        "summary": "The doc at a path (docs/runbooks/deploy), read as GET /docs/{id} reads it.",
+        "x-order": 69,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 3,
+              "maxLength": 2200
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,15}$"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "GET",
+            "path": "/docs?path=docs%2Frunbooks%2Fdeploy"
+          },
+          "status": 200,
+          "response": {
+            "doc": {
+              "id": "29",
+              "path": "docs/runbooks/deploy",
+              "title": "Deploy",
+              "revision": "29",
+              "size": 171,
+              "sections": [
+                {
+                  "key": "ship",
+                  "title": "Ship",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "29"
+                },
+                {
+                  "key": "ship/rollback",
+                  "title": "Rollback",
+                  "level": 3,
+                  "changed": "29",
+                  "subtree": "29"
+                },
+                {
+                  "key": "monitoring",
+                  "title": "Monitoring",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "29"
+                }
+              ],
+              "createdAt": "2026-11-21T03:23:46.035Z"
+            },
+            "body": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n"
+          }
+        }
+      }
+    },
+    "/docs/{id}": {
+      "get": {
+        "operationId": "doc",
+        "tags": [
+          "docs"
+        ],
+        "summary": "A doc's view and its body; with section, that section only; with revision, as it was then. depth sets how deep the outline goes (3 by default).",
+        "x-order": 70,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 1024
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,15}$"
+            }
+          },
+          {
+            "name": "depth",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "GET",
+            "path": "/docs/29?section=ship%2Frollback"
+          },
+          "status": 200,
+          "response": {
+            "doc": {
+              "id": "29",
+              "path": "docs/runbooks/deploy",
+              "title": "Deploy",
+              "revision": "29",
+              "size": 171,
+              "sections": [
+                {
+                  "key": "ship",
+                  "title": "Ship",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "29"
+                },
+                {
+                  "key": "ship/rollback",
+                  "title": "Rollback",
+                  "level": 3,
+                  "changed": "29",
+                  "subtree": "29"
+                },
+                {
+                  "key": "monitoring",
+                  "title": "Monitoring",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "29"
+                }
+              ],
+              "createdAt": "2026-11-21T03:23:46.035Z"
+            },
+            "section": {
+              "key": "ship/rollback",
+              "title": "Rollback",
+              "level": 3,
+              "text": "\nRoll back to the previous version by its ID.\n\n",
+              "subtree": "",
+              "changed": "29",
+              "subtreeChanged": "29"
+            }
+          }
+        }
+      }
+    },
+    "/docs/{id}/edit": {
+      "post": {
+        "operationId": "editDoc",
+        "tags": [
+          "docs"
+        ],
+        "summary": "Edits a doc by section, checked per section against the revision you read, or as a whole body (merge: true merges by section). propose: true makes the edit a task instead.",
+        "x-order": 71,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-rules": [
+          "an edit gives `edits` (by section) or `body` (the whole of it): one of them",
+          "merge: `merge` goes with a whole `body`",
+          "base: `base` is what a merge started from: send it with merge: true",
+          "note: `note` explains a proposal: send it with propose: true"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "revision": {
+                    "type": "string",
+                    "pattern": "^[1-9]\\d{0,15}$"
+                  },
+                  "base": {
+                    "type": "string",
+                    "maxLength": 600000
+                  },
+                  "edits": {
+                    "minItems": 1,
+                    "maxItems": 100,
+                    "type": "array",
+                    "items": {
+                      "anyOf": [
+                        {
+                          "type": "object",
+                          "properties": {
+                            "section": {
+                              "type": "string",
+                              "maxLength": 1024
+                            },
+                            "text": {
+                              "type": "string",
+                              "maxLength": 600000
+                            },
+                            "title": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 512
+                            },
+                            "subtree": {
+                              "type": "boolean"
+                            }
+                          },
+                          "required": [
+                            "section"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "after": {
+                              "type": "string",
+                              "maxLength": 1024
+                            },
+                            "text": {
+                              "type": "string",
+                              "maxLength": 600000
+                            }
+                          },
+                          "required": [
+                            "after",
+                            "text"
+                          ],
+                          "additionalProperties": false
+                        },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "remove": {
+                              "type": "string",
+                              "maxLength": 1024
+                            }
+                          },
+                          "required": [
+                            "remove"
+                          ],
+                          "additionalProperties": false
+                        }
+                      ]
+                    }
+                  },
+                  "body": {
+                    "type": "string",
+                    "maxLength": 600000
+                  },
+                  "merge": {
+                    "type": "boolean"
+                  },
+                  "propose": {
+                    "type": "boolean"
+                  },
+                  "note": {
+                    "type": "string",
+                    "maxLength": 2000
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "409": {
+            "description": "section_conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "POST",
+            "path": "/docs/29/edit",
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "revision": "29",
+              "edits": [
+                {
+                  "section": "ship/rollback",
+                  "text": "\nRoll back with deploy rollback <id>, the ID of the last green version.\n\n"
+                }
+              ]
+            }
+          },
+          "status": 200,
+          "response": {
+            "doc": {
+              "id": "29",
+              "path": "docs/runbooks/deploy",
+              "title": "Deploy",
+              "revision": "32",
+              "size": 197,
+              "sections": [
+                {
+                  "key": "ship",
+                  "title": "Ship",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "32"
+                },
+                {
+                  "key": "ship/rollback",
+                  "title": "Rollback",
+                  "level": 3,
+                  "changed": "32",
+                  "subtree": "32"
+                },
+                {
+                  "key": "monitoring",
+                  "title": "Monitoring",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "29"
+                }
+              ],
+              "createdAt": "2026-11-21T03:23:46.035Z"
+            },
+            "revision": "32"
+          }
+        },
+        "x-error-example": {
+          "request": {
+            "method": "POST",
+            "path": "/docs/29/edit",
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "revision": "29",
+              "edits": [
+                {
+                  "section": "ship/rollback",
+                  "text": "\nRoll back fast.\n\n"
+                }
+              ]
+            }
+          },
+          "status": 409,
+          "response": {
+            "error": {
+              "code": "section_conflict",
+              "message": "\"ship/rollback\" changed at revision 32, after revision 29: read it again and redo your change",
+              "data": {
+                "section": "ship/rollback",
+                "revision": "32"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/docs/{id}/move": {
+      "post": {
+        "operationId": "moveDoc",
+        "tags": [
+          "docs"
+        ],
+        "summary": "Moves a doc to a new channel, slug, or both. Its ID, its replies, and every link to it stay. Needs edit in both channels.",
+        "x-order": 72,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "x-rules": [
+          "a move names a new `channel`, a new `slug`, or both"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\/[a-z0-9][a-z0-9_-]*)*$"
+                  },
+                  "slug": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9_-]{0,127}$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "POST",
+            "path": "/docs/29/move",
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "channel": "docs/ops",
+              "slug": "shipping"
+            }
+          },
+          "status": 200,
+          "response": {
+            "doc": {
+              "id": "29",
+              "path": "docs/ops/shipping",
+              "title": "Shipping",
+              "revision": "32",
+              "size": 197,
+              "sections": [
+                {
+                  "key": "ship",
+                  "title": "Ship",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "32"
+                },
+                {
+                  "key": "ship/rollback",
+                  "title": "Rollback",
+                  "level": 3,
+                  "changed": "32",
+                  "subtree": "32"
+                },
+                {
+                  "key": "monitoring",
+                  "title": "Monitoring",
+                  "level": 2,
+                  "changed": "29",
+                  "subtree": "29"
+                }
+              ],
+              "createdAt": "2026-11-21T03:23:46.035Z"
+            },
+            "revision": "32"
+          }
+        }
+      }
+    },
+    "/docs/{id}/history": {
+      "get": {
+        "operationId": "docHistory",
+        "tags": [
+          "docs"
+        ],
+        "summary": "A doc's versions, oldest first: who, when, and which sections each edit changed.",
+        "x-order": 73,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,15}$"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 500
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "GET",
+            "path": "/docs/29/history"
+          },
+          "status": 200,
+          "response": {
+            "edits": [
+              {
+                "revision": "29",
+                "kind": "created",
+                "at": "2026-11-21T03:23:46.035Z",
+                "by": {
+                  "actor": "boards:user:jared",
+                  "principal": "boards:user:jared",
+                  "profile": null
+                }
+              },
+              {
+                "revision": "32",
+                "kind": "edited",
+                "at": "2026-11-21T03:23:46.045Z",
+                "by": {
+                  "actor": "boards:user:jared",
+                  "principal": "boards:user:jared",
+                  "profile": null
+                },
+                "base": "29",
+                "sections": [
+                  {
+                    "section": "ship/rollback",
+                    "op": "edited"
+                  }
+                ]
+              }
+            ],
+            "cursor": "32",
+            "more": false
+          }
+        }
+      }
+    },
+    "/docs/{id}/diff": {
+      "get": {
+        "operationId": "docDiff",
+        "tags": [
+          "docs"
+        ],
+        "summary": "The sections that changed between two revisions, before and after (to: now).",
+        "x-order": 74,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,15}$"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^[1-9]\\d{0,15}$"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "GET",
+            "path": "/docs/29/diff?from=29&to=32"
+          },
+          "status": 200,
+          "response": {
+            "from": "29",
+            "to": "32",
+            "sections": [
+              {
+                "section": "ship/rollback",
+                "change": "edited",
+                "before": "### Rollback\n\nRoll back to the previous version by its ID.\n\n",
+                "after": "### Rollback\n\nRoll back with deploy rollback <id>, the ID of the last green version.\n\n"
+              }
+            ]
+          }
+        }
+      }
+    },
+    "/docs/{id}/backlinks": {
+      "get": {
+        "operationId": "docBacklinks",
+        "tags": [
+          "docs"
+        ],
+        "summary": "The threads, replies, and docs whose text links the doc, by its path or ID.",
+        "x-order": 75,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "GET",
+            "path": "/docs/29/backlinks"
+          },
+          "status": 200,
+          "response": {
+            "backlinks": [
+              {
+                "id": "33",
+                "thread": "33",
+                "channel": "deploys",
+                "kind": "thread",
+                "summary": "v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]"
+              }
+            ]
           }
         }
       }
@@ -10418,7 +11454,7 @@
           "rpc"
         ],
         "summary": "The Board capability over a Cap'n Web WebSocket (send Upgrade: websocket).",
-        "x-order": 68,
+        "x-order": 76,
         "security": [
           {
             "bearer": []
@@ -10467,7 +11503,7 @@
           "rpc"
         ],
         "summary": "The Board capability over a Cap'n Web HTTP batch.",
-        "x-order": 69,
+        "x-order": 77,
         "security": [
           {
             "bearer": []
@@ -10502,7 +11538,7 @@
           "headers": {
             "content-type": "text/plain;charset=UTF-8"
           },
-          "response": "[\"resolve\",1,{\"actor\":\"boards:user:jared\",\"principal\":\"boards:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-21T12:23:02.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
+          "response": "[\"resolve\",1,{\"actor\":\"boards:user:jared\",\"principal\":\"boards:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-21T15:23:45.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
         }
       }
     },
@@ -10513,7 +11549,7 @@
           "mcp"
         ],
         "summary": "MCP over streamable HTTP: JSON-RPC 2.0 in, JSON out. Stateless.",
-        "x-order": 70,
+        "x-order": 78,
         "security": [
           {
             "bearer": []
@@ -10569,10 +11605,10 @@
               },
               "serverInfo": {
                 "name": "boards",
-                "title": "Boards: snap2-mwpnzf02",
+                "title": "Boards: acme-api",
                 "version": "0.1.0"
               },
-              "instructions": "The board snap2-mwpnzf02, as jared. board_read, board_post, board_reply, and board_search do one thing each; run_code runs a script of many board calls at once."
+              "instructions": "The board acme-api, as jared. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
             }
           }
         }
@@ -10583,7 +11619,7 @@
           "mcp"
         ],
         "summary": "No server-to-client stream: answers 405, Allow: POST.",
-        "x-order": 71,
+        "x-order": 79,
         "security": [
           {
             "bearer": []
@@ -10631,7 +11667,7 @@
           "archive"
         ],
         "summary": "Where the board's history stands: hot, sealed, and cold. Needs manage everywhere.",
-        "x-order": 72,
+        "x-order": 80,
         "security": [
           {
             "bearer": []
@@ -10675,7 +11711,7 @@
           },
           "status": 200,
           "response": {
-            "head": 33,
+            "head": 39,
             "config": {
               "enabled": true,
               "sealAfterMs": 2592000000,
@@ -10688,12 +11724,12 @@
               "freezeAfterMs": 2592000000,
               "pageThreads": 256
             },
-            "databaseSize": 311296,
+            "databaseSize": 335872,
             "hot": {
-              "events": 33,
-              "messages": 9,
-              "threads": 6,
-              "terms": 13,
+              "events": 39,
+              "messages": 11,
+              "threads": 8,
+              "terms": 18,
               "taskViews": 15
             },
             "sealed": {
@@ -10734,7 +11770,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795242183163
+            "next": 1795253025770
           }
         }
       },
@@ -10744,7 +11780,7 @@
           "archive"
         ],
         "summary": "Changes the board's archival settings, or runs a pass now. Needs manage everywhere.",
-        "x-order": 73,
+        "x-order": 81,
         "security": [
           {
             "bearer": []
@@ -10846,7 +11882,7 @@
           },
           "status": 200,
           "response": {
-            "head": 33,
+            "head": 39,
             "config": {
               "enabled": true,
               "sealAfterMs": 2592000000,
@@ -10859,12 +11895,12 @@
               "freezeAfterMs": 2592000000,
               "pageThreads": 256
             },
-            "databaseSize": 311296,
+            "databaseSize": 335872,
             "hot": {
-              "events": 33,
-              "messages": 9,
-              "threads": 6,
-              "terms": 13,
+              "events": 39,
+              "messages": 11,
+              "threads": 8,
+              "terms": 18,
               "taskViews": 15
             },
             "sealed": {
@@ -10905,7 +11941,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795242183163
+            "next": 1795253025770
           }
         }
       }
@@ -10917,7 +11953,7 @@
           "archive"
         ],
         "summary": "Writes a bench history fast. Only where ARCHIVE_BENCH is 1.",
-        "x-order": 74,
+        "x-order": 82,
         "security": [
           {
             "bearer": []
@@ -11069,8 +12105,8 @@
     "version": "0.1.0",
     "discovery": {
       "version": "0.1.0",
-      "url": "https://boards.example.com/b/snap2-mwpnzf02",
-      "audience": "https://boards.example.com/b/snap2-mwpnzf02",
+      "url": "https://boards.example.com/b/acme-api",
+      "audience": "https://boards.example.com/b/acme-api",
       "team_id": null,
       "project_id": null,
       "sync": []
@@ -11198,8 +12234,133 @@
         }
       },
       {
+        "name": "doc_read",
+        "description": "Read a doc (a thread whose root holds a Markdown body) by id or path (docs/runbooks/deploy). Without section: its outline (doc.sections, each with its key and the revision it last changed) and its body. With section (a key from the outline): that section's text only, which is how to read a long doc. revision reads it as it was.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "section": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "doc_edit",
+        "description": "Edit a doc by section, as you. revision is the doc's revision when you read it; edits is a list of { section, text } (replace a section's own text, its heading stays), { section, text, subtree: true } (it and everything under it), { section, title } (rename), { after, text } (insert a section, text starting with its heading), or { remove }. A section changed since your revision is refused with section_conflict: read that section again and redo your change. A whole body goes as body with the revision you read, or with merge: true and that revision or base (the text you started from), merged by section. Without the edit permission, send propose: true (and a note): the change becomes a task someone completes to apply it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "path": {
+              "type": "string"
+            },
+            "revision": {
+              "type": "string"
+            },
+            "base": {
+              "type": "string"
+            },
+            "edits": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "body": {
+              "type": "string"
+            },
+            "merge": {
+              "type": "boolean"
+            },
+            "propose": {
+              "type": "boolean"
+            },
+            "note": {
+              "type": "string"
+            }
+          },
+          "required": [],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "doc_create",
+        "description": "Make a doc at channel/slug, from its Markdown body, or from another doc as a template (from: its id, filling {{title}}, {{author}}, {{date}}).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "slug": {
+              "type": "string"
+            },
+            "body": {
+              "type": "string"
+            },
+            "from": {
+              "type": "string"
+            },
+            "labels": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            }
+          },
+          "required": [
+            "channel",
+            "slug"
+          ],
+          "additionalProperties": false
+        }
+      },
+      {
+        "name": "doc_search",
+        "description": "Find docs: by words in them (text), a channel or subtree (docs/runbooks/), or a label (key or key=value). Answers each doc's id, path, title, and revision.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "channel": {
+              "type": "string"
+            },
+            "label": {
+              "type": "string"
+            },
+            "limit": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
         "name": "run_code",
-        "description": "Run JavaScript against the board, as you, in a sandbox with no network. Write an async arrow function that awaits every call and returns what you want back (JSON). console.log output comes back too. Its one global is board:\n\ntype Labels = Record<string, string>\ninterface Message {\n  id: string; channel: string; text: string; re: string | null; thread: string; labels: Labels\n  reactions: Record<string, string[]>; by: { actor: string; principal: string; profile: string | null }\n  createdAt: string; editedAt: string | null; deleted: boolean; task?: Task\n}\ninterface Task { state: 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed' | 'failed' | 'canceled'; owner: string; needs: string[]; epoch: number; claim: { actor: string; until: string } | null }\ninterface Thread { message: Message; replies: Message[]; cursor: string }\ninterface ThreadsPage { threads: { message: Message; replies: number; last: Message | null }[]; cursor: string; older?: string | null }\ninterface PostInput { text: string; labels?: Labels; id?: string; noSync?: boolean }\ninterface Claim {                       // fenced: its token stays on the server\n  readonly id: string; readonly epoch: number; readonly until: string; readonly task: Message\n  renew(lease?: number): Promise<string>                      // seconds; the new until\n  complete(result?: string): Promise<{ task: Message }>\n  fail(reason: string): Promise<{ task: Message }>\n  release(): Promise<{ task: Message }>\n  block(reason: string, kind?: string): Promise<{ task: Message }>\n}\ninterface Tasks {\n  create(input: { channel: string; text: string; labels?: Labels; needs?: string[]; claim?: boolean } | { re: string; needs?: string[] }): Promise<{ task: Message; claim?: Claim }>\n  list(query?: { channel?: string; state?: string; label?: Labels; limit?: number; latest?: boolean }): Promise<{ tasks: Message[]; cursor: string }>\n  claim(target: { id: string } | { channel: string; label?: Labels }, options?: { lease?: number; wait?: number }): Promise<Claim | null>\n  cancel(id: string, reason: string): Promise<unknown>\n}\ninterface Board {\n  readonly name: string\n  me(): Promise<{ actor: string; principal: string; handle: string; profile: string | null; can: Record<string, string[]> }>\n  post(channel: string, input: string | PostInput): Promise<{ message: Message }>      // starts a thread\n  reply(id: string, input: string | PostInput): Promise<{ message: Message }>\n  read(id: string, options?: { after?: string; limit?: number }): Promise<Thread>\n  threads(query?: { channel?: string; by?: string; mentions?: string; label?: Labels; text?: string; limit?: number; before?: string }): Promise<ThreadsPage>\n  messages(channel: string, options?: { after?: string; limit?: number }): Promise<{ messages: Message[]; cursor: string }>\n  edit(id: string, text: string): Promise<unknown>\n  delete(id: string): Promise<unknown>\n  react(id: string, emoji: string, options?: { remove?: boolean }): Promise<unknown>\n  label(id: string, change: { set?: Labels; unset?: string[] }): Promise<unknown>\n  events(query?: { channel?: string; after?: string; last?: number; wait?: number }): Promise<{ events: unknown[]; cursor: string }>\n  schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>\n  as(profile: string): Board                                   // writes as <you>+<profile>\n  channel(pattern: string): Board                              // 'work/' : only that subtree\n  readonly tasks: Tasks\n}\ndeclare const board: Board    // the board, as you. There is no network: fetch() fails.\n\nExample:\nasync () => {\n  const { message } = await board.post(\"work\", \"starting the deploy\")\n  await board.reply(message.id, \"done\")\n  return (await board.read(message.id)).replies.map((reply) => reply.text)\n}",
+        "description": "Run JavaScript against the board, as you, in a sandbox with no network. Write an async arrow function that awaits every call and returns what you want back (JSON). console.log output comes back too. Its one global is board:\n\ntype Labels = Record<string, string>\ninterface Message {\n  id: string; channel: string; text: string; re: string | null; thread: string; labels: Labels\n  reactions: Record<string, string[]>; by: { actor: string; principal: string; profile: string | null }\n  createdAt: string; editedAt: string | null; deleted: boolean; task?: Task\n}\ninterface Task { state: 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed' | 'failed' | 'canceled'; owner: string; needs: string[]; epoch: number; claim: { actor: string; until: string } | null }\ninterface Thread { message: Message; replies: Message[]; cursor: string }\ninterface ThreadsPage { threads: { message: Message; replies: number; last: Message | null }[]; cursor: string; older?: string | null }\ninterface PostInput { text: string; labels?: Labels; id?: string; noSync?: boolean }\ninterface Claim {                       // fenced: its token stays on the server\n  readonly id: string; readonly epoch: number; readonly until: string; readonly task: Message\n  renew(lease?: number): Promise<string>                      // seconds; the new until\n  complete(result?: string): Promise<{ task: Message }>\n  fail(reason: string): Promise<{ task: Message }>\n  release(): Promise<{ task: Message }>\n  block(reason: string, kind?: string): Promise<{ task: Message }>\n}\ninterface Tasks {\n  create(input: { channel: string; text: string; labels?: Labels; needs?: string[]; claim?: boolean } | { re: string; needs?: string[] }): Promise<{ task: Message; claim?: Claim }>\n  list(query?: { channel?: string; state?: string; label?: Labels; limit?: number; latest?: boolean }): Promise<{ tasks: Message[]; cursor: string }>\n  claim(target: { id: string } | { channel: string; label?: Labels }, options?: { lease?: number; wait?: number }): Promise<Claim | null>\n  cancel(id: string, reason: string): Promise<unknown>\n}\ninterface Board {\n  readonly name: string\n  me(): Promise<{ actor: string; principal: string; handle: string; profile: string | null; can: Record<string, string[]> }>\n  post(channel: string, input: string | PostInput): Promise<{ message: Message }>      // starts a thread\n  reply(id: string, input: string | PostInput): Promise<{ message: Message }>\n  read(id: string, options?: { after?: string; limit?: number }): Promise<Thread>\n  threads(query?: { channel?: string; by?: string; mentions?: string; label?: Labels; text?: string; limit?: number; before?: string }): Promise<ThreadsPage>\n  messages(channel: string, options?: { after?: string; limit?: number }): Promise<{ messages: Message[]; cursor: string }>\n  edit(id: string, text: string): Promise<unknown>\n  delete(id: string): Promise<unknown>\n  react(id: string, emoji: string, options?: { remove?: boolean }): Promise<unknown>\n  label(id: string, change: { set?: Labels; unset?: string[] }): Promise<unknown>\n  events(query?: { channel?: string; after?: string; last?: number; wait?: number }): Promise<{ events: unknown[]; cursor: string }>\n  schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>\n  as(profile: string): Board                                   // writes as <you>+<profile>\n  channel(pattern: string): Board                              // 'work/' : only that subtree\n  readonly tasks: Tasks\n  readonly docs: Docs\n}\ninterface DocView { id: string; path: string; title: string; revision: string; size: number; sections: { key: string; title: string; level: number; changed: string; subtree: string }[] }\ntype SectionEdit = { section: string; text?: string; title?: string; subtree?: boolean } | { after: string; text: string } | { remove: string }\ninterface Docs {                        // a doc is a thread whose root holds a Markdown body\n  read(id: string, query?: { section?: string; revision?: string }): Promise<{ doc: DocView; body?: string; section?: { key: string; text: string; subtree: string; changed: string } }>\n  at(path: string, query?: { section?: string }): Promise<{ doc: DocView; body?: string; section?: unknown }>\n  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Labels }): Promise<{ message: Message }>\n  // Section edits name the revision you read; a section changed since is refused (section_conflict): read it and redo.\n  edit(id: string, input: { revision: string; edits: SectionEdit[]; propose?: boolean } | { revision?: string; base?: string; body: string; merge?: boolean }): Promise<{ doc: DocView; revision: string }>\n  history(id: string): Promise<{ edits: { revision: string; at: string; sections?: { section: string; op: string }[] }[] }>\n  backlinks(id: string): Promise<{ backlinks: { id: string; kind: string; summary: string }[] }>\n}\ndeclare const board: Board    // the board, as you. There is no network: fetch() fails.\n\nExample:\nasync () => {\n  const { message } = await board.post(\"work\", \"starting the deploy\")\n  await board.reply(message.id, \"done\")\n  return (await board.read(message.id)).replies.map((reply) => reply.text)\n}",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -11236,7 +12397,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"boards:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"boards:user:jared\",\n          \"principal\": \"boards:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T00:23:03.180Z\",\n        \"editedAt\": \"2026-11-21T00:23:03.190Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"29\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"boards:user:jared\",\n          \"principal\": \"boards:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T00:23:03.288Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"i2qb5qvLql7wCzG43hb6tQ\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 29,\n        \"revision\": 29,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"33\",\n  \"older\": \"29.3\"\n}"
+                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"boards:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"boards:user:jared\",\n          \"principal\": \"boards:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T03:23:45.807Z\",\n        \"editedAt\": \"2026-11-21T03:23:45.851Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"35\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"boards:user:jared\",\n          \"principal\": \"boards:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T03:23:46.156Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"_dR23F85fBQ4MRfGdPzHBA\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 35,\n        \"revision\": 35,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"39\",\n  \"older\": \"35.3\"\n}"
               }
             ]
           }
@@ -11262,7 +12423,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"boards:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T00:23:03.180Z\",\n    \"editedAt\": \"2026-11-21T00:23:03.190Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"29\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"boards:user:jared\",\n        \"principal\": \"boards:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-21T00:23:03.288Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"i2qb5qvLql7wCzG43hb6tQ\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 29,\n      \"revision\": 29,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"33\",\n  \"schedules\": []\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"boards:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T03:23:45.807Z\",\n    \"editedAt\": \"2026-11-21T03:23:45.851Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"35\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"boards:user:jared\",\n        \"principal\": \"boards:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-21T03:23:46.156Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"_dR23F85fBQ4MRfGdPzHBA\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 35,\n      \"revision\": 35,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"39\",\n  \"schedules\": []\n}"
               }
             ]
           }
@@ -11289,7 +12450,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"34\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T00:23:03.381Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 34,\n    \"revision\": 34,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"40\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T03:23:46.317Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 40,\n    \"revision\": 40,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -11315,7 +12476,85 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"35\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T00:23:03.383Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 35,\n    \"revision\": 35,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"41\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T03:23:46.319Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 41,\n    \"revision\": 41,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+              }
+            ]
+          }
+        }
+      },
+      "doc_search": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 8,
+          "method": "tools/call",
+          "params": {
+            "name": "doc_search",
+            "arguments": {
+              "channel": "docs/"
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 8,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"29\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"32\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-21T03:23:46.035Z\",\n      \"proposals\": [],\n      \"editedAt\": \"2026-11-21T03:23:46.045Z\"\n    }\n  ]\n}"
+              }
+            ]
+          }
+        }
+      },
+      "doc_read": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 9,
+          "method": "tools/call",
+          "params": {
+            "name": "doc_read",
+            "arguments": {
+              "path": "docs/ops/shipping",
+              "section": "ship/rollback"
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 9,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"doc\": {\n    \"id\": \"29\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"32\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"29\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"29\",\n        \"subtree\": \"29\"\n      }\n    ],\n    \"createdAt\": \"2026-11-21T03:23:46.035Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"32\",\n    \"subtreeChanged\": \"32\"\n  }\n}"
+              }
+            ]
+          }
+        }
+      },
+      "doc_create": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 10,
+          "method": "tools/call",
+          "params": {
+            "name": "doc_create",
+            "arguments": {
+              "channel": "docs/specs",
+              "slug": "search",
+              "body": "## Goal\n\nFind any doc by a word in it.\n"
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 10,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"message\": {\n    \"id\": \"42\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"7bf6df00-79dc-4841-9537-21abbfcd9275\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"boards:user:jared\",\n      \"principal\": \"boards:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T03:23:46.328Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 42,\n    \"revision\": 42,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"42\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"42\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"42\",\n          \"subtree\": \"42\"\n        }\n      ],\n      \"createdAt\": \"2026-11-21T03:23:46.328Z\",\n      \"proposals\": []\n    }\n  }\n}"
               }
             ]
           }
@@ -11340,7 +12579,39 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"result\": [\n    \"v43 is rolling out\",\n    \"v42 is live on production (eu and us)\"\n  ],\n  \"logs\": []\n}"
+                "text": "{\n  \"result\": [\n    \"v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]\",\n    \"v43 is rolling out\",\n    \"v42 is live on production (eu and us)\"\n  ],\n  \"logs\": []\n}"
+              }
+            ]
+          }
+        }
+      },
+      "doc_edit": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 11,
+          "method": "tools/call",
+          "params": {
+            "name": "doc_edit",
+            "arguments": {
+              "path": "docs/ops/shipping",
+              "revision": "32",
+              "edits": [
+                {
+                  "section": "monitoring",
+                  "text": "\nWatch the error rate and p95 latency for an hour.\n"
+                }
+              ]
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 11,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"doc\": {\n    \"id\": \"29\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"45\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"29\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"45\",\n        \"subtree\": \"45\"\n      }\n    ],\n    \"createdAt\": \"2026-11-21T03:23:46.035Z\"\n  },\n  \"revision\": \"45\"\n}"
               }
             ]
           }

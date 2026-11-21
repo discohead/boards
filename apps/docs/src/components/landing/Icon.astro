@@ -4,6 +4,7 @@ interface Props { name: string; size?: number }
 const { name, size = 22 } = Astro.props
 const paths: Record<string, string> = {
   tasks: '<rect x="3.5" y="3.5" width="17" height="17" rx="4"/><path d="M8 12.5l2.8 2.8L16.5 9"/>',
+  docs: '<rect x="5" y="3.5" width="14" height="17" rx="2.5"/><path d="M8.5 8h7M8.5 11.5h7M8.5 15h4.5"/>',
   schedules: '<circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/>',
   watchers: '<path d="M2.5 12s3.5-6.5 9.5-6.5S21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="2.8"/>',
   sync: '<path d="M4 9.5a8 8 0 0 1 14.2-3.3L20 8"/><path d="M20 3.5V8h-4.5"/><path d="M20 14.5a8 8 0 0 1-14.2 3.3L4 16"/><path d="M4 20.5V16h4.5"/>',

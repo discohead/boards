@@ -1,11 +1,11 @@
 ---
 title: "Concepts"
-description: "Boards, channels, threads, messages, labels, actors, tasks, schedules, watchers, and sync."
+description: "Boards, channels, threads, messages, labels, actors, tasks, docs, schedules, watchers, and sync."
 sidebar:
   order: 3
 ---
 
-A board is an ordered log of events, and everything you read is a view of it: channels hold threads, threads hold messages, and tasks, schedules, watchers, and sync each add to what a thread can do.
+A board is an ordered log of events, and everything you read is a view of it: channels hold threads, threads hold messages, and tasks, docs, schedules, watchers, and sync each add to what a thread can do.
 
 ## Boards
 
@@ -47,7 +47,7 @@ An `@handle` in text names an actor; the board rewrites it to `@[actor-id]` when
 
 ## Labels and reactions
 
-**Labels** are `key=value` pairs on a message: `env=prod`, `state=open`. Filters take `key`, `key=value`, or `key=a|b`, and a label write can be conditional on the labels it finds. Keys under `board.` are the board's own; `board.task` carries a task's state.
+**Labels** are `key=value` pairs on a message: `env=prod`, `state=open`. Filters take `key`, `key=value`, or `key=a|b`, and a label write can be conditional on the labels it finds. Keys under `board.` are the board's own; `board.task` carries a task's state, and `board.doc` a doc's path.
 
 **Reactions** are short names (`eyes`, `thumbs_up`), one per actor per name.
 
@@ -69,11 +69,26 @@ The **actor** is who wrote: the principal itself, or one of its **profiles**, `<
 "by": { "actor": "boards:user:jared+deployer", "principal": "boards:user:jared", "profile": "deployer" }
 ```
 
-What a principal may do is set by the board's **grants**: in each channel, some of `read`, `post`, `react`, `label`, `sync`, and `manage`. [Identity and access](/boards/guides/identity-and-access/) covers both.
+What a principal may do is set by the board's **grants**: in each channel, some of `read`, `post`, `react`, `label`, `edit`, `sync`, and `manage`. [Identity and access](/boards/guides/identity-and-access/) covers both.
 
 ## Tasks
 
 A **task** is a thread with a state the board keeps: `waiting`, `ready`, `claimed`, `blocked`, `completed`, `failed`, or `canceled`. A task can wait for other tasks (its needs). A **claim** holds a ready task under a lease with a secret token, and every write on the claim is fenced by it. Of claims that race, exactly one lands. See [Tasks and claims](/boards/guides/tasks/).
+
+## Docs
+
+A **doc** is a thread whose root holds a long Markdown body (up to 512 KiB), at a path: `docs/runbooks/deploy`, a channel and a slug. Its replies are its comments and its labels its properties. Its headings split it into **sections**, and an edit names the sections it changes and the revision it read: an edit to a section that changed since is refused, and edits to other sections land. Without `edit`, a caller proposes a change, as a task that applies it when completed. See [Docs](/boards/guides/docs/).
+
+```
+$ boards doc read docs/runbooks/deploy --outline
+docs/runbooks/deploy  revision 7  Deploy
+
+    before-you-start  Before you start  changed 2
+    ship              Ship              changed 7
+      ship/canary     Canary            changed 6
+      ship/rollback   Rollback          changed 5
+    monitoring        Monitoring        changed 2
+```
 
 ## Schedules
 
@@ -85,7 +100,7 @@ A **watcher** runs code for every event that matches a tail expression (`deploys
 
 ## Sync
 
-A **sync** keeps a board channel in step with a platform: GitHub issues and pull requests, a Slack channel, or a Linear team. Platform threads come in as board threads, written by their platform authors; what's written on the board in a synced thread goes back to the platform. Each sync has a key (`github`, `slack`, `linear`) that prefixes its users and threads. See [Sync with GitHub](/boards/guides/sync-github/), [Slack](/boards/guides/sync-slack/), and [Linear](/boards/guides/sync-linear/).
+A **sync** keeps a board channel in step with a platform: GitHub issues and pull requests, a Slack channel, or a Linear team. Platform threads come in as board threads, written by their platform authors; what's written on the board in a synced thread goes back to the platform. Each sync has a key (`github`, `slack`, `linear`) that prefixes its users and threads. A sync can keep docs in step too: a repo's Markdown files, or Notion pages. See [Sync with GitHub](/boards/guides/sync-github/), [Slack](/boards/guides/sync-slack/), [Linear](/boards/guides/sync-linear/), and [Notion](/boards/guides/sync-notion/).
 
 ## Files
 

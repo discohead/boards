@@ -1,0 +1,190 @@
+---
+title: "Sync with Notion"
+description: "Notion pages as docs: mirrored onto the board, or kept in step both ways by section."
+sidebar:
+  order: 15
+---
+
+import { Steps } from '@astrojs/starlight/components'
+
+Notion sync makes each Notion page you name a [doc](/boards/guides/docs/) on the board: its title the doc's first heading, and its content the rest, as Markdown. A page is a **mirror**, which the board shows as Notion has it, or **two-way**, where what's written on either side reaches the other, merged by section.
+
+```ts title="src/worker.ts"
+import { defineBoards, notionProvider, type Secret } from 'boards'
+import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+
+type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; NOTION_TOKEN: Secret; NOTION_WEBHOOK_SECRET?: Secret }
+
+export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+  sync: {
+    notion: notionProvider({
+      token: env.NOTION_TOKEN,
+      // Unset until Notion's verification token has arrived (step 4 below).
+      ...(env.NOTION_WEBHOOK_SECRET ? { webhookSecret: env.NOTION_WEBHOOK_SECRET } : {}),
+      // Each page's ID (from its URL, with or without dashes), and the doc it is.
+      pages: {
+        'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa': { channel: 'docs/handbook', slug: 'onboarding' },             // a mirror
+        bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb: { channel: 'docs/handbook', slug: 'deploy', twoWay: true },       // both ways
+      },
+    }),
+  },
+}))
+
+export default { fetch: (request: Request, env: Env) => gateway(request, env) }
+```
+
+The transcripts on this page are from a local run of the provider with a stand-in for Notion's API; the board side is as it answered.
+
+```
+$ boards docs docs/handbook
+docs/handbook/onboarding  revision 19  2026-11-20 19:25  Onboarding
+$ boards doc read docs/handbook/onboarding
+# Onboarding
+
+Welcome to the team.
+
+## First week
+
+Pair with someone on a real change.
+
+## Who to ask
+
+Ask in #help.
+```
+
+## Set it up
+
+<Steps>
+
+1. **Make an internal integration** for your workspace, on Notion's integrations page, with the capabilities **Read content**, **Update content**, and **Insert content**. Its secret is the token. A mirror needs only Read content; the other two are for two-way pages.
+
+2. **Share each page with it:** add the integration to the page's connections. A page the integration can't see answers 404 to the board, and nothing comes in.
+
+3. **Give the Worker the token,** as a Worker secret or a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding:
+
+   ```bash
+   npx wrangler secret put NOTION_TOKEN
+   ```
+
+   ```jsonc title="wrangler.jsonc"
+   "secrets_store_secrets": [
+     { "binding": "NOTION_TOKEN", "store_id": "<your store id>", "secret_name": "NOTION_TOKEN" }
+   ]
+   ```
+
+   Deploy, with no `webhookSecret` yet.
+
+4. **Subscribe to the pages' changes.** In the integration's Webhooks tab, make a subscription with API version `2026-03-11`, its URL the board's webhook route, and the events **Page content updated**, **Page properties updated**, and **Page created**:
+
+   ```
+   https://boards.example.com/b/acme/webhooks/notion
+   ```
+
+   Notion sends a verification token to the URL. With no webhook secret set, the board answers only that request, and writes its token to the Worker's logs (`npx wrangler tail`, or the Worker's logs in the dashboard):
+
+   ```
+   [boards] sync notion: Notion's webhook verification token arrived: secret_abc (paste it in the subscription's Verify dialog, and set it as the webhook secret)
+   ```
+
+   Any other delivery is refused until the secret is set: `401 no webhook secret is set for this sync yet`.
+
+5. **Verify, and set the secret.** Paste the token in the subscription's Verify dialog, then give it to the Worker as `NOTION_WEBHOOK_SECRET` and deploy again. From then on each delivery is checked against it (`X-Notion-Signature`, an HMAC-SHA256 of the body), and one signed otherwise answers `401 not signed by this subscription`.
+
+   ```bash
+   npx wrangler secret put NOTION_WEBHOOK_SECRET
+   ```
+
+6. **Change a page.** Its doc appears at the next delivery: `boards docs docs/handbook`.
+
+</Steps>
+
+The sync's key (`notion` above) names its webhook route. The deployment needs the `INBOX` and `MAILBOX` bindings ([Deploy and operate](/boards/guides/deploy-and-operate/#bindings)).
+
+## A mirror
+
+A mirror is the page, whole: each change in Notion replaces the doc's body, and only the sync changes it. People and agents read it, comment on its sections, and link it; an edit answers 409 `doc_mirrored`. Edit the page in Notion instead.
+
+```
+$ boards doc edit docs/handbook/onboarding --section onboarding/who-to-ask 'Ask in #help, or your buddy.'
+error: couldn't edit docs/handbook/onboarding
+  409 doc_mirrored  docs/handbook/onboarding mirrors a page in notion: edit it there
+$ boards doc read docs/handbook/onboarding --section onboarding/who-to-ask
+Ask in #help, or your onboarding buddy.
+```
+
+Only a sync makes a mirror. `createDoc` with `mirror: true` from anyone else answers 403 `mirror_needs_sync`:
+
+```
+$ curl -s "$BOARDS_URL/docs" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"channel":"docs/handbook","slug":"faq","body":"## Questions\n","mirror":true}'
+{"error":{"code":"mirror_needs_sync","message":"only a sync makes a mirror of a page: create the doc, or set up the sync"}}
+```
+
+## Two-way
+
+With `twoWay: true`, the page and the doc are kept the same. A change on either side reconciles them: Notion's webhook, or a write on the board.
+
+The board records what Notion last held as the doc's `notion.synced` label, a revision. Reconciling merges three ways by section: that revision as the base, the doc now, and the page now. Each side gets what it lacks. A section only one side changed takes that side's text, so a board edit to one section and a Notion edit to another, made seconds apart, both land on both sides.
+
+```
+$ boards doc read docs/handbook/deploy --outline
+docs/handbook/deploy  revision 24  Deploy
+
+  deploy               Deploy      changed 24
+    deploy/ship        Ship        changed 24
+    deploy/rollback    Rollback    changed 24
+    deploy/monitoring  Monitoring  changed 24
+$ curl -s "$BOARDS_URL/messages/24" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '.message.labels'
+{"board.doc":"docs/handbook/deploy","notion.synced":"24"}
+```
+
+**Back to Notion, by section.** A board write goes to Notion as one `update_content` replacement per section that changed, so the blocks nobody changed stay as they are, with their comments. The doc's first heading is the page's title. Only when sections were added, removed, or renamed does the whole content go back (`replace_content`); Notion refuses that rather than delete a child page or a database in it.
+
+```
+$ boards doc edit docs/handbook/deploy --section deploy/monitoring --revision 24 'Watch the error rate and p95 latency for an hour.'
+edited docs/handbook/deploy  revision 29
+```
+
+Notion's stand-in received that edit as one replacement: `{"old_str":"## Monitoring\n\nWatch the error rate for an hour.","new_str":"## Monitoring\n\nWatch the error rate and p95 latency for an hour."}`.
+
+**Both sides changed a section.** The board's text wins on both sides, and a task in the doc's channel quotes what Notion said, so nothing is lost:
+
+```
+$ boards doc edit docs/handbook/deploy --section deploy/monitoring --revision 35 'Watch the error rate and p95 latency for an hour, then post both in the deploy thread.'
+edited docs/handbook/deploy  revision 38
+$ boards tasks docs/handbook --state all
+#39  ready  notion-sync  The Notion page "Deploy" and [[docs/handbook/deploy]...
+$ boards read 39
+#39  notion-sync  2026-11-20 19:25
+  The Notion page "Deploy" and [[docs/handbook/deploy]] both changed `deploy/monitoring`. The doc kept its text, and Notion has it now too. What Notion had is below: fold in what should stay, then complete this task.
+
+  `deploy/monitoring` in Notion said:
+
+  > ## Monitoring
+  >
+  > Watch the error rate for two hours.
+  task  ready
+```
+
+The doc's history shows each side's edits:
+
+```
+$ boards doc history docs/handbook/deploy
+24  2026-11-20 19:25  boards:sync:notion  created
+29  2026-11-20 19:25  boards:user:jared   edited deploy/monitoring
+33  2026-11-20 19:25  boards:sync:notion  edited deploy/rollback
+35  2026-11-20 19:25  boards:user:jared   edited deploy/ship
+38  2026-11-20 19:25  boards:user:jared   edited deploy/monitoring
+```
+
+A replacement that misses (someone typed in the page while it was written) is tried again from a fresh read, not taken as written.
+
+## Limits
+
+- **Notion batches its webhooks:** a change arrives about a minute after it's made. Board writes reach Notion as soon as the courier delivers them.
+- **Headings are H1 to H4 in Notion.** A doc's H5 and H6 sections don't survive a trip to a two-way page; keep two-way docs to four levels.
+- **A page too large for Notion to give whole** (its Markdown comes back truncated) is left as it is, on both sides: the board neither imports it nor writes to it.
+- **A page is a doc, not a thread:** Notion's comments don't come in, and the doc's comments don't go out.
+
+## How it works
+
+Notion's webhook goes to the sync's Inbox, which keeps each delivery before Notion hears 200 and imports them one at a time per page. An import reads the page (its properties and its Markdown) with the token and merges it into the doc. On the way out, the sync's courier reconciles a two-way page after each board write to its doc; a mirror is never written. [Sync: Inbox and courier](/boards/architecture/sync/) has the details, and the [webhooks reference](/boards/reference/webhooks/) what the route verifies.

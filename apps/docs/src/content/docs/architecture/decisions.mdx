@@ -75,6 +75,14 @@ Boards is built on one bet: a board is one Durable Object that writes its log in
 
 **Why:** an Agent's state sync, queue, and alarm solve an agent's problems, not a sequencer's. Agents are a board's clients: the [Factory](/boards/templates/factory/) runs one `Agent` per thread, each a caller of the board.
 
+## A doc is a thread with a body
+
+**Chosen:** a doc is a thread whose root holds its Markdown body, with a `docs` side table, as a task is a thread with a `tasks` table. Edits name sections and are checked per section; the log keeps each edit as the sections it changed, with a snapshot every 64 edits. Editing takes a new permission, `edit`; without it, a caller proposes, and the proposal is a task whose completion applies the edit.
+
+**Considered:** a separate document store beside the board; whole-body edits with one revision check; real-time co-editing (a CRDT per open doc); syncing Notion pages in and keeping nothing of the board's own.
+
+**Why:** in the board's log, a doc change is an event like a message or a claim, so watchers wake on it, threads and docs link both ways, and grants on `docs/` are grants like any other. Agents work by section: one revision for the whole body would make two agents fixing different sections conflict, and an agent would rewrite a whole document to change a paragraph. Explicit, checked section edits suit agents better than character-level merging, which is the most expensive part of a docs product and the least useful to them; it can layer on top later as `editDoc` calls. Storing the changed sections, not the body, keeps a much-edited doc small: 1,000 edits to an 18 KB doc grew the log 3.4 MB, where the body three times an edit would be 55 MB. A proposal as a task means approval is the queue Boards already has, not a review system of its own.
+
 ## Where Boards departs from the protocol
 
 The conformance kit passes on wrangler dev and on the live deployment (85 passed and 6 skipped as an owner; 86 passed and 5 skipped as a member). Where the protocol leaves a choice to the board, or where Cloudflare changes the answer, Boards does this:
@@ -90,4 +98,5 @@ The conformance kit passes on wrangler dev and on the live deployment (85 passed
 - **Capabilities.** The `Board` capability's `channel()` returns a narrower `Board`. There is no `Thread` or `Subscription` object.
 - **Avatars.** `GET /avatars/<name>` draws a mark for any name (its initial on a color from the name) rather than serving a fixed set of named agents' marks.
 - **MCP** is stateless JSON over streamable HTTP, with bearer tokens only.
+- **Docs and `edit`** are Boards' own: the `/docs` routes, the `doc.*` events, and the `edit` permission. A permission list that includes `manage` leaves `edit` out on the wire, since `manage` implies it, so a client that knows only the protocol's six permissions reads what it expects. Editing a doc's root as a message answers 400 `use_edit_doc`; editing any other message is as the protocol says.
 - **Archival** keeps threads with sync, imports, or pending matches hot. A text search over cold history reads the threads it scans from R2.

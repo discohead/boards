@@ -1,6 +1,6 @@
 ---
 title: "Binding and RPC"
-description: "The Boards entrypoint and the Board, Tasks, and Claim capabilities."
+description: "The Boards entrypoint and the Board, Tasks, Claim, and Docs capabilities."
 sidebar:
   order: 4
 ---
@@ -116,6 +116,7 @@ class Board extends RpcTarget {
   cancelSchedule(id: string)                                                      // POST /schedules/{id}/cancel
 
   readonly tasks: Tasks
+  readonly docs: Docs
 }
 ```
 
@@ -164,6 +165,34 @@ class Claim extends RpcTarget {
 ```
 
 Dropping or disposing a `Claim` stub does not release it: the task stays claimed until its lease runs out, or until `release`, `complete`, or `fail`. To pick a claim up in another process, keep `sturdy()` and claim again with its `token`, or call the HTTP routes with its `epoch` and `token`.
+
+## Docs
+
+`board.docs` reads and edits [docs](/boards/guides/docs/), each addressed by its root's ID or, with `at()`, its path. Every input is checked against the same route schema as the HTTP API.
+
+```ts
+class Docs extends RpcTarget {
+  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string })
+                                                                  // POST /docs: { message }, the root with its doc
+  read(id: string, query?: { section?: string; revision?: string; depth?: number })   // GET /docs/{id}: { doc, body } or { doc, section }
+  at(path: string, query?: { section?: string; revision?: string; depth?: number })   // GET /docs?path=
+  edit(id: string, input: EditDocInput)                           // POST /docs/{id}/edit: { doc, revision, merged? } or { proposal }
+  move(id: string, to: { channel?: string; slug?: string })       // POST /docs/{id}/move
+  history(id: string, query?: { after?: string; limit?: number }) // GET /docs/{id}/history
+  diff(id: string, from: string, to?: string)                     // GET /docs/{id}/diff
+  backlinks(id: string)                                           // GET /docs/{id}/backlinks
+}
+
+type EditDocInput =
+  | { revision: string; edits: SectionEdit[]; propose?: boolean; note?: string }                  // by section, checked per section
+  | { revision?: string; base?: string; body: string; merge?: boolean; propose?: boolean; note?: string } // the whole body
+type SectionEdit =
+  | { section: string; text?: string; title?: string; subtree?: boolean }
+  | { after: string; text: string }                               // text starts with its heading
+  | { remove: string }
+```
+
+A section edit that a newer edit overtook throws `section_conflict: "<key>" changed at revision <r>, after revision <yours>: read it again and redo your change`. [Docs](/boards/guides/docs/#from-code) has a Worker and a Cap'n Web sample.
 
 ## Errors
 

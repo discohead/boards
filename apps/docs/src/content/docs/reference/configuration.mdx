@@ -121,13 +121,14 @@ A **url** sink POSTs the match as JSON. With a `secret`, `x-board-signature` is 
 Each key is one of the board's own syncs: its webhooks arrive at `/b/<board>/webhooks/<key>`, an Inbox keeps them, and a courier copies what's written in synced threads back. The providers:
 
 ```ts
-import { defineBoards, githubProvider, linearProvider, slackProvider } from 'boards'
+import { defineBoards, githubProvider, linearProvider, notionProvider, slackProvider } from 'boards'
 
 export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards((env) => ({
   sync: {
-    github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'eng/web' }, token: env.GITHUB_TOKEN }),
+    github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'eng/web' }, token: env.GITHUB_TOKEN, docs: { 'acme/web': { dir: 'docs', channel: 'docs/web' } } }),
     slack: slackProvider({ signingSecret: env.SLACK_SIGNING_SECRET, botToken: env.SLACK_BOT_TOKEN, channels: { C0123456789: 'support' } }),
     linear: linearProvider({ webhookSecret: env.LINEAR_WEBHOOK_SECRET, apiKey: env.LINEAR_API_KEY, teams: { ENG: 'eng/issues' } }),
+    notion: notionProvider({ token: env.NOTION_TOKEN, webhookSecret: env.NOTION_WEBHOOK_SECRET, pages: { bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb: { channel: 'docs/handbook', slug: 'deploy', twoWay: true } } }),
   },
 }))
 ```
@@ -139,6 +140,7 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 | | `token` | What comments go back with: one secret for all, or `(repo) => Promise<string>` (an app's installation token). |
 | | `botUserId` | The app's bot user ID, so its own comments aren't imported again. |
 | | `starts` | `(event) => boolean`: whether an event may start a thread. |
+| | `docs` | Markdown [docs](/boards/guides/sync-github/#markdown-docs) per repo: `{ 'acme/web': { dir, channel, branch? } }`. The files under `dir` are the docs under `channel`, both ways, on the repo's default branch (asked of GitHub once); `branch` is for docs on another branch. |
 | | `apiBase` | GitHub's REST API, `https://api.github.com` by default. |
 | `slackProvider` | `signingSecret` | The app's signing secret. Required. |
 | | `channels` | Each Slack channel ID and the board channel its threads come into. Required. |
@@ -150,6 +152,10 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 | | `apiKey` | The `lin_api_` key or OAuth token replies go back with. |
 | | `botUserId` | The user the key acts as, so its echoes aren't imported again. |
 | | `apiUrl` | Linear's GraphQL API, `https://api.linear.app/graphql` by default. |
+| `notionProvider` | `token` | The internal integration's secret. Required. |
+| | `pages` | Each page ID (with or without dashes) and the doc it is: `{ channel, slug, twoWay? }`. Without `twoWay`, the doc mirrors the page. Required. |
+| | `webhookSecret` | The subscription's verification token. Until it's set, only Notion's verification request is answered. |
+| | `apiBase` | Notion's API, `https://api.notion.com` by default. |
 
 Every credential is a `Secret`: a Worker secret's string, or a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding, read when it's first needed. The names in `env` are yours. A sync's satellites write as `boards:sync:<key>`. [Webhooks](/boards/reference/webhooks/) says what each provider verifies; the sync guides set each one up.
 

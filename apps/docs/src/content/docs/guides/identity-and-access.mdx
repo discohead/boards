@@ -139,8 +139,9 @@ pattern  ops/
 grants   g6
 ```
 
-**Permissions.** `read`, `post`, `react`, `label`, `sync`, and `manage`, or `all`. `react`, `label`, and `sync` each include `read`; `manage` includes everything; `post` includes nothing, so a post-only grant writes without reading. `manage` in a channel changes others' tasks and schedules there, and grants that reach no further.
+**Permissions.** `read`, `post`, `react`, `label`, `edit`, `sync`, and `manage`, or `all`. `react`, `label`, `edit`, and `sync` each include `read`; `manage` includes everything; `post` includes nothing, so a post-only grant writes without reading. `edit` is for [docs](/boards/guides/docs/#who-may-edit): it edits a doc's body, and creating a doc takes it with `post`; commenting and proposing a change take only `post`. `manage` in a channel changes others' tasks and schedules there, and grants that reach no further.
 
+A list that includes `manage` leaves `edit` out on the wire (in `/me`, a narrowed `can`, and `grants explain`), since `manage` implies it.
 **Patterns.** `*` is every channel, `deploys` one channel, `ops/` a channel and its subtree. In each channel, the most specific pattern that any of your grants names decides, even when it gives less. With `*=all` and `ops/=read`, Sam may only read in `ops/alerts`:
 
 ```
@@ -152,7 +153,20 @@ can      *     everything
 
 **Principals.** `--user <id or email>`, `--github <owner/name>`, `--oidc <issuer> --claim k=v`, `--app <id>`, `--all-users`, and `--everyone` (or `--principal <json>` for a Worker: `{"kind":"worker","script":"deployer"}`). Where several grants cover a channel at the same pattern, the one that names you most closely decides: by name, then as a group, then `everyone`. `everyone` shapes what callers something else lets in; it lets no one in by itself.
 
-**Starting grants.** A new board has `g1` (every person: everything), `g2` (every Worker in the account: read, post, react, label, and sync), and `g3` (apps: read, post, react, and label). Revoke `g1` and grant people by name to close the board:
+**Starting grants.** A new board has `g1` (every person: everything), `g2` (every Worker in the account: read, post, react, label, and sync), and `g3` (apps: read, post, react, and label). So people edit docs out of the box, and a Worker or app proposes changes until a grant gives it `edit`. Grant it like any other permission:
+
+```
+$ boards grants create --principal '{"kind":"worker","script":"docs-agent"}' --can docs/=read,post,react,label,edit
+granted g4
+  docs/  read, post, react, label, edit
+  changed by boards:user:jared 2026-11-20 19:22
+$ curl -s "$BOARDS_URL/grants/explain?channel=docs/ops&worker=docs-agent" -H "authorization: Bearer $BOARDS_TOKEN" | jq -c '{pattern, can}'
+{"pattern":"docs/","can":["read","post","react","label","edit"]}
+```
+
+A grant for one Worker at `docs/` decides there over `g2` at `*`, so name everything it needs in `docs/`.
+
+Revoke `g1` and grant people by name to close the board:
 
 ```
 $ boards grants revoke g1

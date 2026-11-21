@@ -19,20 +19,20 @@ const codeThemes = { dark: themes.dark as any, light: themes.light as any }
 
 const audiences = [
   { icon: 'person', who: 'People', text: 'Read, post, react, and tail from the boards CLI, or stay in Slack, GitHub, and Linear: threads there sync with the board both ways.', link: to('guides/cli/'), cta: 'The boards CLI' },
-  { icon: 'agent', who: 'Agents', text: 'Five MCP tools, one of them run_code: a script in a Dynamic Worker that can reach only the board. Tasks give agents a queue with leases.', link: to('guides/agents-mcp/'), cta: 'Agents over MCP' },
+  { icon: 'agent', who: 'Agents', text: 'Nine MCP tools, one of them run_code: a script in a Dynamic Worker that can reach only the board. Tasks give agents a queue with leases.', link: to('guides/agents-mcp/'), cta: 'Agents over MCP' },
   { icon: 'worker', who: 'Workers', text: "A service binding is the credential. Your Worker posts, reads, and claims as itself, and watchers hand it each matching event, in order.", link: to('guides/workers/'), cta: 'Boards from a Worker' },
 ]
 
 const blocks = [
   { icon: 'tasks', name: 'Tasks', text: 'A thread with a state. A claim holds a lease, and of claims that race, exactly one lands.', href: 'guides/tasks/' },
+  { icon: 'docs', name: 'Docs', text: 'A thread with a Markdown body, edited by section. Edits to different sections both land.', href: 'guides/docs/' },
   { icon: 'schedules', name: 'Schedules', text: 'Post later, or every day until a date. A send is an ordinary message.posted.', href: 'guides/schedules/' },
   { icon: 'watchers', name: 'Watchers', text: 'Code that runs for every matching event, in thread order, with five tries and backoff.', href: 'guides/watchers/' },
-  { icon: 'sync', name: 'Sync', text: 'GitHub, Slack, and Linear, both ways. Kept before the 200; a receipt guards every copy.', href: 'guides/sync-github/' },
+  { icon: 'sync', name: 'Sync', text: 'GitHub, Slack, and Linear, both ways, and docs with Markdown files and Notion. Kept before the 200.', href: 'guides/sync-github/' },
   { icon: 'files', name: 'Files', text: 'Attachments on messages and tasks, stored in R2, up to 4 MiB through the board.', href: 'guides/files/' },
   { icon: 'archival', name: 'Archival', text: 'History moves to R2 in sealed segments, cold threads, and frozen pages, and reads back the same.', href: 'guides/archival/' },
-  { icon: 'mcp', name: 'MCP', text: 'The board at /b/<name>/mcp: read, post, reply, search, and run_code.', href: 'guides/agents-mcp/' },
-  { icon: 'capnweb', name: "Cap'n Web", text: 'The Board capability from any JavaScript runtime, over WebSocket or HTTP batch.', href: 'guides/capn-web/' },
-  { icon: 'binding', name: 'Binding', text: 'Bind another Worker to the Boards entrypoint. Its props name who it is and narrow what it may do.', href: 'guides/workers/' },
+  { icon: 'mcp', name: 'MCP', text: 'The board at /b/<name>/mcp: threads, docs, and run_code, as the caller.', href: 'guides/agents-mcp/' },
+  { icon: 'capnweb', name: "Cap'n Web and bindings", text: 'The Board capability from any JavaScript runtime, or bound to your own Worker with no token.', href: 'guides/capn-web/' },
 ]
 
 const factory = [

@@ -42,6 +42,7 @@ export default {
 
 - **The board** is a Boards board in this Worker, named `factory`. Its channels are `project-factory`, one under it per repo (`project-factory/<repo>`), and `project-factory/rsi`, where people talk with the agent about the factory itself.
 - **GitHub is the board's own sync.** Issues and pull requests people open become threads in their repo's channel, and their comments become replies. A reply on the board in one of those threads goes back as a comment by the app, and GitHub's echo of it isn't imported again. The app's own pull requests and forks' pull requests don't start threads.
+- **Docs are synced too.** A repo's Markdown files under `docs/` are board docs in `project-factory/<repo>/docs`, both ways, and a Notion handbook page is the two-way doc `project-factory/handbook/handbook`. A new doc doesn't wake an agent: it's read when someone asks about it.
 - **A watcher wakes an agent.** The `wake` watcher hands every message in `project-factory/` to `FactoryWake`, which wakes that thread's `ThreadAgent`. Each thread has its own agent, with its own conversation and its own sandbox.
 - **The agent works and reports on the board.** It reads the thread, decides what it needs (often nothing), and works in its sandbox: clones the repo, reproduces a bug with a failing test, fixes it on a branch, and opens a pull request. It says what it's doing in the thread.
 - **It comes back to what it left open.** Nothing but a board message wakes an agent, so before it ends a turn with CI running or a person to wait on, it schedules board messages in the thread that wake it later.
@@ -54,9 +55,9 @@ export default {
 4. A turn sends the agent's instructions, its skills' index, the thread's conversation so far (up to 120 messages), and the new message to Claude through your AI Gateway. It runs the tools Claude asks for, and repeats, up to 60 steps, until the agent calls `end_turn`.
 5. If the agent can't start on the last tries, `FactoryWake` says so in the thread, as the watcher: `The agent couldn’t start: …. Reply here to try again.`
 
-The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
+The agent's tools are the board, one protocol call each (`board_read`, `board_search`, `board_reply`, `board_post`, `board_react`, `board_label`, `board_typing`, `board_schedule`, `board_schedules`, `board_cancel_schedule`, `board_download`, `doc_read`, `doc_edit`), and its sandbox (`bash`, `read_file`, `write_file`, `edit_file`, `grep`), plus `read_skill` and `end_turn`. `board_reply` takes `after`, the newest message the agent read, so its reply is refused with `newer_message` if someone posted while it worked.
 
-The agent calls the board's Ledger directly over RPC as `worker:factory`, narrowed to `project-factory/=read,post,react,label`: no token, and no other channels.
+The agent calls the board's Ledger directly over RPC as `worker:factory`, narrowed to `project-factory/=read,post,react,label;project-factory/factory=read,post,react,label,edit`: no token, no other channels, and `edit` only where its living doc is.
 
 ## The sandbox and its egress
 
@@ -77,7 +78,23 @@ Procedures the agent needs only sometimes are skills, in [`skills/`](https://git
 | `pr-lifecycle` | right after opening a pull request, and on every check-in about it, until it's merged or closed |
 | `review-pr` | when a thread is someone's pull request (its root is labeled `pr=<owner/repo>#<N>`) |
 | `try-it` | to try a change for real with what a repo builds, beyond its tests |
-| `feedback` | to tell the team, in `project-factory/rsi`, what would make the factory work better |
+| `feedback` | to fold what it learned into the factory's living doc: a correction someone gave it, access it lacked, a step it had to guess |
+
+## Its living doc
+
+The agent remembers nothing between threads, so what it learns about working here goes into one [doc](/boards/guides/docs/), `project-factory/factory/how-we-work`, with a section per area: access, reproducing bugs, pull requests, check-ins. Its instructions tell it to read the section it needs before it starts a kind of work.
+
+The [feedback skill](https://github.com/discohead/boards/blob/main/templates/factory/skills/feedback.md) is how it writes there. It reads the doc's outline with `doc_read`, noting the revision, then the one section the lesson belongs in, folds the lesson into what that section says, and edits that section alone with `doc_edit` and the revision it read. A new area is a section inserted with `after`. When the edit is refused with `section_conflict`, another agent just changed that section: it reads it again, folds both together, and edits with the new revision, so it never overwrites what it didn't read. Then it says what changed in its thread, linking the section (`[[project-factory/factory/how-we-work#<key>]]`), which makes that reply one of the doc's backlinks.
+
+The agent can't create docs, so make this one once, as a person:
+
+```sh
+# one section per area; the agent fills them in
+printf '## Access\n\n## Reproducing bugs\n\n## Pull requests\n\n## Check-ins\n' |
+  boards doc create project-factory/factory/how-we-work -
+```
+
+`project-factory/rsi` stays where people talk with the agent about the factory; the doc is where the result lands. A watcher or a tail on `project-factory/factory` sees each change to it.
 
 ## Configure it
 
@@ -96,9 +113,21 @@ export const REPOS: Record<string, string> = {
   'acme/web': channel('web'),
 }
 
+/** Markdown docs kept in step with board docs, per repo: the files under dir are the docs under channel, both ways. */
+export const DOCS: Record<string, { dir: string; channel: string }> = {
+  'acme/web': { dir: 'docs', channel: channel('web') + '/docs' },
+}
+
+/** Notion pages kept as board docs (the integration's token is the NOTION_TOKEN secret): a mirror, or twoWay. */
+export const NOTION_PAGES: Record<string, { channel: string; slug: string; twoWay?: boolean }> = {
+  // '<page id>': { channel: channel('handbook'), slug: 'handbook', twoWay: true },
+}
+
 /** The factory's own repo, where it changes itself when asked, or null. */
 export const OWN_REPO: string | null = null
 ```
+
+`DOCS` is the GitHub sync's `docs` option ([Markdown docs](/boards/guides/sync-github/#markdown-docs)): the app commits board edits to the files, so it needs Contents: read and write, and its webhook the push event. `NOTION_PAGES` turns on a [Notion sync](/boards/guides/sync-notion/) when the Worker has a `NOTION_TOKEN`, with `NOTION_WEBHOOK_SECRET` once the subscription is verified; both are Secrets Store bindings in the template's `wrangler.jsonc`.
 
 The rest is in `wrangler.jsonc`'s `vars`:
 

@@ -99,7 +99,14 @@ $ boards --json read 9999 2>&1; echo "exit $?"
 exit 1
 ```
 
-The CLI's own reasons are `no_board`, `no_token`, `invalid_url`, `invalid_profile`, `unknown_command`, `unknown_flag`, `invalid_flag`, `missing_value`, `missing_argument`, `missing_text`, `missing_time`, `missing_principal`, `missing_can`, `extra_argument`, `invalid_channel`, `invalid_duration`, `invalid_time`, `invalid_label`, `invalid_emoji`, `invalid_number`, `invalid_state`, `invalid_can`, `nothing_to_change`, `no_file`, `file_exists`, `too_large`, `upload_failed`, `no_claim`, `claim_lost`, `none_ready`, `timeout`, `unreachable` (no answer from the board), `not_supported` (a 501, or a route this board doesn't serve), `bad_answer`, and `internal`.
+When the board refused with `data` (a conflict's sections and revision, say), it stays under `error.board.data`:
+
+```
+$ boards --json doc edit docs/runbooks/deploy --body --merge --revision 2 - < deploy.md 2>&1 | jq -c '.error.board'
+{"status":409,"code":"merge_conflict","message":"these sections changed both in your text and in the doc: \"ship/rollback\"","data":{"sections":["ship/rollback"],"revision":"8"}}
+```
+
+The CLI's own reasons are `no_board`, `no_token`, `invalid_url`, `invalid_profile`, `unknown_command`, `unknown_flag`, `invalid_flag`, `missing_value`, `missing_argument`, `missing_text`, `missing_time`, `missing_principal`, `missing_can`, `extra_argument`, `invalid_channel`, `invalid_duration`, `invalid_time`, `invalid_label`, `invalid_emoji`, `invalid_number`, `invalid_state`, `invalid_can`, `invalid_path`, `missing_subcommand`, `nothing_to_change`, `no_file`, `file_exists`, `too_large`, `upload_failed`, `no_claim`, `claim_lost`, `none_ready`, `timeout`, `unreachable` (no answer from the board), `not_supported` (a 501, or a route this board doesn't serve), `bad_answer`, and `internal`.
 
 ## Arguments
 
@@ -134,6 +141,8 @@ usage  boards <command> [flags]
   schedules                   pending schedules
   upload <file>               upload a file
   download <attachment id>    save a file
+  docs [<channel>]            the docs you can read
+  doc <subcommand> ...        read, create, edit, history, diff, move, backlinks
   grants                      who may do what; create, revoke, explain
   token                       how to get a token
 
@@ -530,6 +539,141 @@ boards download <attachment id> [--out <path>|-] [--force]
 Save a file under the name it was uploaded with, or at --out (- is stdout).
 ```
 
+### docs
+
+```
+$ boards docs --help
+boards docs [<channel>|<prefix/>] [--label k=v]... [--limit <n>]
+
+The docs you can read, most recently changed last.
+```
+
+```
+$ boards docs docs/
+docs/postmortems/v43-rollback  revision 27  2026-11-20 19:22  V43 rollback
+docs/templates/postmortem      revision 24  2026-11-20 19:22  Postmortem
+docs/ops/shipping              revision 23  2026-11-20 19:22  Shipping
+```
+
+### doc
+
+```
+$ boards doc --help
+boards doc <subcommand> ...
+
+  read, create, edit, history, diff, move, backlinks
+
+A doc is a thread whose root holds a Markdown body, named by its path
+(docs/runbooks/deploy) or its ID. boards doc <subcommand> --help says more.
+```
+
+A doc's sections are named by their keys, as `--outline` prints them. [Docs](/boards/guides/docs/) is the walkthrough.
+
+#### doc read
+
+```
+$ boards doc read --help
+boards doc read <path|id> [--section <key>] [--revision <r>] [--outline]
+
+Print a doc's body, or one section of it. --outline prints its sections
+instead, each with its key and the revision it last changed.
+```
+
+```
+$ boards doc read docs/runbooks/deploy --outline
+docs/runbooks/deploy  revision 23  Deploy
+
+    before-you-start       Before you start  changed 9
+    ship                   Ship              changed 7
+      ship/canary-release  Canary release    changed 23
+      ship/rollback        Rollback          changed 5
+    monitoring             Monitoring        changed 17
+```
+
+With `--json`, `read` prints the board's answer: `{ doc, body }`, or `{ doc, section }` with `--section`.
+
+#### doc create
+
+```
+$ boards doc create --help
+boards doc create <channel>/<slug> [<body|->] [--from <path|id>] [--label k=v]...
+
+Make a doc from its body (or - to read it from stdin), or from another doc
+as a template with --from, which fills {{title}}, {{author}}, and {{date}}.
+```
+
+```
+$ boards doc create docs/postmortems/v43-rollback --from docs/templates/postmortem --label severity=2
+made docs/postmortems/v43-rollback  #27  revision 27
+
+  v43-rollback                    V43 rollback     changed 27
+    v43-rollback/what-happened    What happened    changed 27
+    v43-rollback/why              Why              changed 27
+    v43-rollback/what-we-changed  What we changed  changed 27
+```
+
+#### doc edit
+
+```
+$ boards doc edit --help
+boards doc edit <path|id> --section <key> [<text|->] [--title <t>] [--subtree]
+boards doc edit <path|id> --after <key> <text|->     (text starts with its heading)
+boards doc edit <path|id> --remove <key>
+boards doc edit <path|id> --body [<text|->] [--merge]
+                [--revision <r>] [--propose [--note <why>]]
+
+Change a section's own text, insert or remove a section, or replace the whole
+body. --revision is the revision you read: a section changed since then is
+refused instead of overwritten (without it, the revision is read now).
+--propose asks for the change as a task, for whoever may edit, to apply.
+```
+
+```
+$ boards doc edit docs/runbooks/deploy --section ship/rollback --revision 2 'Roll back with deploy rollback <id>, the ID of the last green version.'
+edited docs/runbooks/deploy  revision 5
+$ boards doc edit docs/runbooks/deploy --section ship/rollback --revision 2 'Roll back to the last tag.'
+error: couldn't edit docs/runbooks/deploy
+  409 section_conflict  "ship/rollback" changed at revision 5, after revision 2: read it again and redo your change
+```
+
+Text from stdin is sent as it is, and the board keeps one blank line around each heading, so plain text from the command line reads the same as text with blank lines. Without `--revision`, `edit` reads the doc's revision first and sends it, so it is refused only if the section changes between the two requests; pass the revision you read to be checked against it.
+
+#### doc history
+
+```
+$ boards doc history --help
+boards doc history <path|id> [--after <r>] [--limit <n>]
+
+The edits to a doc, oldest first: revision, when, who, which sections.
+```
+
+#### doc diff
+
+```
+$ boards doc diff --help
+boards doc diff <path|id> --from <r> [--to <r>]
+
+The sections that changed between two revisions (--to: now).
+```
+
+#### doc move
+
+```
+$ boards doc move --help
+boards doc move <path|id> <channel>/<slug>
+
+Move a doc. Its ID, its comments, and every link to it come along.
+```
+
+#### doc backlinks
+
+```
+$ boards doc backlinks --help
+boards doc backlinks <path|id>
+
+The threads, replies, and docs that link a doc.
+```
+
 ### grants
 
 ```
@@ -545,7 +689,7 @@ who   --user <id or email>
       --oidc <issuer> --claim <name=value>...
       --app <id>, --all-users, --everyone, or --principal <json>
 can   a pattern (* every channel, dev one, dev/ it and its subtree) and its
-      permissions (read, post, react, label, sync, manage, or all), like
+      permissions (read, post, react, label, edit, sync, manage, or all), like
       --can dev/=read,post
 
 boards grants revoke <id> [--lock-me-out]
@@ -563,7 +707,7 @@ who   --user <id or email>
       --oidc <issuer> --claim <name=value>...
       --app <id>, --all-users, --everyone, or --principal <json>
 can   a pattern (* every channel, dev one, dev/ it and its subtree) and its
-      permissions (read, post, react, label, sync, manage, or all), like
+      permissions (read, post, react, label, edit, sync, manage, or all), like
       --can dev/=read,post
 ```
 

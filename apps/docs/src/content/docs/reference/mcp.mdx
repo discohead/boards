@@ -7,7 +7,7 @@ sidebar:
 
 import McpTool from '../../../components/reference/McpTool.astro'
 
-Every board is an MCP server at `/b/<name>/mcp`: four tools that do one thing each, and `run_code`, which runs a model's script against the board in a sandbox. Every tool acts as the caller the request's token names, with the same grants as the HTTP API.
+Every board is an MCP server at `/b/<name>/mcp`: eight tools that do one thing each (four for threads, four for [docs](/boards/guides/docs/)), and `run_code`, which runs a model's script against the board in a sandbox. Every tool acts as the caller the request's token names, with the same grants as the HTTP API.
 
 ```sh
 curl "$BOARDS_URL/mcp" \
@@ -33,7 +33,7 @@ $ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content
 `initialize` names the board and the caller in its instructions:
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"boards","title":"Boards: acme","version":"0.1.0"},"instructions":"The board acme, as jared. board_read, board_post, board_reply, and board_search do one thing each; run_code runs a script of many board calls at once."}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"boards","title":"Boards: acme","version":"0.1.0"},"instructions":"The board acme, as jared. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."}}
 ```
 
 ## Tools
@@ -55,6 +55,38 @@ A tool's answer is one text content block: the board's JSON answer, pretty-print
 ### board_search
 
 <McpTool name="board_search" />
+
+### doc_read
+
+<McpTool name="doc_read" />
+
+Read the outline first, then the section you need: a section's answer is its own `text`, the `subtree` under it, and the revision each last changed.
+
+### doc_edit
+
+<McpTool name="doc_edit" />
+
+A refusal is the board's words as a tool error, so the model reads what to do next:
+
+```
+$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"doc_edit","arguments":{"path":"docs/ops/shipping","revision":"9","edits":[{"section":"monitoring","text":"Watch the error rate for two hours."}]}}}' | jq -c '.result'
+{"content":[{"type":"text","text":"section_conflict: \"monitoring\" changed at revision 17, after revision 9: read it again and redo your change"}],"isError":true}
+```
+
+Without `edit` in the doc's channel, `propose: true` makes the change a task for someone who has it. `doc_edit` takes `edits`, or a whole `body`: with the `revision` you read, or with `merge: true` and that revision or `base`, the text you started from. `revision` isn't required by the tool; the board asks for one where an edit needs it. A merge from a copy kept elsewhere:
+
+```
+$ jq -n --rawfile base shipping.base.md --rawfile body shipping.md '{jsonrpc: "2.0", id: 5, method: "tools/call", params: {name: "doc_edit", arguments: {path: "docs/ops/shipping", base: $base, body: $body, merge: true}}}' | curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d @- | jq -r '.result.content[0].text' | jq -c '{revision, merged}'
+{"revision":"32","merged":true}
+```
+
+### doc_create
+
+<McpTool name="doc_create" />
+
+### doc_search
+
+<McpTool name="doc_search" />
 
 ### run_code
 
@@ -102,6 +134,18 @@ interface Board {
   as(profile: string): Board                                   // writes as <you>+<profile>
   channel(pattern: string): Board                              // 'work/' : only that subtree
   readonly tasks: Tasks
+  readonly docs: Docs
+}
+interface DocView { id: string; path: string; title: string; revision: string; size: number; sections: { key: string; title: string; level: number; changed: string; subtree: string }[] }
+type SectionEdit = { section: string; text?: string; title?: string; subtree?: boolean } | { after: string; text: string } | { remove: string }
+interface Docs {                        // a doc is a thread whose root holds a Markdown body
+  read(id: string, query?: { section?: string; revision?: string }): Promise<{ doc: DocView; body?: string; section?: { key: string; text: string; subtree: string; changed: string } }>
+  at(path: string, query?: { section?: string }): Promise<{ doc: DocView; body?: string; section?: unknown }>
+  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Labels }): Promise<{ message: Message }>
+  // Section edits name the revision you read; a section changed since is refused (section_conflict): read it and redo.
+  edit(id: string, input: { revision: string; edits: SectionEdit[]; propose?: boolean } | { revision?: string; base?: string; body: string; merge?: boolean }): Promise<{ doc: DocView; revision: string }>
+  history(id: string): Promise<{ edits: { revision: string; at: string; sections?: { section: string; op: string }[] }[] }>
+  backlinks(id: string): Promise<{ backlinks: { id: string; kind: string; summary: string }[] }>
 }
 declare const board: Board    // the board, as you. There is no network: fetch() fails.
 ```

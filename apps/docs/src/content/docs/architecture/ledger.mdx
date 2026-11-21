@@ -67,9 +67,10 @@ The log is the `events` table: a row per fact people read, in order. Every other
 | --- | --- |
 | `events` | the board log: `seq`, type, message, actor, time, payload, and facets |
 | `messages`, `threads`, `channels` | each message as it is now, one row per thread by latest activity, and each channel's counts |
-| `terms` | every filter's index: `l:key`, `l:key=value`, `m:<mention>`, and `^<file>`, by message and root |
+| `terms` | every filter's index: `l:key`, `l:key=value`, `m:<mention>`, `^<file>`, and `k:<id>` for each doc or message a text links, by message and root |
 | `actors` | who has written, as they show |
 | `tasks`, `task_needs`, `task_views` | each task's state and claim, what it waits on, and its view after each of its events |
+| `docs`, `doc_versions`, `doc_proposals` | each doc's path, title, size, and sections with their revisions; where each of its edits and snapshots is in the log; and each proposed edit, by its task |
 | `timers`, `outbox` | when each timer is due, and how far each watcher has read |
 
 Some facts are side tables and never events: grants, schemas, file records, schedules, registrations and their matches, sync records, and idempotency keys. A schedule's send is its `message.posted`.
@@ -83,6 +84,19 @@ A filter on the feed asks of each event whether the message matched before or af
 ### Terms: one index for every filter
 
 Labels, mentions, and files go into `terms` as rows keyed by message and root. A thread listing filtered by `label=area=billing`, `mentions=ada`, or a file is an index scan on one table. Each index in the schema has to earn its place: rows written is what a write costs.
+
+## Docs: sections, a patch log, and snapshots
+
+A [doc](/boards/guides/docs/) is a thread root whose `messages.text` is its body, up to 512 KiB, plus a row in `docs` ([`ledger/docs.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/docs.ts)). Every read path, permission check, and archival tier that knows a root knows a doc.
+
+- **Sections.** The body splits into sections at its ATX headings, outside code fences ([`ledger/doctext.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/doctext.ts), pure). The `docs` row keeps each section's key, a hash of its text, and two revisions: `changed`, the last edit that changed its own text, and `subtree`, the last that changed it or anything under it. A new version keeps a section's `changed` while its hash is the same, so the conflict check is two comparisons per edited section, in the write's transaction.
+- **The patch log.** A `doc.edited` event holds only the sections that changed, their new text, and a layout: for each section of the new body, either "the previous version's section with this key" or "change *n*". A one-paragraph fix to an 18 KB doc writes a few hundred bytes. A plain `message.edited` stores the whole text in its payload and in both facets, three times.
+- **Snapshots.** A hidden `doc.snapshot` event holds the whole body after the doc's creation, every 64 edits, and after an edit whose changed sections pass 65,536 characters (which then keeps only their keys). `doc_versions` maps each edit and snapshot to its `seq`, so the body at revision *r* is the latest snapshot at or before *r* plus at most 63 patches replayed. That is what `?revision=`, diffs, and a merge's base read.
+- **Facets.** A doc's events carry a facet of its title and the headings of the sections that changed, with the mentions in the changed text, not the body. A tail on `docs/` sees every change, and `--text Rollback` matches an edit to a section titled Rollback.
+- **Merges** are three-way by section: base, the editor's body, and the body now. A section that differs on both sides from the base is a conflict, and the write throws before anything is written.
+- **Proposals** are rows in `doc_proposals`, keyed by their task. Completing the task applies the edit in the completing write's transaction, checked as any edit is; a refusal rolls the completion back.
+
+Measured: 1,000 section edits to an 18 KB doc grew the log by 3.4 MB, about 3.4 KB an edit. Storing the body three times per edit would have been 55 MB.
 
 ## Client IDs: a retry lands once
 

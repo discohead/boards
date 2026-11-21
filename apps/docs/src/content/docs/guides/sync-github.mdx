@@ -1,8 +1,8 @@
 ---
 title: "Sync with GitHub"
-description: "Issues and pull requests as threads, and replies back as your app."
+description: "Issues and pull requests as threads, replies back as your app, and Markdown files as docs."
 sidebar:
-  order: 11
+  order: 12
 ---
 
 GitHub sync makes each issue and pull request in a repo a thread in a board channel, its comments and reviews replies, and its state labels on the root. What's written on the board in those threads goes back to GitHub as comments, posted with the token you give it.
@@ -60,7 +60,7 @@ $ boards read 8
    | Payload URL | `https://<your board's origin>/b/<board>/webhooks/github` |
    | Content type | `application/json` |
    | Secret | the `GITHUB_WEBHOOK_SECRET` value |
-   | Events | Issues, Issue comments, Pull requests, Pull request reviews, Pull request review comments |
+   | Events | Issues, Issue comments, Pull requests, Pull request reviews, Pull request review comments, and Pushes for [Markdown docs](#markdown-docs) |
 
    GitHub's ping answers `pong`. A delivery signed with any other secret answers 401:
 
@@ -124,6 +124,84 @@ The courier retries a comment until it lands, and the receipt it records is the 
 ```json
 {"targets":[{"target":"github:acme/web:7","key":"github","thread":"github:acme/web:7","message":"issue","url":null,"undelivered":null}]}
 ```
+
+## Markdown docs
+
+With `docs`, the Markdown files under a directory of a repo are [docs](/boards/guides/docs/) on the board, both ways. `docs/runbooks/deploy.md` in `acme/web` is the doc `docs/web/runbooks/deploy`:
+
+```ts
+// in githubProvider's options
+docs: { 'acme/web': { dir: 'docs', channel: 'docs/web' } },   // on the repo's default branch; branch: '<name>' for another
+botUserId: env.GITHUB_BOT_USER_ID,                             // the app's own pushes aren't imported
+```
+
+The webhook needs **Pushes** too, and the token needs to write the repo's contents (a GitHub App's Contents: read and write). These transcripts are from a local run of the provider with a stand-in for GitHub's API; the board side is as it answered.
+
+**A push imports each changed file.** A push to the branch imports every Markdown file under `dir` that it added or changed, as a whole-body merge against the file as it was before the push (`base`). What was written on the board since stays; a new file makes a new doc:
+
+```
+$ boards docs docs/
+docs/web/runbooks/deploy  revision 2  2026-11-20 19:24  Deploy
+$ boards doc read docs/web/runbooks/deploy --outline
+docs/web/runbooks/deploy  revision 2  Deploy
+
+    ship             Ship        changed 2
+      ship/rollback  Rollback    changed 2
+    monitoring       Monitoring  changed 2
+```
+
+**A board write commits as the app.** A doc made, edited, or moved on the board is written to its file by the sync's courier, with the token, as a commit like `docs: update docs/runbooks/deploy.md from the board (revision 7, boards:user:jared)`. A file that already says what the doc says gets no commit, which is the retry guard. A doc made under the channel gets its file (`docs: add docs/onboarding.md from the board`):
+
+```
+$ boards doc edit docs/web/runbooks/deploy --section monitoring --revision 2 'Watch the error rate and p95 latency for an hour.'
+edited docs/web/runbooks/deploy  revision 7
+$ printf '## First day\n\nGet access to the repo and the board.\n' | boards doc create docs/web/onboarding -
+made docs/web/onboarding  #14  revision 14
+
+    first-day  First day  changed 14
+```
+
+**Edits on both sides converge.** A board edit to one section and a push that changed another, at the same moment, both land: the push merges into the doc by section, and the merged doc is committed back, so the file and the doc end up the same.
+
+**A conflict makes a task.** When a push and the board changed the same section, the board keeps its version, and a task in the doc's channel links the file as the push left it:
+
+```
+$ boards doc edit docs/web/runbooks/deploy --section ship/rollback --revision 9 'Roll back with deploy rollback <id>, the ID of the last green version.'
+edited docs/web/runbooks/deploy  revision 10
+$ boards tasks docs/web/ --state all
+#11  docs/web/runbooks  ready  github-sync  acme/web/docs/runbooks/deploy.md...
+$ boards read 11
+#11  github-sync  2026-11-20 19:24
+  acme/web/docs/runbooks/deploy.md and [[docs/web/runbooks/deploy]] both changed `ship/rollback`. The board kept its version; the other is at https://github.com/acme/web/blob/6c1ed3abffa16133d4e04d59a72a9f78f6bb8636/docs/runbooks/deploy.md. Fold them together in the doc, then complete this task.
+  task  ready
+$ boards doc read docs/web/runbooks/deploy --section ship/rollback
+Roll back with deploy rollback <id>, the ID of the last green version.
+```
+
+The doc's history says which edits came from the repo:
+
+```
+$ boards doc history docs/web/runbooks/deploy
+2   2026-11-20 19:24  boards:sync:github  created
+7   2026-11-20 19:24  boards:user:jared   edited monitoring
+8   2026-11-20 19:24  boards:sync:github  edited ship/rollback
+9   2026-11-20 19:24  boards:user:jared   edited ship
+10  2026-11-20 19:24  boards:user:jared   edited ship/rollback
+```
+
+**A move deletes the old file.** Moving a doc commits its file at the new path and deletes the old one (`docs: move docs/runbooks/deploy.md to docs/ops/deploy.md (from the board)`):
+
+```
+$ boards doc move docs/web/runbooks/deploy docs/web/ops/deploy
+moved to docs/web/ops/deploy
+```
+
+A few things stay on one side:
+
+- **The app's own pushes** (by `botUserId`) aren't imported: the board has them already.
+- **A file deleted in the repo** leaves its doc on the board. Deleting a doc is a person's call.
+- **A file whose path can't be a doc** (an uppercase letter, a space) is left out, with a line in the Worker's logs. A path segment is a channel segment, and the file name a slug.
+- **A doc's comments** stay on the board: its thread syncs as the doc, not as messages.
 
 ## How it works
 

@@ -52,6 +52,21 @@ Every limit a board enforces, from its route schemas and the constants in [`pack
 | Result, reason | 1,000 characters |
 | Claim token | 32 bytes, base64url (43 characters) |
 
+## Docs
+
+| What | Limit |
+| --- | --- |
+| A doc's body | 512 KiB of UTF-8 (400 `doc_too_large`); a request body's `body` or `base` is at most 600,000 characters |
+| Slug | 1 to 128 characters: lowercase letters, digits, `_`, `-`, starting with a letter or digit |
+| Path in `GET /docs?path=` | 3 to 2,200 characters |
+| Edits in one request | 1 to 100 |
+| A section key | up to 1,024 characters |
+| A section title (`{ section, title }`) | 1 to 512 characters, one line |
+| A proposal's `note` | 2,000 characters |
+| The outline in a view (`depth`) | to H3 by default; 1 to 6 |
+| A page of history | 100 by default, up to 500 |
+| A snapshot of the body in the log | after its creation, every 64 edits, and after any edit whose changed sections pass 65,536 characters |
+
 ## Schedules
 
 | What | Limit |

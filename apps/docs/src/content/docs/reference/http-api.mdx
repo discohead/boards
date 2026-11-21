@@ -29,7 +29,7 @@ The schemas and examples below are generated. `scripts/refresh-openapi.mjs` read
 
 - **Where:** `https://<your worker>/b/<board>`. A board name is 1 to 64 lowercase letters, digits, `-`, and `_`, starting with a letter or digit. There is nothing to create: the first request to a name makes its board.
 - **Bodies** are JSON, checked against the route's schema before the board sees them. The first problem comes back as a 400 `invalid_request` that names the field: `text: message text is empty`.
-- **Answers** are JSON. `POST /messages`, `/tasks`, `/tasks/batch`, `/schedules`, and `/attachments` answer 201, a retry included; `POST /channels` answers 201 for a new channel and 200 for one that was there; everything else answers 200.
+- **Answers** are JSON. `POST /messages`, `/tasks`, `/tasks/batch`, `/docs`, `/schedules`, and `/attachments` answer 201, a retry included; `POST /channels` answers 201 for a new channel and 200 for one that was there; everything else answers 200.
 - **Errors** share one shape, `{ "error": { "code", "message", "hint"?, "data"? } }`. Branch on `code`; [Errors](/boards/reference/errors/) lists every one.
 - **Message IDs** are strings (`"3"`). People write them `#3`; the API never takes the `#`.
 
@@ -57,7 +57,7 @@ $ curl -s "$BOARDS_URL/me"
 
 ## Narrowing with x-board-can
 
-`x-board-can` holds a request to less than its token allows. It is a list of `pattern=permissions`, separated by `;`. A pattern is `*` (every channel), a channel (`deploys`), or a channel and its subtree (`work/`). Permissions are `read`, `post`, `react`, `label`, `sync`, `manage`, or `all`. It only narrows: a permission the grants don't give stays out.
+`x-board-can` holds a request to less than its token allows. It is a list of `pattern=permissions`, separated by `;`. A pattern is `*` (every channel), a channel (`deploys`), or a channel and its subtree (`work/`). Permissions are `read`, `post`, `react`, `label`, `edit`, `sync`, `manage`, or `all`. It only narrows: a permission the grants don't give stays out.
 
 ```
 $ curl -s "$BOARDS_URL/me" -H "authorization: Bearer $BOARDS_TOKEN" -H 'x-board-can: deploys=read;work/=read,post'
@@ -181,6 +181,7 @@ Writes that race can say what they expect, and the board refuses with a 409 when
 
 - **`after` on a reply** lands it only if the message it names is still the newest in the thread. Otherwise it is 409 `newer_message`, naming what came after, and nothing is written. Read the thread, then reply again.
 - **`revision` on an edit or a delete** lands it only if the message is still at that revision (its `revision` field). Otherwise it is 409 `revision_conflict`.
+- **`revision` on a doc edit** is checked per section: a section edit is refused with 409 `section_conflict` only if that section changed after it, and a whole-body edit with 409 `revision_conflict` unless it merges (409 `merge_conflict` names the sections that changed on both sides). [Docs](/boards/guides/docs/) has each case.
 - **`if` on a label write** lands it only while each named label holds that value (`null`: is unset). Otherwise it is 409 `label_conflict`.
 - **A claim's `epoch` and `token`** fence every write on a task: once the claim is over, they answer 409 `claim_lost`.
 
@@ -217,6 +218,12 @@ curl "$BOARDS_URL/messages" \
 A task is a thread with a state: `waiting`, `ready`, `claimed`, `blocked`, `completed`, `failed`, or `canceled`. A claim is a lease, fenced by its `epoch` and `token`; pass your own `token` (32 random bytes, base64url) to make a retried claim the same claim. [Tasks and claims](/boards/guides/tasks/) walks through the lifecycle.
 
 <ApiGroup tag="tasks" />
+
+## Docs
+
+A doc is a thread whose root holds a Markdown body, up to 512 KiB, named by its ID or its path (`docs/runbooks/deploy`). Its view carries `doc`: its path, title, revision, size, and its sections to H3, each with the revision its own text (`changed`) and its subtree (`subtree`) last changed. A section edit names the revision you read and is checked against those. [Docs](/boards/guides/docs/) walks through editing, merging, and proposing.
+
+<ApiGroup tag="docs" />
 
 ## Schedules
 

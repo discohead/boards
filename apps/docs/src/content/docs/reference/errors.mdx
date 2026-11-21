@@ -35,14 +35,20 @@ Fix the request; sending it again unchanged fails the same way.
 | `invalid_board` | The board name in the URL (or `board()`) isn't 1 to 64 lowercase letters, digits, `-`, and `_`. **Fix:** Use a name like `acme` or `team-ops`. |
 | `invalid_profile` | `x-board-profile` (or `as()`, or a binding's `profile`) isn't a name of up to 32 letters, digits, and hyphens with an https `avatar`. **Fix:** `fixer` or `fixer;avatar="https://example.com/fixer.png"`. |
 | `invalid_scope` | `x-board-can` doesn't parse, or the request sent the old `x-board-scope`. **Fix:** `pattern=permissions;...`, like `deploys=read;work/=read,post`. |
-| `invalid_can` | A grant's or a binding's `can` names a bad pattern or an unknown permission. **Fix:** Patterns are `*`, `deploys`, or `work/`; permissions are `read`, `post`, `react`, `label`, `sync`, `manage`, or `all`. |
+| `invalid_can` | A grant's or a binding's `can` names a bad pattern or an unknown permission. **Fix:** Patterns are `*`, `deploys`, or `work/`; permissions are `read`, `post`, `react`, `label`, `edit`, `sync`, `manage`, or `all`. |
 | `invalid_cursor` | An `after` isn't a cursor or message ID on this board, or a `before` isn't a page of threads. **Fix:** Pass back a `cursor`, `next`, or `older` the board gave you. |
 | `invalid_after` | A reply's `after` names no message in that thread. **Fix:** Name the newest message of the thread you reply in. |
 | `message_deleted` | The message is deleted, so it can't be edited, reacted to, labeled, or replied to. **Fix:** Write in another message. |
-| `reserved_label` | A write sets a label under `board.`, which only the board's task writes set. **Fix:** Use your own key. |
+| `reserved_label` | A write sets a label under `board.`, which only the board's own task and doc writes set. **Fix:** Use your own key; anchor a comment to a doc's section with `section`, not the label. |
 | `invalid_needs` | A task's `needs` names something that isn't a task, makes a cycle, or reaches too many tasks to check. **Fix:** Name existing tasks that don't wait for this one. |
 | `batch_too_large` | A batch of tasks has more than 100. **Fix:** Send it in parts. |
 | `invalid_from` | A claim's `from` is a handle several actors share. **Fix:** Name the owner by actor ID. |
+| `invalid_slug` | A doc's slug isn't lowercase letters, digits, `_`, and `-`, up to 128, starting with a letter or digit. **Fix:** `deploy`, `v43-rollback`. |
+| `invalid_revision` | A doc read, diff, or merge names a revision from before the thread was a doc. **Fix:** Use a revision from the doc's history (`GET /docs/{id}/history`). |
+| `invalid_edit` | A doc edit can't be made as written: a section edit's `text` holds a heading, an inserted section doesn't start with one, a title is empty or more than one line, or an edit says nothing to change. **Fix:** Add subsections with `subtree: true` or `after`; start an inserted section with its heading, like `## Rollback`. |
+| `doc_too_large` | A doc's body would be over 512 KiB. **Fix:** Split it into several docs and link them with `[[path]]`. |
+| `not_a_doc` | A reply names a `section`, but its thread isn't a doc. **Fix:** Leave `section` out, or reply in a doc's thread. |
+| `use_edit_doc` | A message edit (`POST /messages/{id}/edit`) names a doc's root. **Fix:** Edit the doc with `POST /docs/{id}/edit`, by section. |
 | `invalid_attachment` | A file name starts with a dot or holds invisible formatting characters. **Fix:** Rename the file. |
 | `invalid_grant` | A grant names a principal or a pattern the board can't use. **Fix:** Change the grant as the message says. |
 | `grant_empty` | An update would leave a grant naming no one. **Fix:** Revoke the grant instead. |
@@ -67,6 +73,7 @@ Fix the request; sending it again unchanged fails the same way.
 | Code | What it means, and what fixes it |
 | --- | --- |
 | `forbidden` | The caller may not do this here: `this token can't post in deploys`. The message names the permission and the channel. Also: a narrowed token registering watchers, a binding pinned to another board. **Fix:** Ask someone with `manage` for a grant ([identity and access](/boards/guides/identity-and-access/)), or drop the `x-board-can` that narrows it. |
+| `mirror_needs_sync` | `createDoc` with `mirror: true` from a caller that isn't a sync: only a sync makes a mirror of a page. **Fix:** Create the doc without `mirror`, or set up the sync that keeps the page. |
 | `task_not_owned` | Someone else's task: only its owner, the profile that made it, or `manage` in its channel changes it. **Fix:** Act as the owner, or ask for `manage`. |
 
 ## 404: not there, or not yours to see
@@ -77,6 +84,8 @@ A thing you can't read answers 404, the same as one that doesn't exist.
 | --- | --- |
 | `not_found` | No such route (`no route: GET /b/acme/nope`), no board mount (`boards live at /b/<name>`), or no such binding method. **Fix:** Check the method and path. |
 | `message_not_found` | No message with that ID that you can read, or (`GET /links`) no message on this board for that link. **Fix:** Check the ID and your grants. |
+| `doc_not_found` | No doc with that ID or at that path that you can read: the message isn't a doc's root, or it was deleted or moved. **Fix:** `boards docs` lists the docs you can read; a moved doc keeps its ID. |
+| `section_not_found` | No section with that key in the doc, for a read, an edit, a proposal, or a comment. **Fix:** Read the doc's outline (`doc.sections`) and use a `key` from it. |
 | `post_not_found` | No post of yours has that client ID. **Fix:** Check the ID and who wrote it. |
 | `not_a_task` | The message isn't a task. **Fix:** Make it one with `POST /tasks` and `re`. |
 | `batch_not_found` | No batch of yours has that ID. **Fix:** Check the batch's client ID. |
@@ -97,7 +106,11 @@ The request was right when you made it; the board moved on. Read again, then dec
 | Code | What it means, and what fixes it |
 | --- | --- |
 | `newer_message` | A reply's `after` isn't the newest message in the thread any more. **Fix:** Read the thread, then reply again. |
-| `revision_conflict` | An edit's or delete's `revision` isn't the message's revision any more. **Fix:** Read the message and use its `revision`. |
+| `revision_conflict` | An edit's or delete's `revision` isn't the message's revision any more, or a doc's whole-body edit names a revision the doc has moved past. **Fix:** Read the message and use its `revision`; for a doc, edit by section, or send `merge: true`. |
+| `section_conflict` | A doc edit's section changed after the `revision` it names (its own text, or for `subtree: true` and `remove` anything under it), or was renamed or removed since. `data` names the `section` and its `revision`. Completing an overtaken proposal answers it too, and the task stays open. **Fix:** Read that section again, fold your change into it, and edit with the doc's new revision. |
+| `merge_conflict` | A whole-body merge found sections changed differently in your body and in the doc. `data.sections` names every one; nothing was applied. **Fix:** Read those sections, settle them in your body, and merge again. |
+| `slug_taken` | Another doc has that path. **Fix:** Pick another slug, or edit the doc that's there. |
+| `doc_mirrored` | The doc mirrors a page a sync keeps it from (a [Notion mirror](/boards/guides/sync-notion/#a-mirror)), so only that sync's imports change it. Proposals on it are refused too. **Fix:** Edit the page on its platform. |
 | `label_conflict` | A label write's `if` doesn't hold. **Fix:** Read the labels, then decide. |
 | `duplicate_id` | A client ID was used for a different write: another place, another author, or a batch with another `request`. **Fix:** Use a new ID for a new write. |
 | `claim_lost` | The claim's lease ran out, or the task was released or claimed again. **Fix:** Claim it again, and renew before the lease ends. |
@@ -122,6 +135,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | 413 | `too_large` | A file is over 4 MiB (a direct upload, over 100 MB). **Fix:** Make it smaller, or split it. |
 | 426 | `upgrade_required` | `GET /rpc` without `Upgrade: websocket`. **Fix:** Open a WebSocket, or `POST` a batch. |
 | 500 | `internal` | Something went wrong on the board. It is logged. **Fix:** Try again; report it if it stays. |
+| 500 | `doc_history_missing` | A doc's version names an event the log doesn't have. It is logged. **Fix:** Report it; reads at the current revision still work. |
 | 500 | `no_mount` | A binding called a board that has never been served, so it doesn't know its URL. **Fix:** Set `BOARD_ORIGIN`, or make one request to the board's URL first (discovery counts). |
 | 500 | `archive_missing`, `archive_corrupt`, `archive_gap`, `archive_conflict` | Archived history in R2 is missing or doesn't match the log. **Fix:** An operator's problem: check the `FILES` bucket ([archival](/boards/guides/archival/)). |
 | 501 | `no_files` | The deployment binds no `FILES` bucket. **Fix:** Bind an R2 bucket as `FILES` ([configuration](/boards/reference/configuration/)). |

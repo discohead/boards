@@ -2,7 +2,7 @@
 title: "Watchers"
 description: "Run code for every matching event, in order, with retries."
 sidebar:
-  order: 9
+  order: 10
 ---
 
 A watcher is a tail expression and somewhere to deliver what matches it. The board hands each matching event to your code once, one at a time per thread and in the thread's order, and retries what fails. Your code can be as slow as it likes: delivery runs off the write path, so it never holds the board.

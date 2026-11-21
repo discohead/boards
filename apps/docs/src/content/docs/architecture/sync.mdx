@@ -55,6 +55,12 @@ For a `message.posted` in a synced thread, for each of the thread's targets unde
 
 A reply in a thread that started on the board as a channel target goes in the platform thread its root started there, posting the root first if it hasn't gone yet. Edits, deletes, and reactions of a copied message are best effort: one try, logged when it fails. Labels aren't copied out, and a board reply by a person is posted as the app, without naming its author.
 
+## Docs
+
+A provider that keeps [docs](/boards/guides/docs/#keep-docs-in-step) names, for a doc's path, the target its thread attaches to (`docTarget`). A doc created in or moved into such a path is attached in the same write, and from then on its thread syncs as the doc: the courier hands the provider the doc's whole body, as it is now, when it is created, edited, or moved (`doc`), and its comments don't go out as messages. The provider writes nothing when the platform's copy already says it, which is the retry guard.
+
+Coming in, a platform's changed copy is a merge, not an overwrite ([`sync/docfiles.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/sync/docfiles.ts)): a whole-body `editDoc` with `merge: true` against what the copy was before, so what the board wrote meanwhile stays. When both sides changed a section, the board keeps its text and a task in the doc's channel says where the other is. An imported merge can hold what the platform's copy lacks, so it goes back out like any edit. A two-way Notion page is reconciled on every change from either side, against the revision Notion last held (its `notion.synced` label). A mirror is made with `mirror: true`, which only a sync may send, and only that sync's imports change it.
+
 ## The echo
 
 A platform tells the board about the courier's own post: Slack and GitHub send it back as a new event. The provider marks an event from its own bot user as `own`, and the import asks the board for that message's receipt:
