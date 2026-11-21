@@ -28,6 +28,21 @@ async function installationOf(env: Env, owner: string, repo: string): Promise<nu
 
 const tokens = new Map<string, { token: string; until: number }>()
 
+/** An installation token for an organization (its Projects), cached until five minutes before it ends. */
+export async function orgToken(env: Env, org: string): Promise<string> {
+  const cacheKey = 'org:' + org
+  const cached = tokens.get(cacheKey)
+  if (cached && cached.until > Date.now() + 5 * 60 * 1000) return cached.token
+  const found = await fetch(apiOf(env) + '/orgs/' + org + '/installation', { headers: headers(await appJwt(env)) })
+  if (!found.ok) throw new Error('the GitHub app isn’t installed on ' + org + ' (' + found.status + ')')
+  const { id } = (await found.json()) as { id: number }
+  const response = await fetch(apiOf(env) + '/app/installations/' + id + '/access_tokens', { method: 'POST', headers: headers(await appJwt(env)) })
+  if (!response.ok) throw new Error('no GitHub token for ' + org + ': ' + response.status + ' ' + (await response.text()).slice(0, 200))
+  const body = (await response.json()) as { token: string; expires_at: string }
+  tokens.set(cacheKey, { token: body.token, until: Date.parse(body.expires_at) })
+  return body.token
+}
+
 /** An installation token for repos (owner/name, one owner), cached until five minutes before it ends. */
 export async function repoToken(env: Env, repos: readonly string[]): Promise<string | null> {
   const owner = repos[0]?.split('/')[0]

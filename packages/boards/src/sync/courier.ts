@@ -7,7 +7,7 @@
 import { satelliteCall, SyncRefused, type Call, type Copy, type OutboundMessage, type SyncProvider } from './provider.ts'
 
 type Ledger = Parameters<typeof satelliteCall>[0]
-type View = { id: string; re: string | null; thread: string; text: string; from: string | null; noSync: boolean; deleted: boolean; author?: { name: string; handle: string } | null; doc?: { id: string; path: string; title: string; revision: string } }
+type View = { id: string; re: string | null; thread: string; text: string; from: string | null; noSync: boolean; deleted: boolean; author?: { name: string; handle: string } | null; doc?: { id: string; path: string; title: string; revision: string }; labels?: Record<string, string>; task?: { state: string } | null }
 type Event = { cursor: string; type: string; payload: Record<string, any>; message?: View }
 
 const keyOf = (target: string) => target.slice(0, target.indexOf(':'))
@@ -51,6 +51,21 @@ export async function courier(input: { ledger: Ledger; key: string; provider: Sy
     }
     return
   }
+
+  // A root's labels or task, for a provider that keeps them (GitHub Projects): best-effort, one try.
+  if ((event.type === 'labels.changed' && provider.labels) || (event.type.startsWith('task.') && provider.task)) {
+    if (message.re !== null || message.deleted) return
+    try {
+      const { targets } = await targetsOf(message.thread)
+      const root = { id: message.id, labels: message.labels ?? {}, task: message.task ? { state: message.task.state } : null }
+      if (event.type === 'labels.changed') await provider.labels!({ targets, root, set: (event.payload.set ?? {}) as Record<string, string>, unset: (event.payload.unset ?? []) as string[] }, { key, call })
+      else await provider.task!({ targets, root }, { key, call })
+    } catch (error) {
+      console.warn('[boards] sync ' + key + ': ' + event.type + ' of #' + message.id + ' not copied:', reason(error))
+    }
+    return
+  }
+  if (event.type.startsWith('task.')) return
 
   if (event.type === 'message.posted' || event.type === 'thread.synced') {
     const only = event.type === 'thread.synced' ? String(event.payload.target) : null

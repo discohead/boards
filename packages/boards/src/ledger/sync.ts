@@ -323,7 +323,7 @@ function importChange(ctx: Ctx, body: ImportBody, platform: string, entries: Syn
     case 'labels': {
       if (row.deleted) throw badRequest('message was deleted', 'message_deleted')
       ctx.board.seen(record, ctx.now)
-      labelMessage(write, row, { set: body.set, unset: body.unset, if: body.if }, by)
+      labelMessage(write, row, { set: body.set, unset: body.unset, if: body.if }, by, body.from ?? undefined)
       break
     }
     case 'links': {
@@ -561,7 +561,7 @@ op('typing', (ctx, { id }: { id: string; status?: string }) => {
 // -- the courier's subscription: @sync:<key> -----------------------------------------------------------
 
 /** What a board's own sync copies out: these, in threads synced with a target of its key. */
-const COURIER_TYPES = new Set(['message.posted', 'message.edited', 'message.deleted', 'reaction.added', 'reaction.removed', 'labels.changed', 'thread.synced', 'doc.edited', 'doc.moved'])
+const COURIER_TYPES = new Set(['message.posted', 'message.edited', 'message.deleted', 'reaction.added', 'reaction.removed', 'labels.changed', 'thread.synced', 'doc.edited', 'doc.moved', 'task.created', 'task.ready', 'task.claimed', 'task.released', 'task.expired', 'task.blocked', 'task.unblocked', 'task.completed', 'task.failed', 'task.canceled', 'task.reopened'])
 
 type CourierRow = { seq: number; type: string; thread: number | null; message: number | null; at: number; payload: string }
 

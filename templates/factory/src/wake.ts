@@ -28,6 +28,10 @@ export class FactoryWake extends WorkerEntrypoint<Env> {
       // A new doc isn't a request: it's read when someone asks about it.
       if (message.re === null && message.labels?.['board.doc'] !== undefined) return
       text = message.re ? 'New message #' + message.id + ' in board thread #' + thread + '.' : 'New board thread #' + thread + '.'
+    } else if (event.type === 'task.ready') {
+      // A thread made a ready task (a card moved to the Project's ready column, or someone's createTask).
+      if (message.re !== null) return
+      text = 'Board thread #' + thread + ' is a ready task. If it’s work for you, claim it with task_claim before you start, and complete it with task_complete when it’s done.'
     } else if (event.type === 'reaction.added') {
       if (!byAgent(message.by) || byAgent(event.payload.by)) return
       text = (event.actor?.name ?? 'Someone') + ' reacted :' + event.payload.emoji + ': to your message #' + message.id + ' in board thread #' + thread + '.'

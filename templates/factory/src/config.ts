@@ -26,6 +26,18 @@ export const NOTION_PAGES: Record<string, { channel: string; slug: string; twoWa
   '41fa619b05d080dbb7f9c4bdd77d6bad': { channel: channel('handbook'), slug: 'handbook', twoWay: true },
 }
 
+/**
+ * GitHub Projects kept as labels on their items' threads (design/github-projects.md): the team's
+ * planning board steers the agent. A card moved to "Ready for agent" makes its thread a ready task.
+ */
+export const PROJECTS = {
+  roadmap: {
+    project: 'datspace-ai/1',
+    channel: channel('roadmap'),
+    status: { field: 'Status', ready: 'Ready for agent', claimed: 'In Progress', completed: 'Done', canceled: "Won't do" },
+  },
+}
+
 /** The factory's own repo, where it changes itself when asked, or null. */
 export const OWN_REPO: string | null = null
 

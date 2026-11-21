@@ -18,6 +18,10 @@ export const TOOLS: ToolDef[] = [
   { name: 'doc_edit', description: 'Edits a doc by section. revision is the doc’s revision when you read it. edits: [{ section, text }] replaces a section’s own text (its heading stays); [{ after, text }] inserts a section after one (text starts with its heading, like "## Reviews"). If that section changed since your revision the edit is refused with section_conflict: read the section again, fold its new text and yours together, and edit again with the new revision.', input_schema: object({ path: str, revision: str, edits: { type: 'array', items: { type: 'object' } } }, ['path', 'revision', 'edits']) },
   { name: 'board_post', description: 'Starts a thread in a channel.', input_schema: object({ channel: str, text: str, labels }, ['channel', 'text']) },
   { name: 'board_react', description: 'Reacts to a message with a short emoji name (eyes, thumbs_up, white_check_mark); remove: true takes it back.', input_schema: object({ id: str, emoji: str, remove: { type: 'boolean' } }, ['id', 'emoji']) },
+  { name: 'task_claim', description: 'Claims a thread that is a ready task (its root’s ID), so it’s yours while you work it: on the team’s Project the card moves to In Progress. The claim is kept for you and renewed while you work; you never see its token.', input_schema: object({ id: str }, ['id']) },
+  { name: 'task_complete', description: 'Completes a task you claimed, with a one-line result (the PR, the answer). On the Project the card moves to Done.', input_schema: object({ id: str, result: str }, ['id']) },
+  { name: 'task_release', description: 'Gives back a task you claimed and won’t finish, so someone else can: it’s ready again.', input_schema: object({ id: str }, ['id']) },
+  { name: 'task_block', description: 'Marks a task you claimed as blocked, with why (waiting on a person, a missing permission).', input_schema: object({ id: str, reason: str }, ['id', 'reason']) },
   { name: 'board_follow', description: 'Follows a thread (or, by a comment’s ID, one discussion on a doc), so what lands there wakes you though you haven’t replied and no one mentions you. on: false unfollows: what lands there stops waking you, except a mention. Replying or being mentioned follows on its own.', input_schema: object({ id: str, on: { type: 'boolean' } }, ['id']) },
   { name: 'board_label', description: 'Sets and unsets labels on a message. if makes it conditional: each key must have that value now (null: not set), or nothing changes (label_conflict).', input_schema: object({ id: str, set: labels, unset: { type: 'array', items: str }, if: { type: 'object', additionalProperties: { type: ['string', 'null'] } } }, ['id']) },
   { name: 'board_typing', description: 'Shows that you are working on a thread, in a few words (at most 50 characters).', input_schema: object({ id: str, status: str }, ['id']) },
@@ -53,7 +57,12 @@ export function threadText(view: View): string {
   return [head, line(root), ...view.replies.map(line), ...schedules].join('\n')
 }
 
-export type ToolContext = { board: BoardCall; sandbox: Sandbox; files: { get(id: string): Promise<{ bytes: Uint8Array; name: string } | null>; put(name: string, type: string, bytes: Uint8Array): Promise<string> } }
+/** The claims this thread's agent holds: their tokens stay here, never in what the model reads. */
+export type Claims = { keep(id: string, epoch: number, token: string, until: number): void; of(id: string): { epoch: number; token: string; until: number } | null; drop(id: string): void }
+export type ToolContext = { board: BoardCall; sandbox: Sandbox; files: { get(id: string): Promise<{ bytes: Uint8Array; name: string } | null>; put(name: string, type: string, bytes: Uint8Array): Promise<string> }; claims: Claims }
+
+/** A claim's lease, the most the board gives (an hour): renewed while a turn runs (agent.ts). */
+export const LEASE_S = 3600
 
 const typeOf = (path: string) => {
   const ext = path.split('.').pop()?.toLowerCase() ?? ''
@@ -106,6 +115,24 @@ export async function runTool(context: ToolContext, name: string, input: Record<
       case 'board_react':
         await board('react', { id: String(input.id), emoji: String(input.emoji).replace(/^:|:$/g, ''), ...(input.remove ? { remove: true } : {}) })
         return { content: (input.remove ? 'removed :' : 'reacted :') + input.emoji + ':' }
+      case 'task_claim': {
+        const done = await board('claimTask', { id: String(input.id), lease: LEASE_S })
+        context.claims.keep(String(input.id), done.claim.epoch, done.claim.token, Date.parse(done.claim.until))
+        return { content: 'claimed #' + input.id + ' until ' + done.claim.until + ' (renewed while you work)' }
+      }
+      case 'task_complete':
+      case 'task_release':
+      case 'task_block': {
+        const id = String(input.id)
+        const claim = context.claims.of(id)
+        if (!claim) return { content: 'you hold no claim on #' + id + ': claim it with task_claim first', isError: true }
+        const proof = { id, epoch: claim.epoch, token: claim.token }
+        if (name === 'task_complete') await board('completeTask', { ...proof, ...(input.result ? { result: String(input.result).slice(0, 1000) } : {}) })
+        else if (name === 'task_release') await board('releaseTask', proof)
+        else await board('blockTask', { ...proof, reason: String(input.reason).slice(0, 1000) })
+        context.claims.drop(id)
+        return { content: (name === 'task_complete' ? 'completed #' : name === 'task_release' ? 'released #' : 'blocked #') + id }
+      }
       case 'board_follow': {
         const done = await board('follow', { id: String(input.id), ...(input.on === false ? { on: false } : {}) })
         const what = done.discussion ? 'the discussion #' + done.discussion + ' in #' + done.thread : '#' + done.thread

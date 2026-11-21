@@ -9,11 +9,13 @@ export type TestEvent =
   | { kind: 'reply'; thread: string; message: string; text: string }
   /** Fails its first `fails` tries (all of them for a big number), then imports nothing. */
   | { kind: 'flaky'; thread: string; message: string; fails: number }
+  /** The platform changed a thread's labels: imported as the sync, which its courier never copies back. */
+  | { kind: 'labels'; thread: string; message: string; set: Record<string, string> }
   /** The platform's copy of a doc changed: imported as the GitHub provider imports a pushed Markdown file. */
   | { kind: 'docfile'; thread: string; message: string; channel: string; slug: string; before: string | null; after: string; mirror?: boolean }
 
 export type Imported = { board: string; id: string; thread: string; attempt: number; ok: boolean; at: number }
-export type Sent = { board: string; op: 'post' | 'edit' | 'delete' | 'react' | 'typing' | 'doc'; event?: string; path?: string; from?: string; target: string; thread: string | null; message: string | null; text?: string; copy?: string; at: number; ok: boolean }
+export type Sent = { board: string; op: 'post' | 'edit' | 'delete' | 'react' | 'typing' | 'doc' | 'labels' | 'task'; set?: Record<string, string>; unset?: string[]; state?: string | null; event?: string; path?: string; from?: string; target: string; thread: string | null; message: string | null; text?: string; copy?: string; at: number; ok: boolean }
 
 export const imported: Imported[] = []
 export const sent: Sent[] = []
@@ -41,6 +43,14 @@ export function testProvider(): SyncProvider<TestEvent & { board: string }> {
       const [top, board] = path.split('/')
       return top === 'docsync' && board ? key + ':' + board + ':doc' : null
     },
+    async labels({ targets, root, set, unset }) {
+      const target = targets[0]!
+      sent.push({ board: boardOf(target), op: 'labels', target, thread: null, message: root.id, set, unset, at: Date.now(), ok: true })
+    },
+    async task({ targets, root }) {
+      const target = targets[0]!
+      sent.push({ board: boardOf(target), op: 'task', target, thread: null, message: root.id, state: root.task?.state ?? null, at: Date.now(), ok: true })
+    },
     async doc({ target, event, doc, body, from }) {
       sent.push({ board: boardOf(target), op: 'doc', event, target, thread: null, message: doc.revision, path: doc.path, text: body, ...(from ? { from } : {}), at: Date.now(), ok: true })
     },
@@ -61,6 +71,7 @@ export function testProvider(): SyncProvider<TestEvent & { board: string }> {
       }
       record(true)
       if (event.kind === 'flaky') return { message: null }
+      if (event.kind === 'labels') return tools.call('syncImport', { op: 'labels', from: tools.key, author: author(tools.key), origin: { thread }, set: event.set, unset: [] })
       if (event.kind === 'docfile') return importDocFile(tools.call, { channel: event.channel, slug: event.slug, before: event.before, after: event.after, name: event.thread, link: 'https://platform.test/' + event.thread, ...(event.mirror ? { mirror: true } : {}) })
       const origin = { channel: tools.key + ':' + event.board, thread, subthread: null, message: event.message, context: null }
       if (event.kind === 'root') return tools.call('syncImport', { op: 'post', from: tools.key, author: author(tools.key), origin, channel: event.channel, text: event.text, labels: {}, id: thread + ':' + event.message })

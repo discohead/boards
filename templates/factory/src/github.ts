@@ -2,8 +2,8 @@
 // as threads (GitHub's webhooks at /b/<board>/webhooks/github, kept by the sync's Inbox), and what's
 // written on the board in those threads goes back as comments, as this factory's app, by its courier.
 import { githubProvider } from 'boards/sync/github.ts'
-import { DOCS, REPOS } from './config.ts'
-import { repoToken } from './github-app.ts'
+import { DOCS, PROJECTS, REPOS } from './config.ts'
+import { orgToken, repoToken } from './github-app.ts'
 import type { Env } from './env.ts'
 
 export const github = (env: Env) =>
@@ -12,6 +12,9 @@ export const github = (env: Env) =>
     repos: REPOS,
     // The repos' Markdown docs, kept in step with the board's: a push merges in, a board edit commits.
     docs: DOCS,
+    // Its Projects: fields as labels on their items' threads, Status as tasks.
+    projects: PROJECTS,
+    orgToken: (org) => orgToken(env, org),
     // Comments go back as the app: an installation token for the thread's repo.
     token: async (repo) => {
       const token = await repoToken(env, [repo])

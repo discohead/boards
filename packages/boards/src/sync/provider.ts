@@ -67,6 +67,10 @@ export interface SyncProvider<E = any> {
   delete?(input: { target: string; copy: Copy }, tools: CourierTools): Promise<void>
   react?(input: { target: string; copy: Copy; emoji: string; remove: boolean }, tools: CourierTools): Promise<void>
   startTyping?(input: { target: string; thread: string; status?: string }, tools: CourierTools): Promise<void>
+  /** A synced root's labels changed on the board: set and unset, with the root as it is now (its labels, its task). */
+  labels?(input: { targets: string[]; root: { id: string; labels: Record<string, string> }; set: Record<string, string>; unset: string[] }, tools: CourierTools): Promise<void>
+  /** A synced root's task changed state on the board: the root as it is now, its task's state among them. */
+  task?(input: { targets: string[]; root: { id: string; labels: Record<string, string>; task: { state: string } | null } }, tools: CourierTools): Promise<void>
   /** Docs (ledger/docs.ts) this sync keeps in step: for a doc's path (channel/slug), the target prefix its thread attaches to, or null. */
   docTarget?(path: string, key: string): string | null
   /** A doc written on the board, written to the platform as it is now: created, edited, or moved (from and to are paths). */

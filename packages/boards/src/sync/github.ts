@@ -2,9 +2,10 @@
 // event as what it means on the board. An issue or a pull request is a thread; its comments and
 // reviews are replies; its state is labels on the root. What's written on the board in its threads
 // goes back as comments, as the app (the token it's given).
-import { ownEcho, SyncRefused, SyncRetry, type InboxEvent, type SyncProvider } from './provider.ts'
+import { ownEcho, SyncRefused, SyncRetry, type Call, type InboxEvent, type SyncProvider } from './provider.ts'
 import { isSecret, readSecret, secretReader, type Secret } from './secrets.ts'
 import { importDocFile } from './docfiles.ts'
+import { applyIntent, labelChange, projects as projectsOf, type ProjectConfig } from './github-projects.ts'
 
 export type GitHubOptions = {
   /** The webhook secret GitHub signs deliveries with: a Worker secret, or a Secrets Store binding. */
@@ -26,6 +27,14 @@ export type GitHubOptions = {
    * doc written on the board is committed as the app.
    */
   docs?: Record<string, { dir: string; channel: string; branch?: string }>
+  /**
+   * GitHub Projects (v2) kept as labels on their items' threads (design/github-projects.md), by a
+   * name of your choosing: the Project (organization/number), a channel for items with no synced
+   * issue, and optionally Status options mapped to task states. Organization Projects only.
+   */
+  projects?: Record<string, ProjectConfig>
+  /** An installation token for an organization, for its Projects (GraphQL). */
+  orgToken?: (org: string) => Promise<string>
 }
 
 export type Author = { id: string; handle: string; name: string; avatar: string | null; isBot: boolean }
@@ -37,6 +46,7 @@ export type PlatformEvent =
   | { kind: 'edit'; key: string; thread: string; message: string | null; author: Author; text: string; raw: unknown }
   | { kind: 'delete'; key: string; thread: string; message: string; author: Author; raw: unknown }
   | { kind: 'labels'; key: string; thread: string; author: Author; set: Record<string, string>; unset: string[]; raw: unknown }
+  | { kind: 'projectitem'; key: string; thread: string; project: string; item: string; action: string; author: Author; raw: unknown }
   | { kind: 'docfile'; key: string; thread: string; repo: string; path: string; before: string; after: string; removed: boolean; author: Author; raw: unknown }
 
 const hex = (bytes: ArrayBuffer) => [...new Uint8Array(bytes)].map((byte) => byte.toString(16).padStart(2, '0')).join('')
@@ -198,6 +208,77 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
     if (response.status === 429 || response.status >= 500 || (response.status === 403 && /rate limit/i.test(text))) throw new SyncRetry(said)
     throw new SyncRefused(said)
   }
+  /** GitHub's GraphQL API, as an organization's installation (org:<login>) or a repo's (repo:<owner/name>). */
+  const graphql = async (as: string, query: string, variables: Record<string, unknown>): Promise<any> => {
+    const [kind, name] = [as.slice(0, as.indexOf(':')), as.slice(as.indexOf(':') + 1)]
+    let auth: string
+    if (kind === 'org') {
+      if (!options.orgToken) throw new SyncRefused('no organization token is configured for GitHub Projects')
+      auth = await options.orgToken(name)
+    } else {
+      if (!token) throw new SyncRefused('no GitHub token is configured')
+      auth = await token(name)
+    }
+    const response = await fetch(api + '/graphql', { method: 'POST', headers: { authorization: 'Bearer ' + auth, 'content-type': 'application/json', accept: 'application/vnd.github+json', 'user-agent': 'boards-sync' }, body: JSON.stringify({ query, variables }) })
+    const text = await response.text()
+    if (response.status === 429 || response.status >= 500 || (response.status === 403 && /rate limit/i.test(text))) throw new SyncRetry('GitHub GraphQL answered ' + response.status + ': ' + text.slice(0, 300))
+    if (!response.ok) throw new SyncRefused('GitHub GraphQL answered ' + response.status + ': ' + text.slice(0, 300))
+    const body = JSON.parse(text) as { data?: unknown; errors?: { message: string; type?: string }[] }
+    if (body.errors?.length) {
+      const said = 'GitHub GraphQL: ' + body.errors.map((error) => error.message).join('; ').slice(0, 300)
+      if (body.errors.some((error) => error.type === 'RATE_LIMITED')) throw new SyncRetry(said)
+      throw new SyncRefused(said)
+    }
+    return body.data
+  }
+  const P = options.projects ? projectsOf(options.projects, { graphql: (org, query, variables) => graphql('org:' + org, query, variables) }) : null
+  const itemKey = (key: string, name: string, item: string) => key + ':project:' + name + ':' + item
+  const isItemTarget = (target: string) => /:project:[^:]+:[^:]+$/.test(target)
+  const projectsAuthor = (key: string): Author => ({ id: key + ':user:projects', handle: 'github-projects', name: 'GitHub Projects', avatar: null, isBot: true })
+
+  /** An item's thread, made the item's: found by its target, or its issue's thread, or a new one; then its labels, and its Status as a task. */
+  const importItem = async (event: Extract<PlatformEvent, { kind: 'projectitem' }>, call: Call, rootOf: (thread: string) => Promise<string | null>) => {
+    const { key } = event
+    const project = await P!.load(event.project)
+    const item = event.action === 'deleted' ? null : await P!.read(project, event.item)
+    let root = await rootOf(event.thread)
+    if (!root) {
+      if (!item || item.isArchived) return { message: null }
+      const content = item.content
+      const repo = content && content.__typename !== 'DraftIssue' ? content.repository!.nameWithOwner : null
+      const channel = repo ? Object.entries(options.repos).find(([name]) => name.toLowerCase() === repo.toLowerCase())?.[1] : undefined
+      const author = content?.author ? authorOf(key, { id: content.author.databaseId, login: content.author.login, avatar_url: content.author.avatarUrl }) : event.author
+      if (content && repo && channel) {
+        // An issue or pull request in a synced repo: the item is that issue's thread, imported now if it never came in.
+        const issueThread = key + ':' + repo + ':' + content.number
+        let issueRoot = await rootOf(issueThread)
+        if (!issueRoot) {
+          const pr = content.__typename === 'PullRequest'
+          const text = '**' + (pr ? 'Pull request' : 'Issue') + ' #' + content.number + ': ' + content.title + '**\n\n' + trim(content.body ?? '') + (pr ? '\n\n' + content.url : '')
+          await call('syncImport', { op: 'post', from: key, author, origin: { channel: key + ':' + repo, thread: issueThread, subthread: null, message: pr ? 'pr' : 'issue', context: null }, channel, text, labels: { [pr ? 'pr' : 'issue']: repo + '#' + content.number, state: 'open' }, id: issueThread + ':' + (pr ? 'pr' : 'issue') })
+          issueRoot = await rootOf(issueThread)
+        }
+        if (!issueRoot) throw new SyncRetry('the thread for ' + issueThread + ' is not there yet')
+        await call('sync', { id: issueRoot, target: event.thread })
+        root = issueRoot
+      } else {
+        // A draft, or an issue whose repo isn't synced: a thread in the Project's channel.
+        const text = !content ? '**(an item this app can’t read)**' : content.__typename === 'DraftIssue' ? '**' + content.title + '**' + (content.body ? '\n\n' + trim(content.body) : '') : '**' + (content.__typename === 'PullRequest' ? 'Pull request' : 'Issue') + ' ' + repo + '#' + content.number + ': ' + content.title + '**\n\n' + content.url
+        await call('syncImport', { op: 'post', from: key, author, origin: { channel: key + ':project:' + event.project, thread: event.thread, subthread: null, message: 'item', context: null }, channel: project.config.channel, text, labels: {}, id: event.thread + ':item' })
+        root = await rootOf(event.thread)
+        if (!root) throw new SyncRetry('the thread for ' + event.thread + ' is not there yet')
+      }
+    }
+    const view = (await call('message', { id: root, limit: 1 })).message as { labels?: Record<string, string>; task?: { state: string } | null }
+    const change = labelChange(event.project, view.labels ?? {}, item)
+    if (change) await call('syncImport', { op: 'labels', from: key, author: event.author, origin: { thread: event.thread }, set: change.set, unset: change.unset })
+    if (item && !item.isArchived) {
+      const intent = P!.intentOf(project, item.values[P!.statusKey(project)])
+      if (intent) await applyIntent(call, root, view.task ?? null, intent, project.config.project)
+    }
+    return { message: root }
+  }
+
   /** The branch a repo's docs live on: the one named, else the repo's default branch (asked once). */
   const defaults = new Map<string, Promise<string>>()
   const branchOf = (repo: string): Promise<string> => {
@@ -241,6 +322,80 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
   return {
     platform: 'github',
 
+    async labels({ targets, root, set, unset }, { key, call }) {
+      if (!P || !call) return
+      for (const name of P.names()) {
+        const prefix = 'project.' + name
+        const touched = [...Object.keys(set), ...unset].filter((label) => label === prefix || label.startsWith(prefix + '.'))
+        if (!touched.length) continue
+        const project = await P.load(name)
+        const target = targets.find((entry) => entry.startsWith(key + ':project:' + name + ':'))
+        let item = target ? target.slice(target.lastIndexOf(':') + 1) : null
+        let joined = false
+        if (prefix in set) {
+          if (!item) {
+            // Joining from the board: a thread synced with an issue or pull request; drafts from the board are a follow-up.
+            const issue = targets.map((entry) => entry.slice(key.length + 1).match(/^([^/:]+)\/([^/:]+):(\d+)$/)).find(Boolean)
+            if (!issue) {
+              console.warn('[boards] sync ' + key + ': #' + root.id + ' joins ' + project.config.project + ' only when it is synced with an issue or pull request')
+              continue
+            }
+            const data = await graphql('repo:' + issue[1] + '/' + issue[2], 'query($o: String!, $n: String!, $num: Int!) { repository(owner: $o, name: $n) { issueOrPullRequest(number: $num) { ... on Issue { id } ... on PullRequest { id } } } }', { o: issue[1], n: issue[2], num: Number(issue[3]) })
+            const content = data?.repository?.issueOrPullRequest?.id
+            if (!content) throw new SyncRefused(issue[0] + ' is not an issue or pull request this app can read')
+            item = await P.add(project, content)
+            await call('sync', { id: root.id, target: itemKey(key, name, item) })
+            joined = true
+          } else {
+            const now = await P.read(project, item)
+            if (now?.isArchived) await P.archive(project, item, false)
+          }
+        } else if (unset.includes(prefix) && item) {
+          await P.archive(project, item, true)
+          continue
+        }
+        if (!item) continue
+        const keys = joined ? Object.keys(root.labels).filter((label) => label.startsWith(prefix + '.')) : touched.filter((label) => label.startsWith(prefix + '.'))
+        let refused: string | null = null
+        for (const label of keys) {
+          const value = label in set ? set[label]! : unset.includes(label) ? null : root.labels[label] ?? null
+          refused = (await P.setField(project, item, label.slice(prefix.length + 1), value)) ?? refused
+        }
+        const thread = itemKey(key, name, item)
+        // What the Project holds is what the board shows: a value it refused is rewritten from the item.
+        const now = await P.read(project, item)
+        const change = labelChange(name, root.labels, now)
+        if (change) await call('syncImport', { op: 'labels', from: key, author: projectsAuthor(key), origin: { thread }, set: change.set, unset: change.unset })
+        if (refused) console.warn('[boards] sync ' + key + ': ' + project.config.project + ' refused a field from #' + root.id + ': ' + refused)
+        // A Status set on the board moves the task as one set in GitHub would.
+        const statusLabel = prefix + '.' + P.statusKey(project)
+        if (statusLabel in set && now) {
+          const intent = P.intentOf(project, now.values[P.statusKey(project)])
+          const view = (await call('message', { id: root.id, limit: 1 })).message as { task?: { state: string } | null }
+          if (intent) await applyIntent(call, root.id, view.task ?? null, intent, project.config.project)
+        }
+      }
+    },
+
+    async task({ targets, root }, { key, call }) {
+      if (!P || !call || !root.task) return
+      for (const name of P.names()) {
+        const target = targets.find((entry) => entry.startsWith(key + ':project:' + name + ':'))
+        if (!target) continue
+        const project = await P.load(name)
+        const option = P.optionFor(project, root.task.state)
+        if (!option) continue
+        const label = 'project.' + name + '.' + P.statusKey(project)
+        if ((root.labels[label] ?? '').toLowerCase() === option.toLowerCase()) continue
+        const refused = await P.setField(project, target.slice(target.lastIndexOf(':') + 1), P.statusKey(project), option)
+        if (refused) {
+          console.warn('[boards] sync ' + key + ': ' + project.config.project + ' refused Status ' + JSON.stringify(option) + ': ' + refused)
+          continue
+        }
+        await call('syncImport', { op: 'labels', from: key, author: projectsAuthor(key), origin: { thread: target }, set: { [label]: option }, unset: [] })
+      }
+    },
+
     docTarget(path, key) {
       for (const [repo, docs] of Object.entries(options.docs ?? {})) if (path.startsWith(docs.channel + '/')) return key + ':' + repo + ':doc'
       return null
@@ -280,6 +435,17 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
       const delivery = await verifyGitHub(request, await webhookSecret())
       if (!delivery) return { events: [], response: new Response('not signed by this app\n', { status: 401 }) }
       if (delivery.event === 'ping') return { events: [], response: new Response('pong\n') }
+      if (delivery.event === 'projects_v2_item') {
+        const payload = delivery.payload
+        const node = payload?.projects_v2_item
+        // The app's own writes are on the board already.
+        if (!P || !node || (options.botUserId !== undefined && String(payload.sender?.id) === options.botUserId)) return { events: [] }
+        const project = await P.byNode(String(node.project_node_id))
+        if (!project) return { events: [] }
+        const thread = itemKey(key, project.name, String(node.node_id))
+        const event: PlatformEvent = { kind: 'projectitem', key, thread, project: project.name, item: String(node.node_id), action: String(payload.action), author: authorOf(key, payload.sender), raw: undefined }
+        return { events: [{ id: (delivery.delivery || crypto.randomUUID()) + ':0', thread, channel: key + ':project:' + project.name, event, raw: payload }] }
+      }
       const id = delivery.delivery || crypto.randomUUID()
       const events = githubEvents(key, delivery, options).map((event, n): InboxEvent<PlatformEvent> => ({
         id: id + ':' + n,
@@ -311,6 +477,9 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
           return call('syncImport', { op: 'delete', from, author: event.author, origin: origin(event.message) })
         case 'labels':
           return call('syncImport', { op: 'labels', from, author: event.author, origin: origin(null), set: event.set, unset: event.unset })
+        case 'projectitem':
+          if (!P) return null
+          return importItem(event, call, rootOf)
         case 'docfile': {
           const at = docOfFile(event.repo, event.path)
           if (!at) {
@@ -328,6 +497,8 @@ export function githubProvider(options: GitHubOptions): SyncProvider<PlatformEve
     },
 
     async post({ target, thread, message }, { key }) {
+      // A Project item carries labels, not messages: the receipt says so, and nothing goes to GitHub.
+      if (isItemTarget(target)) return { thread: target, message: 'board-only:' + message.id }
       const at = where(thread ?? target, key)
       if (at.number === null) {
         // A board thread synced to a repo: a new issue, its first line the title.

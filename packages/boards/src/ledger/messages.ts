@@ -358,7 +358,7 @@ const taskLabel = (ctx: Ctx, root: number): Record<string, string> => {
 }
 
 /** Sets and unsets labels on a message: one labels.changed event, always a new version. */
-export function labelMessage(ctx: Ctx, row: MessageRow, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> }, by: By) {
+export function labelMessage(ctx: Ctx, row: MessageRow, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> }, by: By, from?: string) {
   const labels = json<Record<string, string>>(row.labels, {})
   checkLabelsIf(row.re === null ? { ...labels, ...taskLabel(ctx, row.id) } : labels, change.if)
   const before = ctx.board.facet(row.id)
@@ -367,7 +367,7 @@ export function labelMessage(ctx: Ctx, row: MessageRow, change: { set?: Record<s
   const seq = ctx.board.reserve()
   ctx.sql.run('update messages set labels = ?, version = ? where id = ?', JSON.stringify(labels), seq, row.id)
   writeTerms(ctx, { id: row.id, thread: row.thread, text: row.text, deleted: row.deleted, labels: { ...labels, ...(row.re === null ? taskLabel(ctx, row.id) : {}) }, attachments: json(row.attachments, []) })
-  ctx.board.append('labels.changed', { id: row.id, thread: row.thread_key, set: change.set ?? {}, unset: change.unset ?? [], by }, { at: ctx.now, message: row.id, thread: row.thread, before, seq })
+  ctx.board.append('labels.changed', { id: row.id, thread: row.thread_key, set: change.set ?? {}, unset: change.unset ?? [], by, ...(from ? { from } : {}) }, { at: ctx.now, message: row.id, thread: row.thread, before, seq })
 }
 
 op('label', (ctx, body: { id: string; set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> }) => {
