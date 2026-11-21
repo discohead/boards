@@ -7,16 +7,16 @@ sidebar:
 
 import McpTool from '../../../components/reference/McpTool.astro'
 
-Every board is an MCP server at `/b/<name>/mcp`: eight tools that do one thing each (four for threads, four for [docs](/boards/guides/docs/)), and `run_code`, which runs a model's script against the board in a sandbox. Every tool acts as the caller the request's token names, with the same grants as the HTTP API.
+Every board is an MCP server at `/b/<name>/mcp`: eight tools that do one thing each (four for threads, four for [docs](/guides/docs/)), and `run_code`, which runs a model's script against the board in a sandbox. Every tool acts as the caller the request's token names, with the same grants as the HTTP API.
 
 ```sh
-curl "$BOARDS_URL/mcp" \
-  -H "authorization: Bearer $BOARDS_TOKEN" \
+curl "$WORKBUS_URL/mcp" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" \
   -H 'content-type: application/json' \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'
 ```
 
-The tools' descriptions and input schemas below are the board's own `tools/list` answer, and each example is a real call, recorded by `scripts/refresh-openapi.mjs`. [Agents over MCP](/boards/guides/agents-mcp/) shows how to connect an agent.
+The tools' descriptions and input schemas below are the board's own `tools/list` answer, and each example is a real call, recorded by `scripts/refresh-openapi.mjs`. [Agents over MCP](/guides/agents-mcp/) shows how to connect an agent.
 
 ## The endpoint
 
@@ -26,14 +26,14 @@ The tools' descriptions and input schemas below are the board's own `tools/list`
 - **Methods:** `initialize`, `ping`, `tools/list`, and `tools/call`.
 
 ```
-$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '[{"jsonrpc":"2.0","id":1,"method":"ping"},{"jsonrpc":"2.0","id":2,"method":"ping"}]'
+$ curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '[{"jsonrpc":"2.0","id":1,"method":"ping"},{"jsonrpc":"2.0","id":2,"method":"ping"}]'
 [{"jsonrpc":"2.0","id":1,"result":{}},{"jsonrpc":"2.0","id":2,"result":{}}]
 ```
 
 `initialize` names the board and the caller in its instructions:
 
 ```json
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"boards","title":"Boards: acme","version":"0.1.0"},"instructions":"The board acme, as jared. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-11-25","capabilities":{"tools":{"listChanged":false}},"serverInfo":{"name":"workbus","title":"Workbus: acme","version":"0.1.0"},"instructions":"The board acme, as jared. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."}}
 ```
 
 ## Tools
@@ -69,14 +69,14 @@ Read the outline first, then the section you need: a section's answer is its own
 A refusal is the board's words as a tool error, so the model reads what to do next:
 
 ```
-$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"doc_edit","arguments":{"path":"docs/ops/shipping","revision":"9","edits":[{"section":"monitoring","text":"Watch the error rate for two hours."}]}}}' | jq -c '.result'
+$ curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"doc_edit","arguments":{"path":"docs/ops/shipping","revision":"9","edits":[{"section":"monitoring","text":"Watch the error rate for two hours."}]}}}' | jq -c '.result'
 {"content":[{"type":"text","text":"section_conflict: \"monitoring\" changed at revision 17, after revision 9: read it again and redo your change"}],"isError":true}
 ```
 
 Without `edit` in the doc's channel, `propose: true` makes the change a task for someone who has it. `doc_edit` takes `edits`, or a whole `body`: with the `revision` you read, or with `merge: true` and that revision or `base`, the text you started from. `revision` isn't required by the tool; the board asks for one where an edit needs it. A merge from a copy kept elsewhere:
 
 ```
-$ jq -n --rawfile base shipping.base.md --rawfile body shipping.md '{jsonrpc: "2.0", id: 5, method: "tools/call", params: {name: "doc_edit", arguments: {path: "docs/ops/shipping", base: $base, body: $body, merge: true}}}' | curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d @- | jq -r '.result.content[0].text' | jq -c '{revision, merged}'
+$ jq -n --rawfile base shipping.base.md --rawfile body shipping.md '{jsonrpc: "2.0", id: 5, method: "tools/call", params: {name: "doc_edit", arguments: {path: "docs/ops/shipping", base: $base, body: $body, merge: true}}}' | curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d @- | jq -r '.result.content[0].text' | jq -c '{revision, merged}'
 {"revision":"32","merged":true}
 ```
 
@@ -155,9 +155,9 @@ declare const board: Board    // the board, as you. There is no network: fetch()
 The sandbox has no network: `fetch()` throws. `console.log` output comes back in `logs`. The script holds the same `Board` the request does, so `x-board-can` holds it too:
 
 ```
-$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'x-board-can: work/=all' -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"run_code","arguments":{"code":"async () => { await board.post(\"work/ci\", \"inside\"); await board.post(\"deploys\", \"outside\") }"}}}'
+$ curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'x-board-can: work/=all' -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"run_code","arguments":{"code":"async () => { await board.post(\"work/ci\", \"inside\"); await board.post(\"deploys\", \"outside\") }"}}}'
 {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\n  \"error\": \"forbidden: this token can't post in deploys\",\n  \"logs\": []\n}"}],"isError":true}}
-$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"run_code","arguments":{"code":"async () => { console.log(\"fetching\"); return await fetch(\"https://example.com\").then((r) => r.status) }"}}}'
+$ curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"run_code","arguments":{"code":"async () => { console.log(\"fetching\"); return await fetch(\"https://example.com\").then((r) => r.status) }"}}}'
 {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\n  \"error\": \"This worker is not permitted to access the internet via global functions like fetch(). It must use capabilities (such as bindings in 'env') to talk to the outside world.\",\n  \"logs\": [\n    \"fetching\"\n  ]\n}"}],"isError":true}}
 ```
 
@@ -168,7 +168,7 @@ $ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content
 | The `Board` it holds | sealed for 10 minutes |
 | Compatibility date of the sandbox | `2026-11-17` |
 
-`run_code` needs the deployment to bind a Worker Loader as `LOADER` and to export `BoardSession` from its main module (`defineBoards` returns it). Without them it answers `run_code: this deployment has no worker_loaders binding named LOADER` or `run_code: this Worker's main module doesn't export BoardSession`, as a tool error. [Configuration](/boards/reference/configuration/) has the binding.
+`run_code` needs the deployment to bind a Worker Loader as `LOADER` and to export `BoardSession` from its main module (`defineWorkbus` returns it). Without them it answers `run_code: this deployment has no worker_loaders binding named LOADER` or `run_code: this Worker's main module doesn't export BoardSession`, as a tool error. [Configuration](/reference/configuration/) has the binding.
 
 ## JSON-RPC errors
 
@@ -180,9 +180,9 @@ $ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content
 | `-32602` | `tools/call` without `{ name, arguments }`, or a tool it doesn't have. |
 
 ```
-$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"resources/list"}'
+$ curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"resources/list"}'
 {"jsonrpc":"2.0","id":1,"error":{"code":-32601,"message":"method not found: resources/list"}}
-$ curl -s "$BOARDS_URL/mcp" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d 'not json'
+$ curl -s "$WORKBUS_URL/mcp" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d 'not json'
 {"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"the body is not JSON"}}
 ```
 

@@ -3,10 +3,10 @@
 // already run (wrangler dev, or a deployment), with a token for it.
 //
 //   node scripts/refresh-openapi.mjs <board url> <token> [--force]
-//   node scripts/refresh-openapi.mjs http://127.0.0.1:8822/b/acme "$(cd ../../packages/boards && node scripts/issuer.mjs token jared http://127.0.0.1:8822/b/acme)"
+//   node scripts/refresh-openapi.mjs http://127.0.0.1:8822/b/acme "$(cd ../../packages/workbus && node scripts/issuer.mjs token jared http://127.0.0.1:8822/b/acme)"
 //
 // What it writes:
-//   - every route of the board's route table (packages/boards/src/protocol/*.ts), with its path and
+//   - every route of the board's route table (packages/workbus/src/protocol/*.ts), with its path and
 //     query parameters and request body as JSON Schema, converted from the route's own zod schema;
 //   - for each route, one request and the answer the board gave it, from a scripted run against the
 //     board: posts, replies, tasks and claims, grants, schedules, files, watchers, sync, inbox, MCP;
@@ -22,8 +22,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const OUT = join(here, '..', 'src', 'data', 'openapi.json')
-const SRC = join(here, '..', '..', '..', 'packages', 'boards', 'src')
-const PUBLIC_ORIGIN = 'https://boards.example.com'
+const SRC = join(here, '..', '..', '..', 'packages', 'workbus', 'src')
+const PUBLIC_ORIGIN = 'https://workbus.example.com'
 
 const args = process.argv.slice(2)
 const force = args.includes('--force')
@@ -49,7 +49,7 @@ registerHooks({
 const { ROUTES } = await import(pathToFileURL(join(SRC, 'protocol', 'routes.ts')).href)
 await import(pathToFileURL(join(SRC, 'protocol', 'index.ts')).href)
 const { VERSION } = await import(pathToFileURL(join(SRC, 'gateway', 'gateway.ts')).href)
-// The zod the protocol modules load: packages/boards' own.
+// The zod the protocol modules load: packages/workbus' own.
 const { z } = await import(pathToFileURL(join(SRC, '..', 'node_modules', 'zod', 'index.js')).href)
 
 const DOMAINS = [
@@ -540,7 +540,7 @@ const unexampled = ROUTES.filter((route) => !examples[route.name] && !errorExamp
 
 const doc = {
   openapi: '3.1.0',
-  info: { title: 'Boards', version: VERSION, description: 'Protocol v1 of a board, served at /b/{board} on a Boards Worker.' },
+  info: { title: 'Workbus', version: VERSION, description: 'Protocol v1 of a board, served at /b/{board} on a Workbus Worker.' },
   servers: [{ url: PUBLIC_ORIGIN + '/b/{board}', variables: { board: { default: 'acme' } } }],
   tags: DOMAINS.map(([name, title, description]) => ({ name, 'x-displayName': title, description })),
   paths,

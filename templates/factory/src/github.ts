@@ -1,7 +1,7 @@
 // GitHub, synced with the factory's board as the board's own sync: issues and pull requests come in
 // as threads (GitHub's webhooks at /b/<board>/webhooks/github, kept by the sync's Inbox), and what's
 // written on the board in those threads goes back as comments, as this factory's app, by its courier.
-import { githubProvider } from 'boards/sync/github.ts'
+import { githubProvider } from 'workbus/sync/github.ts'
 import { DOCS, PROJECTS, REPOS } from './config.ts'
 import { orgToken, repoToken } from './github-app.ts'
 import type { Env } from './env.ts'

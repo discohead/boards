@@ -10,18 +10,18 @@ import Topology from '../../../components/diagrams/Topology.astro'
 A board is one Durable Object, the Ledger, which keeps the board's ordered log in its own SQLite. Every other piece is either a stateless Worker in front of it or a satellite that does slow work off its write path.
 
 ```ts title="src/worker.ts"
-// The plain Boards deployment: boards with no sync and no watchers of their own, at /b/<name>.
-import { defineBoards } from './index.ts'
+// The plain Workbus deployment: boards with no sync and no watchers of their own, at /b/<name>.
+import { defineWorkbus } from './index.ts'
 import type { GatewayEnv } from './gateway/gateway.ts'
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards()
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus()
 
 export default {
   fetch: (request: Request, env: GatewayEnv) => gateway(request, env),
 } satisfies ExportedHandler<GatewayEnv>
 ```
 
-That is the whole [plain Worker](https://github.com/discohead/boards/blob/main/packages/boards/src/worker.ts). `defineBoards` returns the Durable Object classes and entrypoints a Worker exports, and `gateway` is its `fetch`.
+That is the whole [plain Worker](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/worker.ts). `defineWorkbus` returns the Durable Object classes and entrypoints a Worker exports, and `gateway` is its `fetch`.
 
 <Topology />
 
@@ -48,12 +48,12 @@ A reply posted over HTTP takes this path:
 3. **After the commit**, the Ledger answers, arms its alarm for the next timer, rings every Relay attached to it with the new head, and hands new events to each watcher's Mailbox from that watcher's cursor.
 4. **Live tails and waits** held in any Gateway wake on the ring and read the new events from the Ledger, as their own callers.
 
-The answer, the rings, and the deliveries all wait on the Durable Object's output gate, so nobody sees a write that a crash could take back. [The Ledger](/boards/architecture/ledger/) has the details.
+The answer, the rings, and the deliveries all wait on the Durable Object's output gate, so nobody sees a write that a crash could take back. [The Ledger](/architecture/ledger/) has the details.
 
-From another Worker, the path is shorter. A [service binding](/boards/guides/workers/) to the `Boards` entrypoint hands out a `Board` that calls the Ledger directly, as `worker:<script>`. Its inputs go through the same route schemas first, so a binding call and an HTTP call are the same request.
+From another Worker, the path is shorter. A [service binding](/guides/workers/) to the `Workbus` entrypoint hands out a `Board` that calls the Ledger directly, as `worker:<script>`. Its inputs go through the same route schemas first, so a binding call and an HTTP call are the same request.
 
 ```
-$ boards tail deploys
+$ wb tail deploys
 15:14:49  message.posted  #10  deploys  deploy-notifier  Deploying 5e6f7a8 to...
 15:14:49  labels.changed  #10  deploys  deploy-notifier  status=started
 15:14:50  message.posted  #12  deploys  deploy-notifier  re #10  Live: https:...
@@ -61,13 +61,13 @@ $ boards tail deploys
 15:25:47  message.posted  #58  deploys  jared  v42 is live
 ```
 
-The last line is `boards post deploys 'v42 is live'` from another terminal, which answered `posted #58 in deploys`.
+The last line is `wb post deploys 'v42 is live'` from another terminal, which answered `posted #58 in deploys`.
 
 The numbers are positions in the board's log. A message's ID is the position of the event that posted it, so #10's label change is position 11 and its reply is #12.
 
 ## What you deploy
 
-A Boards Worker binds these, and `defineBoards` gives it the classes to export:
+A Workbus Worker binds these, and `defineWorkbus` gives it the classes to export:
 
 | Binding | What it is | Needed for |
 | --- | --- | --- |
@@ -79,13 +79,13 @@ A Boards Worker binds these, and `defineBoards` gives it the classes to export:
 | `LOADER` | a Worker Loader | MCP's `run_code` |
 | `BOARD_ISSUER_KEY` | a secret: the board's ES256 key, as a JWK | people's tokens, and sealing Code Mode sessions |
 
-[Configuration](/boards/reference/configuration/) lists every binding and variable, and [Deploy and operate](/boards/guides/deploy-and-operate/) walks through a deploy.
+[Configuration](/reference/configuration/) lists every binding and variable, and [Deploy and operate](/guides/deploy-and-operate/) walks through a deploy.
 
 ## Where to read next
 
-- [The Ledger](/boards/architecture/ledger/): one transaction per write, the log, facets, timers, and the outbox.
-- [Gateway and auth](/boards/architecture/gateway/): who a caller is, and where that's decided.
-- [Relays and Mailboxes](/boards/architecture/relays-and-mailboxes/): fan-out and ordered delivery.
-- [Sync](/boards/architecture/sync/): webhooks in, copies out.
-- [Archival tiers](/boards/architecture/archival/): years of history in R2.
-- [Failure and correctness](/boards/architecture/correctness/), [Performance](/boards/architecture/performance/), and [Design decisions](/boards/architecture/decisions/).
+- [The Ledger](/architecture/ledger/): one transaction per write, the log, facets, timers, and the outbox.
+- [Gateway and auth](/architecture/gateway/): who a caller is, and where that's decided.
+- [Relays and Mailboxes](/architecture/relays-and-mailboxes/): fan-out and ordered delivery.
+- [Sync](/architecture/sync/): webhooks in, copies out.
+- [Archival tiers](/architecture/archival/): years of history in R2.
+- [Failure and correctness](/architecture/correctness/), [Performance](/architecture/performance/), and [Design decisions](/architecture/decisions/).

@@ -1,20 +1,20 @@
-# Boards docs: information architecture and style
+# Workbus docs: information architecture and style
 
-Site: Astro + Starlight in `apps/docs`, served at https://discohead.github.io/boards/ (base `/boards`). The landing page is custom (owner: design). Every other page is a Markdown/MDX file in `apps/docs/src/content/docs/<section>/<slug>.mdx`, already stubbed with its title, description, and sidebar order. The sidebar autogenerates from the directories, so never edit `astro.config.mjs` unless you are the design author.
+Site: Astro + Starlight in `apps/docs`, served at https://docs.workbus.dev/ (base `/`). The landing page is custom (owner: design). Every other page is a Markdown/MDX file in `apps/docs/src/content/docs/<section>/<slug>.mdx`, already stubbed with its title, description, and sidebar order. The sidebar autogenerates from the directories, so never edit `astro.config.mjs` unless you are the design author.
 
 ## Pages and owners
 
 ### getting-started (owner: guides)
 
-- `getting-started/introduction.mdx`: **Introduction**. What Boards is, who it is for, and how it is built.
+- `getting-started/introduction.mdx`: **Introduction**. What Workbus is, who it is for, and how it is built.
 - `getting-started/quick-start.mdx`: **Quick start**. A board on your Cloudflare account, and your first post and live tail, in five minutes.
-- `getting-started/concepts.mdx`: **Concepts**. Boards, channels, threads, messages, labels, actors, tasks, schedules, watchers, and sync.
+- `getting-started/concepts.mdx`: **Concepts**. Workbus, channels, threads, messages, labels, actors, tasks, schedules, watchers, and sync.
 
 ### guides (owner: guides)
 
-- `guides/cli.mdx`: **The boards CLI**. Read, post, tail, and work tasks from a terminal.
+- `guides/cli.mdx`: **The wb CLI**. Read, post, tail, and work tasks from a terminal.
 - `guides/identity-and-access.mdx`: **Identity and access**. Who a caller is, what grants let it do, and how to narrow a token.
-- `guides/workers.mdx`: **Boards from a Worker**. A service binding is the credential: post, read, and claim from your own Worker.
+- `guides/workers.mdx`: **Workbus from a Worker**. A service binding is the credential: post, read, and claim from your own Worker.
 - `guides/agents-mcp.mdx`: **Agents over MCP**. Give an agent a board with five tools, including Code Mode.
 - `guides/capn-web.mdx`: **Cap'n Web**. The Board capability from any JavaScript runtime, over WebSocket or HTTP batch.
 - `guides/live-tails.mdx`: **Live tails**. Server-sent events, long-polls, and held waits, without polling.
@@ -32,10 +32,10 @@ Site: Astro + Starlight in `apps/docs`, served at https://discohead.github.io/bo
 
 - `reference/http-api.mdx`: **HTTP API**. Every route of protocol v1: methods, paths, inputs, and answers.
 - `reference/errors.mdx`: **Errors**. Every error code, what it means, and what fixes it.
-- `reference/cli.mdx`: **CLI reference**. Every boards command, flag, environment variable, and exit code.
-- `reference/binding.mdx`: **Binding and RPC**. The Boards entrypoint and the Board, Tasks, and Claim capabilities.
+- `reference/cli.mdx`: **CLI reference**. Every wb command, flag, environment variable, and exit code.
+- `reference/binding.mdx`: **Binding and RPC**. The Workbus entrypoint and the Board, Tasks, and Claim capabilities.
 - `reference/mcp.mdx`: **MCP tools**. The MCP endpoint and its tools.
-- `reference/configuration.mdx`: **Configuration**. defineBoards, BoardsConfig, wrangler bindings, and environment variables.
+- `reference/configuration.mdx`: **Configuration**. defineWorkbus, WorkbusConfig, wrangler bindings, and environment variables.
 - `reference/webhooks.mdx`: **Webhooks**. The webhook route each sync provider serves, and what it verifies.
 - `reference/limits.mdx`: **Limits**. Sizes, counts, rates, and timeouts.
 
@@ -49,7 +49,7 @@ Site: Astro + Starlight in `apps/docs`, served at https://discohead.github.io/bo
 - `architecture/archival.mdx`: **Archival tiers**. Sealed segments, cold threads, and frozen pages on R2.
 - `architecture/correctness.mdx`: **Failure and correctness**. Why a board stays correct when things fail.
 - `architecture/performance.mdx`: **Performance**. Benchmarks, limits, and what saturates first.
-- `architecture/decisions.mdx`: **Design decisions**. Choices, alternatives considered, and where Boards departs from the protocol.
+- `architecture/decisions.mdx`: **Design decisions**. Choices, alternatives considered, and where Workbus departs from the protocol.
 
 ### examples (owner: architecture)
 
@@ -61,20 +61,20 @@ Site: Astro + Starlight in `apps/docs`, served at https://discohead.github.io/bo
 ### templates (owner: architecture)
 
 - `templates/factory.mdx`: **Factory**. An agent per thread that takes issues to pull requests.
-- `templates/minimal-board.mdx`: **Minimal board**. The plain Boards Worker: a board and nothing else.
+- `templates/minimal-board.mdx`: **Minimal board**. The plain Workbus Worker: a board and nothing else.
 
 ### project (owner: architecture)
 
 - `project/status.mdx`: **Status and verification**. What is built, how each part is verified, and what is open.
-- `project/contributing.mdx`: **Contributing**. Run, test, and change Boards.
+- `project/contributing.mdx`: **Contributing**. Run, test, and change Workbus.
 
 ## Style
 
-- **Voice:** present tense, as if it ships today. Short sentences. Plain words. No hype ("blazing", "seamless", "powerful"), no filler, no em-dashes. "Boards" is the product; "a board" is one board. Address the reader as "you".
+- **Voice:** present tense, as if it ships today. Short sentences. Plain words. No hype ("blazing", "seamless", "powerful"), no filler, no em-dashes. "Workbus" is the product; "a board" is one board. Address the reader as "you".
 - **Lead with the thing:** each page opens with one or two sentences on what it gives you, then a working sample, then the details. No "In this guide we will".
 - **Samples are real:** every code sample is paste-complete, every live line is real API in this repo, and every CLI transcript is pasted from a real run (trimmed, never retyped). Run them against `wrangler dev` on your own port (see your brief). Userland placeholders are commented. Show imports.
 - **Cloudflare-native:** the product is built on Workers, Durable Objects, R2, Secrets Store, AI Gateway, and Containers; link Cloudflare's docs where useful. Never mention, name, or allude to any other vendor's board product.
-- **Links:** link other pages with the base included and a trailing slash, e.g. `[tasks](/boards/guides/tasks/)`. Link code in the repo as `https://github.com/discohead/boards/blob/main/<path>`.
+- **Links:** link other pages with the base included and a trailing slash, e.g. `[tasks](/guides/tasks/)`. Link code in the repo as `https://github.com/workbus-dev/workbus/blob/main/<path>`.
 - **Starlight features:** use asides (`:::note`, `:::tip`, `:::caution`), and in .mdx `import { Tabs, TabItem, Steps, Card, CardGrid, LinkCard, FileTree } from '@astrojs/starlight/components'`. Code fences take a title: ```ts title="src/worker.ts"`. Keep tables short.
-- **Accuracy over completeness:** the code is the source of truth (`packages/boards/src`, `templates/factory`), then `STATUS.md`. If you can't verify something, leave it out.
+- **Accuracy over completeness:** the code is the source of truth (`packages/workbus/src`, `templates/factory`), then `STATUS.md`. If you can't verify something, leave it out.
 - **Diagrams:** the design author provides SVG diagram components in `apps/docs/src/components/diagrams/`; ask the lead if you need one, or write a simple text diagram meanwhile.

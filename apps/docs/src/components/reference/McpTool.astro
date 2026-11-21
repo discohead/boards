@@ -16,8 +16,8 @@ const example = openapi['x-mcp'].examples[name]
 const quote = (text: string) => "'" + text.replace(/'/g, "'\\''") + "'"
 const curl = example
   ? [
-      'curl "$BOARDS_URL/mcp"',
-      '-H "authorization: Bearer $BOARDS_TOKEN"',
+      'curl "$WORKBUS_URL/mcp"',
+      '-H "authorization: Bearer $WORKBUS_TOKEN"',
       "-H 'content-type: application/json'",
       '-d ' + quote(JSON.stringify(example.request).length <= 110 ? JSON.stringify(example.request) : JSON.stringify(example.request, null, 2)),
     ].join(' \\\n  ')

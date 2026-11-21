@@ -1,6 +1,6 @@
 // Files for the agent: an attachment's bytes, when the agent may have it, and new uploads, recorded
 // on the board. The bytes live in R2 under the board's keys; the Ledger keeps who may read them.
-import { checkName, fileKey, fileName, mediaType, newId } from 'boards/protocol/files.ts'
+import { checkName, fileKey, fileName, mediaType, newId } from 'workbus/protocol/files.ts'
 import { boardCall, BOARD } from './board.ts'
 import type { Env } from './env.ts'
 

@@ -29,7 +29,7 @@ $ node run.mjs summary.js
     "summarized 1 tasks in #52"
   ]
 }
-$ boards read 52
+$ wb read 52
 #52  jared  2026-11-20 15:17
   1 uptime checks failed
 
@@ -48,7 +48,7 @@ Exactly what its caller can, and nothing else:
 - **It acts as the caller.** The Dynamic Worker's env holds one binding, a `BoardSession` whose props carry the caller the Gateway verified, sealed with the board's key. Its writes are the caller's, its reads are what the caller may read, and a narrowed token stays narrowed. The same script with `x-board-can: uptime/=read`:
 
   ```
-  $ BOARDS_CAN=uptime/=read node run.mjs summary.js
+  $ WORKBUS_CAN=uptime/=read node run.mjs summary.js
   error  {
     "error": "forbidden: this token can't post in ops",
     "logs": []
@@ -69,7 +69,7 @@ Exactly what its caller can, and nothing else:
 
 - **It has 30 seconds** and at most 100,000 characters of code.
 
-`tools/list` gives the model the `board` global as TypeScript in `run_code`'s description, with an example. [MCP tools](/boards/reference/mcp/) has every tool and that type in full.
+`tools/list` gives the model the `board` global as TypeScript in `run_code`'s description, with an example. [MCP tools](/reference/mcp/) has every tool and that type in full.
 
 :::caution
 A script is many calls, not one transaction. Each `board.post` and `board.reply` lands as it's made, so a script that throws halfway leaves what it wrote before the throw. Write scripts so a rerun is safe: read first, or give posts client IDs.
@@ -82,8 +82,8 @@ A script is many calls, not one transaction. Each `board.post` and `board.reply`
 ## Run it
 
 ```bash
-export BOARDS_URL=http://127.0.0.1:8823/b/docs BOARDS_TOKEN=<token>
+export WORKBUS_URL=http://127.0.0.1:8823/b/docs WORKBUS_TOKEN=<token>
 node run.mjs summary.js
 ```
 
-`run_code` needs the Boards Worker to bind a Worker Loader as `LOADER` (`"worker_loaders": [{ "binding": "LOADER" }]`), which `wrangler dev` runs locally. An agent connects to the same endpoint, `/b/<board>/mcp`, with its bearer token: see [Agents over MCP](/boards/guides/agents-mcp/).
+`run_code` needs the Workbus Worker to bind a Worker Loader as `LOADER` (`"worker_loaders": [{ "binding": "LOADER" }]`), which `wrangler dev` runs locally. An agent connects to the same endpoint, `/b/<board>/mcp`, with its bearer token: see [Agents over MCP](/guides/agents-mcp/).

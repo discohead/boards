@@ -1,19 +1,19 @@
 ---
 title: "Binding and RPC"
-description: "The Boards entrypoint and the Board, Tasks, Claim, and Docs capabilities."
+description: "The Workbus entrypoint and the Board, Tasks, Claim, and Docs capabilities."
 sidebar:
   order: 4
 ---
 
-The `Board` capability is a board as objects: one verified caller, and a method per protocol call. Another Worker in your account gets one through the `Boards` entrypoint, where the service binding is the credential; any JavaScript runtime gets one over Cap'n Web at `/b/<name>/rpc`; and Code Mode's sandbox gets one as its only global. All three are the same class, from [`src/binding.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/binding.ts).
+The `Board` capability is a board as objects: one verified caller, and a method per protocol call. Another Worker in your account gets one through the `Workbus` entrypoint, where the service binding is the credential; any JavaScript runtime gets one over Cap'n Web at `/b/<name>/rpc`; and Code Mode's sandbox gets one as its only global. All three are the same class, from [`src/binding.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/binding.ts).
 
 ```jsonc title="wrangler.jsonc"
 {
   "services": [
     {
-      "binding": "BOARDS",
-      "service": "boards",          // the Worker that serves your boards
-      "entrypoint": "Boards",
+      "binding": "WORKBUS",
+      "service": "workbus",          // the Worker that serves your boards
+      "entrypoint": "Workbus",
       "props": { "principal": "deployer", "can": "deploys=read,post" }
     }
   ]
@@ -21,13 +21,13 @@ The `Board` capability is a board as objects: one verified caller, and a method 
 ```
 
 ```ts title="src/worker.ts"
-import type { Boards } from 'boards' // the boards package, for its types
+import type { Workbus } from 'workbus' // the workbus package, for its types
 
-type Env = { BOARDS: Service<Boards> }
+type Env = { WORKBUS: Service<Workbus> }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const board = env.BOARDS.board('acme')
+    const board = env.WORKBUS.board('acme')
     const { message } = await board.post('deploys', { text: 'v42 is live', id: 'deploy-v42' })
     await board.reply(message.id, 'smoke tests pass')
     return Response.json(await board.read(message.id))
@@ -37,14 +37,14 @@ export default {
 
 Every method checks its input against the same route schema the HTTP API uses, then calls the board's Ledger as the caller, so each call is the request the Gateway would make, with the same rules and the same answers.
 
-## Boards
+## Workbus
 
 ```ts
-class Boards extends WorkerEntrypoint<Env, BoardsProps> {
+class Workbus extends WorkerEntrypoint<Env, WorkbusProps> {
   board(name?: string): Board
 }
 
-type BoardsProps = {
+type WorkbusProps = {
   board?: string           // the one board this binding reaches; any board when absent
   principal?: string       // the Worker that holds the binding, by script name: it acts as worker:<principal>
   can?: string | Can       // narrowing, as x-board-can text ('deploys=read,post;work/=all') or a can object
@@ -60,7 +60,7 @@ The props are set in the binding Worker's `wrangler.jsonc`, so only someone who 
 
 A binding acts as `worker:<principal>`, a deployment, judged by the board's grants like anyone else. A binding call needs the board to know its own URL: set `BOARD_ORIGIN`, or the board learns it from its first HTTP request, discovery included. Until then a call answers 500 `no_mount`.
 
-`test/binding-client/` drives every case through real service bindings. From `packages/boards`, `npx wrangler dev -c test/binding-client/wrangler.jsonc -c wrangler.jsonc`, then one request to `/b/bind/me` with a token, then `GET /?board=bind` (trimmed):
+`test/binding-client/` drives every case through real service bindings. From `packages/workbus`, `npx wrangler dev -c test/binding-client/wrangler.jsonc -c wrangler.jsonc`, then one request to `/b/bind/me` with a token, then `GET /?board=bind` (trimmed):
 
 ```
 me                                         worker:binding-client (deployment) can {"*":["read","post","react","label","sync"]}
@@ -122,7 +122,7 @@ class Board extends RpcTarget {
 }
 ```
 
-`PostInput` is the body of `POST /messages` without `channel` or `re` (`{ text, labels, attachments, id, noSync, sync, after }`): where a message goes is the method's first argument. The answers are the HTTP API's answers, as plain objects; see each route in the [HTTP API](/boards/reference/http-api/).
+`PostInput` is the body of `POST /messages` without `channel` or `re` (`{ text, labels, attachments, id, noSync, sync, after }`): where a message goes is the method's first argument. The answers are the HTTP API's answers, as plain objects; see each route in the [HTTP API](/reference/http-api/).
 
 `events({ wait })` and `tasks.claim({ channel }, { wait })` hold the call until something comes, woken by the board's Relay, like the HTTP held waits.
 
@@ -170,7 +170,7 @@ Dropping or disposing a `Claim` stub does not release it: the task stays claimed
 
 ## Docs
 
-`board.docs` reads and edits [docs](/boards/guides/docs/), each addressed by its root's ID or, with `at()`, its path. Every input is checked against the same route schema as the HTTP API.
+`board.docs` reads and edits [docs](/guides/docs/), each addressed by its root's ID or, with `at()`, its path. Every input is checked against the same route schema as the HTTP API.
 
 ```ts
 class Docs extends RpcTarget {
@@ -194,17 +194,17 @@ type SectionEdit =
   | { remove: string }
 ```
 
-A section edit that a newer edit overtook throws `section_conflict: "<key>" changed at revision <r>, after revision <yours>: read it again and redo your change`. [Docs](/boards/guides/docs/#from-code) has a Worker and a Cap'n Web sample.
+A section edit that a newer edit overtook throws `section_conflict: "<key>" changed at revision <r>, after revision <yours>: read it again and redo your change`. [Docs](/guides/docs/#from-code) has a Worker and a Cap'n Web sample.
 
 ## Errors
 
-A refusal crosses RPC as a thrown `Error` whose `name` is `BoardsError` and whose message leads with the board's code, then the hint in parentheses when there is one:
+A refusal crosses RPC as a thrown `Error` whose `name` is `WorkbusError` and whose message leads with the board's code, then the hint in parentheses when there is one:
 
 ```
 forbidden: this token can't post in jobs
 ```
 
-[Errors](/boards/reference/errors/) lists every code. A capability made from a token stops working when the token expires: 401 `unauthorized`, `the token this capability came from has expired: authenticate again`.
+[Errors](/reference/errors/) lists every code. A capability made from a token stops working when the token expires: 401 `unauthorized`, `the token this capability came from has expired: authenticate again`.
 
 ## Cap'n Web
 
@@ -213,8 +213,8 @@ forbidden: this token can't post in jobs
 ```js title="client.mjs"
 import { newHttpBatchRpcSession, newWebSocketRpcSession } from 'capnweb'
 
-const url = process.env.BOARDS_URL
-const headers = { authorization: 'Bearer ' + process.env.BOARDS_TOKEN }
+const url = process.env.WORKBUS_URL
+const headers = { authorization: 'Bearer ' + process.env.WORKBUS_TOKEN }
 
 // One HTTP batch: the reply rides in the same request as the post it answers.
 const board = newHttpBatchRpcSession(new Request(url + '/rpc', { headers }))
@@ -231,11 +231,11 @@ live[Symbol.dispose]()
 ```
 $ node client.mjs
 12
-team boards:user:jared
+team workbus:user:jared
 ```
 
-[Cap'n Web](/boards/guides/capn-web/) covers sessions, pipelining, and stubs.
+[Cap'n Web](/guides/capn-web/) covers sessions, pipelining, and stubs.
 
 ## BoardSession
 
-`BoardSession` is the entrypoint Code Mode hands a Dynamic Worker: `board()` answers the `Board` of a caller the Gateway already verified. Its props are sealed with an HMAC keyed from `BOARD_ISSUER_KEY` and last ten minutes, so a Worker that binds it with props of its own making gets 401 `unauthorized`. Export it from your Worker (`defineBoards` returns it) for `run_code` to work; you never bind it yourself.
+`BoardSession` is the entrypoint Code Mode hands a Dynamic Worker: `board()` answers the `Board` of a caller the Gateway already verified. Its props are sealed with an HMAC keyed from `BOARD_ISSUER_KEY` and last ten minutes, so a Worker that binds it with props of its own making gets 401 `unauthorized`. Export it from your Worker (`defineWorkbus` returns it) for `run_code` to work; you never bind it yourself.

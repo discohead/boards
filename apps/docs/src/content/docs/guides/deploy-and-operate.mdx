@@ -7,11 +7,11 @@ sidebar:
 
 import { FileTree } from '@astrojs/starlight/components'
 
-A Boards deployment is one Worker: its Gateway, its Durable Object classes, and whatever watchers and syncs its config declares. You deploy it with `wrangler deploy`, give it one secret, and from then on every board it serves lives at `/b/<name>` on its origin.
+A Workbus deployment is one Worker: its Gateway, its Durable Object classes, and whatever watchers and syncs its config declares. You deploy it with `wrangler deploy`, give it one secret, and from then on every board it serves lives at `/b/<name>` on its origin.
 
 ## A deployment of your own
 
-The [quick start](/boards/getting-started/quick-start/) deploys `packages/boards` as it is: boards with no watchers and no sync. To add your own, make a package in the workspace that depends on `boards`, as the [factory template](/boards/templates/factory/) does:
+The [quick start](/getting-started/quick-start/) deploys `packages/workbus` as it is: boards with no watchers and no sync. To add your own, make a package in the workspace that depends on `workbus`, as the [factory template](/templates/factory/) does:
 
 <FileTree>
 - templates/
@@ -28,16 +28,16 @@ The [quick start](/boards/getting-started/quick-start/) deploys `packages/boards
   "name": "my-board",
   "private": true,
   "type": "module",
-  "dependencies": { "boards": "workspace:*" },
+  "dependencies": { "workbus": "workspace:*" },
   "devDependencies": { "@cloudflare/workers-types": "^5.20261120.1", "wrangler": "4.165.0" }
 }
 ```
 
-`src/worker.ts` calls `defineBoards` with your config and exports what it returns: the Durable Object classes, the two entrypoints, and the Gateway.
+`src/worker.ts` calls `defineWorkbus` with your config and exports what it returns: the Durable Object classes, the two entrypoints, and the Gateway.
 
 ```ts title="templates/my-board/src/worker.ts"
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { defineBoards, githubProvider, type Secret } from 'boards'
+import { defineWorkbus, githubProvider, type Secret } from 'workbus'
 
 type Env = {
   LEDGER: DurableObjectNamespace
@@ -49,7 +49,7 @@ type Env = {
   GITHUB_TOKEN: Secret
 }
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   watch: {
     // Every event under deploys/, delivered in order per thread to this Worker's Ops entrypoint.
     ops: { tail: 'deploys/', sink: { kind: 'service', binding: 'OPS', method: 'onEvent' } },
@@ -80,7 +80,7 @@ Its `wrangler.jsonc` binds each class and the bucket:
 
 ```jsonc title="templates/my-board/wrangler.jsonc"
 {
-  "name": "boards",
+  "name": "workbus",
   "main": "src/worker.ts",
   "compatibility_date": "2026-11-17",
   "compatibility_flags": ["nodejs_compat"],
@@ -96,13 +96,13 @@ Its `wrangler.jsonc` binds each class and the bucket:
     { "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox"] },
     { "tag": "v2", "new_sqlite_classes": ["Inbox"] }
   ],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "boards-files" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "workbus-files" }],
   "worker_loaders": [{ "binding": "LOADER" }],
-  "services": [{ "binding": "OPS", "service": "boards", "entrypoint": "Ops" }]
+  "services": [{ "binding": "OPS", "service": "workbus", "entrypoint": "Ops" }]
 }
 ```
 
-Run `npx pnpm@11.23.0 install` at the repository's root, then `npx wrangler dev` or `npx wrangler deploy` in the package. `scripts/issuer.mjs` stays in `packages/boards`: run it there, with the same key.
+Run `npx pnpm@11.23.0 install` at the repository's root, then `npx wrangler dev` or `npx wrangler deploy` in the package. `scripts/issuer.mjs` stays in `packages/workbus`: run it there, with the same key.
 
 ## Bindings
 
@@ -116,7 +116,7 @@ Run `npx pnpm@11.23.0 install` at the repository's root, then `npx wrangler dev`
 | `LOADER` | Worker Loader | MCP's `run_code` |
 | your sinks | service bindings | each config watcher's `binding` |
 
-The Worker's main module exports `Ledger`, `Relay`, `Mailbox`, `Inbox`, `Boards`, and `BoardSession`. `Boards` is the entrypoint other Workers bind; `BoardSession` is the one `run_code`'s sandbox holds.
+The Worker's main module exports `Ledger`, `Relay`, `Mailbox`, `Inbox`, `Workbus`, and `BoardSession`. `Workbus` is the entrypoint other Workers bind; `BoardSession` is the one `run_code`'s sandbox holds.
 
 ## Migrations
 
@@ -136,9 +136,9 @@ Keep these as they are on a deployment that has run: a tag that's been applied i
 | Name | Kind | Means |
 | --- | --- | --- |
 | `BOARD_ISSUER_KEY` | secret, required | the board's ES256 key, as JSON: `wrangler secret put BOARD_ISSUER_KEY < .issuer.json` |
-| `BOARD_ORIGIN` | variable | the origin people reach the board at; set it on a custom domain, or so [bindings](/boards/guides/workers/#the-boards-own-address) work before any request |
-| `ACCESS_TEAM`, `ACCESS_AUD` | variables | [Cloudflare Access](/boards/guides/identity-and-access/#cloudflare-access) sign-in |
-| `ARCHIVE`, `ARCHIVE_*` | variables | [archival](/boards/guides/archival/#settings) defaults |
+| `BOARD_ORIGIN` | variable | the origin people reach the board at; set it on a custom domain, or so [bindings](/guides/workers/#the-boards-own-address) work before any request |
+| `ACCESS_TEAM`, `ACCESS_AUD` | variables | [Cloudflare Access](/guides/identity-and-access/#cloudflare-access) sign-in |
+| `ARCHIVE`, `ARCHIVE_*` | variables | [archival](/guides/archival/#settings) defaults |
 | your syncs' credentials | secrets, or Secrets Store bindings | each provider's signing secret and token |
 
 Every token the board's issuer signed stops verifying when `BOARD_ISSUER_KEY` changes, since the board knows one key at a time: rotate it, then sign new tokens.
@@ -168,7 +168,7 @@ A client that gets 503 waits a second and sends the same request again; with the
 Each sync's Inbox gives a platform event 5 tries, 1 second apart and doubling. An event that fails all 5 is recorded as failed, and its platform thread goes on. `GET /inbox/<key>` shows what an Inbox holds, raw payloads included:
 
 ```bash
-curl -s "$BOARDS_URL/inbox/slack?limit=1" -H "authorization: Bearer $BOARDS_TOKEN"
+curl -s "$WORKBUS_URL/inbox/slack?limit=1" -H "authorization: Bearer $WORKBUS_TOKEN"
 ```
 
 ```json
@@ -178,8 +178,8 @@ curl -s "$BOARDS_URL/inbox/slack?limit=1" -H "authorization: Bearer $BOARDS_TOKE
 An event's `state` is `pending`, `done`, or `failed`, with its `attempts` and last `error`. `POST /inbox/<key>/replay` puts failed events back in their lanes with 5 fresh tries: all of them, or the `ids` you name. Both take `manage` everywhere.
 
 ```bash
-curl -s -X POST "$BOARDS_URL/inbox/slack/replay" \
-  -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{}'
+curl -s -X POST "$WORKBUS_URL/inbox/slack/replay" \
+  -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{}'
 ```
 
 ```json
@@ -190,7 +190,7 @@ This is the fix for an event refused during a deploy's rollout, when a Ledger st
 
 ## Watch it run
 
-- `wrangler tail` streams the Worker's logs. A watcher match that fails all its tries logs `[board] watch.failed`, and an error the board doesn't know logs `[boards] unexpected error:` before it answers 500.
+- `wrangler tail` streams the Worker's logs. A watcher match that fails all its tries logs `[board] watch.failed`, and an error the board doesn't know logs `[workbus] unexpected error:` before it answers 500.
 - `observability.enabled` in `wrangler.jsonc` keeps those logs in [Workers Logs](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
 - `GET /b/<name>/openapi.json` lists every route the deployment serves, and `GET /b/<name>/` its syncs.
 - `GET /b/<name>/archive` says how much of a board is hot, sealed, cold, and frozen.

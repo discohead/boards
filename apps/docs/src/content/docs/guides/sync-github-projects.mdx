@@ -5,18 +5,18 @@ sidebar:
   order: 14
 ---
 
-A GitHub Project (v2) is a view over issues, pull requests, and draft items, with fields. On a board it isn't a channel of its own: an item is the thread the [GitHub sync](/boards/guides/sync-github/) already makes for its issue, being in the Project and each field are labels on that thread's root, and a view is a threads query. With a Status mapping, moving a card drives the thread as a [task](/boards/guides/tasks/), and the task's state moves the card back.
+A GitHub Project (v2) is a view over issues, pull requests, and draft items, with fields. On a board it isn't a channel of its own: an item is the thread the [GitHub sync](/guides/sync-github/) already makes for its issue, being in the Project and each field are labels on that thread's root, and a view is a threads query. With a Status mapping, moving a card drives the thread as a [task](/guides/tasks/), and the task's state moves the card back.
 
 ```ts title="src/worker.ts"
-import { defineBoards, githubProvider, type Secret } from 'boards'
-import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+import { defineWorkbus, githubProvider, type Secret } from 'workbus'
+import type { GatewayEnv } from 'workbus/gateway/gateway.ts'
 
 type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; GITHUB_WEBHOOK_SECRET: Secret; GITHUB_BOT_USER_ID: string }
 // userland: installation tokens from your GitHub App, for a repo and for an organization
 declare function repoToken(env: Env, repo: string): Promise<string>
 declare function orgToken(env: Env, org: string): Promise<string>
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   sync: {
     github: githubProvider({
       webhookSecret: env.GITHUB_WEBHOOK_SECRET,
@@ -43,9 +43,9 @@ export default { fetch: (request: Request, env: Env) => gateway(request, env) }
 The transcripts on this page are from a local run of the provider with a stand-in for GitHub's GraphQL API, as `test/sync/github-projects.node-test.ts` fakes it; the board side is as it answered. A draft item added to the Project, with Status Todo and Priority P2:
 
 ```
-$ boards read roadmap
+$ wb read roadmap
 #2  ada  0 replies  **Rotate the staging keys** The old ones leaked into a CI...
-$ boards read 2
+$ wb read 2
 #2  ada  2026-11-20 21:50
   **Rotate the staging keys**
 
@@ -70,7 +70,7 @@ A field's key is its name in label form: `Target date` is `target-date`. Values 
 A view is a query over those labels:
 
 ```
-$ curl -s "$BOARDS_URL/threads?label=project.roadmap.priority=P3" -H "authorization: Bearer $BOARDS_TOKEN" | jq -r '.threads[].message | "#" + .id + "  " + .channel + "  " + .labels.issue'
+$ curl -s "$WORKBUS_URL/threads?label=project.roadmap.priority=P3" -H "authorization: Bearer $WORKBUS_TOKEN" | jq -r '.threads[].message | "#" + .id + "  " + .channel + "  " + .labels.issue'
 #36  eng/web  acme/web#6
 ```
 
@@ -85,9 +85,9 @@ A `projects_v2_item` webhook for a configured Project lands in the GitHub sync's
 An issue item in a synced repo lands on its issue's thread, with its fields beside the issue's own labels:
 
 ```
-$ boards read eng/web
+$ wb read eng/web
 #27  bo  0 replies  **Issue #5: Checkout times out in eu-west** Requests to /...
-$ boards read 27
+$ wb read 27
 #27  bo  2026-11-20 21:51
   **Issue #5: Checkout times out in eu-west**
 
@@ -106,11 +106,11 @@ A label change on a thread with a Project item goes to GitHub as the App:
 - setting `project.roadmap=yes` on a thread synced with an issue or pull request adds it to the Project, with any field labels it carries; unsetting it archives the item, which GitHub can restore.
 
 ```
-$ boards label 27 project.roadmap.priority=P1
+$ wb label 27 project.roadmap.priority=P1
 labeled #27  project.roadmap.priority=P1
-$ boards label 27 project.roadmap.priority=P9
+$ wb label 27 project.roadmap.priority=P9
 labeled #27  project.roadmap.priority=P9
-$ boards read 27
+$ wb read 27
 #27  bo  2026-11-20 21:51
   **Issue #5: Checkout times out in eu-west**
 
@@ -121,12 +121,12 @@ $ boards read 27
 The Project refused `P9` (`Priority has no option "P9"` in the Worker's logs), and the label went back to `P1`. Joining from the board:
 
 ```
-$ boards read eng/web
+$ wb read eng/web
 #27  bo  0 replies  **Issue #5: Checkout times out in eu-west** Requests to /...
 #36  bo  0 replies  **Issue #6: Add a status page** Customers ask where to lo...
-$ boards label 36 project.roadmap=yes project.roadmap.priority=P3
+$ wb label 36 project.roadmap=yes project.roadmap.priority=P3
 labeled #36  project.roadmap=yes, project.roadmap.priority=P3
-$ boards read 36
+$ wb read 36
 #36  bo  2026-11-20 21:51
   **Issue #6: Add a status page**
 
@@ -158,20 +158,20 @@ A Project's Status and a task's state are two different state machines: a task h
 A card moved to Ready for agent, claimed on the board, and completed:
 
 ```
-$ boards tasks roadmap
+$ wb tasks roadmap
 #2  ready  ada  **Rotate the staging keys** The old ones leaked into a CI log.
-$ boards tasks claim 2
+$ wb tasks claim 2
 claimed #2 until 2026-11-20 22:05
-$ boards read 2
+$ wb read 2
 #2  ada  2026-11-20 21:50
   **Rotate the staging keys**
 
   The old ones leaked into a CI log.
-  task    claimed by boards:user:jared until 2026-11-20 22:05
+  task    claimed by workbus:user:jared until 2026-11-20 22:05
   labels  project.roadmap=yes, project.roadmap.status=In progress, project.roadmap.priority=P2
-$ boards tasks complete 2 'rotated; the old keys are revoked'
+$ wb tasks complete 2 'rotated; the old keys are revoked'
 completed #2
-$ boards read 2
+$ wb read 2
 #2  ada  2026-11-20 21:50
   **Rotate the staging keys**
 
@@ -183,12 +183,12 @@ $ boards read 2
 The card went to In progress when the task was claimed, and to Done when it completed. A card dragged to Done while someone holds the task leaves the claim alone:
 
 ```
-$ boards tasks claim 13
+$ wb tasks claim 13
 claimed #13 until 2026-11-20 22:05
-$ boards read 13
+$ wb read 13
 #13  ada  2026-11-20 21:50
   **Upgrade the CI runners**
-  task    claimed by boards:user:jared until 2026-11-20 22:05
+  task    claimed by workbus:user:jared until 2026-11-20 22:05
   labels  project.roadmap=yes, project.roadmap.status=Done
 ```
 

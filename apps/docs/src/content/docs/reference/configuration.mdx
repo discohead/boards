@@ -1,18 +1,18 @@
 ---
 title: "Configuration"
-description: "defineBoards, BoardsConfig, wrangler bindings, and environment variables."
+description: "defineWorkbus, WorkbusConfig, wrangler bindings, and environment variables."
 sidebar:
   order: 6
 ---
 
-A Boards deployment is one Worker: `defineBoards(configure)` returns the classes it exports and its Gateway, `wrangler.jsonc` binds them, and a few variables set its issuer, origin, and archival. This Worker watches production deploys and replies to each one:
+A Workbus deployment is one Worker: `defineWorkbus(configure)` returns the classes it exports and its Gateway, `wrangler.jsonc` binds them, and a few variables set its issuer, origin, and archival. This Worker watches production deploys and replies to each one:
 
 ```js title="worker.js"
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { defineBoards } from 'boards'
+import { defineWorkbus } from 'workbus'
 
-// The classes a Boards Worker exports, and a watcher that hands every production deploy to Ops.
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards(() => ({
+// The classes a Workbus Worker exports, and a watcher that hands every production deploy to Ops.
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus(() => ({
   watch: {
     deploys: {
       tail: 'deploys/ --label env=production',
@@ -34,7 +34,7 @@ export default { fetch: (request, env) => gateway(request, env) }
 
 ```jsonc title="wrangler.jsonc"
 {
-  "name": "boards-ops",
+  "name": "workbus-ops",
   "main": "worker.js",
   "compatibility_date": "2026-11-17",
   "compatibility_flags": ["nodejs_compat"],
@@ -50,8 +50,8 @@ export default { fetch: (request, env) => gateway(request, env) }
     { "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox"] },
     { "tag": "v2", "new_sqlite_classes": ["Inbox"] }
   ],
-  "services": [{ "binding": "SELF", "service": "boards-ops", "entrypoint": "Ops" }],
-  "r2_buckets": [{ "binding": "FILES", "bucket_name": "boards-files" }],
+  "services": [{ "binding": "SELF", "service": "workbus-ops", "entrypoint": "Ops" }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "workbus-files" }],
   "worker_loaders": [{ "binding": "LOADER" }]
 }
 ```
@@ -59,11 +59,11 @@ export default { fetch: (request, env) => gateway(request, env) }
 Run under `wrangler dev` with `BOARD_ISSUER_KEY` in `.dev.vars`:
 
 ```
-$ boards post deploys/web 'v42 is on staging' --label env=staging
+$ wb post deploys/web 'v42 is on staging' --label env=staging
 posted #3 in deploys/web
-$ boards post deploys/web 'v43 is live' --label env=production
+$ wb post deploys/web 'v43 is live' --label env=production
 posted #4 in deploys/web
-$ boards read 4
+$ wb read 4
 #4  jared  2026-11-20 15:31
   v43 is live
   labels  env=production
@@ -72,28 +72,28 @@ $ boards read 4
   seen by ops (match deploys:4, try 1)
 ```
 
-The plain deployment, a board and nothing else, is [`src/worker.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/worker.ts) with [`wrangler.jsonc`](https://github.com/discohead/boards/blob/main/packages/boards/wrangler.jsonc). [Deploy and operate](/boards/guides/deploy-and-operate/) walks through a deploy.
+The plain deployment, a board and nothing else, is [`src/worker.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/worker.ts) with [`wrangler.jsonc`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/wrangler.jsonc). [Deploy and operate](/guides/deploy-and-operate/) walks through a deploy.
 
-## defineBoards
+## defineWorkbus
 
 ```ts
-function defineBoards<E>(configure?: (env: E) => BoardsConfig): {
+function defineWorkbus<E>(configure?: (env: E) => WorkbusConfig): {
   Ledger: typeof DurableObject      // one per board: its log, its tables, its alarm
   Relay: typeof DurableObject       // live tails and held waits
   Mailbox: typeof DurableObject     // ordered delivery to watchers, and each sync's courier
   Inbox: typeof DurableObject       // each sync's webhooks, durable before the 200
-  Boards: typeof WorkerEntrypoint   // the service binding other Workers hold
+  Workbus: typeof WorkerEntrypoint   // the service binding other Workers hold
   BoardSession: typeof WorkerEntrypoint // Code Mode's sealed Board
   gateway: (request: Request, env: E) => Promise<Response>
 }
 ```
 
-Export every class your `wrangler.jsonc` names, and `BoardSession` for `run_code`. `configure` runs with the Worker's `env` in each Durable Object and in the Gateway, so read secrets from `env` inside it. With no `configure`, a deployment has no watchers and no syncs of its own; `import { gateway } from 'boards'` is that Gateway.
+Export every class your `wrangler.jsonc` names, and `BoardSession` for `run_code`. `configure` runs with the Worker's `env` in each Durable Object and in the Gateway, so read secrets from `env` inside it. With no `configure`, a deployment has no watchers and no syncs of its own; `import { gateway } from 'workbus'` is that Gateway.
 
-## BoardsConfig
+## WorkbusConfig
 
 ```ts
-type BoardsConfig = {
+type WorkbusConfig = {
   watch?: Record<string, WatchConfig>          // config watchers, by ID
   sync?: Record<string, SyncProvider>          // the board's own syncs, by key
 }
@@ -108,11 +108,11 @@ type Sink =
 
 ### watch
 
-Each watcher sees every event whose tail matches, on every board of the deployment, from when it is first deployed. A Mailbox per board and watcher delivers matches one at a time per thread, threads in parallel, each under a 5 minute lease; an error waits 1 second, doubling to 30, and after 5 tries the match is recorded failed and the thread goes on. [Watchers](/boards/guides/watchers/) covers both kinds of watcher.
+Each watcher sees every event whose tail matches, on every board of the deployment, from when it is first deployed. A Mailbox per board and watcher delivers matches one at a time per thread, threads in parallel, each under a 5 minute lease; an error waits 1 second, doubling to 30, and after 5 tries the match is recorded failed and the thread goes on. [Watchers](/guides/watchers/) covers both kinds of watcher.
 
-A **tail** is what you'd type after `boards tail`: a channel (`deploys`), a subtree (`deploys/`), or nothing for every channel, then filters: `--label k=v` (repeatable), `--by <who>`, `--mentions <who>`, `--source <key>`, `--text <words>`, `--re <id>`, and `--all` for bookkeeping events too.
+A **tail** is what you'd type after `wb tail`: a channel (`deploys`), a subtree (`deploys/`), or nothing for every channel, then filters: `--label k=v` (repeatable), `--by <who>`, `--mentions <who>`, `--source <key>`, `--text <words>`, `--re <id>`, and `--all` for bookkeeping events too.
 
-A **service** sink calls a method on a binding in `env` with `(event, context)`. `event` is the [feed event](/boards/reference/http-api/#events) (`cursor`, `type`, `payload`, `message`, `actor`). `context` is `{ board, name, watcher, match, attempt }`: `name` is the board's name, and `board` is the board acting as the watcher, with `me()`, `message(id)`, `threads(query)`, `post(channel, input)`, `reply(id, input)`, `react(id, emoji)`, `label(id, change)`, and `typing(id, status?)`. Its writes are the watcher's (`boards:watch:<id>`, outside the grants), and a retried match writes each one once.
+A **service** sink calls a method on a binding in `env` with `(event, context)`. `event` is the [feed event](/reference/http-api/#events) (`cursor`, `type`, `payload`, `message`, `actor`). `context` is `{ board, name, watcher, match, attempt }`: `name` is the board's name, and `board` is the board acting as the watcher, with `me()`, `message(id)`, `threads(query)`, `post(channel, input)`, `reply(id, input)`, `react(id, emoji)`, `label(id, change)`, and `typing(id, status?)`. Its writes are the watcher's (`workbus:watch:<id>`, outside the grants), and a retried match writes each one once.
 
 A **url** sink POSTs the match as JSON. With a `secret`, `x-board-signature` is `sha256=` and the hex HMAC-SHA256 of the body; `x-board-match` is the match ID. Any answer but 2xx is a failed try.
 
@@ -121,9 +121,9 @@ A **url** sink POSTs the match as JSON. With a `secret`, `x-board-signature` is 
 Each key is one of the board's own syncs: its webhooks arrive at `/b/<board>/webhooks/<key>`, an Inbox keeps them, and a courier copies what's written in synced threads back. The providers:
 
 ```ts
-import { defineBoards, githubProvider, linearProvider, notionProvider, slackProvider } from 'boards'
+import { defineWorkbus, githubProvider, linearProvider, notionProvider, slackProvider } from 'workbus'
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus((env) => ({
   sync: {
     github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'eng/web' }, token: env.GITHUB_TOKEN, docs: { 'acme/web': { dir: 'docs', channel: 'docs/web' } } }),
     slack: slackProvider({ signingSecret: env.SLACK_SIGNING_SECRET, botToken: env.SLACK_BOT_TOKEN, channels: { C0123456789: 'support' } }),
@@ -140,8 +140,8 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 | | `token` | What comments go back with: one secret for all, or `(repo) => Promise<string>` (an app's installation token). |
 | | `botUserId` | The app's bot user ID, so its own comments aren't imported again. |
 | | `starts` | `(event) => boolean`: whether an event may start a thread. |
-| | `docs` | Markdown [docs](/boards/guides/sync-github/#markdown-docs) per repo: `{ 'acme/web': { dir, channel, branch? } }`. The files under `dir` are the docs under `channel`, both ways, on the repo's default branch (asked of GitHub once); `branch` is for docs on another branch. |
-| | `projects` | [GitHub Projects](/boards/guides/sync-github-projects/) by a name of your choosing: `{ roadmap: { project: 'acme/7', channel, status? } }`. `project` is the organization and the Project's number; `channel` takes its drafts; `status` maps Status options (`field`, `ready`, `claimed`, `blocked`, `completed`, `canceled`) to task states. Organization Projects only. |
+| | `docs` | Markdown [docs](/guides/sync-github/#markdown-docs) per repo: `{ 'acme/web': { dir, channel, branch? } }`. The files under `dir` are the docs under `channel`, both ways, on the repo's default branch (asked of GitHub once); `branch` is for docs on another branch. |
+| | `projects` | [GitHub Projects](/guides/sync-github-projects/) by a name of your choosing: `{ roadmap: { project: 'acme/7', channel, status? } }`. `project` is the organization and the Project's number; `channel` takes its drafts; `status` maps Status options (`field`, `ready`, `claimed`, `blocked`, `completed`, `canceled`) to task states. Organization Projects only. |
 | | `orgToken` | `(org) => Promise<string>`: an installation token for an organization, for its Projects. Required with `projects`. |
 | | `apiBase` | GitHub's REST API, `https://api.github.com` by default. |
 | `slackProvider` | `signingSecret` | The app's signing secret. Required. |
@@ -159,7 +159,7 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 | | `webhookSecret` | The subscription's verification token. Until it's set, only Notion's verification request is answered. |
 | | `apiBase` | Notion's API, `https://api.notion.com` by default. |
 
-Every credential is a `Secret`: a Worker secret's string, or a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding, read when it's first needed. The names in `env` are yours. A sync's satellites write as `boards:sync:<key>`. [Webhooks](/boards/reference/webhooks/) says what each provider verifies; the sync guides set each one up.
+Every credential is a `Secret`: a Worker secret's string, or a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding, read when it's first needed. The names in `env` are yours. A sync's satellites write as `workbus:sync:<key>`. [Webhooks](/reference/webhooks/) says what each provider verifies; the sync guides set each one up.
 
 ```jsonc title="wrangler.jsonc"
 {
@@ -186,7 +186,7 @@ Each Durable Object class is a SQLite class: declare it in `new_sqlite_classes`.
 
 | Variable | Default | What it sets |
 | --- | --- | --- |
-| `BOARD_ISSUER_KEY` | required | The board's issuer: a private ES256 JWK with a `kid`, as JSON. It signs people's tokens, publishes its public half at `/issuer/.well-known/jwks.json`, and seals Code Mode sessions. Keep it a secret. `node scripts/issuer.mjs key` in `packages/boards` makes one. |
+| `BOARD_ISSUER_KEY` | required | The board's issuer: a private ES256 JWK with a `kid`, as JSON. It signs people's tokens, publishes its public half at `/issuer/.well-known/jwks.json`, and seals Code Mode sessions. Keep it a secret. `node scripts/issuer.mjs key` in `packages/workbus` makes one. |
 | `BOARD_ORIGIN` | the request's origin | The public origin: the issuer is `<origin>/issuer`, and a board's URL and token audience are `<origin>/b/<name>`. Set it when the Worker sits behind another host, and so service bindings know a board's URL before its first HTTP request. |
 | `ACCESS_TEAM` | none | Your Cloudflare Access team name: with `ACCESS_AUD`, a request with `cf-access-jwt-assertion` and no bearer token is the Access user. |
 | `ACCESS_AUD` | none | The Access application's audience tag. |
@@ -202,4 +202,4 @@ Each Durable Object class is a SQLite class: declare it in `new_sqlite_classes`.
 | `ARCHIVE_PAGE_THREADS` | 256 | Threads in a frozen page. 1 to 4,096. |
 | `ARCHIVE_BENCH` | unset | `1` enables `POST /archive/fill`, which writes a bench history fast. Never on a real deployment. |
 
-A value outside its range is clamped to it. Each board can override the archive settings for itself with `POST /archive` (manage everywhere), and `{ "reset": true }` goes back to the deployment's. [Archival](/boards/guides/archival/) explains the tiers.
+A value outside its range is clamped to it. Each board can override the archive settings for itself with `POST /archive` (manage everywhere), and `{ "reset": true }` goes back to the deployment's. [Archival](/guides/archival/) explains the tiers.

@@ -18,26 +18,26 @@ Both are 401s from the Gateway. The board's Durable Object never ran.
 
 ## The Gateway
 
-The Gateway is a stateless Worker `fetch` ([`gateway/gateway.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/gateway/gateway.ts)). For each request under `/b/<name>` it:
+The Gateway is a stateless Worker `fetch` ([`gateway/gateway.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/gateway/gateway.ts)). For each request under `/b/<name>` it:
 
 1. matches the method and path against the protocol's route table (`protocol/*.ts`), and answers a few routes itself: discovery, `openapi.json`, avatars, and each sync's webhook;
 2. authenticates the caller, and reads `x-board-profile` and `x-board-can`;
 3. checks the query or body against the route's zod schema;
-4. calls the Ledger with the verified caller, or holds the call when it waits (see [Relays](/boards/architecture/relays-and-mailboxes/)), or serves Cap'n Web at `/rpc`, MCP at `/mcp`, or SSE on `/events`.
+4. calls the Ledger with the verified caller, or holds the call when it waits (see [Relays](/architecture/relays-and-mailboxes/)), or serves Cap'n Web at `/rpc`, MCP at `/mcp`, or SSE on `/events`.
 
-A 401 or a 400 is answered before step 4. The one thing the Gateway asks the Ledger during authentication is which OIDC issuers its grants name, and only for a token from an issuer it doesn't already know. [`test/auth.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/auth.test.ts) checks that an unsigned, foreign-signed, expired, wrong-audience, or wrong-issuer token is a 401 and the Ledger is never reached.
+A 401 or a 400 is answered before step 4. The one thing the Gateway asks the Ledger during authentication is which OIDC issuers its grants name, and only for a token from an issuer it doesn't already know. [`test/auth.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/auth.test.ts) checks that an unsigned, foreign-signed, expired, wrong-audience, or wrong-issuer token is a 401 and the Ledger is never reached.
 
 ## Who a caller is
 
-[`gateway/auth.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/gateway/auth.ts) turns a credential into a **principal**:
+[`gateway/auth.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/gateway/auth.ts) turns a credential into a **principal**:
 
 | Credential | Checked against | Principal |
 | --- | --- | --- |
-| A token the board's issuer signed | `BOARD_ISSUER_KEY` (ES256), `iss` = `<origin>/issuer`, `aud` = the board's URL | `boards:user:<sub>` (a person), or `worker:<sub>` when its `kind` is `workload` |
+| A token the board's issuer signed | `BOARD_ISSUER_KEY` (ES256), `iss` = `<origin>/issuer`, `aud` = the board's URL | `workbus:user:<sub>` (a person), or `worker:<sub>` when its `kind` is `workload` |
 | A Cloudflare Access assertion (`cf-access-jwt-assertion`) | the team's certs, `ACCESS_TEAM` and `ACCESS_AUD` | `access:user:<sub>` with an email, else `access:service:<sub>` |
 | A GitHub Actions OIDC token | GitHub's JWKS, `aud` = the board's URL | `github:repo:<repository_id>` |
 | A token from an OIDC issuer a grant names | the issuer's discovery document and JWKS | `oidc:<issuer>:<sub>` |
-| A service binding to the `Boards` entrypoint | its `props`, which only someone who deploys to the account can set | `worker:<props.principal>` |
+| A service binding to the `Workbus` entrypoint | its `props`, which only someone who deploys to the account can set | `worker:<props.principal>` |
 
 The board's public key is at `/issuer/.well-known/jwks.json`:
 
@@ -51,16 +51,16 @@ A Worker in the account is never a token: its binding is its credential. The bin
 {
   "services": [
     {
-      "binding": "BOARDS",
-      "service": "boards",
-      "entrypoint": "Boards",
+      "binding": "WORKBUS",
+      "service": "workbus",
+      "entrypoint": "Workbus",
       "props": { "board": "docs", "principal": "deploy-notifier", "can": "deploys=read,post,label" }
     }
   ]
 }
 ```
 
-A binding with no `principal` reaches nothing, and one pinned to a board can't open another. [`test/binding-client/`](https://github.com/discohead/boards/blob/main/packages/boards/test/binding-client/index.ts) drives each refusal.
+A binding with no `principal` reaches nothing, and one pinned to a board can't open another. [`test/binding-client/`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/binding-client/index.ts) drives each refusal.
 
 ### Profiles and actors
 
@@ -68,10 +68,10 @@ A caller can write as one of its **profiles** with `x-board-profile` (or `--as` 
 
 ```
 POST /messages  x-board-profile: scout
-{"actor":"boards:user:jared+scout","principal":"boards:user:jared","profile":"scout"}
+{"actor":"workbus:user:jared+scout","principal":"workbus:user:jared","profile":"scout"}
 ```
 
-What a profile may do is what its principal may do. The board's own code writes as principals no credential can claim: `boards:self` for timers, `boards:watch:<id>` for a watcher's writes, and `boards:sync:<key>` for a sync's Inbox and courier.
+What a profile may do is what its principal may do. The board's own code writes as principals no credential can claim: `workbus:self` for timers, `workbus:watch:<id>` for a watcher's writes, and `workbus:sync:<key>` for a sync's Inbox and courier.
 
 ### Code Mode sessions
 
@@ -79,7 +79,7 @@ MCP's `run_code` runs a script in a Dynamic Worker whose only binding is the cal
 
 ## What a caller may do
 
-The Ledger works out a caller's access from the board's **grants** at the start of every operation, inside its transaction ([`ledger/core.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/core.ts), `accessFor`). Grants live in the Ledger's own SQLite and are cached by a version number that every grant write bumps, so a revoke takes effect on the next call.
+The Ledger works out a caller's access from the board's **grants** at the start of every operation, inside its transaction ([`ledger/core.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/core.ts), `accessFor`). Grants live in the Ledger's own SQLite and are cached by a version number that every grant write bumps, so a revoke takes effect on the next call.
 
 A board starts with three grants:
 
@@ -107,4 +107,4 @@ POST /messages {"channel":"ops","text":"narrowed"}  x-board-can: deploys=read
 403 {"error":{"code":"forbidden","message":"this token can't post in ops"}}
 ```
 
-The Ledger enforces the narrowing, not the transport, so a caller narrowed to read is refused a post whether it arrives over HTTP, a binding, Cap'n Web, or MCP. [Identity and access](/boards/guides/identity-and-access/) shows how to write grants.
+The Ledger enforces the narrowing, not the transport, so a caller narrowed to read is refused a post whether it arrives over HTTP, a binding, Cap'n Web, or MCP. [Identity and access](/guides/identity-and-access/) shows how to write grants.

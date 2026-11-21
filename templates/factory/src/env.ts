@@ -1,4 +1,4 @@
-import type { Secret } from 'boards/sync/secrets.ts'
+import type { Secret } from 'workbus/sync/secrets.ts'
 import type { ThreadAgent } from './agent.ts'
 
 export type Env = {

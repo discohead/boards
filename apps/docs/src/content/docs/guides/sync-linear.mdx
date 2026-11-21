@@ -10,12 +10,12 @@ import { Steps } from '@astrojs/starlight/components'
 Linear sync makes each issue in a team a thread in a board channel, with the issue's state and labels as labels on the root, and its comments as replies. What's written on the board in those threads goes back to Linear as comments, with your API key.
 
 ```ts title="src/worker.ts"
-import { defineBoards, linearProvider, type Secret } from 'boards'
-import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+import { defineWorkbus, linearProvider, type Secret } from 'workbus'
+import type { GatewayEnv } from 'workbus/gateway/gateway.ts'
 
 type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; LINEAR_WEBHOOK_SECRET: Secret; LINEAR_API_KEY: Secret; LINEAR_BOT_USER_ID: string }
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   sync: {
     linear: linearProvider({
       webhookSecret: env.LINEAR_WEBHOOK_SECRET,
@@ -31,7 +31,7 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 export default { fetch: (request: Request, env: Env) => gateway(request, env) }
 ```
 
-An issue, as it lands on the board (from the [provider check](/boards/guides/sync-slack/#check-it-locally)): created, retitled, moved to In Progress, labeled Frontend, and commented on.
+An issue, as it lands on the board (from the [provider check](/guides/sync-slack/#check-it-locally)): created, retitled, moved to In Progress, labeled Frontend, and commented on.
 
 ```
 {
@@ -62,7 +62,7 @@ An issue, as it lands on the board (from the [provider check](/boards/guides/syn
 1. **Make the webhook.** In Linear's settings, under API, add a webhook with the board's webhook route as its URL, for the **Issues** and **Comments** data change events. Linear sends events from all public teams; the board keeps only the teams you map. The URL is:
 
    ```
-   https://boards.example.com/b/acme/webhooks/linear
+   https://workbus.example.com/b/acme/webhooks/linear
    ```
 
    Check the saved URL ends in `/webhooks/linear`: a request to a shorter path answers 404 and nothing reaches the board. Linear shows the webhook's signing secret once it's made.
@@ -80,14 +80,14 @@ An issue, as it lands on the board (from the [provider check](/boards/guides/syn
    "vars": { "LINEAR_BOT_USER_ID": "<the API key's user ID>" }
    ```
 
-   Either secret can be a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding instead, as in [Sync with Slack](/boards/guides/sync-slack/#set-it-up).
+   Either secret can be a [Secrets Store](https://developers.cloudflare.com/secrets-store/) binding instead, as in [Sync with Slack](/guides/sync-slack/#set-it-up).
 
-4. **Deploy**, then create an issue in the team and `boards tail linear/eng`.
+4. **Deploy**, then create an issue in the team and `wb tail linear/eng`.
 
 </Steps>
 
 :::tip[Verified live]
-These steps were run against a real Linear workspace: an issue, a comment, its edit, and a state change each landed on the board once, and a board reply, its edit, and a reaction each reached Linear. See [Status](/boards/project/status/).
+These steps were run against a real Linear workspace: an issue, a comment, its edit, and a state change each landed on the board once, and a board reply, its edit, and a reaction each reached Linear. See [Status](/project/status/).
 :::
 
 ## What comes in
@@ -142,4 +142,4 @@ Against a real Linear workspace, an issue, a comment, its edit, and a state chan
 
 ## How it works
 
-The webhook goes to the sync's Inbox, which keeps each delivery before Linear hears 200 and imports one issue at a time, in order, with 5 tries each; a failed one can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). The courier copies board writes back in each thread's order. See [Sync: Inbox and courier](/boards/architecture/sync/).
+The webhook goes to the sync's Inbox, which keeps each delivery before Linear hears 200 and imports one issue at a time, in order, with 5 tries each; a failed one can be [replayed](/guides/deploy-and-operate/#replay-a-sync-inbox). The courier copies board writes back in each thread's order. See [Sync: Inbox and courier](/architecture/sync/).

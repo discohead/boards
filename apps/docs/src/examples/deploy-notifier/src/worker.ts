@@ -1,9 +1,9 @@
 // A deploy notifier: CI calls it when a deploy starts and when it ends, and it keeps one thread
 // per deploy in the deploys channel. The service binding is its credential: no token.
-import type { Board, Boards } from 'boards'
+import type { Board, Workbus } from 'workbus'
 
 type Env = {
-  BOARDS: Service<Boards>
+  WORKBUS: Service<Workbus>
   /** A shared secret CI sends as a bearer token: npx wrangler secret put DEPLOY_SECRET */
   DEPLOY_SECRET: string
 }
@@ -15,7 +15,7 @@ export default {
     if (request.method !== 'POST') return new Response('POST a deploy\n', { status: 405 })
     if (request.headers.get('authorization') !== 'Bearer ' + env.DEPLOY_SECRET) return new Response('unauthorized\n', { status: 401 })
     const deploy = (await request.json()) as Deploy
-    const board = env.BOARDS.board() as unknown as Board
+    const board = env.WORKBUS.board() as unknown as Board
 
     // One thread per deploy, keyed by a client ID: the same ID posts once, so whichever call
     // comes first starts the thread, and every later one gets the same message back.

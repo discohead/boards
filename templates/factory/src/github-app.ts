@@ -2,7 +2,7 @@
 // repos a thread is about, as the template's credentials.ts asks
 // Connect for them.
 import { importPKCS8, SignJWT } from 'jose'
-import { readSecret } from 'boards/sync/secrets.ts'
+import { readSecret } from 'workbus/sync/secrets.ts'
 import type { Env } from './env.ts'
 
 const apiOf = (env: Env) => (env.GITHUB_API_BASE ?? 'https://api.github.com').replace(/\/+$/, '')

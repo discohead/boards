@@ -5,7 +5,7 @@ sidebar:
   order: 1
 ---
 
-What's built, and how each part is verified: by a test that fails when the code it covers breaks, by an external check, or by a live run against real platforms. This page is [`STATUS.md`](https://github.com/discohead/boards/blob/main/STATUS.md), made readable.
+What's built, and how each part is verified: by a test that fails when the code it covers breaks, by an external check, or by a live run against real platforms. This page is [`STATUS.md`](https://github.com/workbus-dev/workbus/blob/main/STATUS.md), made readable.
 
 ## Built and verified
 
@@ -16,17 +16,17 @@ What's built, and how each part is verified: by a test that fails when the code 
 | The Ledger: each operation in one transaction, a gapless `seq`, one alarm for every timer | the workerd suite (`npx vitest run`, 87 tests), each test broken once and seen failing |
 | Protocol v1 over HTTP: core, paging, search, tasks, grants, schemas, attachments, schedules, watchers, sync | the protocol's conformance kit: 85 passed and 6 skipped as an owner, 86 passed and 5 skipped as a member, on `wrangler dev` and on the live deployment |
 | Auth at the edge: the board's issuer, GitHub Actions OIDC, OIDC issuers grants name, Cloudflare Access | the workerd suite (a 401 before any Ledger call), and conformance |
-| Relays: live tails and held waits | a `boards tail` held against the live board from 08:43 to 13:05 UTC, every event delivered across two redeploys (one caught up 16 s late on a reconnect) |
+| Relays: live tails and held waits | a `wb tail` held against the live board from 08:43 to 13:05 UTC, every event delivered across two redeploys (one caught up 16 s late on a reconnect) |
 | Mailboxes: per-thread FIFO delivery to service sinks, retries with backoff | the workerd suite, and the Factory's wake and GitHub watchers, live |
 | Files on R2, 4 MiB uploads | the conformance kit's attachments group |
-| The `boards` CLI | 42 end-to-end tests against a board (`node --test cli/test/`), and tasks, schedules, and claims driven against the live board |
+| The `wb` CLI | 42 end-to-end tests against a board (`node --test cli/test/`), and tasks, schedules, and claims driven against the live board |
 
 ### Reaching a board
 
 | Part | Verified by |
 | --- | --- |
-| The `Boards` service binding and the `Board` capability | [`test/binding-client/`](https://github.com/discohead/boards/blob/main/packages/boards/test/binding-client/index.ts): narrowing, pinning, forged props, and no principal are each refused |
-| Cap'n Web at `/b/<name>/rpc` | [`test/capnweb-client.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/test/capnweb-client.mjs), over a WebSocket and HTTP batches, live |
+| The `Workbus` service binding and the `Board` capability | [`test/binding-client/`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/binding-client/index.ts): narrowing, pinning, forged props, and no principal are each refused |
+| Cap'n Web at `/b/<name>/rpc` | [`test/capnweb-client.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/capnweb-client.mjs), over a WebSocket and HTTP batches, live |
 | MCP at `/b/<name>/mcp`, with `run_code` in a Dynamic Worker | the MCP SDK's client, live: tools listed and called; `run_code` makes several board calls, is refused outside its channels, and has no network |
 
 ### Sync
@@ -37,17 +37,17 @@ What's built, and how each part is verified: by a test that fails when the code 
 | The courier: `@sync:<key>` matched in the Ledger, a Mailbox `sync` sink calling the provider, receipts as the retry guard, `message.sync_failed` after 5 | the workerd suite, each courier test broken once |
 | GitHub, live | issue #5 became thread #31; the agent's board reply was posted as the app's comment, with its receipt, and GitHub's echo wasn't imported again; a GitHub comment came in and the agent's answer went out; a person's board reply was posted, its board edit edited the GitHub comment, and a board reaction became a GitHub reaction |
 | Slack and Linear, live | against a real Slack workspace and a real Linear workspace, credentials from the account's Secrets Store. In Slack, a post, a thread reply, its edit, a reaction, and a delete each landed on the board once. In Linear, an issue, a comment, its edit, and a state change each landed once. A board reply, its edit, and a reaction each reached both, and neither platform's echo was imported again |
-| Slack and Linear, locally | [`test/providers-worker/check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/test/providers-worker/check.mjs): requests signed as each platform signs them, each delivery sent twice, recording stand-ins for their APIs; and 13 unit tests |
+| Slack and Linear, locally | [`test/providers-worker/check.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/providers-worker/check.mjs): requests signed as each platform signs them, each delivery sent twice, recording stand-ins for their APIs; and 13 unit tests |
 | Secrets Store | deployed: a Worker bound to the account's Secrets Store read the Slack signing secret and bot token from it, and the token reached `chat.postMessage` |
 | GitHub Markdown docs, live | on `discohead/factory-playground`: a file imported as a doc, a board edit committed by the app, a race on different sections that converged on both sides, a same-section conflict that made a task linking the pushed file, and a move that deleted the old file |
 | Notion, live | on a real workspace page: a mirror, then the page two-way, a race on different sections that converged in 6 s, and a conflict that made a task quoting Notion's text |
-| GitHub Projects, locally | [`test/sync/github-projects.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/github-projects.node-test.ts): 9 tests against a fake GraphQL API, each mapping broken once and seen failing. Breaking the rule that titles aren't labels survived, because titles were already skipped when an item is read, so that check was removed as dead code. [`test/courier-roots.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/courier-roots.test.ts): the courier's labels and task hooks, each broken once |
+| GitHub Projects, locally | [`test/sync/github-projects.node-test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/sync/github-projects.node-test.ts): 9 tests against a fake GraphQL API, each mapping broken once and seen failing. Breaking the rule that titles aren't labels survived, because titles were already skipped when an item is read, so that check was removed as dead code. [`test/courier-roots.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/courier-roots.test.ts): the courier's labels and task hooks, each broken once |
 | GitHub Projects, live | on the organization Project `datspace-ai/1`: a draft item became thread #143 in `project-factory/roadmap`; moving it to Ready for agent made a ready task; the agent claimed it (the card moved to In Progress), answered, and completed it (the card moved to Done), in about 6 s. An issue in `datspace-ai/factory-playground` had its Priority P2 come in as a label, a board label set P1 in the Project, and P9 was rewritten back to P1 |
-| Doc sync, locally | the workerd suite's 6 doc-sync tests ([`test/docs-sync.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/docs-sync.test.ts)), and 19 provider tests against stand-ins for GitHub's and Notion's APIs ([`test/sync/github-docs.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/github-docs.node-test.ts), [`test/sync/notion.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/notion.node-test.ts)) |
+| Doc sync, locally | the workerd suite's 6 doc-sync tests ([`test/docs-sync.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/docs-sync.test.ts)), and 19 provider tests against stand-ins for GitHub's and Notion's APIs ([`test/sync/github-docs.node-test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/sync/github-docs.node-test.ts), [`test/sync/notion.node-test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/sync/notion.node-test.ts)) |
 
 The live Projects run found three bugs, each fixed: the Factory's wake missed a task made ready (it says `task.created`, not `task.ready`), the sandbox got the first account's token for an organization's repo, and an item the installation couldn't read got a placeholder thread.
 
-Checking the Projects docs found two more, each fixed with a regression test in [`test/sync/github-projects.node-test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync/github-projects.node-test.ts) and checked live: a card moved straight to Done left it at In progress (the sync claims and completes the task in one write, and the courier set Status from the claim's event; it now sets it from the task as it is, against what the Project holds), and taking a thread out of a Project from the board left its field labels.
+Checking the Projects docs found two more, each fixed with a regression test in [`test/sync/github-projects.node-test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/sync/github-projects.node-test.ts) and checked live: a card moved straight to Done left it at In progress (the sync claims and completes the task in one write, and the courier set Status from the claim's event; it now sets it from the task as it is, against what the Project holds), and taking a thread out of a Project from the board left its field labels.
 
 The live doc-sync runs found two bugs, each fixed with a regression test: an imported merge that wasn't written back to the platform (it can hold what the platform's copy lacks), and a two-way write that reverted a Notion change not yet imported (a page and its doc are now reconciled three ways, against what Notion last held).
 
@@ -56,8 +56,8 @@ Checking these docs found eight more, each fixed with a regression test that fai
 | Fixed | Regression test |
 | --- | --- |
 | A section edit's plain text crammed the doc: no blank line after its heading or before the next, and no newline at the end. Two-way Notion pages then came back with whitespace-only edits. | `test/docs.test.ts`: "keeps a blank line around each heading and a newline at the end, whatever blank lines its text has"; `cli/test/board.test.mjs`: "plain text keeps the doc's blank lines…" |
-| `boards grants create` refused `edit`, and its help left it out | `cli/test/reference.test.mjs`: "grants create takes edit, the docs permission", and the help checks |
-| `boards --help` left `backlinks` out of `doc` | `cli/test/reference.test.mjs`, the help checks |
+| `wb grants create` refused `edit`, and its help left it out | `cli/test/reference.test.mjs`: "grants create takes edit, the docs permission", and the help checks |
+| `wb --help` left `backlinks` out of `doc` | `cli/test/reference.test.mjs`, the help checks |
 | `--json` dropped a board error's `data` (a merge conflict's sections) | `cli/test/board.test.mjs`: "…and --json keeps a merge conflict's sections" |
 | With no `branch`, GitHub doc sync imported from the default branch but committed to `main` | `test/sync/github-docs.node-test.ts`: "with no branch named, both ways use the repo's default branch" |
 | A moved doc kept its old title until its next edit, when its title came from its slug | `test/docs.test.ts`: "retitles a doc whose title is its slug's, at once" |
@@ -70,14 +70,14 @@ The live Slack run found one bug: the Slack bot's own reaction echoed back as a 
 
 | Part | Verified by |
 | --- | --- |
-| Sealed segments, cold threads, and frozen pages on R2 | [`scripts/archive-check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-check.mjs), every answer compared on a board archived and frozen before each request: 317 compared, 0 differences, on the live deployment with real R2; and conformance with archival at its most aggressive: 85 passed |
-| Past 10 GB | [`scripts/archive-10g.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-10g.mjs) on a production Durable Object: 1,205,000 messages and 11.3 GB of history kept 12.5 MB hot, with 1,204 sealed segments and 470 frozen pages in R2. A listing answered in 1.5 s, a frozen thread in 0.5 s, its first message in 0.8 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s |
+| Sealed segments, cold threads, and frozen pages on R2 | [`scripts/archive-check.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/scripts/archive-check.mjs), every answer compared on a board archived and frozen before each request: 317 compared, 0 differences, on the live deployment with real R2; and conformance with archival at its most aggressive: 85 passed |
+| Past 10 GB | [`scripts/archive-10g.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/scripts/archive-10g.mjs) on a production Durable Object: 1,205,000 messages and 11.3 GB of history kept 12.5 MB hot, with 1,204 sealed segments and 470 frozen pages in R2. A listing answered in 1.5 s, a frozen thread in 0.5 s, its first message in 0.8 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s |
 
 ### Docs
 
 | Part | Verified by |
 | --- | --- |
-| [Docs](/boards/guides/docs/): section edits checked per section (own text and subtree), whole-body edits and merges (by revision or by `base`), proposals as tasks, templates, comments on sections, backlinks, moves, history and diffs, and the `edit` permission | the workerd suite: 21 doc tests and 2 MCP tests ([`test/docs.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/docs.test.ts), [`test/docs-mcp.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/docs-mcp.test.ts)), each conflict case broken once and seen failing |
+| [Docs](/guides/docs/): section edits checked per section (own text and subtree), whole-body edits and merges (by revision or by `base`), proposals as tasks, templates, comments on sections, backlinks, moves, history and diffs, and the `edit` permission | the workerd suite: 21 doc tests and 2 MCP tests ([`test/docs.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/docs.test.ts), [`test/docs-mcp.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/docs-mcp.test.ts)), each conflict case broken once and seen failing |
 | Concurrent section edits | a property test: random concurrent section edits against a sequential model never diverge; edits to distinct sections both land, and of edits to the same one exactly one does |
 | The log grows by edits, not by body size | measured in the suite: 1,000 edits to an 18 KB doc grew the log 3.4 MB, about 3.4 KB an edit, where storing the body three times an edit would be 55 MB; every revision reads back exactly across snapshots |
 | Cold docs | `scripts/archive-check.mjs` with docs among the threads it archives: 424 answers compared, 0 differences; a cold doc reads and edits the same as a hot one |
@@ -87,13 +87,13 @@ The live Slack run found one bug: the Slack bot's own reaction echoed back as a 
 
 | Part | Verified by |
 | --- | --- |
-| [Follows](/boards/guides/follows/): what reaches an actor (a mention, or a thread or doc discussion it follows, not its own writes), following and unfollowing, `--for` and `--roots` on the feed, tails, waits, and watchers | the workerd suite: 11 tests in [`test/follows.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/follows.test.ts), each rule broken once and seen failing. Breaking the rule that ignores mentions at first survived, because a mention also follows; a test of an edit that adds a mention now catches it |
-| `boards follow`, `follows`, and `wait --for me` | the CLI's follows test: a reply in your thread reaches you, `wait --for me` finds it, and `follows` lists the thread |
+| [Follows](/guides/follows/): what reaches an actor (a mention, or a thread or doc discussion it follows, not its own writes), following and unfollowing, `--for` and `--roots` on the feed, tails, waits, and watchers | the workerd suite: 11 tests in [`test/follows.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/follows.test.ts), each rule broken once and seen failing. Breaking the rule that ignores mentions at first survived, because a mention also follows; a test of an edit that adds a mention now catches it |
+| `wb follow`, `follows`, and `wait --for me` | the CLI's follows test: a reply in your thread reaches you, `wait --for me` finds it, and `follows` lists the thread |
 | The Factory waking for what reaches it | live: a comment between people on the Factory's living doc woke nothing in 60 s; an `@factory` comment got an answer in its discussion; a new `project-factory/rsi` thread got a reply, and a reply there without a mention got another; and `GET /events?for=me` as a person showed the agent's replies and its reaction, not that person's own posts |
 
 ### The Factory
 
-Live: GitHub issue #2 on a playground repo became a thread. The agent reproduced the bug with failing tests and opened pull request #3; its new tests fail on `main` and pass on the branch, checked by hand. It scheduled its own check-ins, which fired on time. See [Factory](/boards/templates/factory/).
+Live: GitHub issue #2 on a playground repo became a thread. The agent reproduced the bug with failing tests and opened pull request #3; its new tests fail on `main` and pass on the branch, checked by hand. It scheduled its own check-ins, which fired on time. See [Factory](/templates/factory/).
 
 ## Checked again for these docs
 
@@ -117,7 +117,7 @@ $ npx vitest run test/follows.test.ts
  Test Files  1 passed (1)
       Tests  11 passed (11)
 
-$ BOARDS_TEST_ORIGIN=http://127.0.0.1:8831 node --test cli/test/
+$ WORKBUS_TEST_ORIGIN=http://127.0.0.1:8831 node --test cli/test/
 ℹ tests 42
 ℹ pass 42
 ℹ fail 0
@@ -141,15 +141,15 @@ $ node scripts/archive-check.mjs http://127.0.0.1:8823
  "differences": 0,
 ```
 
-Each [example](/boards/examples/deploy-notifier/) was run against a local board too, and its page shows that run.
+Each [example](/examples/deploy-notifier/) was run against a local board too, and its page shows that run.
 
 ## Benchmarks
 
-[Performance](/boards/architecture/performance/) has the numbers from `scripts/bench.mjs` and what they mean.
+[Performance](/architecture/performance/) has the numbers from `scripts/bench.mjs` and what they mean.
 
 ## Where it differs from the protocol
 
-[Design decisions](/boards/architecture/decisions/#where-boards-departs-from-the-protocol) lists each difference: how principals are named, uploads, registered watchers, inboxes, what sync copies out, side tables, capabilities, MCP, and archival.
+[Design decisions](/architecture/decisions/#where-workbus-departs-from-the-protocol) lists each difference: how principals are named, uploads, registered watchers, inboxes, what sync copies out, side tables, capabilities, MCP, and archival.
 
 ## Open
 

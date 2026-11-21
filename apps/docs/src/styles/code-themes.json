@@ -1,6 +1,6 @@
 {
   "dark": {
-    "name": "boards-ink",
+    "name": "workbus-ink",
     "type": "dark",
     "colors": {
       "editor.background": "#0d0f14",
@@ -206,7 +206,7 @@
     ]
   },
   "light": {
-    "name": "boards-paper",
+    "name": "workbus-paper",
     "type": "light",
     "colors": {
       "editor.background": "#fdfcf8",

@@ -23,7 +23,7 @@ A board's history grows far past what one Durable Object should keep hot, and ev
 }
 ```
 
-That's a young board: everything is hot. The [archival guide](/boards/guides/archival/) covers turning the knobs; this page is how it works ([`ledger/archive.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/archive.ts)).
+That's a young board: everything is hot. The [archival guide](/guides/archival/) covers turning the knobs; this page is how it works ([`ledger/archive.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/archive.ts)).
 
 <ArchivalTiers />
 
@@ -61,7 +61,7 @@ Settings come from the deployment's environment (`ARCHIVE=off`, `ARCHIVE_SEAL_AF
 
 ## How it's checked
 
-[`scripts/archive-check.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-check.mjs) sends the same requests to two boards, one that never archives and one archived as far as it goes before each request, and compares every answer. On a local board:
+[`scripts/archive-check.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/scripts/archive-check.mjs) sends the same requests to two boards, one that never archives and one archived as far as it goes before each request, and compares every answer. On a local board:
 
 ```
 $ node scripts/archive-check.mjs http://127.0.0.1:8823
@@ -76,7 +76,7 @@ It gives the same result on the live deployment with real R2, and the conformanc
 
 ## Past 10 GB
 
-[`scripts/archive-10g.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/archive-10g.mjs) fills a board in rounds, each round's history dated past the horizon, and archives it before the next, as a board ages. On a production Durable Object:
+[`scripts/archive-10g.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/scripts/archive-10g.mjs) fills a board in rounds, each round's history dated past the horizon, and archives it before the next, as a board ages. On a production Durable Object:
 
 | Measure | Value |
 | --- | --- |

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Lists every error code packages/boards/src can answer with, and checks the Errors page names each.
+// Lists every error code packages/workbus/src can answer with, and checks the Errors page names each.
 //   node scripts/check-errors.mjs          codes the page is missing (exit 1 when any)
 //   node scripts/check-errors.mjs --list   every code, its statuses, and where it's raised
 import { readdirSync, readFileSync, statSync } from 'node:fs'
@@ -7,7 +7,7 @@ import { dirname, join, relative } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 const here = dirname(fileURLToPath(import.meta.url))
-const SRC = join(here, '..', '..', '..', 'packages', 'boards', 'src')
+const SRC = join(here, '..', '..', '..', 'packages', 'workbus', 'src')
 const PAGE = join(here, '..', 'src', 'content', 'docs', 'reference', 'errors.mdx')
 
 const files = []
@@ -71,10 +71,10 @@ const add = (code, status, file, text, at, said) => {
 
 for (const file of files) {
   const text = readFileSync(file, 'utf8')
-  for (const match of text.matchAll(/new BoardsError\(|\brefuse\(|\bcrossing\(\{|\b(badRequest|unauthorized|forbidden|notFound|conflict|notKept)\(/g)) {
+  for (const match of text.matchAll(/new WorkbusError\(|\brefuse\(|\bcrossing\(\{|\b(badRequest|unauthorized|forbidden|notFound|conflict|notKept)\(/g)) {
     const open = match.index + match[0].length - (match[0].endsWith('{') ? 2 : 1)
     const args = argsAt(text, open)
-    if (match[0].startsWith('new BoardsError') || match[0].startsWith('refuse')) {
+    if (match[0].startsWith('new WorkbusError') || match[0].startsWith('refuse')) {
       const status = Number(args[0])
       if (Number.isFinite(status)) add(literal(args[1]), status, file, text, match.index, message(args[2]))
       continue

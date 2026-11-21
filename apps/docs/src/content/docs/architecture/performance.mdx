@@ -5,7 +5,7 @@ sidebar:
   order: 8
 ---
 
-One board takes about 350 to 590 posts a second, and past that it answers 503 `overloaded` rather than slowing everyone down. Claims stay near 200 ms with a hundred contenders, and a post reaches 300 live tails in about half a second. These are from [`scripts/bench.mjs`](https://github.com/discohead/boards/blob/main/packages/boards/scripts/bench.mjs), run from a laptop against the live deployment, so every latency includes the network:
+One board takes about 350 to 590 posts a second, and past that it answers 503 `overloaded` rather than slowing everyone down. Claims stay near 200 ms with a hundred contenders, and a post reaches 300 live tails in about half a second. These are from [`scripts/bench.mjs`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/scripts/bench.mjs), run from a laptop against the live deployment, so every latency includes the network:
 
 ```
 append    50/s target    48/s landed  p50   103 ms  p99   299 ms  failed 0
@@ -26,7 +26,7 @@ Run it yourself with `node scripts/bench.mjs <origin> <dir with scripts/issuer.m
 
 ## What saturates first: the write ceiling
 
-Every write to a board is one transaction in one Durable Object, which runs one request at a time. That single writer is what makes a board correct (see [The Ledger](/boards/architecture/ledger/)), and it's also the ceiling: one board's throughput is one object's throughput. At a target of 1,000 posts a second, 470 landed and the rest were refused.
+Every write to a board is one transaction in one Durable Object, which runs one request at a time. That single writer is what makes a board correct (see [The Ledger](/architecture/ledger/)), and it's also the ceiling: one board's throughput is one object's throughput. At a target of 1,000 posts a second, 470 landed and the rest were refused.
 
 Past the ceiling, the platform first queues requests for the object, then refuses them. The Ledger reads that refusal and the Gateway answers it as data, with status 503 and `Retry-After: 1`:
 
@@ -34,7 +34,7 @@ Past the ceiling, the platform first queues requests for the object, then refuse
 { "error": { "code": "overloaded", "message": "the board has more writes queued than it can take right now: try again in a moment" } }
 ```
 
-Nothing was written for a 503, so a client retries it as is, with its client ID if it has one. [`test/overload.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/overload.test.ts) pins that an overloaded board answers 503 with `Retry-After`, not a 500.
+Nothing was written for a 503, so a client retries it as is, with its client ID if it has one. [`test/overload.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/overload.test.ts) pins that an overloaded board answers 503 with `Retry-After`, not a 500.
 
 A post writes several rows: its event, its message, its thread's row, its channel's counts, an index row per label and mention, and its author on first sight. Rows written is what a write costs, which is why each index in the schema has to earn its place. Raising the ceiling means cheaper writes (fewer rows per post) or a board per scope: a team's boards are independent objects, and they scale out by count.
 
@@ -48,7 +48,7 @@ A write rings each Relay once with the new head, and each Relay sends one small 
 
 ## Archived reads
 
-On a board with 11.3 GB of history archived to R2 and 12.5 MB hot, a thread listing answered in 1.5 s, a frozen thread in 0.5 s, its first message in 0.8 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s. A read that reaches archived history pays for R2 reads; a read of the hot set doesn't. See [Archival tiers](/boards/architecture/archival/).
+On a board with 11.3 GB of history archived to R2 and 12.5 MB hot, a thread listing answered in 1.5 s, a frozen thread in 0.5 s, its first message in 0.8 s, a feed page from the sealed log in 1.9 s, and a reply to a frozen thread in 0.4 s. A read that reaches archived history pays for R2 reads; a read of the hot set doesn't. See [Archival tiers](/architecture/archival/).
 
 ## Limits that shape performance
 
@@ -61,4 +61,4 @@ On a board with 11.3 GB of history archived to R2 and 12.5 MB hot, a thread list
 | An Inbox's imports at once | 8 platform threads |
 | Archived history one call may read into memory | 64 MiB |
 
-[Limits](/boards/reference/limits/) lists the rest: sizes, counts, and rates.
+[Limits](/reference/limits/) lists the rest: sizes, counts, and rates.

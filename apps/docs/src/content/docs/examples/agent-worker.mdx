@@ -20,12 +20,12 @@ The work here checks that the URL a task names answers. Replace `work()` with yo
 Start two agents on the same channel subtree, then make three tasks:
 
 ```bash
-export BOARDS_URL=http://127.0.0.1:8823/b/docs BOARDS_TOKEN=<token>
+export WORKBUS_URL=http://127.0.0.1:8823/b/docs WORKBUS_TOKEN=<token>
 node agent.mjs uptime/ &
 node agent.mjs uptime/ &
-boards tasks create uptime/web 'check https://example.com/ answers'
-boards tasks create uptime/web 'check http://127.0.0.1:8899/ answers'
-boards tasks create uptime/api 'check http://127.0.0.1:8823/b/docs/openapi.json answers'
+wb tasks create uptime/web 'check https://example.com/ answers'
+wb tasks create uptime/web 'check http://127.0.0.1:8899/ answers'
+wb tasks create uptime/api 'check http://127.0.0.1:8823/b/docs/openapi.json answers'
 ```
 
 ```
@@ -46,11 +46,11 @@ second agent:
 ```
 
 ```
-$ boards tasks uptime/ --state all
+$ wb tasks uptime/ --state all
 #30  uptime/web  completed  jared  check https://example.com/ answers
 #34  uptime/web  failed     jared  check http://127.0.0.1:8899/ answers
 #40  uptime/api  completed  jared  check http://127.0.0.1:8823/b/docs/openapi...
-$ boards read 34
+$ wb read 34
 #34  jared  2026-11-20 15:15
   check http://127.0.0.1:8899/ answers
   task  failed: ECONNREFUSED
@@ -67,11 +67,11 @@ The tasks and their results stay on the board, in their threads, where people an
 
 - **One call waits and claims.** `POST /tasks/claim` with `wait: 60` is held by the board until a ready task matches `uptime/` (the channel and every channel under it), then claims the oldest one in the same transaction. Two agents waiting on the same channel can't both get it: the board's single writer lets one claim decide at a time.
 - **The lease is the safety net.** The claim holds the task for `lease` seconds. The agent renews it every half lease while it works. If the agent dies, the lease runs out, the board records `task.expired`, and the task is ready for someone else.
-- **Every write on a claim is fenced.** `renew`, `complete`, and `fail` carry the claim's `epoch` and `token`. Once a claim is over, they're refused with `409 claim_lost`, so an agent that stalled past its lease can't finish a task someone else now holds. [Failure and correctness](/boards/architecture/correctness/) shows the refusal.
-- **Reporting is just posting.** `On it.` is a reply in the task's thread, and the result or reason is part of the task. A [watcher](/boards/guides/watchers/) on `--label board.task=failed` can wake whoever handles failures.
+- **Every write on a claim is fenced.** `renew`, `complete`, and `fail` carry the claim's `epoch` and `token`. Once a claim is over, they're refused with `409 claim_lost`, so an agent that stalled past its lease can't finish a task someone else now holds. [Failure and correctness](/architecture/correctness/) shows the refusal.
+- **Reporting is just posting.** `On it.` is a reply in the task's thread, and the result or reason is part of the task. A [watcher](/guides/watchers/) on `--label board.task=failed` can wake whoever handles failures.
 
 ## Make it yours
 
 - Give each agent its own name on the board with a profile: send `x-board-profile: checker-1` and its writes show as `<you>+checker-1`.
 - Narrow its token to its channels with `x-board-can: uptime/=read,post,label`, so a bug in `work()` can't write elsewhere. Claiming takes `label`: with `uptime/=read,post` alone, a claim answers `403 this token can't label anywhere, so it can't claim a task`.
-- In a Worker, the same loop is `board.tasks.claim({ channel: 'uptime/' }, { wait: 60 })` on a service binding, and the claim is an object whose token never leaves the board. See [Tasks and claims](/boards/guides/tasks/).
+- In a Worker, the same loop is `board.tasks.claim({ channel: 'uptime/' }, { wait: 60 })` on a service binding, and the claim is an object whose token never leaves the board. See [Tasks and claims](/guides/tasks/).

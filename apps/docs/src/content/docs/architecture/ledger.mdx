@@ -7,7 +7,7 @@ sidebar:
 
 import WritePath from '../../../components/diagrams/WritePath.astro'
 
-The Ledger is the board. It is one SQLite Durable Object per board, every protocol method is one call to it, and every write is one synchronous transaction that appends to the board's log. This is the heart of [`ledger/ledger.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/ledger.ts), trimmed:
+The Ledger is the board. It is one SQLite Durable Object per board, every protocol method is one call to it, and every write is one synchronous transaction that appends to the board's log. This is the heart of [`ledger/ledger.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/ledger.ts), trimmed:
 
 ```ts title="ledger/ledger.ts"
 /** One protocol method, for a caller the Gateway verified. */
@@ -29,7 +29,7 @@ async call(caller: Caller, method: string, input: unknown, mount?: Mount): Promi
 }
 ```
 
-`this.sql.transaction` is `ctx.storage.transactionSync`. An operation is a plain synchronous function: it reads, decides, writes its rows and its events, and returns a view, or throws a `BoardsError` and writes nothing.
+`this.sql.transaction` is `ctx.storage.transactionSync`. An operation is a plain synchronous function: it reads, decides, writes its rows and its events, and returns a view, or throws a `WorkbusError` and writes nothing.
 
 <WritePath />
 
@@ -41,7 +41,7 @@ An operation never awaits. That is what makes the board simple:
 - **Nothing is answered before it's durable.** The output gate holds the answer, and every ring and delivery the write starts, until the commit is durable. Nobody sees an event that a crash could take back.
 - **A failure writes nothing.** An operation that throws halfway rolls back, rows and events alike.
 
-Operations register themselves by name with `op(name, fn, { read })` in [`ledger/ops.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/ops.ts). A read runs without a transaction. The tests that pin this are in [`test/transactions.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/transactions.test.ts): an operation that throws midway leaves no rows and the head where it was.
+Operations register themselves by name with `op(name, fn, { read })` in [`ledger/ops.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/ops.ts). A read runs without a transaction. The tests that pin this are in [`test/transactions.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/transactions.test.ts): an operation that throws midway leaves no rows and the head where it was.
 
 ## A gapless position: ID and cursor
 
@@ -61,7 +61,7 @@ So one number does three jobs. It orders everything on the board, it names a mes
 
 ## The log and its tables
 
-The log is the `events` table: a row per fact people read, in order. Every other table is what folding the log gives, written in the same transaction as the events that change it ([`ledger/schema.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/schema.ts)):
+The log is the `events` table: a row per fact people read, in order. Every other table is what folding the log gives, written in the same transaction as the events that change it ([`ledger/schema.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/schema.ts)):
 
 | Table | What it holds |
 | --- | --- |
@@ -87,9 +87,9 @@ Labels, mentions, and files go into `terms` as rows keyed by message and root. A
 
 ## Docs: sections, a patch log, and snapshots
 
-A [doc](/boards/guides/docs/) is a thread root whose `messages.text` is its body, up to 512 KiB, plus a row in `docs` ([`ledger/docs.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/docs.ts)). Every read path, permission check, and archival tier that knows a root knows a doc.
+A [doc](/guides/docs/) is a thread root whose `messages.text` is its body, up to 512 KiB, plus a row in `docs` ([`ledger/docs.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/docs.ts)). Every read path, permission check, and archival tier that knows a root knows a doc.
 
-- **Sections.** The body splits into sections at its ATX headings, outside code fences ([`ledger/doctext.ts`](https://github.com/discohead/boards/blob/main/packages/boards/src/ledger/doctext.ts), pure). The `docs` row keeps each section's key, a hash of its text, and two revisions: `changed`, the last edit that changed its own text, and `subtree`, the last that changed it or anything under it. A new version keeps a section's `changed` while its hash is the same, so the conflict check is two comparisons per edited section, in the write's transaction.
+- **Sections.** The body splits into sections at its ATX headings, outside code fences ([`ledger/doctext.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/src/ledger/doctext.ts), pure). The `docs` row keeps each section's key, a hash of its text, and two revisions: `changed`, the last edit that changed its own text, and `subtree`, the last that changed it or anything under it. A new version keeps a section's `changed` while its hash is the same, so the conflict check is two comparisons per edited section, in the write's transaction.
 - **The patch log.** A `doc.edited` event holds only the sections that changed, their new text, and a layout: for each section of the new body, either "the previous version's section with this key" or "change *n*". A one-paragraph fix to an 18 KB doc writes a few hundred bytes. A plain `message.edited` stores the whole text in its payload and in both facets, three times.
 - **Snapshots.** A hidden `doc.snapshot` event holds the whole body after the doc's creation, every 64 edits, and after an edit whose changed sections pass 65,536 characters (which then keeps only their keys). `doc_versions` maps each edit and snapshot to its `seq`, so the body at revision *r* is the latest snapshot at or before *r* plus at most 63 patches replayed. That is what `?revision=`, diffs, and a merge's base read.
 - **Facets.** A doc's events carry a facet of its title and the headings of the sections that changed, with the mentions in the changed text, not the body. A tail on `docs/` sees every change, and `--text Rollback` matches an edit to a section titled Rollback.
@@ -113,7 +113,7 @@ POST /messages {"channel":"deploys","id":"nightly-2026-11-20","text":"something 
 409 {"error":{"code":"duplicate_id","message":"that id was already used for a different write"}}
 ```
 
-The [deploy notifier](/boards/examples/deploy-notifier/) leans on this: CI can call it twice for one deploy, and the thread and its reply each land once.
+The [deploy notifier](/examples/deploy-notifier/) leans on this: CI can call it twice for one deploy, and the thread and its reply each land once.
 
 ## One alarm for every timer
 
@@ -123,16 +123,16 @@ A Durable Object has one alarm. The Ledger keeps every timer as a row in `timers
 | --- | --- |
 | `lease` | ends a claim whose lease ran out: `task.expired`, and the task is ready again at a new epoch |
 | `send` | posts a scheduled message, and arms the next one if it repeats |
-| `archive` | runs a bounded step of [archival](/boards/architecture/archival/), which reads and writes R2 |
+| `archive` | runs a bounded step of [archival](/architecture/archival/), which reads and writes R2 |
 
-When the alarm fires, it runs every due timer, 25 at a time, each in its own transaction as the board itself. A timer that throws writes nothing and is tried again a minute later, without holding up the rest. The `archive` timer awaits R2, so it runs outside a transaction and commits each step only after its R2 writes are confirmed. [`test/timers.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/timers.test.ts) checks that one alarm runs many leases and a schedule, all due at once.
+When the alarm fires, it runs every due timer, 25 at a time, each in its own transaction as the board itself. A timer that throws writes nothing and is tried again a minute later, without holding up the rest. The `archive` timer awaits R2, so it runs outside a transaction and commits each step only after its R2 writes are confirmed. [`test/timers.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/timers.test.ts) checks that one alarm runs many leases and a schedule, all due at once.
 
 ## After the commit: rings and dispatch
 
 What a write starts runs after it commits, in `settle()`:
 
 1. **Arm** the alarm for the next due timer.
-2. **Ring** every Relay attached to this board with the new head, at most once every 10 ms. See [Relays](/boards/architecture/relays-and-mailboxes/).
+2. **Ring** every Relay attached to this board with the new head, at most once every 10 ms. See [Relays](/architecture/relays-and-mailboxes/).
 3. **Dispatch** new events to each config watcher's Mailbox and each sync's courier.
 
 Dispatch reads from an **outbox cursor**: a row in `outbox (destination, seq)` for each watcher, the last position it has handed on. It reads up to 100 events past the cursor, matches each against the watcher's tail, enqueues the matches to the watcher's Mailbox, and only then moves the cursor. A match's ID is `<watcher>:<seq>`, and a Mailbox keeps each ID once, so handing the same events over twice delivers them once.

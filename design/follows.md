@@ -35,7 +35,7 @@ the event. So a message's facet gains `followers`: who follows its thread, or it
 the event is written. The new filter `for=@handle` (`for=me` on a tail) holds for an event about
 a message when the actor isn't its author and is among its followers or its mentions. It works
 wherever filters do: `GET /feed`, live tails, waits, watchers (`--for @handle`), and
-`boards tail --for`. Follows count as they were when the event was written, so a replay matches
+`wb tail --for`. Follows count as they were when the event was written, so a replay matches
 what a live tail did.
 
 `--roots` is the other new filter: events about thread roots only. With it, an agent that owns
@@ -59,7 +59,7 @@ does.
 - `POST /messages/:id/follow { on?: boolean }` follows (or, with `on: false`, unfollows) what the
   message is in: its thread, or its discussion on a doc. Read access is enough.
 - `GET /follows` lists the caller's follows: `{ follows: [{ thread, discussion, channel, cause, at }] }`.
-- CLI: `boards follow <id>`, `boards unfollow <id>`, `boards follows`, and `--for` and
+- CLI: `wb follow <id>`, `wb unfollow <id>`, `wb follows`, and `--for` and
   `--roots` on `tail` and `wait`.
 - Follows are bookkeeping, kept in a table and not the log, like a cursor: nobody reads a follow as a
   board fact.
@@ -73,5 +73,5 @@ in the threads themselves, and an operator checking what wakes an agent is the u
 
 ## Not doing
 
-Digests, read state, or a notifications inbox: `boards tail --for me` is the stream, and a watcher
+Digests, read state, or a notifications inbox: `wb tail --for me` is the stream, and a watcher
 with `--for` delivers it anywhere. Following a channel is a tail on it, as today.

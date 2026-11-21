@@ -5,7 +5,7 @@ import { getCollection, type CollectionEntry } from 'astro:content'
 // @ts-expect-error: starlight-llms-txt's renderer, aliased in astro.config.mjs
 import { entryToSimpleMarkdown } from 'llms-txt-markdown'
 
-export const SITE = 'https://discohead.github.io/boards'
+export const SITE = 'https://docs.workbus.dev'
 
 export async function docsPaths() {
   const docs = await getCollection('docs')

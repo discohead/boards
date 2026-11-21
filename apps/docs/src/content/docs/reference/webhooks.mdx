@@ -5,12 +5,12 @@ sidebar:
   order: 7
 ---
 
-Each of the board's own syncs takes its platform's webhooks at `POST /b/<board>/webhooks/<key>`, where `<key>` is the sync's key in [`defineBoards`](/boards/reference/configuration/#sync). The route needs no bearer token: its provider verifies the platform's signature instead. A delivery the provider accepts is kept in that sync's Inbox, a Durable Object, before the platform hears 200, so nothing it was told is lost.
+Each of the board's own syncs takes its platform's webhooks at `POST /b/<board>/webhooks/<key>`, where `<key>` is the sync's key in [`defineWorkbus`](/reference/configuration/#sync). The route needs no bearer token: its provider verifies the platform's signature instead. A delivery the provider accepts is kept in that sync's Inbox, a Durable Object, before the platform hears 200, so nothing it was told is lost.
 
 ```js title="worker.js"
-import { defineBoards, githubProvider, linearProvider, slackProvider } from 'boards'
+import { defineWorkbus, githubProvider, linearProvider, slackProvider } from 'workbus'
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus((env) => ({
   sync: {
     github: githubProvider({ webhookSecret: env.GITHUB_WEBHOOK_SECRET, repos: { 'acme/web': 'eng/web' } }),
     slack: slackProvider({ signingSecret: env.SLACK_SIGNING_SECRET, channels: { C0123456789: 'support' } }),
@@ -21,7 +21,7 @@ export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = 
 export default { fetch: (request, env) => gateway(request, env) }
 ```
 
-With that Worker under `wrangler dev` (the bindings of [Configuration](/boards/reference/configuration/#bindings), and the three secrets in `.dev.vars`), requests signed as each platform signs them get these answers:
+With that Worker under `wrangler dev` (the bindings of [Configuration](/reference/configuration/#bindings), and the three secrets in `.dev.vars`), requests signed as each platform signs them get these answers:
 
 ```
 $ node hooks.mjs http://127.0.0.1:18831/b/acme
@@ -88,7 +88,7 @@ The signed issue became a thread in `eng/web`, written by the platform user:
 Each event is kept under the platform's own delivery ID, so a platform's retry of the same delivery is kept once. The Inbox imports each platform thread's events in order, 5 tries each with backoff; an event that fails all 5 is recorded `failed` and its thread goes on. `GET /inbox/<key>` shows what it holds, raw payloads included, and `POST /inbox/<key>/replay` (manage everywhere) gives failed events 5 fresh tries:
 
 ```
-$ curl -s "$BOARDS_URL/inbox/github/replay" -H "authorization: Bearer $BOARDS_TOKEN" -H 'content-type: application/json' -d '{}'
+$ curl -s "$WORKBUS_URL/inbox/github/replay" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{}'
 {"replayed":0}
 ```
 
@@ -119,7 +119,7 @@ $ curl -s "$BOARDS_URL/inbox/github/replay" -H "authorization: Bearer $BOARDS_TO
 
 ## Notion
 
-`POST /b/<board>/webhooks/<key>`, usually key `notion`. Make a webhook subscription on the integration (API version `2026-03-11`) with this URL, for Page content updated, Page properties updated, and Page created. [Sync with Notion](/boards/guides/sync-notion/#set-it-up) walks through it.
+`POST /b/<board>/webhooks/<key>`, usually key `notion`. Make a webhook subscription on the integration (API version `2026-03-11`) with this URL, for Page content updated, Page properties updated, and Page created. [Sync with Notion](/guides/sync-notion/#set-it-up) walks through it.
 
 - **Verification:** a new subscription's first request carries `verification_token` and no `type`. The board answers it 200 and writes the token to the Worker's logs, for the subscription's Verify dialog and for `webhookSecret`. Until `webhookSecret` is set, every other delivery is a 401, `no webhook secret is set for this sync yet`.
 - **Verifies** `X-Notion-Signature`: `sha256=` and the hex HMAC-SHA256 of the raw body under `webhookSecret`, compared in constant time. Otherwise 401, `not signed by this subscription`. A body that isn't JSON is a 400.
@@ -128,11 +128,11 @@ $ curl -s "$BOARDS_URL/inbox/github/replay" -H "authorization: Bearer $BOARDS_TO
 
 ## Your own sync
 
-A provider is any object with the `SyncProvider` interface (`import type { SyncProvider } from 'boards'`): `receive(request, { key })` verifies and normalizes a webhook and answers `{ events, response? }`, where a `response` (a 401, a challenge) replaces the usual one. `import` turns each kept event into board imports, and `post`, `edit`, `delete`, `react`, and `startTyping` copy board writes back. A provider that keeps docs adds `docTarget(path, key)`, which names the target a doc at that path attaches to (or null), and `doc(input, { key, call })`, which writes a doc's whole body to the platform when it is created, edited, or moved. A provider that keeps a synced root's labels or task adds `labels({ targets, root, set, unset }, { key, call })`, called when the root's labels change on the board, and `task({ targets, root }, { key, call })`, called when its task changes state; `root` is the root as it is now, with its `labels` and `task`. The sync's own label writes carry its key, so they don't come back to it. GitHub Projects uses both. Throw `SyncRetry` to try again later or `SyncRefused` to record a failure now. The providers in [`src/sync`](https://github.com/discohead/boards/tree/main/packages/boards/src/sync) are working examples.
+A provider is any object with the `SyncProvider` interface (`import type { SyncProvider } from 'workbus'`): `receive(request, { key })` verifies and normalizes a webhook and answers `{ events, response? }`, where a `response` (a 401, a challenge) replaces the usual one. `import` turns each kept event into board imports, and `post`, `edit`, `delete`, `react`, and `startTyping` copy board writes back. A provider that keeps docs adds `docTarget(path, key)`, which names the target a doc at that path attaches to (or null), and `doc(input, { key, call })`, which writes a doc's whole body to the platform when it is created, edited, or moved. A provider that keeps a synced root's labels or task adds `labels({ targets, root, set, unset }, { key, call })`, called when the root's labels change on the board, and `task({ targets, root }, { key, call })`, called when its task changes state; `root` is the root as it is now, with its `labels` and `task`. The sync's own label writes carry its key, so they don't come back to it. GitHub Projects uses both. Throw `SyncRetry` to try again later or `SyncRefused` to record a failure now. The providers in [`src/sync`](https://github.com/workbus-dev/workbus/tree/main/packages/workbus/src/sync) are working examples.
 
 ## Verified by
 
-`node --test test/sync/providers.node-test.ts` in `packages/boards` checks each verification, including stale and wrong-secret deliveries, and the mapping of each platform's events:
+`node --test test/sync/providers.node-test.ts` in `packages/workbus` checks each verification, including stale and wrong-secret deliveries, and the mapping of each platform's events:
 
 ```
 ✔ slack: a request signed with the secret, now, is verified (12.75475ms)

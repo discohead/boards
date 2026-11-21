@@ -10,12 +10,12 @@ import { Steps } from '@astrojs/starlight/components'
 Slack sync maps a Slack channel to a board channel. Each message posted there is a thread on the board and its thread replies are replies; edits, deletes, and reactions follow. What's written on the board in those threads goes back to Slack as the bot, in the same Slack thread.
 
 ```ts title="src/worker.ts"
-import { defineBoards, slackProvider, type Secret } from 'boards'
-import type { GatewayEnv } from 'boards/gateway/gateway.ts'
+import { defineWorkbus, slackProvider, type Secret } from 'workbus'
+import type { GatewayEnv } from 'workbus/gateway/gateway.ts'
 
 type Env = GatewayEnv & { MAILBOX: DurableObjectNamespace; SLACK_SIGNING_SECRET: Secret; SLACK_BOT_TOKEN: Secret; SLACK_BOT_USER_ID: string }
 
-export const { Ledger, Relay, Mailbox, Inbox, Boards, BoardSession, gateway } = defineBoards<Env>((env) => ({
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus<Env>((env) => ({
   sync: {
     slack: slackProvider({
       signingSecret: env.SLACK_SIGNING_SECRET,
@@ -62,8 +62,8 @@ A Slack thread, as it lands on the board (from the [provider check](#check-it-lo
 
    ```json title="manifest.json"
    {
-     "display_information": { "name": "Boards sync" },
-     "features": { "bot_user": { "display_name": "boards", "always_online": true } },
+     "display_information": { "name": "Workbus sync" },
+     "features": { "bot_user": { "display_name": "workbus", "always_online": true } },
      "oauth_config": {
        "scopes": {
          "bot": ["chat:write", "channels:history", "groups:history", "reactions:read", "reactions:write", "users:read"]
@@ -100,12 +100,12 @@ A Slack thread, as it lands on the board (from the [provider check](#check-it-lo
 
    Plain Worker secrets (`wrangler secret put SLACK_SIGNING_SECRET`) work as well: the provider reads either.
 
-4. **Deploy, then turn on events.** `npx wrangler deploy`. Then, on the app's **Event Subscriptions** page, turn events on with your board's webhook route as the request URL, `https://<your worker>/b/<board>/webhooks/slack`. Slack shows **Verified** once the board answers its challenge, signed with the secret from step 3. Subscribe to the bot events `message.channels`, `message.groups`, `reaction_added`, and `reaction_removed`, and save; reinstall the app if Slack asks. Post in the channel, and `boards tail slack/general`.
+4. **Deploy, then turn on events.** `npx wrangler deploy`. Then, on the app's **Event Subscriptions** page, turn events on with your board's webhook route as the request URL, `https://<your worker>/b/<board>/webhooks/slack`. Slack shows **Verified** once the board answers its challenge, signed with the secret from step 3. Subscribe to the bot events `message.channels`, `message.groups`, `reaction_added`, and `reaction_removed`, and save; reinstall the app if Slack asks. Post in the channel, and `wb tail slack/general`.
 
 </Steps>
 
 :::tip[Verified live]
-These steps were run against a real Slack workspace: a post, a thread reply, its edit, a reaction, and a delete each landed on the board once, and a board reply, its edit, and a reaction each reached Slack. See [Status](/boards/project/status/).
+These steps were run against a real Slack workspace: a post, a thread reply, its edit, a reaction, and a delete each landed on the board once, and a board reply, its edit, and a reaction each reached Slack. See [Status](/project/status/).
 :::
 
 ## What comes in
@@ -143,7 +143,7 @@ Slack sends the bot's own message back as an event, sometimes before `chat.postM
 
 ## Check it locally
 
-`test/providers-worker` is a Worker with Slack and Linear as its own syncs, credentials in a local Secrets Store, and each platform's API pointed at a mock. `check.mjs` signs every request as Slack and Linear sign them, sends each delivery twice, and reads the board back. From `packages/boards` (the values are test values; the check is told the same ones):
+`test/providers-worker` is a Worker with Slack and Linear as its own syncs, credentials in a local Secrets Store, and each platform's API pointed at a mock. `check.mjs` signs every request as Slack and Linear sign them, sends each delivery twice, and reads the board back. From `packages/workbus` (the values are test values; the check is told the same ones):
 
 ```bash
 cd test/providers-worker
@@ -154,7 +154,7 @@ npx wrangler dev --port 8813 --ip 127.0.0.1 --persist-to /tmp/providers-state --
 ```
 
 ```bash
-# in packages/boards, in a second terminal
+# in packages/workbus, in a second terminal
 SLACK_SIGNING_SECRET=slack-test-secret SLACK_BOT_TOKEN=xoxb-test \
   LINEAR_WEBHOOK_SECRET=lin-test-secret LINEAR_API_KEY=lin_api_test \
   node test/providers-worker/check.mjs
@@ -186,4 +186,4 @@ Against a real workspace, with the credentials in the account's Secrets Store, a
 
 ## How it works
 
-Slack's request goes to the sync's Inbox, which keeps each event under Slack's event ID before Slack hears 200, so Slack's retries do nothing. The Inbox imports one Slack thread at a time, in order, with 5 tries each, and a failed event can be [replayed](/boards/guides/deploy-and-operate/#replay-a-sync-inbox). The courier copies board writes back in each thread's order. See [Sync: Inbox and courier](/boards/architecture/sync/).
+Slack's request goes to the sync's Inbox, which keeps each event under Slack's event ID before Slack hears 200, so Slack's retries do nothing. The Inbox imports one Slack thread at a time, in order, with 5 tries each, and a failed event can be [replayed](/guides/deploy-and-operate/#replay-a-sync-inbox). The courier copies board writes back in each thread's order. See [Sync: Inbox and courier](/architecture/sync/).

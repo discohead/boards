@@ -64,14 +64,14 @@ Each guarantee has a test that breaks when the code that keeps it does. The work
 
 | Test file | What it pins |
 | --- | --- |
-| [`transactions.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/transactions.test.ts) | an operation that throws leaves no rows; `seq` stays gapless across a failed write |
-| [`idempotency.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/idempotency.test.ts) | a client ID posted twice, or concurrently, lands once; racing replies with `after` have one winner |
-| [`timers.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/timers.test.ts) | one alarm runs many timers; a lease ends a claim; a renewed lease isn't ended early; a timer that throws doesn't spin |
-| [`held.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/held.test.ts) | a long-poll and a waiting claim wake on the Relay's ring |
-| [`watchers.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/watchers.test.ts) | each match once, in order per thread; a failing sink is retried while other threads go on |
-| [`sync-inbox.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/sync-inbox.test.ts) | kept before 200; a retried webhook does nothing; 5 tries then failed; replay |
-| [`courier.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/courier.test.ts) | each reply posted once; the receipt guards a retry; the echo isn't imported; `sync_failed` after 5 |
-| [`auth.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/auth.test.ts) | a bad token is 401 before the Ledger; narrowing holds however a call arrives |
-| [`overload.test.ts`](https://github.com/discohead/boards/blob/main/packages/boards/test/overload.test.ts) | an overloaded board is a 503 with `Retry-After`, not a 500 |
+| [`transactions.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/transactions.test.ts) | an operation that throws leaves no rows; `seq` stays gapless across a failed write |
+| [`idempotency.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/idempotency.test.ts) | a client ID posted twice, or concurrently, lands once; racing replies with `after` have one winner |
+| [`timers.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/timers.test.ts) | one alarm runs many timers; a lease ends a claim; a renewed lease isn't ended early; a timer that throws doesn't spin |
+| [`held.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/held.test.ts) | a long-poll and a waiting claim wake on the Relay's ring |
+| [`watchers.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/watchers.test.ts) | each match once, in order per thread; a failing sink is retried while other threads go on |
+| [`sync-inbox.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/sync-inbox.test.ts) | kept before 200; a retried webhook does nothing; 5 tries then failed; replay |
+| [`courier.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/courier.test.ts) | each reply posted once; the receipt guards a retry; the echo isn't imported; `sync_failed` after 5 |
+| [`auth.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/auth.test.ts) | a bad token is 401 before the Ledger; narrowing holds however a call arrives |
+| [`overload.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/overload.test.ts) | an overloaded board is a 503 with `Retry-After`, not a 500 |
 
-The protocol's conformance kit checks the board from outside, and `scripts/archive-check.mjs` checks that archival changes no answer. [Status](/boards/project/status/) lists every check and its last result.
+The protocol's conformance kit checks the board from outside, and `scripts/archive-check.mjs` checks that archival changes no answer. [Status](/project/status/) lists every check and its last result.

@@ -5,9 +5,9 @@ sidebar:
   order: 8
 ---
 
-Every limit a board enforces, from its route schemas and the constants in [`packages/boards/src`](https://github.com/discohead/boards/tree/main/packages/boards/src). A request over a limit is refused before anything is written, most as 400 `invalid_request` with the field named; [Errors](/boards/reference/errors/) lists the codes.
+Every limit a board enforces, from its route schemas and the constants in [`packages/workbus/src`](https://github.com/workbus-dev/workbus/tree/main/packages/workbus/src). A request over a limit is refused before anything is written, most as 400 `invalid_request` with the field named; [Errors](/reference/errors/) lists the codes.
 
-## Boards and channels
+## Workbus and channels
 
 | What | Limit |
 | --- | --- |
@@ -143,4 +143,4 @@ Every limit a board enforces, from its route schemas and the constants in [`pack
 
 ## Throughput
 
-One board is one Durable Object, so its writes are serial. Measured against a live deployment, one board lands about 350 to 590 posts a second; past that the platform queues, then refuses, and the board answers 503 `overloaded` with `Retry-After: 1`. Claims stay exactly-one-winner under 100 contenders, and a post reaches 300 live tails in about half a second. [Performance](/boards/architecture/performance/) has the benchmark.
+One board is one Durable Object, so its writes are serial. Measured against a live deployment, one board lands about 350 to 590 posts a second; past that the platform queues, then refuses, and the board answers 503 `overloaded` with `Retry-After: 1`. Claims stay exactly-one-winner under 100 contenders, and a post reaches 300 live tails in about half a second. [Performance](/architecture/performance/) has the benchmark.

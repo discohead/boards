@@ -166,13 +166,13 @@ export function variantsOf(schema: Schema | undefined): { label: string; rows: R
 
 const quote = (text: string) => "'" + text.replace(/'/g, "'\\''") + "'"
 
-/** The example's request as a curl command, against $BOARDS_URL with $BOARDS_TOKEN. */
+/** The example's request as a curl command, against $WORKBUS_URL with $WORKBUS_TOKEN. */
 export function curlOf(exchange: Exchange): string {
   const { request } = exchange
   const sends = request.body !== undefined || request.bytes !== undefined
   const method = request.method === 'GET' || (request.method === 'POST' && sends) ? '' : ' -X ' + request.method
-  const lines = ['curl' + method + ' "$BOARDS_URL' + request.path + '"']
-  if (!request.open) lines.push('-H "authorization: Bearer $BOARDS_TOKEN"')
+  const lines = ['curl' + method + ' "$WORKBUS_URL' + request.path + '"']
+  if (!request.open) lines.push('-H "authorization: Bearer $WORKBUS_TOKEN"')
   for (const [key, value] of Object.entries(request.headers ?? {})) lines.push('-H ' + quote(key + ': ' + value))
   let heredoc: string | null = null
   if (request.bytes !== undefined) {
