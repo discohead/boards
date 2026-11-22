@@ -147,8 +147,8 @@
           "status": 200,
           "response": {
             "version": "0.1.0",
-            "url": "https://workbus.example.com/b/openapi-mwr4ccwn",
-            "audience": "https://workbus.example.com/b/openapi-mwr4ccwn",
+            "url": "https://workbus.example.com/b/acme",
+            "audience": "https://workbus.example.com/b/acme",
             "team_id": null,
             "project_id": null,
             "sync": []
@@ -733,7 +733,7 @@
             "name": "jared",
             "avatar": null,
             "profile": null,
-            "expiresAt": "2026-11-22T12:48:46.000Z",
+            "expiresAt": "2026-11-22T12:54:17.000Z",
             "can": {
               "*": [
                 "read",
@@ -1047,7 +1047,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.067Z",
+                "createdAt": "2026-11-22T00:54:18.153Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1074,7 +1074,7 @@
                 "text": "",
                 "re": null,
                 "replyTo": null,
-                "thread": "351fb556-647b-408f-8938-7270e78015c6",
+                "thread": "ec65bb0e-5ac3-4eef-b0e6-09e6e4d16e62",
                 "labels": {},
                 "reactions": {},
                 "by": {
@@ -1085,7 +1085,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.081Z",
+                "createdAt": "2026-11-22T00:54:18.168Z",
                 "editedAt": null,
                 "deleted": true,
                 "undelivered": {},
@@ -1284,7 +1284,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.061Z",
+              "createdAt": "2026-11-22T00:54:18.148Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -1415,8 +1415,8 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.061Z",
-              "editedAt": "2026-11-22T00:48:47.072Z",
+              "createdAt": "2026-11-22T00:54:18.148Z",
+              "editedAt": "2026-11-22T00:54:18.159Z",
               "deleted": false,
               "undelivered": {},
               "attachments": [],
@@ -1450,7 +1450,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.067Z",
+                "createdAt": "2026-11-22T00:54:18.153Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1679,8 +1679,8 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.061Z",
-                  "editedAt": "2026-11-22T00:48:47.072Z",
+                  "createdAt": "2026-11-22T00:54:18.148Z",
+                  "editedAt": "2026-11-22T00:54:18.159Z",
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
@@ -1714,7 +1714,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.067Z",
+                  "createdAt": "2026-11-22T00:54:18.153Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -1807,7 +1807,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.061Z",
+              "createdAt": "2026-11-22T00:54:18.148Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -2439,10 +2439,10 @@
               {
                 "cursor": "10",
                 "type": "message.deleted",
-                "createdAt": "2026-11-22T00:48:47.083Z",
+                "createdAt": "2026-11-22T00:54:18.171Z",
                 "payload": {
                   "id": "9",
-                  "thread": "351fb556-647b-408f-8938-7270e78015c6",
+                  "thread": "ec65bb0e-5ac3-4eef-b0e6-09e6e4d16e62",
                   "by": {
                     "actor": "workbus:user:jared",
                     "principal": "workbus:user:jared",
@@ -2456,7 +2456,7 @@
                   "text": "",
                   "re": null,
                   "replyTo": null,
-                  "thread": "351fb556-647b-408f-8938-7270e78015c6",
+                  "thread": "ec65bb0e-5ac3-4eef-b0e6-09e6e4d16e62",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2467,7 +2467,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.081Z",
+                  "createdAt": "2026-11-22T00:54:18.168Z",
                   "editedAt": null,
                   "deleted": true,
                   "undelivered": {},
@@ -2496,13 +2496,13 @@
               {
                 "cursor": "11",
                 "type": "message.posted",
-                "createdAt": "2026-11-22T00:48:47.098Z",
+                "createdAt": "2026-11-22T00:54:18.191Z",
                 "payload": {
                   "channel": "deploys",
                   "text": "v42 needs a changelog entry, @[workbus:user:jared]",
                   "re": null,
                   "replyTo": null,
-                  "thread": "889c7fbb-99ce-4ce3-a742-1c8e2f2ed442",
+                  "thread": "fffb324f-78c7-4079-a51c-af9118e993ac",
                   "labels": {},
                   "noSync": false,
                   "by": {
@@ -2519,7 +2519,7 @@
                   "text": "v42 needs a changelog entry, @[workbus:user:jared]",
                   "re": null,
                   "replyTo": null,
-                  "thread": "889c7fbb-99ce-4ce3-a742-1c8e2f2ed442",
+                  "thread": "fffb324f-78c7-4079-a51c-af9118e993ac",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2530,7 +2530,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.098Z",
+                  "createdAt": "2026-11-22T00:54:18.191Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -2733,7 +2733,7 @@
                   "text": "rotate the staging keys",
                   "re": null,
                   "replyTo": null,
-                  "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+                  "thread": "813e96c0-6721-4be3-9572-4143f2148525",
                   "labels": {
                     "area": "infra",
                     "board.task": "ready"
@@ -2747,7 +2747,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.108Z",
+                  "createdAt": "2026-11-22T00:54:18.201Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -2786,7 +2786,7 @@
                   "text": "build v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+                  "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
                   "labels": {
                     "board.task": "ready"
                   },
@@ -2799,7 +2799,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.112Z",
+                  "createdAt": "2026-11-22T00:54:18.206Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -2838,7 +2838,7 @@
                   "text": "ship v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "be9e12ac-4289-4dd6-a7d8-db22e324a3ce",
+                  "thread": "3f5b0adc-e5ba-4428-adfc-45bdb02af283",
                   "labels": {
                     "board.task": "waiting"
                   },
@@ -2851,7 +2851,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-22T00:48:47.112Z",
+                  "createdAt": "2026-11-22T00:54:18.206Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -3030,7 +3030,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+              "thread": "813e96c0-6721-4be3-9572-4143f2148525",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -3044,7 +3044,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.108Z",
+              "createdAt": "2026-11-22T00:54:18.201Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3246,7 +3246,7 @@
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+                "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3259,7 +3259,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.112Z",
+                "createdAt": "2026-11-22T00:54:18.206Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3294,7 +3294,7 @@
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "be9e12ac-4289-4dd6-a7d8-db22e324a3ce",
+                "thread": "3f5b0adc-e5ba-4428-adfc-45bdb02af283",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3307,7 +3307,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.112Z",
+                "createdAt": "2026-11-22T00:54:18.206Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3405,7 +3405,7 @@
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+                "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3418,7 +3418,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.112Z",
+                "createdAt": "2026-11-22T00:54:18.206Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3453,7 +3453,7 @@
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "be9e12ac-4289-4dd6-a7d8-db22e324a3ce",
+                "thread": "3f5b0adc-e5ba-4428-adfc-45bdb02af283",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3466,7 +3466,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-22T00:48:47.112Z",
+                "createdAt": "2026-11-22T00:54:18.206Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -3602,7 +3602,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+              "thread": "813e96c0-6721-4be3-9572-4143f2148525",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3616,7 +3616,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.108Z",
+              "createdAt": "2026-11-22T00:54:18.201Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3641,7 +3641,7 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-22T01:03:47.120Z"
+                  "until": "2026-11-22T01:09:18.218Z"
                 },
                 "blocked": null,
                 "result": null,
@@ -3650,8 +3650,8 @@
             },
             "claim": {
               "epoch": 1,
-              "token": "4O3AZmTrEt0Vfv4-sCuURHXF385b4n1kgBOrvlu_XJ4",
-              "until": "2026-11-22T01:03:47.120Z"
+              "token": "LabGw4B6npqTAxf4JIz5DphTrKNvIMF-clyGo9g69H4",
+              "until": "2026-11-22T01:09:18.218Z"
             }
           }
         }
@@ -3733,7 +3733,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+              "thread": "813e96c0-6721-4be3-9572-4143f2148525",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3747,7 +3747,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.108Z",
+              "createdAt": "2026-11-22T00:54:18.201Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3772,7 +3772,7 @@
                 "epoch": 2,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-22T00:58:47.129Z"
+                  "until": "2026-11-22T01:04:18.227Z"
                 },
                 "blocked": null,
                 "result": null,
@@ -3781,8 +3781,8 @@
             },
             "claim": {
               "epoch": 2,
-              "token": "FYhXzGrg-ClQUpNP2wKn7tk355iqJRBcKvaiE4pBytA",
-              "until": "2026-11-22T00:58:47.129Z"
+              "token": "9OfI-7kAp9jZPUChz5c3dBO-FHRTwtRkdZ8gBn9VUsk",
+              "until": "2026-11-22T01:04:18.227Z"
             }
           }
         }
@@ -3864,7 +3864,7 @@
             },
             "body": {
               "epoch": 1,
-              "token": "4O3AZmTrEt0Vfv4-sCuURHXF385b4n1kgBOrvlu_XJ4",
+              "token": "LabGw4B6npqTAxf4JIz5DphTrKNvIMF-clyGo9g69H4",
               "lease": 1800
             }
           },
@@ -3876,7 +3876,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+              "thread": "813e96c0-6721-4be3-9572-4143f2148525",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3890,7 +3890,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.108Z",
+              "createdAt": "2026-11-22T00:54:18.201Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -3915,14 +3915,14 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-22T01:18:47.124Z"
+                  "until": "2026-11-22T01:24:18.222Z"
                 },
                 "blocked": null,
                 "result": null,
                 "reason": null
               }
             },
-            "until": "2026-11-22T01:18:47.124Z"
+            "until": "2026-11-22T01:24:18.222Z"
           }
         }
       }
@@ -4000,7 +4000,7 @@
             },
             "body": {
               "epoch": 1,
-              "token": "4O3AZmTrEt0Vfv4-sCuURHXF385b4n1kgBOrvlu_XJ4"
+              "token": "LabGw4B6npqTAxf4JIz5DphTrKNvIMF-clyGo9g69H4"
             }
           },
           "status": 200,
@@ -4011,7 +4011,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+              "thread": "813e96c0-6721-4be3-9572-4143f2148525",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -4025,7 +4025,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.108Z",
+              "createdAt": "2026-11-22T00:54:18.201Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4144,7 +4144,7 @@
             },
             "body": {
               "epoch": 2,
-              "token": "FYhXzGrg-ClQUpNP2wKn7tk355iqJRBcKvaiE4pBytA",
+              "token": "9OfI-7kAp9jZPUChz5c3dBO-FHRTwtRkdZ8gBn9VUsk",
               "result": "rotated; the old keys are revoked"
             }
           },
@@ -4156,7 +4156,7 @@
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "087624c5-58b8-4653-9d4f-6dbb1e4301da",
+              "thread": "813e96c0-6721-4be3-9572-4143f2148525",
               "labels": {
                 "area": "infra",
                 "board.task": "completed"
@@ -4170,7 +4170,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.108Z",
+              "createdAt": "2026-11-22T00:54:18.201Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4210,7 +4210,7 @@
             },
             "body": {
               "epoch": 2,
-              "token": "FYhXzGrg-ClQUpNP2wKn7tk355iqJRBcKvaiE4pBytA"
+              "token": "9OfI-7kAp9jZPUChz5c3dBO-FHRTwtRkdZ8gBn9VUsk"
             }
           },
           "status": 409,
@@ -4300,7 +4300,7 @@
             },
             "body": {
               "epoch": 1,
-              "token": "1lBJzFk5FO6IYRFwc_h9sEhNZFR7Tl7UqQqMbYyR658",
+              "token": "UDRJ-F9jKswJnPjN0towaK5iWlfsgGsGwSSGGr94RFg",
               "reason": "the build ran out of disk"
             }
           },
@@ -4312,7 +4312,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+              "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
               "labels": {
                 "board.task": "failed"
               },
@@ -4325,7 +4325,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4452,7 +4452,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+              "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
               "labels": {
                 "board.task": "blocked"
               },
@@ -4465,7 +4465,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4556,7 +4556,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+              "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
               "labels": {
                 "board.task": "ready"
               },
@@ -4569,7 +4569,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4657,7 +4657,7 @@
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "0a2b9343-0f5a-4259-ad98-af6265a03bb0",
+              "thread": "e7334fb0-e181-4aac-8a12-9759a5a27f54",
               "labels": {
                 "board.task": "ready"
               },
@@ -4670,7 +4670,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4787,7 +4787,7 @@
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "be9e12ac-4289-4dd6-a7d8-db22e324a3ce",
+              "thread": "3f5b0adc-e5ba-4428-adfc-45bdb02af283",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4800,7 +4800,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -4917,7 +4917,7 @@
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "be9e12ac-4289-4dd6-a7d8-db22e324a3ce",
+              "thread": "3f5b0adc-e5ba-4428-adfc-45bdb02af283",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4930,7 +4930,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -5040,7 +5040,7 @@
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "be9e12ac-4289-4dd6-a7d8-db22e324a3ce",
+              "thread": "3f5b0adc-e5ba-4428-adfc-45bdb02af283",
               "labels": {
                 "board.task": "canceled"
               },
@@ -5053,7 +5053,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.112Z",
+              "createdAt": "2026-11-22T00:54:18.206Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -5550,7 +5550,7 @@
               },
               "capped": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-22T00:48:47.208Z"
+              "at": "2026-11-22T00:54:18.306Z"
             }
           }
         }
@@ -5952,7 +5952,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-22T00:48:47.214Z"
+                "at": "2026-11-22T00:54:18.314Z"
               },
               {
                 "id": "g6",
@@ -5968,7 +5968,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-22T00:48:47.214Z"
+                "at": "2026-11-22T00:54:18.314Z"
               }
             ]
           }
@@ -6605,7 +6605,7 @@
               },
               "capped": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-22T00:48:47.210Z"
+              "at": "2026-11-22T00:54:18.309Z"
             }
           }
         }
@@ -6876,7 +6876,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-22T00:48:47.210Z"
+                "at": "2026-11-22T00:54:18.309Z"
               }
             ],
             "capped": null,
@@ -7106,7 +7106,7 @@
               },
               "builtIn": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-22T00:48:47.224Z"
+              "at": "2026-11-22T00:54:18.323Z"
             },
             "created": true
           }
@@ -7179,7 +7179,7 @@
               },
               "builtIn": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-22T00:48:47.224Z"
+              "at": "2026-11-22T00:54:18.323Z"
             }
           }
         }
@@ -7320,12 +7320,12 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-23T00:48:47.189Z",
+              "first": "2026-11-23T00:54:18.282Z",
               "every": 86400000,
               "until": null,
               "times": 5,
               "sent": 0,
-              "next": "2026-11-23T00:48:47.189Z",
+              "next": "2026-11-23T00:54:18.282Z",
               "last": null,
               "state": "pending",
               "canceled": null,
@@ -7340,7 +7340,7 @@
                 "name": "jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-22T00:48:47.189Z"
+              "createdAt": "2026-11-22T00:54:18.282Z"
             }
           }
         }
@@ -7430,12 +7430,12 @@
                 "labels": {},
                 "noSync": false,
                 "attachments": [],
-                "first": "2026-11-23T00:48:47.189Z",
+                "first": "2026-11-23T00:54:18.282Z",
                 "every": 86400000,
                 "until": null,
                 "times": 5,
                 "sent": 0,
-                "next": "2026-11-23T00:48:47.189Z",
+                "next": "2026-11-23T00:54:18.282Z",
                 "last": null,
                 "state": "pending",
                 "canceled": null,
@@ -7450,7 +7450,7 @@
                   "name": "jared",
                   "avatar": null
                 },
-                "createdAt": "2026-11-22T00:48:47.189Z"
+                "createdAt": "2026-11-22T00:54:18.282Z"
               }
             ]
           }
@@ -7510,7 +7510,7 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-23T00:48:47.189Z",
+              "first": "2026-11-23T00:54:18.282Z",
               "every": 86400000,
               "until": null,
               "times": 5,
@@ -7537,7 +7537,7 @@
                 "name": "jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-22T00:48:47.189Z"
+              "createdAt": "2026-11-22T00:54:18.282Z"
             },
             "canceled": true
           }
@@ -7601,7 +7601,7 @@
           "status": 201,
           "response": {
             "attachment": {
-              "id": "mO2Z1tFbFnM_SMNxdO1bPA",
+              "id": "5hpqfhKq95EaUdR7zHXZEg",
               "name": "build.log",
               "type": "text/plain",
               "size": 13
@@ -7652,7 +7652,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/attachments/mO2Z1tFbFnM_SMNxdO1bPA"
+            "path": "/attachments/5hpqfhKq95EaUdR7zHXZEg"
           },
           "status": 200,
           "headers": {
@@ -8122,12 +8122,12 @@
                 "id": "9ec7cbc4-01c6-85d2-999a-ab275bee2146",
                 "watcher": "@sync",
                 "thread": "deploy-v42",
-                "lease": "a6d2d6cbbb18291c483c44da24e3fa15",
+                "lease": "757b966d48a3980abc67dc54686903ea",
                 "attempt": 0,
                 "event": {
                   "cursor": "3",
                   "type": "message.posted",
-                  "createdAt": "2026-11-22T00:48:47.061Z",
+                  "createdAt": "2026-11-22T00:54:18.148Z",
                   "payload": {
                     "channel": "deploys",
                     "text": "v42 is live on production",
@@ -8144,7 +8144,8 @@
                       "profile": null
                     },
                     "origin": null,
-                    "from": null
+                    "from": null,
+                    "clientId": "deploy-v42"
                   },
                   "message": {
                     "id": "3",
@@ -8170,8 +8171,8 @@
                     "noSync": false,
                     "origin": null,
                     "from": null,
-                    "createdAt": "2026-11-22T00:48:47.061Z",
-                    "editedAt": "2026-11-22T00:48:47.072Z",
+                    "createdAt": "2026-11-22T00:54:18.148Z",
+                    "editedAt": "2026-11-22T00:54:18.159Z",
                     "deleted": false,
                     "undelivered": {},
                     "attachments": [],
@@ -8276,7 +8277,7 @@
               "content-type": "application/json"
             },
             "body": {
-              "lease": "a6d2d6cbbb18291c483c44da24e3fa15"
+              "lease": "757b966d48a3980abc67dc54686903ea"
             }
           },
           "status": 200,
@@ -10170,7 +10171,7 @@
               {
                 "id": "b99aa6b9-1702-867f-bf59-3ee00fad58fe",
                 "channel": "tracker:eng",
-                "createdAt": "2026-11-22T00:48:47.254Z",
+                "createdAt": "2026-11-22T00:54:18.359Z",
                 "sync": "tracker",
                 "event": {
                   "kind": "message",
@@ -10442,7 +10443,7 @@
                 "id": "b99aa6b9-1702-867f-bf59-3ee00fad58fe",
                 "key": "tracker",
                 "thread": "tracker:eng/T-12",
-                "lease": "aab110e88f80822c1961bbbd3405ddff",
+                "lease": "13d14507fa1c1992f89c650a05900e9d",
                 "attempt": 0,
                 "event": {
                   "kind": "message",
@@ -10549,7 +10550,7 @@
               "content-type": "application/json"
             },
             "body": {
-              "lease": "aab110e88f80822c1961bbbd3405ddff"
+              "lease": "13d14507fa1c1992f89c650a05900e9d"
             }
           },
           "status": 200,
@@ -10574,6 +10575,7 @@
         ],
         "x-rules": [
           "a new doc names its `channel`; a thread that becomes a doc names its root, `re`: pass one",
+          "slug: a new doc names its `slug`",
           "a doc starts from its body, or from another doc: pass one of `body` and `from`",
           "a thread becomes a doc with its root's text, a new `body`, or another doc's (`from`): pass one at most",
           "`id` and `mirror` are for a new doc, not a thread that becomes one"
@@ -10629,9 +10631,6 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "slug"
-                ],
                 "additionalProperties": false
               }
             }
@@ -10676,7 +10675,7 @@
               "text": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n",
               "re": null,
               "replyTo": null,
-              "thread": "f7c43af0-7f3d-4315-a032-60efb67ec683",
+              "thread": "8576090f-7f26-4cb2-a567-0b7589c10487",
               "labels": {
                 "owner": "ops",
                 "board.doc": "docs/runbooks/deploy"
@@ -10690,7 +10689,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-22T00:48:47.168Z",
+              "createdAt": "2026-11-22T00:54:18.259Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -10735,7 +10734,7 @@
                     "subtree": "32"
                   }
                 ],
-                "createdAt": "2026-11-22T00:48:47.168Z",
+                "createdAt": "2026-11-22T00:54:18.259Z",
                 "proposals": []
               }
             }
@@ -10845,7 +10844,7 @@
                   "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-22T00:48:47.168Z"
+              "createdAt": "2026-11-22T00:54:18.259Z"
             },
             "body": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n"
           }
@@ -10954,7 +10953,7 @@
                   "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-22T00:48:47.168Z"
+              "createdAt": "2026-11-22T00:54:18.259Z"
             },
             "section": {
               "key": "ship/rollback",
@@ -11171,7 +11170,7 @@
                   "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-22T00:48:47.168Z"
+              "createdAt": "2026-11-22T00:54:18.259Z"
             },
             "revision": "35"
           }
@@ -11313,7 +11312,7 @@
                   "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-22T00:48:47.168Z"
+              "createdAt": "2026-11-22T00:54:18.259Z"
             },
             "revision": "35"
           }
@@ -11388,7 +11387,7 @@
               {
                 "revision": "32",
                 "kind": "created",
-                "at": "2026-11-22T00:48:47.168Z",
+                "at": "2026-11-22T00:54:18.259Z",
                 "by": {
                   "actor": "workbus:user:jared",
                   "principal": "workbus:user:jared",
@@ -11398,7 +11397,7 @@
               {
                 "revision": "35",
                 "kind": "edited",
-                "at": "2026-11-22T00:48:47.174Z",
+                "at": "2026-11-22T00:54:18.266Z",
                 "by": {
                   "actor": "workbus:user:jared",
                   "principal": "workbus:user:jared",
@@ -11679,7 +11678,7 @@
                 "discussion": null,
                 "channel": "deploys",
                 "cause": "created",
-                "at": "2026-11-22T00:48:47.061Z"
+                "at": "2026-11-22T00:54:18.148Z"
               }
             ]
           }
@@ -11925,7 +11924,7 @@
           "headers": {
             "content-type": "text/plain;charset=UTF-8"
           },
-          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-22T12:48:46.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
+          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-22T12:54:17.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
         }
       }
     },
@@ -11992,10 +11991,10 @@
               },
               "serverInfo": {
                 "name": "workbus",
-                "title": "Workbus: openapi-mwr4ccwn",
+                "title": "Workbus: acme",
                 "version": "0.1.0"
               },
-              "instructions": "The board openapi-mwr4ccwn, as jared. board_read, board_post, board_reply, board_search, board_unread, and board_mark_read do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
+              "instructions": "The board acme, as jared. board_read, board_post, board_reply, board_search, board_unread, and board_mark_read do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
             }
           }
         }
@@ -12157,7 +12156,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795330127045
+            "next": 1795330458131
           }
         }
       },
@@ -12328,7 +12327,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795330127045
+            "next": 1795330458131
           }
         }
       }
@@ -12492,8 +12491,8 @@
     "version": "0.1.0",
     "discovery": {
       "version": "0.1.0",
-      "url": "https://workbus.example.com/b/openapi-mwr4ccwn",
-      "audience": "https://workbus.example.com/b/openapi-mwr4ccwn",
+      "url": "https://workbus.example.com/b/acme",
+      "audience": "https://workbus.example.com/b/acme",
       "team_id": null,
       "project_id": null,
       "sync": []
@@ -12819,7 +12818,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-22T00:48:47.061Z\",\n        \"editedAt\": \"2026-11-22T00:48:47.072Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"38\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-22T00:48:47.201Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"mO2Z1tFbFnM_SMNxdO1bPA\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 38,\n        \"revision\": 38,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"42\",\n  \"older\": \"38.3\"\n}"
+                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-22T00:54:18.148Z\",\n        \"editedAt\": \"2026-11-22T00:54:18.159Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"38\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-22T00:54:18.298Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"5hpqfhKq95EaUdR7zHXZEg\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 38,\n        \"revision\": 38,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"42\",\n  \"older\": \"38.3\"\n}"
               }
             ]
           }
@@ -12845,7 +12844,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:48:47.061Z\",\n    \"editedAt\": \"2026-11-22T00:48:47.072Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"38\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-22T00:48:47.201Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"mO2Z1tFbFnM_SMNxdO1bPA\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 38,\n      \"revision\": 38,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"42\",\n  \"schedules\": []\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:54:18.148Z\",\n    \"editedAt\": \"2026-11-22T00:54:18.159Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"38\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-22T00:54:18.298Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"5hpqfhKq95EaUdR7zHXZEg\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 38,\n      \"revision\": 38,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"42\",\n  \"schedules\": []\n}"
               }
             ]
           }
@@ -12872,7 +12871,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"43\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:48:47.296Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 43,\n    \"revision\": 43,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"43\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:54:18.392Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 43,\n    \"revision\": 43,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -12898,7 +12897,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"44\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:48:47.299Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 44,\n    \"revision\": 44,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"44\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:54:18.395Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 44,\n    \"revision\": 44,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -12971,7 +12970,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"32\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"35\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-22T00:48:47.168Z\",\n      \"proposals\": [],\n      \"editedAt\": \"2026-11-22T00:48:47.174Z\"\n    }\n  ]\n}"
+                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"32\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"35\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-22T00:54:18.259Z\",\n      \"proposals\": [],\n      \"editedAt\": \"2026-11-22T00:54:18.266Z\"\n    }\n  ]\n}"
               }
             ]
           }
@@ -12997,7 +12996,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"35\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      }\n    ],\n    \"createdAt\": \"2026-11-22T00:48:47.168Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"35\",\n    \"subtreeChanged\": \"35\"\n  }\n}"
+                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"35\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      }\n    ],\n    \"createdAt\": \"2026-11-22T00:54:18.259Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"35\",\n    \"subtreeChanged\": \"35\"\n  }\n}"
               }
             ]
           }
@@ -13024,7 +13023,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"45\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"2e36c87d-6510-4d87-9cf0-80fbb611b3d3\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:48:47.310Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 45,\n    \"revision\": 45,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"45\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"45\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"45\",\n          \"subtree\": \"45\"\n        }\n      ],\n      \"createdAt\": \"2026-11-22T00:48:47.310Z\",\n      \"proposals\": []\n    }\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"45\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"53cb95b2-ad28-4624-bb92-8f8ce33444ef\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-22T00:54:18.407Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 45,\n    \"revision\": 45,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"45\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"45\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"45\",\n          \"subtree\": \"45\"\n        }\n      ],\n      \"createdAt\": \"2026-11-22T00:54:18.407Z\",\n      \"proposals\": []\n    }\n  }\n}"
               }
             ]
           }
@@ -13081,7 +13080,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"48\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"48\",\n        \"subtree\": \"48\"\n      }\n    ],\n    \"createdAt\": \"2026-11-22T00:48:47.168Z\"\n  },\n  \"revision\": \"48\"\n}"
+                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"48\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"48\",\n        \"subtree\": \"48\"\n      }\n    ],\n    \"createdAt\": \"2026-11-22T00:54:18.259Z\"\n  },\n  \"revision\": \"48\"\n}"
               }
             ]
           }
