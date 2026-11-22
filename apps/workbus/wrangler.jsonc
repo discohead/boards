@@ -14,7 +14,11 @@
     "ACCESS_AUD": "542ecc9a8a6c7697f75072ec34267695839de8ceb7e7a7d0d02e4126c94e97bb"
   },
   // The bus, as the Worker workbus-app: the binding is the credential.
-  "services": [{ "binding": "WORKBUS", "service": "workbus-bus", "entrypoint": "Workbus", "props": { "principal": "workbus-app" } }],
+  "services": [
+    { "binding": "WORKBUS", "service": "workbus-bus", "entrypoint": "Workbus", "props": { "principal": "workbus-app" } },
+    // The bus's HTTP face, for reads as the person: a route loader forwards their Access assertion.
+    { "binding": "BUS", "service": "workbus-bus" }
+  ],
   "observability": { "enabled": true },
   "upload_source_maps": true
 }

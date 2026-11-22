@@ -3,7 +3,7 @@
 // framework's source into the app's typecheck.
 import { env } from 'cloudflare:workers'
 
-export const BOARD = 'bus'
+import { BOARD } from './board.ts'
 
 export type Board = {
   me(): Promise<unknown>

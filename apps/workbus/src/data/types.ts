@@ -57,9 +57,11 @@ export type BoardEvent = { cursor: string; type: string; createdAt: string; payl
 export type Thread = { id: string; channel: string; root: Message; replies: number; last: Message | null }
 
 /** A doc in the tree: its facet and where it is, without its body. */
-export type Doc = DocFacet & { channel: string; thread: string }
+export type Doc = DocFacet & { channel: string; thread: string; labels: Record<string, string> }
 
 /** An open doc's body, at a revision. */
 export type DocBody = { id: string; revision: string; body: string }
 
 export type Follow = { thread: string; discussion: string | null; channel: string; cause: string; at: string }
+
+export type Channel = { path: string; lastIndex: number; messages: number; threads: number }
