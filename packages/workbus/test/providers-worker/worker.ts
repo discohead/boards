@@ -3,10 +3,10 @@
 // thread copied back by its courier. Slack's credentials come from Secrets Store; Linear's are plain
 // Worker secrets: the providers read either through the secrets accessor.
 import { defineWorkbus, linearProvider, slackProvider, type Secret } from '../../src/index.ts'
-import type { GatewayEnv } from '../../src/gateway/gateway.ts'
+import type { GatewayEnv, Namespace } from '../../src/gateway/gateway.ts'
 
 type Env = GatewayEnv & {
-  MAILBOX: DurableObjectNamespace<any>
+  MAILBOX: Namespace
   SLACK_SIGNING_SECRET: Secret
   SLACK_BOT_TOKEN: Secret
   LINEAR_WEBHOOK_SECRET: Secret

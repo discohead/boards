@@ -13,8 +13,9 @@ import { Mailbox, mailboxClass } from './mailbox.ts'
 import { createGateway } from './gateway/gateway.ts'
 import { Workbus, BoardSession } from './binding.ts'
 import { Inbox, inboxClass } from './sync/inbox.ts'
+import type { Namespace } from './gateway/gateway.ts'
 
-export function defineWorkbus<E extends { RELAY: DurableObjectNamespace<any>; MAILBOX?: DurableObjectNamespace<any> }>(configure: (env: E) => WorkbusConfig = () => ({})) {
+export function defineWorkbus<E extends { RELAY: Namespace; MAILBOX?: Namespace }>(configure: (env: E) => WorkbusConfig = () => ({})) {
   return { Ledger: ledgerClass<E>(configure), Relay, Mailbox: mailboxClass<E>(configure), Inbox: inboxClass<E>(configure), Workbus, BoardSession, gateway: createGateway(configure) }
 }
 

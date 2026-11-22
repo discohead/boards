@@ -6,8 +6,9 @@
 import { DurableObject, RpcTarget } from 'cloudflare:workers'
 import { courier, typing } from './sync/courier.ts'
 import type { SyncProvider } from './sync/provider.ts'
+import type { Namespace } from './gateway/gateway.ts'
 type BoardEventView = Record<string, unknown> & { cursor: string }
-type Env = { LEDGER: DurableObjectNamespace<any>; MAILBOX: DurableObjectNamespace<any> }
+type Env = { LEDGER: Namespace; MAILBOX: Namespace }
 
 /** Where a Mailbox delivers. */
 export type Sink =

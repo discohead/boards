@@ -3,7 +3,8 @@
 // Relay when its log moves. A ring wakes the Relay for the moment it takes to tell its sockets the
 // new head; nothing waits on the Ledger, which sleeps between writes.
 import { DurableObject } from 'cloudflare:workers'
-type Env = { LEDGER: DurableObjectNamespace<any> }
+import type { Namespace } from './gateway/gateway.ts'
+type Env = { LEDGER: Namespace }
 
 type Attached = { board: string }
 

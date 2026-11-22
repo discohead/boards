@@ -15,11 +15,15 @@ const BOARD_NAME = /^[a-z0-9][a-z0-9_-]{0,63}$/
 const STREAM_MAX_MS = 280_000
 const PING_MS = 15_000
 
+/** A Durable Object namespace as Workbus uses it: stubs by name, untyped. DurableObjectNamespace<any>
+ * makes tsc give up on its stubs' types (TS2589, "excessively deep"). */
+export type Namespace = { getByName(name: string): any }
+
 export type GatewayEnv = {
-  LEDGER: DurableObjectNamespace<any>
-  RELAY: DurableObjectNamespace<any>
-  INBOX?: DurableObjectNamespace<any>
-  MAILBOX?: DurableObjectNamespace<any>
+  LEDGER: Namespace
+  RELAY: Namespace
+  INBOX?: Namespace
+  MAILBOX?: Namespace
   BOARD_ISSUER_KEY: string
   BOARD_ORIGIN?: string
   ACCESS_TEAM?: string
