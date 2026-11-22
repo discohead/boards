@@ -11,7 +11,7 @@
   "routes": [{ "pattern": "workbus.dev", "custom_domain": true }],
   "vars": {
     "ACCESS_TEAM": "dry-hat-4b71",
-    "ACCESS_AUD": ""
+    "ACCESS_AUD": "542ecc9a8a6c7697f75072ec34267695839de8ceb7e7a7d0d02e4126c94e97bb"
   },
   // The bus, as the Worker workbus-app: the binding is the credential.
   "services": [{ "binding": "WORKBUS", "service": "workbus-bus", "entrypoint": "Workbus", "props": { "principal": "workbus-app" } }],
