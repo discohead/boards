@@ -10,6 +10,6 @@ import tailwindcss from '@tailwindcss/vite'
 // the bus on the same origin in both.
 export default defineConfig({
   resolve: { tsconfigPaths: true },
-  server: { proxy: { '/b/': { target: 'http://127.0.0.1:8832', changeOrigin: false } } },
+  server: { proxy: { '/b/': { target: process.env.WORKBUS_BUS ?? 'http://127.0.0.1:8832', changeOrigin: false } } },
   plugins: [cloudflare({ viteEnvironment: { name: 'ssr' } }), tailwindcss(), tanstackStart(), react()],
 })
