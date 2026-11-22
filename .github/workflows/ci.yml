@@ -83,7 +83,7 @@ jobs:
           cat wrangler.log
           exit 1
       - name: The CLI end to end
-        run: node --test cli/test/
+        run: node --test cli/test/*.test.mjs
       - name: Stop wrangler dev
         if: always()
         run: |
