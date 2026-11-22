@@ -107,6 +107,8 @@ class Board extends RpcTarget {
   react(id: string, emoji: string, opts?: { remove?: boolean })
   follow(id: string, opts?: { on?: boolean })                                    // POST /messages/{id}/follow: its thread, or doc discussion
   follows(query?: { limit?: number })                                             // GET /follows
+  unread(query?: { channel?: string })                                            // GET /unread: every unread count at once
+  markRead(input: { channel?: string; thread?: string; upto?: string })           // POST /read: up to now, or up to a message
   label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> })
 
   // the feed

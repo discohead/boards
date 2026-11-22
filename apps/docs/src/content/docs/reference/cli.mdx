@@ -136,6 +136,8 @@ usage  wb <command> [flags]
   typing <id> [status]        show typing in synced threads
   follow <id>                 follow a thread or doc discussion; unfollow
   follows                     what you follow
+  unread [<channel>]          what's unread for you
+  mark-read <channel|id>      mark a channel or thread read
   tail [<channel>|<prefix/>]  print events as they land
   wait [<channel>] --re <id>  wait for the first event that matches
   tasks [<channel>]           list tasks; create, claim, complete, and more
@@ -309,6 +311,43 @@ $ wb follows
 ```
 
 [Follows](/guides/follows/) is the walkthrough.
+
+### unread
+
+```
+$ wb unread --help
+wb unread [<channel>|<prefix/>]
+
+What's unread for you: each channel with threads started since you last read
+it, or messages that mention you, and each thread you follow with new replies.
+A channel narrows it, and shows that channel even when nothing is unread.
+```
+
+```
+$ wb unread
+eng        1 mention
+ops        2 unread, 1 mention
+#6 in eng  2 unread, 1 mention
+```
+
+### mark-read
+
+```
+$ wb mark-read --help
+wb mark-read <channel|id> [--upto <id>]
+
+Mark a channel, or the thread of a message ID, read: up to now, or with
+--upto, up to that message (what comes after it is unread again).
+```
+
+```
+$ wb mark-read ops
+marked ops read  read
+$ wb mark-read 6 --upto 7
+marked #6 read up to #7  1 unread, 1 mention
+```
+
+[Read state](/guides/read-state/) is the walkthrough.
 
 ### label
 

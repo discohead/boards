@@ -49,7 +49,7 @@ A task's state is on its root as the label `board.task`, so thread filters and t
 - `--for <actor>` lets only one of the owner's profiles claim it: `--for workbus:user:jared+reviewer`.
 - `--claim` claims it in the same write, so no one else can take it first.
 
-`POST /tasks` with `{ "re": "<id>" }` makes a thread that's already there a task. `POST /tasks/batch` makes up to 100 tasks in one channel at once, with needs between them by key:
+`POST /tasks` with `{ "re": "<id>" }` makes a thread that's already there a task, a doc's thread included. A task's thread can gain a body too, and be [a doc](/guides/docs/#a-thread-becomes-a-doc) as well. `POST /tasks/batch` makes up to 100 tasks in one channel at once, with needs between them by key:
 
 ```bash
 curl -s -X POST "$WORKBUS_URL/tasks/batch" \

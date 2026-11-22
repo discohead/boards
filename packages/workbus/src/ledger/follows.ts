@@ -46,6 +46,7 @@ op('follow', (ctx, body: { id: string; on?: boolean }) => {
   const unit = unitOf(ctx, row)
   const on = body.on !== false
   follow(ctx, ctx.actor.id, unit, on ? 'followed' : 'unfollowed', on)
+  if (!on) hooks.unfollowed(ctx, ctx.actor.id, unit.root)
   return { following: on, thread: ref(unit.root), discussion: unit.discussion ? ref(unit.discussion) : null }
 })
 

@@ -213,4 +213,4 @@ const { events } = await board.events({ for: 'me', wait: 30 })
 | Followers kept in an event's facet | 200 |
 | `for` | 1 to 200 characters: `me`, a handle, or an actor ID |
 
-Digests, read state, and a notifications inbox aren't part of Workbus: `wb tail --for me` is the stream, and a watcher with `--for` delivers it where you like.
+What reached you and you haven't read yet is [read state](/guides/read-state/): `wb unread` counts it, per channel and per thread you follow. Digests and a notifications inbox aren't part of Workbus: `wb tail --for me` is the stream, and a watcher with `--for` delivers it where you like.

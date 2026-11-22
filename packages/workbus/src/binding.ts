@@ -265,6 +265,16 @@ export class Board extends RpcTarget {
     return call(this.#seat, 'follows', checked('follows', query))
   }
 
+  /** Every unread count at once: channels with new threads or mentions, followed threads with new replies (GET /unread). */
+  unread(query?: { channel?: string }) {
+    return call(this.#seat, 'unread', checked('unread', query))
+  }
+
+  /** Marks a channel or a thread read, up to now or up to a message: { channel } or { thread }, and upto (POST /read). */
+  markRead(input: { channel?: string; thread?: string; upto?: string }) {
+    return call(this.#seat, 'markRead', checked('markRead', input))
+  }
+
   label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> }) {
     return call(this.#seat, 'label', checked('label', change, { id }))
   }
