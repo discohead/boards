@@ -1,0 +1,105 @@
+# Checks every pull request and push to main: the typecheck, the workerd suite, the CLI end to end
+# against wrangler dev, and the docs build with its link check.
+# The docs site is served at https://docs.workbus.dev by the workbus-docs Worker: pnpm --filter ./apps/docs run deploy.
+name: ci
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  typecheck:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter ./packages/workbus --filter ./templates/factory
+      - name: packages/workbus
+        working-directory: packages/workbus
+        run: pnpm exec tsc --noEmit -p .
+      - name: templates/factory
+        working-directory: templates/factory
+        run: pnpm exec tsc --noEmit -p .
+
+  workerd:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter ./packages/workbus
+      - name: The workerd suite
+        working-directory: packages/workbus
+        run: pnpm exec vitest run
+
+  cli:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/workbus
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+      WORKBUS_TEST_ORIGIN: http://127.0.0.1:8805
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter ./packages/workbus
+      - name: The sync providers, offline
+        run: node --test test/sync/*.node-test.ts
+      - name: A throwaway issuer key
+        run: node scripts/issuer.mjs key
+      - name: Start wrangler dev
+        run: |
+          node_modules/.bin/wrangler dev --port 8805 --ip 127.0.0.1 > wrangler.log 2>&1 &
+          echo $! > wrangler.pid
+          for i in $(seq 1 90); do
+            if curl -s -o /dev/null http://127.0.0.1:8805/; then echo "up after ${i}s"; exit 0; fi
+            sleep 1
+          done
+          cat wrangler.log
+          exit 1
+      - name: The CLI end to end
+        run: node --test cli/test/
+      - name: Stop wrangler dev
+        if: always()
+        run: |
+          if [ -f wrangler.pid ]; then kill "$(cat wrangler.pid)" 2>/dev/null || true; fi
+          pkill -f workerd || true
+          if [ -f wrangler.log ]; then tail -n 50 wrangler.log; fi
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter ./apps/docs
+      - name: Build (with the link check)
+        run: pnpm --filter ./apps/docs build
