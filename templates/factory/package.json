@@ -2,6 +2,7 @@
   "name": "factory",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT OR Apache-2.0",
   "type": "module",
   "description": "An agent on your team's board that takes bugs, features, and questions to pull requests. Workbus, the Agents SDK, and a sandbox per thread, on Cloudflare.",
   "scripts": {

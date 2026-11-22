@@ -37,7 +37,7 @@ People are `workbus:user:<sub>` (the board's issuer) or `access:user:<sub>`; Wor
 ```bash
 npx pnpm@11.23.0 install
 cd packages/workbus
-npx tsc --noEmit -p .                 # TS2589 "excessively deep" is known noise
+npx tsc --noEmit -p .                 # also in templates/factory; both clean
 npx vitest run                        # the workerd suite: real Ledger, Relay, Mailbox
 npx wrangler dev --port 8787 --ip 127.0.0.1
 node scripts/issuer.mjs token jared http://127.0.0.1:8787/b/dev     # a person's token

@@ -6,6 +6,7 @@
 // retention, and never reach the board log.
 import { DurableObject } from 'cloudflare:workers'
 import { rootOf, satelliteCall, type InboxEvent, type SyncProvider } from './provider.ts'
+import type { Namespace } from '../gateway/gateway.ts'
 export { inboxName } from './provider.ts'
 
 export const INBOX_TRIES = 5
@@ -16,7 +17,7 @@ const LANES_AT_ONCE = 8
 
 type Mount = { name: string; origin: string; url: string }
 type Row = { id: string; thread: string; channel: string; event: string; raw: string | null; at: number; state: string; attempts: number; next_at: number; error: string | null }
-type Env = { LEDGER: DurableObjectNamespace<any> }
+type Env = { LEDGER: Namespace }
 
 
 export class Inbox extends DurableObject<Env> {

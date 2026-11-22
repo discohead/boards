@@ -19,6 +19,7 @@ import './feed.ts'
 import './domains.ts'
 import { ROUTES } from '../protocol/routes.ts'
 import '../protocol/core.ts'
+import type { Namespace } from '../gateway/gateway.ts'
 
 export type Answer = { ok: true; value: unknown } | { ok: false; failure: Failure }
 
@@ -42,7 +43,7 @@ export const selfCaller = (id = 'workbus:self', name = 'workbus'): Caller => ({
   via: 'board',
 })
 
-export function ledgerClass<E extends { RELAY: DurableObjectNamespace<any>; MAILBOX?: DurableObjectNamespace<any> }>(configure: (env: E) => WorkbusConfig = () => ({})) {
+export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>(configure: (env: E) => WorkbusConfig = () => ({})) {
   return class Ledger extends DurableObject<E> {
     board: Board
     sql: Sql

@@ -1,11 +1,12 @@
+import type { Namespace } from 'workbus/gateway/gateway.ts'
 import type { Secret } from 'workbus/sync/secrets.ts'
 import type { ThreadAgent } from './agent.ts'
 
 export type Env = {
-  LEDGER: DurableObjectNamespace<any>
-  RELAY: DurableObjectNamespace<any>
-  MAILBOX: DurableObjectNamespace<any>
-  INBOX: DurableObjectNamespace<any>
+  LEDGER: Namespace
+  RELAY: Namespace
+  MAILBOX: Namespace
+  INBOX: Namespace
   FILES: R2Bucket
   THREAD_AGENT: DurableObjectNamespace<ThreadAgent>
   /** This Worker's FactoryWake entrypoint: where the board's wake watcher delivers. */
