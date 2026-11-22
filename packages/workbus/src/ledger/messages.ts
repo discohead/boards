@@ -299,6 +299,7 @@ op('edit', (ctx, { id, text, revision }: { id: string; text: string; revision?: 
 
 /** Tombstones a message: in the caller's transaction, with whatever its task and thread need. */
 export function deleteMessage(ctx: Ctx, row: MessageRow, by: By, from: string | null = null) {
+  hooks.deleting(ctx, row)
   if (row.re === null) hooks.rootDeleted(ctx, row.id)
   const before = ctx.board.facet(row.id)
   const seq = ctx.board.reserve()

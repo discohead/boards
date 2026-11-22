@@ -4,7 +4,7 @@
 // each edit as the sections it changed, with a snapshot every so often.
 import { forbidden, badRequest, WorkbusError, conflict, notFound } from '../errors.ts'
 import { authorize, iso, ref, type MessageRow } from './core.ts'
-import { ensureChannel, labelMessage, postMessage, settle, writeTerms, type Posting } from './messages.ts'
+import { ensureChannel, labelMessage, postMessage, refuseReserved, settle, writeTerms, type Posting } from './messages.ts'
 import { hooks, op, OPS, viewOptions, type Ctx } from './ops.ts'
 import { DDL } from './schema.ts'
 import { json } from './sql.ts'
@@ -145,15 +145,78 @@ export function bodyAt(ctx: Ctx, row: MessageRow, rev: number): string {
 
 // -- writes ------------------------------------------------------------------------------------
 
-type CreateDoc = { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string; mirror?: boolean }
+type CreateDoc = { channel?: string; re?: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string; mirror?: boolean }
 
 function fill(text: string, values: { title: string; author: string; date: string }) {
   return text.replaceAll('{{title}}', values.title).replaceAll('{{author}}', values.author).replaceAll('{{date}}', values.date)
 }
 
+/** A doc root's labels as its terms index them: with its task's state when it's a task too. */
+function termLabels(ctx: Ctx, root: number, labels: Record<string, string>): Record<string, string> {
+  const task = ctx.sql.one<{ state: string }>('select state from tasks where root = ?', root)
+  return task ? { ...labels, 'board.task': task.state } : labels
+}
+
+/** The body a doc starts from: its own, or another doc's as a template, filled in. */
+function startingBody(ctx: Ctx, body: { body?: string; from?: string }, slug: string, labels: Record<string, string>): { text: string | undefined; from: number | null } {
+  if (body.from === undefined) return { text: body.body, from: null }
+  const source = docOf(ctx, body.from)
+  for (const [key, value] of Object.entries(json<Record<string, string>>(source.row.labels, {}))) if (key !== 'template' && !key.startsWith('board.')) labels[key] = value
+  const title = titleOf(parseDoc(source.row.text), slug)
+  return { text: fill(source.row.text, { title, author: ctx.actor.name, date: new Date(ctx.now).toISOString().slice(0, 10) }), from: source.row.id }
+}
+
+/**
+ * Makes a thread's root a doc where it is (a task gains a body): its channel stays, its text (or a
+ * new body) becomes the doc's, and its history as a doc starts here. Its replies are its comments.
+ */
+function threadBecomesDoc(ctx: Ctx, body: CreateDoc) {
+  const row = ctx.board.readable(body.re!, ctx.access)
+  if (row.re !== null) throw badRequest('#' + row.id + ' is a reply: a doc is a thread, so name its root, #' + row.re)
+  if (row.deleted) throw badRequest('message was deleted', 'message_deleted')
+  authorize(ctx.access, 'post', row.channel)
+  authorize(ctx.access, 'edit', row.channel)
+  refuseReserved(Object.keys(body.labels ?? {}))
+  if (Object.keys(body.labels ?? {}).length) authorize(ctx.access, 'label', row.channel)
+  if (!SLUG.test(body.slug)) throw badRequest('slug: a doc\'s slug is lowercase letters, numbers, _, and -, up to 128, starting with a letter or number', 'invalid_slug')
+  const already = ctx.sql.one<DocRow>('select * from docs where root = ?', row.id)
+  if (already) throw conflict('already_a_doc', '#' + row.id + ' is a doc already, at ' + pathOf(already))
+  if (ctx.sql.one('select 1 as there from docs where channel = ? and slug = ?', row.channel, body.slug)) throw conflict('slug_taken', row.channel + '/' + body.slug + ' is a doc already')
+  const labels: Record<string, string> = {}
+  const start = startingBody(ctx, body, body.slug, labels)
+  const text = start.text === undefined ? row.text : settle(ctx, start.text, row.id).text
+  if (text.trim() === '') throw badRequest('body: a doc has a body')
+  if (bytes(text) > DOC_BODY_MAX) throw tooLarge(bytes(text))
+  const path = row.channel + '/' + body.slug
+  const all = { ...json<Record<string, string>>(row.labels, {}), ...labels, ...(body.labels ?? {}), 'board.doc': path, ...(start.from !== null ? { 'board.doc.from': ref(start.from) } : {}) }
+  ctx.board.seen(ctx.actor, ctx.now)
+  const before = ctx.board.facet(row.id)
+  const seq = ctx.board.reserve()
+  const changed = text !== row.text
+  ctx.sql.run('update messages set text = ?, text_lower = ?, labels = ?, version = ?, revision = ?, edited_at = ? where id = ?', text, text.toLowerCase(), JSON.stringify(all), seq, seq, changed ? ctx.now : row.edited_at, row.id)
+  const sections = parseDoc(text)
+  const title = titleOf(sections, body.slug)
+  const facet = [title, ...sections.filter((section) => section.level > 0).map((section) => section.title)].join('\n')
+  ctx.sql.run(
+    'insert into docs (root, channel, slug, title, size, sections, snapshot, since, facet_text, facet_terms, source, from_doc, created) values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, null, ?, ?)',
+    row.id, row.channel, body.slug, title, bytes(text), JSON.stringify(track(null, sections, seq)), seq, facet, JSON.stringify(mentionTerms(text)), start.from, ctx.now,
+  )
+  writeTerms(ctx, { id: row.id, thread: row.thread, text, deleted: 0, labels: termLabels(ctx, row.id, all), attachments: json(row.attachments, []) })
+  ctx.board.append('doc.created', { id: row.id, thread: row.thread_key, path, title, ...(start.from !== null ? { template: ref(start.from) } : {}), by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before, seq })
+  ctx.sql.run("insert into doc_versions (root, seq, kind, rev) values (?, ?, 'edit', ?)", row.id, seq, seq)
+  snapshot(ctx, row.id, seq, text)
+  ctx.sql.run('update docs set facet_text = ?, facet_terms = ? where root = ?', title, '[]', row.id)
+  // A new body changes what a task asks: a claim someone else holds is held, as an edit to it would be.
+  if (changed) hooks.rootEdited(ctx, row.id)
+  attachSyncs(ctx, ctx.board.message(row.id)!, path)
+  return { message: ctx.board.view(ctx.board.message(row.id)!, viewOptions(ctx)) }
+}
+
 op('createDoc', (ctx, body: CreateDoc) => {
-  authorize(ctx.access, 'post', body.channel)
-  authorize(ctx.access, 'edit', body.channel)
+  if (body.re !== undefined) return threadBecomesDoc(ctx, body)
+  const channel = body.channel!
+  authorize(ctx.access, 'post', channel)
+  authorize(ctx.access, 'edit', channel)
   // A mirror of a platform's page: only that platform's sync makes one, and only its imports change it.
   const mirror = body.mirror ? satelliteKey(ctx.caller) : null
   if (body.mirror && mirror === null) throw forbidden('only a sync makes a mirror of a page: create the doc, or set up the sync', 'mirror_needs_sync')
@@ -162,25 +225,18 @@ op('createDoc', (ctx, body: CreateDoc) => {
   if (body.id !== undefined) {
     const landed = ctx.sql.one<{ id: number }>('select id from messages where client_key = ?', body.id)
     const doc = landed ? ctx.sql.one<DocRow>('select * from docs where root = ?', landed.id) : null
-    if (doc && doc.channel === body.channel && doc.slug === body.slug) return { message: ctx.board.view(ctx.board.message(doc.root)!, viewOptions(ctx)) }
+    if (doc && doc.channel === channel && doc.slug === body.slug) return { message: ctx.board.view(ctx.board.message(doc.root)!, viewOptions(ctx)) }
   }
-  if (ctx.sql.one('select 1 as there from docs where channel = ? and slug = ?', body.channel, body.slug)) throw conflict('slug_taken', body.channel + '/' + body.slug + ' is a doc already')
-  let text = body.body ?? ''
+  if (ctx.sql.one('select 1 as there from docs where channel = ? and slug = ?', channel, body.slug)) throw conflict('slug_taken', channel + '/' + body.slug + ' is a doc already')
   let labels: Record<string, string> = {}
-  let from: number | null = null
-  if (body.from !== undefined) {
-    const source = docOf(ctx, body.from)
-    from = source.row.id
-    text = source.row.text
-    for (const [key, value] of Object.entries(json<Record<string, string>>(source.row.labels, {}))) if (key !== 'template' && !key.startsWith('board.')) labels[key] = value
-    const title = titleOf(parseDoc(text), body.slug)
-    text = fill(text, { title, author: ctx.actor.name, date: new Date(ctx.now).toISOString().slice(0, 10) })
-  }
+  const start = startingBody(ctx, body, body.slug, labels)
+  const text = start.text ?? ''
+  const from = start.from
   labels = { ...labels, ...(body.labels ?? {}) }
   if (text.trim() === '') throw badRequest('body: a doc has a body')
   if (bytes(text) > DOC_BODY_MAX) throw tooLarge(bytes(text))
-  const path = body.channel + '/' + body.slug
-  const posting: Posting = { channel: body.channel, text, labels, ...(body.id !== undefined ? { id: body.id } : {}) }
+  const path = channel + '/' + body.slug
+  const posting: Posting = { channel, text, labels, ...(body.id !== undefined ? { id: body.id } : {}) }
   const { row, mentions } = postMessage(ctx, posting, { textMax: DOC_BODY_MAX, boardLabels: { 'board.doc': path, ...(from !== null ? { 'board.doc.from': ref(from) } : {}) } })
   const sections = parseDoc(row.text)
   const title = titleOf(sections, body.slug)
@@ -188,7 +244,7 @@ op('createDoc', (ctx, body: CreateDoc) => {
   const facet = [title, ...sections.filter((section) => section.level > 0).map((section) => section.title)].join('\n')
   ctx.sql.run(
     'insert into docs (root, channel, slug, title, size, sections, snapshot, since, facet_text, facet_terms, source, from_doc, created) values (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?)',
-    row.id, body.channel, body.slug, title, bytes(row.text), JSON.stringify(metas), row.id, facet, JSON.stringify(mentionTerms(row.text)), mirror, from, ctx.now,
+    row.id, channel, body.slug, title, bytes(row.text), JSON.stringify(metas), row.id, facet, JSON.stringify(mentionTerms(row.text)), mirror, from, ctx.now,
   )
   // The post's own event keeps the doc's facet, not its body twice.
   ctx.sql.run('update events set facets = ? where seq = ?', JSON.stringify({ before: null, after: ctx.board.facet(row.id) }), row.id)
@@ -217,7 +273,7 @@ function commit(ctx: Ctx, row: MessageRow, doc: DocRow, next: Section[], extra: 
   const facetTerms = mentionTerms(patch.changes.map((change) => change.text ?? '').join('\n'))
   ctx.sql.run('update messages set text = ?, text_lower = ?, edited_at = ?, version = ?, revision = ? where id = ?', text, text.toLowerCase(), ctx.now, seq, seq, row.id)
   ctx.sql.run('update docs set title = ?, size = ?, sections = ?, since = since + 1, facet_text = ?, facet_terms = ? where root = ?', title, bytes(text), JSON.stringify(metas), facetText, JSON.stringify(facetTerms), row.id)
-  writeTerms(ctx, { id: row.id, thread: row.thread, text, deleted: 0, labels: json(row.labels, {}), attachments: json(row.attachments, []) })
+  writeTerms(ctx, { id: row.id, thread: row.thread, text, deleted: 0, labels: termLabels(ctx, row.id, json(row.labels, {})), attachments: json(row.attachments, []) })
   const changed = patch.changes.reduce((sum, change) => sum + (change.text?.length ?? 0), 0)
   const large = changed > LARGE_EDIT
   const payload: Record<string, unknown> = {
@@ -369,12 +425,13 @@ op('moveDoc', (ctx, body: { id: string; channel?: string; slug?: string }) => {
     ctx.sql.run('update tasks set channel = ? where root in (select id from messages where thread = ?)', channel, row.id)
     ctx.sql.run('update channels set messages = max(messages - ?, 0), threads = max(threads - 1, 0) where path = ?', counts.n, doc.channel)
     ctx.sql.run('update channels set messages = messages + ?, threads = threads + 1, last = max(last, ?) where path = ?', counts.n, seq, channel)
+    hooks.docMoved(ctx, row, doc.channel, channel)
   }
   const labels = { ...json<Record<string, string>>(row.labels, {}), 'board.doc': to }
   ctx.sql.run('update messages set labels = ?, version = ? where id = ?', JSON.stringify(labels), seq, row.id)
   // A title that comes from the slug follows it.
   ctx.sql.run('update docs set channel = ?, slug = ?, title = ? where root = ?', channel, slug, titleOf(parseDoc(row.text), slug), row.id)
-  writeTerms(ctx, { id: row.id, thread: row.thread, text: row.text, deleted: 0, labels, attachments: json(row.attachments, []) })
+  writeTerms(ctx, { id: row.id, thread: row.thread, text: row.text, deleted: 0, labels: termLabels(ctx, row.id, labels), attachments: json(row.attachments, []) })
   ctx.board.append('doc.moved', { id: row.id, thread: row.thread_key, path: from, to, by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before, seq })
   attachSyncs(ctx, ctx.board.message(row.id)!, to)
   return answer(ctx, row.id)
@@ -447,7 +504,7 @@ op('docHistory', (ctx, query: { id: string; after?: string; limit?: number }) =>
     const [event] = hooks.eventRows(ctx, seq - 1, 1, seq)
     const payload = JSON.parse(event!.payload) as { by?: By; changes?: { section: string; op: string }[]; base?: string | null; proposedBy?: string; channel?: string }
     const by = payload.by ? { actor: payload.by.actor, principal: payload.by.principal, profile: payload.by.profile ?? null } : null
-    const kind = event!.type === 'message.posted' ? 'created' : 'edited'
+    const kind = event!.type === 'message.posted' || event!.type === 'doc.created' ? 'created' : 'edited'
     return {
       revision: ref(seq),
       kind,

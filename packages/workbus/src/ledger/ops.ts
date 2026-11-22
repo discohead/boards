@@ -67,8 +67,16 @@ export const hooks = {
   viewExtras: (_ctx: Pick<Ctx, 'board' | 'sql' | 'now'>, _row: MessageRow): Record<string, unknown> | undefined => undefined,
   /** Whether a root is a doc (docs.ts): its body changes through editDoc, not edit. */
   docRoot: (_ctx: Pick<Ctx, 'sql'>, _root: number): boolean => false,
-  /** A message was just written (in its transaction, before its event): follows.ts records who follows it. */
+  /** A message was just written (in its transaction, before its event): follows.ts records who follows it, reads.ts counts it. */
   posted: (_ctx: Ctx, _row: MessageRow): void => {},
+  /** A message is about to be deleted (in the delete's transaction, before its tombstone): reads.ts uncounts it. */
+  deleting: (_ctx: Ctx, _row: MessageRow): void => {},
+  /** A doc's root moved from one channel to another (in the move's transaction): reads.ts moves its counts. */
+  docMoved: (_ctx: Ctx, _row: MessageRow, _from: string, _to: string): void => {},
+  /** An actor unfollowed something in a thread (follows.ts): reads.ts marks the thread read when nothing in it is followed. */
+  unfollowed: (_ctx: Ctx, _actor: string, _root: number): void => {},
+  /** A channel's archived roots after a position (archive.ts): cold ones from their summaries, frozen ones from their pages. */
+  archivedRoots: (_ctx: Ctx, _channel: string, _after: number, _limit: number): MessageRow[] => [],
   /** A task is about to complete (in the completion's transaction): a part may refuse it by throwing. */
   taskCompleting: (_ctx: Ctx, _root: number): void => {},
   /** Pending schedules that reply in a thread, for its view. */

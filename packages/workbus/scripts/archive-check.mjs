@@ -211,6 +211,9 @@ async function reads(phase) {
   await same(phase + ' docs as threads', 'GET', '/threads?label=board.doc')
   await same(phase + ' docs from a template', 'GET', '/threads?label=board.doc.from=' + tpl.json.message.id)
   await same(phase + ' doc thread', 'GET', '/messages/' + doc1)
+  await same(phase + ' a task with a body', 'GET', '/messages/' + finished[0])
+  await same(phase + ' its doc', 'GET', '/docs/' + finished[0])
+  await same(phase + ' its history', 'GET', '/docs/' + finished[0] + '/history')
   for (const id of [...roots, replies[0], replies[7], replies[4], task1]) await same(phase + ' message ' + id, 'GET', '/messages/' + id)
   await same(phase + ' message limit', 'GET', '/messages/' + roots[0] + '?limit=1')
   await same(phase + ' message after', 'GET', '/messages/' + roots[0] + '?after=' + replies[0])
@@ -259,6 +262,9 @@ async function reads(phase) {
     return { status: response.status, body: await response.text() }
   })
   await same(phase + ' channels', 'GET', '/channels')
+  // Read state: counts from side tables, the same however much is archived.
+  for (const as of ['jared', 'alice']) for (const query of ['', '?channel=general', '?channel=eng/', '?channel=deep'])
+    await same(phase + ' unread ' + as + ' ' + query, 'GET', '/unread' + query, undefined, { as })
   await same(phase + ' events last', 'GET', '/events?last=30')
   await same(phase + ' events last filtered', 'GET', '/events?last=10&channel=eng/')
   for (const query of ['', '&all=true', '&label=kind=bug', '&channel=general', '&by=alice'])
@@ -278,6 +284,17 @@ async function reads(phase) {
 await reads('first')
 
 // -- writes to archived threads -------------------------------------------------------------------
+// Marking read up to a point counts what's after it once: in cold threads and frozen pages too.
+// The roots are jared's, so alice's counts are the ones they change.
+await same('mark general read up to a root', 'POST', '/read', { channel: 'general', upto: roots[3] }, { as: 'alice' })
+await same('mark deep read from the start', 'POST', '/read', { channel: 'deep', upto: '0' }, { as: 'alice' })
+await same('mark deep read up to the needle', 'POST', '/read', { channel: 'deep', upto: roots[0] })
+await same('mark eng/backend read up to now', 'POST', '/read', { channel: 'eng/backend' }, { as: 'alice' })
+await same('mark a cold thread read up to a reply', 'POST', '/read', { thread: roots[0], upto: replies[0] }, { as: 'alice' })
+await same('mark a cold thread read', 'POST', '/read', { thread: roots[1] })
+// One thread, both faces: a cold doc becomes a task, and a cold task gains a body.
+await same('a cold doc becomes a task', 'POST', '/tasks', { re: doc1 })
+await same('a cold task gains a body', 'POST', '/docs', { re: finished[0], slug: 'finished-0', body: '# Finished\n\nDone 0.\n\n## Notes\n\nNone.\n' })
 await same('reply to a cold root', 'POST', '/messages', { re: roots[5], text: 'back from the archive' })
 await same('reply after', 'POST', '/messages', { re: roots[6], text: 'reply with after', after: replies[6] })
 await same('react to a cold reply', 'POST', '/messages/' + replies[9] + '/reactions', { emoji: 'rocket' })

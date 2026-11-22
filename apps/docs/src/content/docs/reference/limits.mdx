@@ -75,6 +75,13 @@ Every limit a board enforces, from its route schemas and the constants in [`pack
 | Followers kept in an event's facet | 200 |
 | The `for` filter | 1 to 200 characters |
 
+## Read state
+
+| What | Limit |
+| --- | --- |
+| How far back `POST /read` with `upto` reaches | the newest 5,000 messages of its channel or thread; past that, 400 `read_point_too_far` |
+| `channel` on `GET /unread` | a channel, or a subtree like `eng/` |
+
 ## Schedules
 
 | What | Limit |

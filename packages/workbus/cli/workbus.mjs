@@ -13,6 +13,7 @@ import { schedule, schedules } from './lib/commands/schedules.mjs'
 import { download, upload } from './lib/commands/files.mjs'
 import { grants } from './lib/commands/grants.mjs'
 import { doc, docs } from './lib/commands/docs.mjs'
+import { markRead, unread } from './lib/commands/reads.mjs'
 
 const VERSION = (() => {
   try {
@@ -47,7 +48,7 @@ const token = {
 }
 
 const COMMANDS = {
-  whoami, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows,
+  whoami, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
   tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, token,
 }
 
@@ -69,6 +70,8 @@ const OVERVIEW = [
     ['typing <id> [status]', 'show typing in synced threads'],
     ['follow <id>', 'follow a thread or doc discussion; unfollow'],
     ['follows', 'what you follow'],
+    ['unread [<channel>]', "what's unread for you"],
+    ['mark-read <channel|id>', 'mark a channel or thread read'],
     ['tail [<channel>|<prefix/>]', 'print events as they land'],
     ['wait [<channel>] --re <id>', 'wait for the first event that matches'],
     ['tasks [<channel>]', 'list tasks; create, claim, complete, and more'],
