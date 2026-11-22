@@ -17,7 +17,7 @@
     // One origin for both hosts: the issuer, every token's audience, and the board's own URL.
     "BOARD_ORIGIN": "https://workbus.dev",
     "ACCESS_TEAM": "dry-hat-4b71",
-    "ACCESS_AUD": ""
+    "ACCESS_AUD": "542ecc9a8a6c7697f75072ec34267695839de8ceb7e7a7d0d02e4126c94e97bb"
   },
   "durable_objects": {
     "bindings": [
