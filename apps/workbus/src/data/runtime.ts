@@ -13,11 +13,14 @@ export type BusMode =
   /** Follows the feed from the cursor the server handed off (or loads first, when it didn't). */
   | 'browser'
 
+export type Me = { actor: string; principal?: string; kind?: string; handle?: string; name?: string; can?: Record<string, string[]>; [key: string]: unknown }
+
 export type BusRuntime = {
   mode: BusMode
   client: BusClient
   feed: Feed | null
-  me: { actor: string }
+  /** Who the caller is: GET /me's answer (actor, can, …), filled in by liveDb. */
+  me: Me
   /** Reads collections share within one DbClient (the first page of threads). */
   shared: Map<string, Promise<unknown>>
   /** Threads open in a view: their messages stay in memory. */

@@ -43,6 +43,7 @@ const bus = busOf(liveDb({ url, token, keep: KEEP }))
 await bus.runtime.shared.get('me')
 await Promise.all([bus.channels, bus.threads, bus.messages, bus.tasks, bus.docs, bus.actors, bus.follows, bus.bodies].map((collection) => collection.preload()))
 const feed = bus.runtime.feed!
+check(bus.runtime.me.actor === 'workbus:user:jared' && Array.isArray(bus.runtime.me.can?.['*']), 'who I am, with what I may do', bus.runtime.me.can)
 check(bus.threads.status === 'ready', 'collections ready', { threads: bus.threads.size, messages: bus.messages.size, tasks: bus.tasks.size, docs: bus.docs.size, actors: bus.actors.size, follows: bus.follows.size, feedAt: feed.cursor })
 
 // 1. Another person posts from wb: it shows up live, in messages and in threads.

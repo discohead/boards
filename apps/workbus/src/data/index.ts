@@ -9,12 +9,12 @@ import { BusClient, BusRefusal, type BusOptions } from './client.ts'
 import { Feed } from './feed.ts'
 import { actors, bodies, channels, docs, FIRST_PAGES, MESSAGES_KEPT, follows, messages, tasks, threadOf, threads, type BusUtils, type ThreadEntry } from './collections.ts'
 import { busActions } from './actions.ts'
-import { runtimeOf, type BusMode, type BusRuntime } from './runtime.ts'
+import { runtimeOf, type BusMode, type BusRuntime, type Me } from './runtime.ts'
 import type { Actor, Channel, Doc, DocBody, Follow, Message, Thread } from './types.ts'
 
 export { BusClient, BusRefusal, Feed, runtimeOf }
 export type * from './types.ts'
-export type { BusRuntime }
+export type { BusRuntime, Me }
 
 export function createRuntime(mode: BusMode, options: BusOptions & { keep?: number }): BusRuntime {
   const client = new BusClient(options)
@@ -43,7 +43,7 @@ export async function readFirstPages(runtime: BusRuntime, options: { deadlineMs?
 /** A DbClient whose collections follow one feed: the page's one, or a script's. */
 export function liveDb(options: BusOptions & { keep?: number }): DbClient {
   const runtime = createRuntime('browser', options)
-  runtime.shared.set('me', runtime.client.get<{ actor: string }>('/me').then((me) => (runtime.me.actor = me.actor)))
+  runtime.shared.set('me', runtime.client.get<Me>('/me').then((me) => Object.assign(runtime.me, me)))
   return new DbClient({ bus: runtime })
 }
 

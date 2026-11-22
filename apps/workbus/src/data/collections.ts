@@ -188,9 +188,13 @@ export const threads = feedCollection<Thread>({
 export const tasks = feedCollection<Message>({
   id: 'tasks',
   getKey: (row) => row.id,
+  // Every open task (up to 500) and the newest 100 of any state. A full page's cursor is a page
+  // cursor, not the board's, so the board's is read first: events after it replay idempotently.
   load: async (runtime) => {
-    const page = await runtime.client.get<Page<'tasks', { message: Message }>>('/tasks?state=all&limit=200')
-    return { rows: page.tasks.map((entry) => entry.message), cursor: Number(page.cursor) }
+    const before = await now(runtime)
+    const [open, recent] = await Promise.all(['open&limit=500', 'all&limit=100'].map((query) => runtime.client.get<Page<'tasks', { message: Message }>>('/tasks?state=' + query)))
+    const byId = new Map([...recent!.tasks, ...open!.tasks].map((entry) => [entry.message.id, entry.message]))
+    return { rows: [...byId.values()], cursor: before }
   },
   apply: (event, rows) => {
     const message = event.message
