@@ -4,9 +4,9 @@ import { createRemoteJWKSet, jwtVerify } from 'jose'
 
 let keys: { team: string; set: ReturnType<typeof createRemoteJWKSet> } | undefined
 
-/** A 403 for a request without a valid Access token, or nothing. Off when ACCESS_AUD is empty (local dev). */
+/** A 403 for a request without a valid Access token, or nothing. Off in vite dev, and when ACCESS_AUD is empty. */
 export async function checkAccess(request: Request, env: { ACCESS_TEAM?: string; ACCESS_AUD?: string }): Promise<Response | undefined> {
-  if (!env.ACCESS_AUD || !env.ACCESS_TEAM) return undefined
+  if (import.meta.env.DEV || !env.ACCESS_AUD || !env.ACCESS_TEAM) return undefined
   const token = request.headers.get('cf-access-jwt-assertion')
   if (!token) return new Response('forbidden: no Access token\n', { status: 403 })
   const issuer = 'https://' + env.ACCESS_TEAM + '.cloudflareaccess.com'
