@@ -80,7 +80,7 @@ export function docsActions(bus: Bus) {
       await sendAndSettle(
         feed,
         async () => (await client.post<{ message: Message }>('/messages', { re: input.doc, text: input.text, id: input.id, ...(input.section !== undefined ? { section: input.section } : {}) })).message,
-        { cursor: (message) => message.version },
+        { clientId: input.id!, cursor: (message) => message.version },
         (message) => bus.messages.utils.rows.merge([message], (row) => row.version),
       )
     },
