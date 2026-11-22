@@ -1,0 +1,26 @@
+/* Markdown from the board, wherever it renders (a doc, a comment, a message): readable type without
+   a typography plugin. .markdown--compact is chat's spacing. */
+.markdown { line-height: 1.65; overflow-wrap: anywhere; }
+.markdown h1 { font-size: 1.875rem; font-weight: 700; margin: 0 0 1rem; letter-spacing: -0.01em; }
+.markdown h2 { font-size: 1.375rem; font-weight: 650; margin: 2rem 0 0.75rem; }
+.markdown h3 { font-size: 1.125rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.markdown h4, .markdown h5, .markdown h6 { font-weight: 600; margin: 1.25rem 0 0.5rem; }
+.markdown p { margin: 0 0 0.85rem; }
+.markdown ul, .markdown ol { margin: 0 0 0.85rem; padding-left: 1.5rem; }
+.markdown ul { list-style: disc; }
+.markdown ol { list-style: decimal; }
+.markdown li:has(> input[type='checkbox']) { list-style: none; margin-left: -1.25rem; }
+.markdown li > input[type='checkbox'] { margin-right: 0.4rem; }
+.markdown blockquote { border-left: 3px solid var(--border); padding-left: 1rem; color: var(--muted-foreground); margin: 0 0 0.85rem; }
+.markdown table { border-collapse: collapse; margin: 0 0 1rem; font-size: 0.875rem; }
+.markdown th, .markdown td { border: 1px solid var(--border); padding: 0.35rem 0.75rem; text-align: left; }
+.markdown th { background: var(--muted); font-weight: 600; }
+.markdown a, .markdown .doc-link { color: var(--primary); text-decoration: underline; text-underline-offset: 2px; }
+.markdown .doc-link--missing { color: var(--destructive); text-decoration: underline dotted; cursor: help; }
+.markdown code:not(pre code) { font-family: var(--font-mono); font-size: 0.85em; background: var(--muted); padding: 0.1rem 0.3rem; border-radius: 4px; }
+.markdown pre.tm-code { font-family: var(--font-mono); font-size: 0.8125rem; line-height: 1.55; padding: 0.85rem 1rem; border-radius: 8px; overflow-x: auto; margin: 0 0 1rem; border: 1px solid var(--border); }
+.markdown > :last-child, .markdown > :last-child > :last-child { margin-bottom: 0; }
+.markdown--compact { line-height: 1.5; }
+.markdown--compact p, .markdown--compact ul, .markdown--compact ol, .markdown--compact pre.tm-code, .markdown--compact blockquote, .markdown--compact table { margin-bottom: 0.4rem; }
+.markdown--compact h1, .markdown--compact h2, .markdown--compact h3 { font-size: 1rem; margin: 0.5rem 0 0.25rem; }
+.markdown--compact pre.tm-code { padding: 0.5rem 0.75rem; }
