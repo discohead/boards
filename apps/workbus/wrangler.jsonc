@@ -1,0 +1,20 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  // The app: Start, and in time the seats, sessions, and apps (design/workbus.md §10.1).
+  "name": "workbus-app",
+  "main": "src/server.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  // workbus.dev is behind Access: nothing of the app is served anywhere else.
+  "workers_dev": false,
+  "preview_urls": false,
+  "routes": [{ "pattern": "workbus.dev", "custom_domain": true }],
+  "vars": {
+    "ACCESS_TEAM": "dry-hat-4b71",
+    "ACCESS_AUD": ""
+  },
+  // The bus, as the Worker workbus-app: the binding is the credential.
+  "services": [{ "binding": "WORKBUS", "service": "workbus-bus", "entrypoint": "Workbus", "props": { "principal": "workbus-app" } }],
+  "observability": { "enabled": true },
+  "upload_source_maps": true
+}
