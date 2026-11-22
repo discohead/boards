@@ -90,6 +90,25 @@ Nothing else can claim it. The Gateway reads the Access header only when there's
 and an issuer's token keeps the role it was minted with (a board token's `role` claim; other
 issuers' tokens are never people with roles).
 
+## Where this differs from design/workbus.md
+
+These are raised with the user. design/workbus.md is unchanged until they decide.
+
+1. §4.2 says `dm/<seat>` is "granted to the principal and that seat". A grant can't make a channel
+   exclusive (the starting grant gives every person `*` all), so privacy is a rule above the grants,
+   not a grant. §4.2 and §11 would point here.
+2. §5.1 makes a seat's Board with `.as(seat).narrow(seat.can)`. Narrowing only takes away, so the
+   app must put `dm/<seat>` in each seat's narrowing, or the seat can't read its own DM.
+3. A token from the board's issuer with no `role` claim is an owner (`gateway/auth.ts`), so every
+   such token is a party to every DM. That stays: whoever holds the issuer key runs the board. A
+   token for an outside agent is minted as a member (`ROLE=member node scripts/issuer.mjs token …`).
+4. `Principal.own`'s comment said it covered "its owners' own Workers"; no binding principal is
+   owned in code (only the board's own code and its sync satellites). The comment now says what is.
+5. Registered watchers register per principal, without a profile (a narrowed caller is refused), so
+   a seat's DM can't reach a registered watcher of the app's principal. Phase 2's registered watchers
+   with service sinks need a profile on a registration, or the app uses a config watcher with
+   `private: true`.
+
 ## Not doing
 
 Group DMs and channels made private after the fact (a private channel is private by its name from

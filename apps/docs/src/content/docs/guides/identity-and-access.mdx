@@ -71,6 +71,8 @@ A token's `role` claim is `owner` (the default), `member`, or `viewer`:
 
 Anyone you hand `.issuer.json` to can sign tokens for every board on the deployment. Keep it like any other secret.
 
+An owner is a party to every [private channel](#private-channels) the deployment gives its owners, so mint a token for an outside agent, or anyone but you, as a member: `ROLE=member node scripts/issuer.mjs token <sub> $WORKBUS_URL`.
+
 ### GitHub Actions
 
 A workflow run proves its repository with GitHub's OIDC token, with the board's URL as its audience. Grant the repository first:

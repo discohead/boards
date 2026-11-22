@@ -194,6 +194,45 @@ describe('private channels', () => {
     expect(text).not.toContain('zebra')
   })
 
+  it('the Relay fans out only the head: many tails at once, each sees what its caller can read', async () => {
+    const name = freshBoard('dm-fanout')
+    const who = await callers(name)
+    const head = (await api(name, 'POST', '/messages', { channel: 'general', text: 'start' }, who.owner)).body.message.id
+    // A socket on the board's Relay, as a Gateway holds one: what a ring carries.
+    const relayName = 'relay:' + name + ':xx'
+    const relay = env.RELAY.getByName(relayName) as unknown as { named(name: string): Promise<void>; fetch(request: Request): Promise<Response> }
+    await relay.named(relayName)
+    const socket = (await relay.fetch(new Request('https://relay/', { headers: { upgrade: 'websocket', 'x-board-name': name } }))).webSocket!
+    socket.accept()
+    const frames: string[] = []
+    socket.addEventListener('message', (event) => frames.push(String(event.data)))
+    const tails = [
+      ...[who.member, who.bob, who.app, who.member].map((headers) => ({ party: false, headers })),
+      ...[who.owner, who.ada].map((headers) => ({ party: true, headers })),
+    ].map(async ({ party, headers }) => {
+      const response = await SELF.fetch(boardUrl(name) + '/events?after=' + head, { headers: { ...headers, accept: 'text/event-stream' } })
+      const reader = response.body!.getReader()
+      let text = ''
+      while (!text.includes('public after')) text += new TextDecoder().decode((await reader.read()).value)
+      await reader.cancel()
+      return { party, text }
+    })
+    const waits = [who.member, who.bob, who.owner, who.ada].map((headers) => api(name, 'GET', '/events?after=' + head + '&wait=5', undefined, headers))
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    for (let i = 0; i < 3; i++) await api(name, 'POST', '/messages', { channel: 'dm/ada', text: 'zebra ' + i }, who.owner)
+    await api(name, 'POST', '/messages', { channel: 'general', text: 'public after' }, who.owner)
+    for (const { party, text } of await Promise.all(tails)) {
+      if (party) expect(['zebra 0', 'zebra 1', 'zebra 2'].every((words) => text.includes(words))).toBe(true)
+      else expect(text).not.toMatch(/zebra|dm\/ada/)
+    }
+    const [member, bob, owner, ada] = await Promise.all(waits)
+    for (const page of [member, bob]) expect(page.body.events.map((event: { message?: { text: string } }) => event.message?.text)).toEqual(['public after'])
+    for (const page of [owner, ada]) expect(page.body.events[0].message.text).toBe('zebra 0')
+    await until(() => frames.length > 1, 'a ring on the Relay')
+    socket.close()
+    for (const frame of frames) expect(Object.keys(JSON.parse(frame))).toEqual(['head'])
+  })
+
   it("config watchers see a DM only when they ask for private channels, and a sink's calls back hold to the same", async () => {
     const name = freshBoard('dm-watch')
     const who = await callers(name)
@@ -258,7 +297,21 @@ describe('private channels', () => {
       return body.last && body.last.at >= started && !body.last.more && body.cold.threads + body.frozen.threads > 0 && body.sealed.segments > 0 ? body : null
     }, 'archival to settle', 25_000)
     expect(status.sealed.segments).toBeGreaterThan(0)
+    expect(status.frozen.threads).toBeGreaterThan(0)
+    // What's archived is forgotten from memory, so each read below goes back to R2 for it.
+    const forget = () => api(name, 'POST', '/archive', { forget: true }, s.who.owner)
+    const loaded = async () => {
+      const { loads } = (await api(name, 'GET', '/archive', undefined, s.who.owner)).body
+      return loads.segments + loads.read + loads.restored + loads.pages
+    }
+    for (const who of ['member', 'bob', 'app'] as const) {
+      await forget()
+      const before = await loaded()
+      expectNothing(await reads(name, s, s.who[who]))
+      // The non-party's reads went to R2 (sealed segments, cold threads, frozen pages), and still found nothing.
+      expect({ who, fromR2: (await loaded()) > before }).toEqual({ who, fromR2: true })
+    }
+    await forget()
     expectSees(await reads(name, s, s.who.owner), PARTY_PATHS)
-    for (const who of ['member', 'bob'] as const) expectNothing(await reads(name, s, s.who[who]))
   })
 })
