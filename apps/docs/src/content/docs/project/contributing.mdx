@@ -12,7 +12,7 @@ Workbus is one package, [`packages/workbus`](https://github.com/workbus-dev/work
 ```bash
 npx pnpm@11.23.0 install
 cd packages/workbus
-npx tsc --noEmit -p .        # TS2589 "excessively deep" is known noise
+npx tsc --noEmit -p .        # also in templates/factory; both clean
 npx vitest run               # the workerd suite: the real Ledger, Relay, Mailbox, and Inbox
 ```
 
@@ -22,6 +22,8 @@ npx vitest run               # the workerd suite: the real Ledger, Relay, Mailbo
    Start at  15:21:24
    Duration  36.25s (tests 83%, transform 15%, import 2%)
 ```
+
+CI runs the same checks on every pull request: the typecheck, the workerd suite, the CLI end to end against `wrangler dev`, and the docs build ([`ci.yml`](https://github.com/workbus-dev/workbus/blob/main/.github/workflows/ci.yml)).
 
 ## Where things are
 
