@@ -7,6 +7,7 @@ import { firstPages } from '../first-pages.ts'
 import { BusProvider } from '../db.tsx'
 import { Sidebar } from '../shell/sidebar.tsx'
 import { ThreadPane } from '../shell/thread-pane.tsx'
+import { Keyboard } from '../command/Keyboard.tsx'
 import css from '../styles.css?url'
 
 /** ?thread=<id>: the open thread, a message ID (a number in the URL). */
@@ -56,6 +57,7 @@ function Frame() {
         </main>
         <ThreadPane />
       </div>
+      <Keyboard />
     </BusProvider>
   )
 }

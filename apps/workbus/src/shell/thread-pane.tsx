@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
 import { Body } from '@/thread/body'
+import { ThreadShortcuts } from '@/command/ThreadShortcuts'
 import { useOpenThread } from './open-thread.ts'
 
 export function ThreadPane() {
@@ -33,6 +34,7 @@ function Pane({ id, close }: { id: string; close: () => void }) {
           Close
         </Button>
       </header>
+      <ThreadShortcuts threadId={id} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {root?.task ? <Status root={root} /> : null}
         {root?.doc ? <Body root={root} /> : null}
