@@ -4,7 +4,7 @@
 // they live in the grants table, never in the board log, and every change bumps the grants version.
 import { WorkbusError, badRequest, forbidden, notFound } from '../errors.ts'
 import { expand, PERMISSIONS, wirePermissions, type Grant, type Permission } from './access.ts'
-import { iso, levelOf, type Caller, type GrantPrincipal, type Principal, type StoredGrant } from './core.ts'
+import { iso, levelOf, partyTo, type Caller, type GrantPrincipal, type Principal, type StoredGrant } from './core.ts'
 import { op, type Ctx } from './ops.ts'
 
 const GITHUB_ISSUER = 'https://token.actions.githubusercontent.com'
@@ -626,6 +626,9 @@ op('explainGrants', (ctx, query: ExplainQuery) => {
     if (named === 'app') return nobody
     who = { principal: named, narrow: null }
   } else who = { principal: ctx.caller.principal, narrow: ctx.caller.narrow }
+  // A private channel gives a non-party nothing, whatever its grants say (design/private-channels.md).
+  const parties = ctx.board.partiesOf(query.channel)
+  if (parties && !(who.principal.own && !who.principal.outsider) && !partyTo(parties, { ...who, profile: naming ? null : ctx.caller.profile, via: ctx.caller.via })) return nobody
   const scope = (permissions: Permission[]) => wirePermissions(who.narrow ? permissions.filter((permission) => resolve(mapOf(who.narrow!), query.channel).includes(permission)) : permissions) as Permission[]
   if (who.principal.own) return { ...nobody, can: scope([...PERMISSIONS]) }
   const matches = matchesFor(grants, who.principal, false)

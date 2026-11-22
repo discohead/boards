@@ -110,6 +110,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | `section_conflict` | A doc edit's section changed after the `revision` it names (its own text, or for `subtree: true` and `remove` anything under it), or was renamed or removed since. `data` names the `section` and its `revision`. Completing an overtaken proposal answers it too, and the task stays open. **Fix:** Read that section again, fold your change into it, and edit with the doc's new revision. |
 | `merge_conflict` | A whole-body merge found sections changed differently in your body and in the doc. `data.sections` names every one; nothing was applied. **Fix:** Read those sections, settle them in your body, and merge again. |
 | `slug_taken` | Another doc has that path. **Fix:** Pick another slug, or edit the doc that's there. |
+| `private_move` | A doc move would take it into or out of a [private channel](/guides/identity-and-access/#private-channels), or between private channels with other parties. **Fix:** Make a new doc where it should be. |
 | `doc_mirrored` | The doc mirrors a page a sync keeps it from (a [Notion mirror](/guides/sync-notion/#a-mirror)), so only that sync's imports change it. Proposals on it are refused too. **Fix:** Edit the page on its platform. |
 | `label_conflict` | A label write's `if` doesn't hold. **Fix:** Read the labels, then decide. |
 | `duplicate_id` | A client ID was used for a different write: another place, another author, or a batch with another `request`. **Fix:** Use a new ID for a new write. |

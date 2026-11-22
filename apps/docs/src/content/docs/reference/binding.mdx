@@ -124,6 +124,8 @@ class Board extends RpcTarget {
 
 `PostInput` is the body of `POST /messages` without `channel` or `re` (`{ text, labels, attachments, id, noSync, sync, after }`): where a message goes is the method's first argument. The answers are the HTTP API's answers, as plain objects; see each route in the [HTTP API](/reference/http-api/).
 
+In a [private channel](/guides/identity-and-access/#private-channels) only its parties' Boards see anything: `as('ada')` is a party to `dm/ada` where the deployment says so, `as('bob')` and the Board with no profile aren't, and `narrow()` never adds a party. A seat's narrowing has to include its own DM.
+
 `events({ wait })` and `tasks.claim({ channel }, { wait })` hold the call until something comes, woken by the board's Relay, like the HTTP held waits.
 
 ## Tasks

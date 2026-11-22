@@ -17,8 +17,10 @@ export type Principal = {
   expiresAt: number | null
   /** A person's role on the board: an owner manages everything, a viewer reads and reacts. */
   role?: 'owner' | 'member' | 'viewer'
-  /** The board's own: its code, and its owners' own Workers. Everything, outside the grants. */
+  /** The board's own code: everything, outside the grants (and inside private channels, unless outsider). */
   own?: boolean
+  /** Owned code that private channels still keep out: a config watcher that didn't ask for them. */
+  outsider?: boolean
 }
 export type Profile = { name: string; avatar: string | null }
 export type Caller = { principal: Principal; profile: Profile | null; narrow: Record<string, Grant> | null; via: string }
@@ -107,10 +109,45 @@ export function levelOf(named: GrantPrincipal, principal: Principal): 0 | 1 | 2 
   }
 }
 
-/** What a caller may do, from the grants as they are now. */
-export function accessFor(grants: StoredGrant[], caller: Caller): Access {
+/**
+ * A deployment's private channels (design/private-channels.md): a channel's parties, or null where
+ * the grants decide. A party is an actor ID, or owners (any person whose role is owner).
+ */
+export type Privacy = (channel: string) => readonly string[] | null | undefined
+
+/** dm/<seat> and its subtree, private to the board's owners and the seat: principal's profile <seat>, as worker:workbus-app+ada. */
+export function dms(principal: string): Privacy {
+  return (channel) => {
+    const seat = /^dm\/([a-z0-9][a-z0-9_-]*)(?:\/|$)/.exec(channel)?.[1]
+    return seat ? ['owners', principal + '+' + seat] : null
+  }
+}
+
+/** Whether a caller is one of a private channel's parties. */
+export function partyTo(parties: readonly string[], caller: Caller): boolean {
+  if (parties.includes(actorOf(caller).id)) return true
+  return parties.includes('owners') && caller.principal.kind === 'person' && caller.principal.role === 'owner'
+}
+
+/** The private channels closed to a caller, as a test of a channel's name; null when none can be. */
+function closedTo(privacy: Privacy | null, caller: Caller): ((channel: string) => boolean) | null {
+  if (!privacy || (caller.principal.own && !caller.principal.outsider)) return null
+  const known = new Map<string, boolean>()
+  return (channel) => {
+    let closed = known.get(channel)
+    if (closed === undefined) {
+      const parties = privacy(channel)
+      known.set(channel, (closed = Boolean(parties) && !partyTo(parties!, caller)))
+    }
+    return closed
+  }
+}
+
+/** What a caller may do, from the grants as they are now, with the private channels it isn't a party to closed. */
+export function accessFor(grants: StoredGrant[], caller: Caller, privacy: Privacy | null = null): Access {
   const { principal } = caller
-  if (principal.own) return accessOf({ full: true, grants: [], narrow: caller.narrow })
+  const closed = closedTo(privacy, caller)
+  if (principal.own) return accessOf({ full: true, grants: [], narrow: caller.narrow, closed })
   const matching = grants.flatMap((grant) => {
     const levels = grant.principals.map((named) => levelOf(named, principal)).filter((level): level is 0 | 1 | 2 => level !== null)
     return levels.length ? [{ grant, level: Math.min(...levels) as 0 | 1 | 2 }] : []
@@ -135,7 +172,7 @@ export function accessFor(grants: StoredGrant[], caller: Caller): Access {
     }
     return [...out].filter((permission) => !cap || cap.includes(permission))
   }
-  return accessOf({ full: false, grants: matching.map(({ grant }) => grant.can), narrow: caller.narrow, resolve })
+  return accessOf({ full: false, grants: matching.map(({ grant }) => grant.can), narrow: caller.narrow, resolve, closed })
 }
 
 function specificityOf(pattern: string, channel: string): number | null {
@@ -222,6 +259,8 @@ export class Board {
   miss: ((id: number) => MessageRow | null) | null = null
   /** The board's own syncs, as its deployment declares them: each key, and its platform. */
   sync = new Map<string, string>()
+  /** The deployment's private channels (WorkbusConfig.private). */
+  privacy: Privacy | null = null
   private grantsCache: { version: number; grants: StoredGrant[] } | null = null
   readonly sql: Sql
   constructor(sql: Sql) {
@@ -251,7 +290,11 @@ export class Board {
     return grants
   }
   access(caller: Caller): Access {
-    return accessFor(this.grants(), caller)
+    return accessFor(this.grants(), caller, this.privacy)
+  }
+  /** A channel's parties when it's private, else null. */
+  partiesOf(channel: string): readonly string[] | null {
+    return this.privacy?.(channel) ?? null
   }
 
   // -- actors -------------------------------------------------------------------------------

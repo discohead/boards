@@ -84,8 +84,15 @@ type Named = { id: string; handle: string; name: string; kind: string }
 /** The actors a caller sees: everyone for a reader of every channel; else who wrote where it reads, and itself. */
 export function visibleActors(ctx: Ctx): Named[] {
   const all = ctx.sql.all<Named>('select id, handle, name, kind from actors')
-  if (ctx.access.everywhere('read')) return all
+  const everywhere = ctx.access.everywhere('read')
+  if (everywhere && !ctx.access.hides) return all
   const channels = ctx.sql.all<{ channel: string; actor: string }>('select distinct channel, actor from messages union select channel, actor from cold_authors')
+  if (everywhere) {
+    // Everyone but who wrote only in private channels closed to the caller.
+    const shown = new Set(channels.filter((row) => ctx.access.readable(row.channel)).map((row) => row.actor))
+    const hidden = new Set(channels.map((row) => row.actor).filter((actor) => !shown.has(actor) && actor !== ctx.actor.id))
+    return all.filter((actor) => !hidden.has(actor.id))
+  }
   const seen = new Set(channels.filter((row) => ctx.access.readable(row.channel)).map((row) => row.actor))
   seen.add(ctx.actor.id)
   return all.filter((actor) => seen.has(actor.id))
@@ -382,25 +389,26 @@ op('label', (ctx, body: { id: string; set?: Record<string, string>; unset?: stri
 
 // -- channels ------------------------------------------------------------------------------------
 
-const channelView = (row: { path: string; last: number; messages: number; threads: number }) => ({ path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads })
+// A private channel (design/private-channels.md) says so to its parties, the only ones who list it.
+const channelView = (ctx: Ctx, row: { path: string; last: number; messages: number; threads: number }) => ({ path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads, ...(ctx.board.partiesOf(row.path) ? { private: true } : {}) })
 
 op('channels', (ctx, query: { prefix?: string; after?: string; limit?: number }) => {
   const limit = query.limit ?? 100
   const rows = ctx.sql.all<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path > ? order by path', query.after ?? '')
   const readable = rows.filter((row) => (query.prefix === undefined || row.path.startsWith(query.prefix)) && ctx.access.readable(row.path))
   const page = readable.slice(0, limit)
-  return { channels: page.map(channelView), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
+  return { channels: page.map((row) => channelView(ctx, row)), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
 }, { read: true })
 
 op('createChannel', (ctx, { path }: { path: string }) => {
   authorize(ctx.access, 'read', path)
   authorize(ctx.access, 'post', path)
   const there = ctx.sql.one<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path = ?', path)
-  if (there) return { channel: channelView(there), created: false }
+  if (there) return { channel: channelView(ctx, there), created: false }
   ctx.board.seen(ctx.actor, ctx.now)
   ensureChannel(ctx, path, ctx.now)
   ctx.board.append('channel.created', { channel: path, by: ctx.author }, { at: ctx.now })
-  return { channel: { path, lastIndex: 0, messages: 0, threads: 0 }, created: true }
+  return { channel: channelView(ctx, { path, last: 0, messages: 0, threads: 0 }), created: true }
 })
 
 // -- reads ------------------------------------------------------------------------------------

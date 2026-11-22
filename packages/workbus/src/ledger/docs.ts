@@ -352,6 +352,9 @@ op('moveDoc', (ctx, body: { id: string; channel?: string; slug?: string }) => {
   authorize(ctx.access, 'edit', channel)
   if (!SLUG.test(slug)) throw badRequest('slug: a doc\'s slug is lowercase letters, numbers, _, and -, up to 128, starting with a letter or number', 'invalid_slug')
   if (channel === doc.channel && slug === doc.slug) return answer(ctx, row.id)
+  // Its earlier events were seen where it was: a move across a private channel's edge would show its later text there.
+  if (channel !== doc.channel && JSON.stringify(ctx.board.partiesOf(channel)) !== JSON.stringify(ctx.board.partiesOf(doc.channel)))
+    throw conflict('private_move', "a doc can't move into or out of a private channel, or between private channels with different parties")
   if (ctx.sql.one('select 1 as there from docs where channel = ? and slug = ?', channel, slug)) throw conflict('slug_taken', channel + '/' + slug + ' is a doc already')
   const from = pathOf(doc)
   const to = channel + '/' + slug
