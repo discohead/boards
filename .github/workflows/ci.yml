@@ -66,6 +66,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Install
+        working-directory: .
         run: pnpm install --frozen-lockfile --filter ./packages/workbus
       - name: The sync providers, offline
         run: node --test test/sync/*.node-test.ts
