@@ -3,7 +3,7 @@
 // an edit's is the next message.edited for it). A refusal rolls it back. Each write carries a client ID (`id`), so sending it again
 // after a lost answer posts it once.
 import { safeRandomUUID, type DbClient } from '@tanstack/db'
-import { action, sendAndSettle } from './settle.ts'
+import { action, sendAndSettle, type Settled } from './settle.ts'
 import type { BusCollections } from './index.ts'
 import type { BusRuntime } from './runtime.ts'
 import type { Follow, Message } from './types.ts'
@@ -13,8 +13,14 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
   const feed = runtime.feed!
   type Merges = { merge: (rows: Message[], version: (row: Message) => number) => void }
   /** Send a write that answers its message; it settles on that message's event (its version is the event's cursor). */
-  const settle = (send: () => Promise<Message>, into: Merges[]) =>
-    sendAndSettle(feed, send, { cursor: (message) => message.version }, (message) => {
+  /** The way each write settled, by client ID, newest last (for the checks). */
+  const settledBy = new Map<string, Settled>()
+  /**
+   * Send a write made with client ID id; it settles on the message.posted carrying that ID, or (on a
+   * board that doesn't carry client IDs) on the event at its message's version.
+   */
+  const settle = (id: string, send: () => Promise<Message>, into: Merges[]) =>
+    sendAndSettle(feed, send, { clientId: id, cursor: (message) => message.version, onSettled: (way) => settledBy.set(id, way) }, (message) => {
       for (const rows of into) rows.merge([message], (row) => row.version)
     })
 
@@ -49,7 +55,7 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
         })
     },
     mutationFn: async (input) => {
-      await settle(async () => (await client.post<{ message: Message }>('/messages', input.re ? { re: input.re, text: input.text, id: input.id } : { channel: input.channel, text: input.text, id: input.id })).message, [c.messages.utils.rows])
+      await settle(input.id!, async () => (await client.post<{ message: Message }>('/messages', input.re ? { re: input.re, text: input.text, id: input.id } : { channel: input.channel, text: input.text, id: input.id })).message, [c.messages.utils.rows])
     },
   })
 
@@ -76,7 +82,7 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
       c.tasks.insert(draft({ id, channel: input.channel, text: input.text, labels: { 'board.task': 'ready' }, task: { state: 'ready', owner: me, by: me, for: null, needs: [], epoch: 0, claim: null, blocked: null, result: null, reason: null } }))
     },
     mutationFn: async (input) => {
-      await settle(async () => (await client.post<{ task: Message }>('/tasks', { channel: input.channel, text: input.text, id: input.id })).task, [c.tasks.utils.rows])
+      await settle(input.id!, async () => (await client.post<{ task: Message }>('/tasks', { channel: input.channel, text: input.text, id: input.id })).task, [c.tasks.utils.rows])
     },
   })
 
@@ -100,8 +106,9 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
    * then the board refuses it, and the write rolls back.
    */
   const createDoc = async (input: { channel: string; slug: string; body: string; re?: string }) => {
-    return settle(async () => (await client.post<{ message: Message }>('/docs', input)).message, [c.messages.utils.rows])
+    const id = 'web-' + safeRandomUUID()
+    return settle(id, async () => (await client.post<{ message: Message }>('/docs', { ...input, id })).message, [c.messages.utils.rows])
   }
 
-  return { post, edit, createTask, follow, createDoc }
+  return { post, edit, createTask, follow, createDoc, settledBy }
 }

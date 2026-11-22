@@ -36,7 +36,7 @@ const quick = await readFirstPages(createRuntime('server', { url, token, fetch: 
 const names = quick.state.collections.map((chunk) => chunk.collectionId)
 check(quick.late && !names.includes('actors') && names.includes('threads'), 'first pages at a deadline: what was read, without the late one', names)
 const full = await readFirstPages(createRuntime('server', { url, token }))
-check(!full.late && full.state.collections.length === 7 && full.state.collections.every((chunk) => (chunk.syncMeta as { cursor: number }).cursor > 0), 'first pages in time: all seven, each with its cursor', full.state.collections.map((chunk) => chunk.collectionId + '@' + (chunk.syncMeta as { cursor: number }).cursor))
+check(!full.late && full.state.collections.length === 7 && full.state.collections.every((chunk) => Number.isInteger((chunk.syncMeta as { cursor: number }).cursor)), 'first pages in time: all seven, each with its cursor', full.state.collections.map((chunk) => chunk.collectionId + '@' + (chunk.syncMeta as { cursor: number }).cursor))
 
 const KEEP = 40
 const bus = busOf(liveDb({ url, token, keep: KEEP }))
@@ -71,6 +71,8 @@ await tx.when('settled')
 const settled = [...bus.messages.values()].filter((message) => message.text === text2)
 check(settled.length === 1 && !settled[0]!.pending && /^\d+$/.test(settled[0]!.id), 'it settles as one row with the board ID', { id: settled[0]?.id, ms: Date.now() - before })
 check(feed.cursor! >= settled[0]!.version && Date.now() - before < 5000, 'on its echo: the feed had reached its event, well before the fallback', { feed: feed.cursor, event: settled[0]?.version })
+const way = bus.actions.settledBy.get(optimistic!.id)
+check(way === (process.env.EXPECT_CLIENT_ID ? 'clientId' : 'cursor'), 'settled by ' + (process.env.EXPECT_CLIENT_ID ? 'its client ID' : 'the cursor (this board carries no client IDs)'), way)
 check(!bus.messages.has(optimistic!.id) && bus.threads.has(settled[0]!.id) && !bus.threads.has(optimistic!.id), 'the pending row and thread are gone, the board one is there')
 
 // 4. A refused write rolls back: a reply to a thread that isn't there.

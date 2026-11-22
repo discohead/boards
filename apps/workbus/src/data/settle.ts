@@ -16,18 +16,29 @@ export const action = <V>(db: DbClient, options: { onMutate: (input: V) => void;
 }
 
 export type Echo<A> = {
+  /** The write's client ID: its echo is the message.posted whose payload.clientId is this. */
+  clientId?: string
   /** The echo is the first event from now on that this matches (asked before the request, so a fast echo isn't missed). */
   test?: (event: BoardEvent) => boolean
-  /** Or: the echo is the event at this cursor, read from the answer (a post's message.version). */
+  /** A fallback: the echo is the event at this cursor, read from the answer (a post's message.version), for a board that doesn't carry client IDs. */
   cursor?: (answer: A) => number | null
+  /** Told which way it settled (the checks read it). */
+  onSettled?: (settled: Settled) => void
 }
+
+/** Which way a write settled, for the checks: its client ID, a test, the cursor, or the answer after ECHO_MS. */
+export type Settled = 'clientId' | 'test' | 'cursor' | 'answer'
+
+/** The echo of a write made with a client ID. */
+export const byClientId = (id: string) => (event: BoardEvent) => event.type === 'message.posted' && event.payload.clientId === id
 
 /**
  * Send a write, then wait for its echo (echo.test or echo.cursor); after ECHO_MS, call fallback
  * with the answer (write it, or read the row again). A refusal throws, and the write rolls back.
  */
 export async function sendAndSettle<A>(feed: Feed, send: () => Promise<A>, echo: Echo<A>, fallback: (answer: A) => unknown): Promise<A> {
-  const waiter = echo.test ? feed.next(echo.test) : null
+  const test = echo.clientId !== undefined ? byClientId(echo.clientId) : echo.test
+  const waiter = test ? feed.next(test) : null
   let answer: A
   try {
     answer = await send()
@@ -36,11 +47,16 @@ export async function sendAndSettle<A>(feed: Feed, send: () => Promise<A>, echo:
     throw error
   }
   const cursor = echo.cursor?.(answer) ?? null
-  const seen = cursor !== null ? feed.reached(cursor) : waiter ? waiter.promise : Promise.resolve()
   let timer: ReturnType<typeof setTimeout> | undefined
-  const echoed = await Promise.race([seen.then(() => true), new Promise<false>((resolve) => (timer = setTimeout(() => resolve(false), ECHO_MS)))])
+  const ways: Promise<Settled>[] = [new Promise<Settled>((resolve) => (timer = setTimeout(() => resolve('answer'), ECHO_MS)))]
+  if (waiter) ways.push(waiter.promise.then(() => (echo.clientId !== undefined ? 'clientId' : 'test')))
+  // The client ID's event is handed out before the feed's cursor moves past it, so it wins when it's there.
+  if (cursor !== null) ways.push(feed.reached(cursor).then(() => new Promise<Settled>((resolve) => setTimeout(() => resolve('cursor'), 0))))
+  if (!waiter && cursor === null) ways.push(Promise.resolve('answer'))
+  const settled = await Promise.race(ways)
   clearTimeout(timer)
   waiter?.cancel()
-  if (!echoed) await fallback(answer)
+  if (settled === 'answer') await fallback(answer)
+  echo.onSettled?.(settled)
   return answer
 }
