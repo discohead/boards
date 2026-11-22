@@ -45,7 +45,7 @@ export function ownersOf(...lists: (string | readonly string[] | null | undefine
   for (const list of lists)
     for (const entry of typeof list === 'string' ? list.split(/[,\n]/) : (list ?? [])) {
       const trimmed = entry.trim()
-      if (trimmed) out.add(trimmed.includes('@') ? trimmed.toLowerCase() : trimmed)
+      if (trimmed) out.add(trimmed.includes('@') ? asciiLower(trimmed) : trimmed)
     }
   return [...out]
 }
@@ -55,8 +55,11 @@ export function ownersOf(...lists: (string | readonly string[] | null | undefine
  * (an email can be renamed or given to someone else); an email is what's known before a first sign-in.
  */
 export function isOwner(owners: readonly string[], sub: string, email: string): boolean {
-  return owners.includes(sub) || owners.includes(email.toLowerCase())
+  return owners.includes(sub) || owners.includes(asciiLower(email))
 }
+
+/** A-Z to a-z and nothing else: toLowerCase maps some other letters onto ASCII ones (KELVIN SIGN to k), so a different address would match. */
+const asciiLower = (text: string) => text.replace(/[A-Z]/g, (letter) => letter.toLowerCase())
 
 const SUB = /^[a-z0-9](?:[a-z0-9._@-]{0,62}[a-z0-9])?$/
 

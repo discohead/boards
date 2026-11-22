@@ -3,6 +3,7 @@
 // Owner or not shows in a private channel: dm/<seat> opens to the owners (design/private-channels.md).
 import { SELF } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
+import { isOwner, ownersOf } from '../src/gateway/auth.ts'
 import { accessToken } from './access.ts'
 import { boardUrl, freshBoard, ledgerOf, mountOf, person, tokenFor } from './helpers.ts'
 
@@ -19,6 +20,13 @@ async function readsDm(name: string, headers: Record<string, string>) {
 }
 
 describe('owners through Access', () => {
+  it('an email matches an owner by ASCII case only: a letter that lowercases onto ASCII is another address', () => {
+    const owners = ownersOf('Kate@Example.com, \u212Aim@example.com')
+    expect(isOwner(owners, 'sub-1', 'KATE@example.COM')).toBe(true)
+    // KELVIN SIGN (U+212A) lowercases to k.
+    expect(isOwner(owners, 'sub-2', '\u212Aate@example.com')).toBe(false)
+    expect(isOwner(owners, 'sub-3', 'kim@example.com')).toBe(false)
+  })
   it('a login named by email in ACCESS_OWNERS (any case) or by sub in code is owner; any other login is a member', async () => {
     const name = freshBoard('owners')
     expect((await ledgerOf(name).call(person(), 'post', { channel: 'dm/ada', text: 'for the owner and ada' }, mountOf(name))).ok).toBe(true)
