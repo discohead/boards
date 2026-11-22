@@ -211,6 +211,8 @@ curl "$WORKBUS_URL/messages" \
 
 ## Events
 
+A write made with a client `id` (a post or a reply, a task, a doc) carries it on its `message.posted` as `payload.clientId`, and a batch's tasks carry `payload.batch`: `{ id, index, key }`. A client that shows a write at once settles it when that event comes back. A retry with the same `id` writes no second event.
+
 <ApiGroup tag="events" />
 
 ## Follows

@@ -48,19 +48,33 @@ function bumpChannel(ctx: Pick<Ctx, 'sql' | 'now'>, channel: string, actor: stri
   )
 }
 
+/**
+ * Whether an actor may hold read state in a post's channel. In a private channel (its parties fixed by
+ * the deployment), only a party by ID, or one the board has seen read there (a row of its own in the
+ * channel, which only a write it could read makes, or a mark it was let make). Anyone else a post
+ * mentions or reaches there gets no row at all; the read-time check stays, for grants that change.
+ */
+function holds(ctx: Ctx, row: MessageRow, actor: string): boolean {
+  const parties = ctx.board.partiesOf(row.channel)
+  if (!parties || parties.includes(actor)) return true
+  return Boolean(ctx.sql.one('select 1 as there from read_channels where channel = ? and actor = ?', row.channel, actor))
+}
+
 // A post: a root counts in its channel for everyone but its author, and a mention for whom it
 // mentions; a reply counts for each follower it reaches but its author. After follows.ts has written
 // who follows it, so these are the followers its event's facet names.
 const posted = hooks.posted
 hooks.posted = (ctx, row) => {
   posted(ctx, row)
-  const followers = ctx.board.followers(row).filter((actor) => actor !== row.actor)
+  const followers = ctx.board.followers(row).filter((actor) => actor !== row.actor && holds(ctx, row, actor))
   const ids = mentionIds(row.text)
   if (row.re === null) {
-    bumpChannel(ctx, row.channel, row.actor, 'own', row.id)
+    if (!row.blind || !ctx.board.partiesOf(row.channel)) bumpChannel(ctx, row.channel, row.actor, 'own', row.id)
     for (const actor of followers) if (ids.has(actor)) bumpChannel(ctx, row.channel, actor, 'mentions', row.id)
     return
   }
+  // A reply's author could read where it wrote: in a private channel, the board now knows it.
+  if (!row.blind && ctx.board.partiesOf(row.channel)) ctx.sql.run('insert into read_channels (channel, actor, seq, at) values (?, ?, 0, ?) on conflict (channel, actor) do nothing', row.channel, row.actor, ctx.now)
   for (const actor of followers) {
     const mention = ids.has(actor) ? 1 : 0
     ctx.sql.run(

@@ -83,6 +83,23 @@ Counts never reveal a channel the actor can't read. Every list and every mark go
 read check as the channel's messages. A hidden channel isn't listed, and marking one read answers
 404, as one that doesn't exist. A follower who loses the channel keeps its row, unlisted.
 
+## One thread, two faces
+
+A task's thread gains a body where it is: `POST /docs { re: <root> }`, with a `slug`, a new `body`, a template
+(`from`), or none of them. Unnamed, its slug is the root's ID, so the doc is at `<channel>/<id>`
+(`eng/issues/42`). The root's text becomes the body unless a new one is given, and the doc's history
+starts there. It needs `post` and `edit` in the channel, and a channel the caller can't read
+answers 404, as anywhere. A new body from someone other than the task's writer holds a claimed task, as
+an edit would.
+
+It's a doc like any other, so it shows in the docs tree (`board.doc` labels it). A view that shows
+docs that are also tasks as issues tells them apart cheaply: a doc read (`GET /docs/:id`, `?path=`)
+carries `task` (its state) when the root is a task too, and a message view, in a thread, a task
+list, or the feed, carries both `task` and `doc`.
+
+This disagrees with the code as it was: createDoc only made new roots, while design/workbus.md §4.1
+has a task gain its body in place. `re` is the change.
+
 ## Not doing
 
 Per-message read receipts, or who else has read something; a count of replies in threads the

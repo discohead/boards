@@ -109,6 +109,36 @@ describe('a thread with both faces', () => {
     expect(changed.message.task).toMatchObject({ state: 'blocked' })
   })
 
+  it("a task's body needs no name, and each read says the other face is there", async () => {
+    const name = freshBoard('faces-unnamed')
+    const id = (await ok(name, 'jared', 'POST', '/tasks', { channel: 'eng/issues', text: '# Flaky test\n\nIt fails one run in ten.\n' })).task.id as string
+    const doc = await ok(name, 'jared', 'POST', '/docs', { re: id })
+    expect(doc.message.doc.path).toBe('eng/issues/' + id)
+    expect((await ok(name, 'jared', 'GET', '/docs/' + id)).doc).toMatchObject({ path: 'eng/issues/' + id, task: 'ready' })
+    expect((await ok(name, 'jared', 'GET', '/docs?path=eng/issues/' + id)).doc.task).toBe('ready')
+    // A task's views carry its doc; a doc that's no task says none.
+    expect((await ok(name, 'jared', 'GET', '/tasks?channel=eng/issues')).tasks[0].message.doc.path).toBe('eng/issues/' + id)
+    const plain = await ok(name, 'jared', 'POST', '/docs', { channel: 'eng', slug: 'plain', body: '# Plain\n' })
+    expect((await ok(name, 'jared', 'GET', '/docs/' + plain.message.id)).doc.task).toBeUndefined()
+    // Moved while claimed, it stays a claimed task.
+    await ok(name, 'jared', 'POST', '/tasks/' + id + '/claim', {})
+    await ok(name, 'jared', 'POST', '/docs/' + id + '/move', { channel: 'eng/flaky' })
+    expect(faces((await ok(name, 'jared', 'GET', '/messages/' + id)).message)).toEqual({ id, state: 'claimed', task: 'claimed', path: 'eng/flaky/' + id, doc: 'eng/flaky/' + id })
+    expect((await ok(name, 'jared', 'GET', '/tasks?channel=eng/flaky')).tasks.map((entry: { message: View }) => entry.message.id)).toEqual([id])
+  })
+
+  it('a body on a thread needs edit there, and a private channel is not there for anyone outside it', async () => {
+    const name = freshBoard('faces-access')
+    const id = (await ok(name, 'jared', 'POST', '/tasks', { channel: 'eng', text: 'A task.' })).task.id as string
+    const refused = await as(name, 'jared', 'POST', '/docs', { re: id }, { 'x-board-can': '*=read,post,label' })
+    expect(refused.status).toBe(403)
+    const dm = (await ok(name, 'jared', 'POST', '/messages', { channel: 'dm/ada', text: 'A private plan.' })).message.id as string
+    const outside = await api(name, 'POST', '/docs', { re: dm }, { authorization: 'Bearer ' + (await tokenFor(name, 'mallory', { claims: { role: 'member' } })) })
+    expect(outside.status).toBe(404)
+    expect(outside.body.error.code).toBe('message_not_found')
+    expect((await ok(name, 'jared', 'POST', '/docs', { re: dm })).message.doc.path).toBe('dm/ada/' + dm)
+  })
+
   it('refuses a body for a reply, a doc already, a slug taken, or a thread and a channel at once', async () => {
     const name = freshBoard('faces-refuse')
     const root = (await ok(name, 'jared', 'POST', '/messages', { channel: 'eng', text: 'A thread.' })).message.id as string

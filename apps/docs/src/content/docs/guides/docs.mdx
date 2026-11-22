@@ -59,7 +59,9 @@ $ wb doc history eng/issues/login
 4  2026-11-21 16:39  workbus:user:jared  created
 ```
 
-A new body changes what a task asks, so when someone other than its writer gives a claimed task one, the task is held, as an edit to it would hold it. A doc becomes a task the usual way, `POST /tasks` with `re`.
+Without a `slug`, the doc is named for its root: `eng/issues/2`. It shows in the docs tree like any doc. A doc read (`GET /docs/{id}`) carries `task`, the task's state, when the root is a task too, and a message view carries both `task` and `doc`, so a view can show such a doc as an issue. It needs `post` and `edit` in the channel.
+
+A new body changes what a task asks, so when someone other than its writer gives a claimed task one, the task is held, as an edit to it would hold it. A doc becomes a task the usual way, `POST /tasks` with `re`. Either way, a move keeps both faces.
 
 ## Sections
 

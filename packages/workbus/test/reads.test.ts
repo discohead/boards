@@ -239,6 +239,26 @@ describe('read state', () => {
     expect(await channel(name, 'jared', 'general')).toMatchObject({ unread: 0, mentions: 0 })
   })
 
+  it('a private channel writes no read state for anyone who is not its party, mentioned or not', async () => {
+    const name = freshBoard('reads-dm')
+    const owner = { authorization: 'Bearer ' + (await tokenFor(name, 'jared', { claims: { role: 'owner' } })) }
+    const member = { authorization: 'Bearer ' + (await tokenFor(name, 'mallory', { claims: { role: 'member' } })) }
+    const ada = { authorization: 'Bearer ' + (await tokenFor(name, 'workbus-app', { claims: { kind: 'workload' } })), 'x-board-profile': 'ada' }
+    expect((await api(name, 'POST', '/messages', { channel: 'general', text: 'mallory is here' }, member)).status).toBe(201)
+    const dm = (await api(name, 'POST', '/messages', { channel: 'dm/ada', text: 'a plan for @[workbus:user:mallory]' }, owner)).body.message.id as string
+    expect((await api(name, 'POST', '/messages', { re: dm, text: 'cc @[workbus:user:mallory]' }, ada)).status).toBe(201)
+    expect((await api(name, 'POST', '/messages', { re: dm, text: 'and the owner again' }, owner)).status).toBe(201)
+    const held = async (actor: string) => [
+      ...(await rows(name, "select channel from read_channels where actor = ? and channel like 'dm/%'", actor)),
+      ...(await rows(name, "select channel from read_threads where actor = ? and channel like 'dm/%'", actor)),
+    ]
+    expect(await held('workbus:user:mallory')).toEqual([])
+    expect((await held('workbus:user:jared')).length).toBe(2)
+    expect((await held('worker:workbus-app+ada')).length).toBe(2)
+    expect((await api(name, 'GET', '/unread', undefined, member)).body.channels.map((entry: { channel: string }) => entry.channel)).toEqual([])
+    expect((await api(name, 'GET', '/unread', undefined, owner)).body.threads).toEqual([expect.objectContaining({ thread: dm, unread: 1 })])
+  })
+
   it('keeps counts in side tables, a row per reader', async () => {
     const name = freshBoard('reads-rows')
     await meet(name, 'jared', 'ada', 'bob')

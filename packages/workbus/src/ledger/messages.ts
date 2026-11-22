@@ -154,6 +154,8 @@ export type Imported = {
   textMax?: number
   /** The board's own labels (board.*) the write sets: a doc's, a doc comment's section. */
   boardLabels?: Record<string, string>
+  /** What its message.posted carries besides: a batch task's place in its batch. */
+  event?: Record<string, unknown>
 }
 
 type By = { actor: string; principal: string; profile: string | null }
@@ -237,6 +239,9 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   if (imported.schedule) payload.schedule = imported.schedule
   if (blind) payload.blind = true
   if (imported.importedBy) payload.importedBy = imported.importedBy
+  // The client ID it was written with, so a client settles its optimistic write when this event comes back.
+  if (key !== undefined) payload.clientId = key
+  if (imported.event) Object.assign(payload, imported.event)
   ctx.board.append('message.posted', payload, { at, message: seq, thread, before: null, seq })
   if (!root && body.sync?.length) hooks.syncTargets(ctx, seq, threadKey, body.sync.map((entry) => (typeof entry === 'string' ? { target: entry } : entry)))
   return { row: ctx.board.message(seq)!, replayed: false, ...(mentions ? { mentions } : {}) }

@@ -499,7 +499,8 @@ op('createTasks', (ctx, body: CreateTasks) => {
   const written = new Set<string>()
   let blind = false
   body.tasks.forEach((spec, i) => {
-    const posted = postMessage(ctx, { channel, text: spec.text, ...(spec.labels ? { labels: spec.labels } : {}), ...(spec.noSync ? { noSync: true } : {}), ...(spec.attachments ? { attachments: spec.attachments } : {}) })
+    const batch = body.id !== undefined ? { event: { batch: { id: body.id, index: i, key: spec.key ?? null } } } : {}
+    const posted = postMessage(ctx, { channel, text: spec.text, ...(spec.labels ? { labels: spec.labels } : {}), ...(spec.noSync ? { noSync: true } : {}), ...(spec.attachments ? { attachments: spec.attachments } : {}) }, batch)
     if (posted.row.id !== roots[i]) throw new WorkbusError(500, 'internal', 'a batch root landed at #' + posted.row.id + ', not #' + roots[i])
     if (posted.row.blind) blind = true
     for (const mention of posted.mentions ?? []) if (!written.has(mention.written)) written.add(mention.written), mentions.push(mention)
