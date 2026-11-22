@@ -2,29 +2,21 @@
 // event for it back (a post's answer says which: its message's `version` is that event's cursor;
 // an edit's is the next message.edited for it). A refusal rolls it back. Each write carries a client ID (`id`), so sending it again
 // after a lost answer posts it once.
-import { safeRandomUUID, type DbClient, type Transaction } from '@tanstack/db'
+import { safeRandomUUID, type DbClient } from '@tanstack/db'
+import { action, sendAndSettle } from './settle.ts'
 import type { BusCollections } from './index.ts'
 import type { BusRuntime } from './runtime.ts'
 import type { Follow, Message } from './types.ts'
 
-/** How long a write waits for its echo before it takes its own answer as the row. */
-const ECHO_MS = 10_000
-
-/** An optimistic write on db: onMutate's changes show at once; mutationFn persists them, then waits for the echo. */
-const action = <V>(db: DbClient, options: { onMutate: (input: V) => void; mutationFn: (input: V) => Promise<void> }) => (input: V): Transaction => {
-  const transaction = db.createTransaction({ mutationFn: () => options.mutationFn(input) })
-  transaction.mutate(() => options.onMutate(input))
-  return transaction
-}
-
 export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections) {
   const { client } = runtime
   const feed = runtime.feed!
-  /** The board took the write: wait for its event in the feed, or after ECHO_MS write the answer itself. */
-  const settle = async (message: Message, into: { merge: (rows: Message[], version: (row: Message) => number) => void }[]) => {
-    const echoed = await Promise.race([feed.reached(message.version).then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), ECHO_MS))])
-    if (!echoed) for (const rows of into) rows.merge([message], (row) => row.version)
-  }
+  type Merges = { merge: (rows: Message[], version: (row: Message) => number) => void }
+  /** Send a write that answers its message; it settles on that message's event (its version is the event's cursor). */
+  const settle = (send: () => Promise<Message>, into: Merges[]) =>
+    sendAndSettle(feed, send, { cursor: (message) => message.version }, (message) => {
+      for (const rows of into) rows.merge([message], (row) => row.version)
+    })
 
   const draft = (fields: Partial<Message> & { id: string; channel: string; text: string }): Message => ({
     re: null,
@@ -57,8 +49,7 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
         })
     },
     mutationFn: async (input) => {
-      const { message } = await client.post<{ message: Message }>('/messages', input.re ? { re: input.re, text: input.text, id: input.id } : { channel: input.channel, text: input.text, id: input.id })
-      await settle(message, [c.messages.utils.rows])
+      await settle(async () => (await client.post<{ message: Message }>('/messages', input.re ? { re: input.re, text: input.text, id: input.id } : { channel: input.channel, text: input.text, id: input.id })).message, [c.messages.utils.rows])
     },
   })
 
@@ -71,19 +62,10 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
     },
     mutationFn: async ({ id, text }) => {
       // An edit answers { ok: true }, so its echo is the next message.edited for this message.
-      const echo = feed.next((event) => event.type === 'message.edited' && event.message?.id === id)
-      try {
-        await client.post('/messages/' + id + '/edit', { text })
-      } catch (error) {
-        echo.cancel()
-        throw error
-      }
-      const echoed = await Promise.race([echo.promise.then(() => true), new Promise<false>((resolve) => setTimeout(() => resolve(false), ECHO_MS))])
-      if (!echoed) {
-        echo.cancel()
+      await sendAndSettle(feed, () => client.post('/messages/' + id + '/edit', { text }), { test: (event) => event.type === 'message.edited' && event.message?.id === id }, async () => {
         const { message } = await client.get<{ message: Message }>('/messages/' + id + '?limit=1')
         c.messages.utils.rows.merge([message], (row) => row.version)
-      }
+      })
     },
   })
 
@@ -94,8 +76,7 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
       c.tasks.insert(draft({ id, channel: input.channel, text: input.text, labels: { 'board.task': 'ready' }, task: { state: 'ready', owner: me, by: me, for: null, needs: [], epoch: 0, claim: null, blocked: null, result: null, reason: null } }))
     },
     mutationFn: async (input) => {
-      const { task } = await client.post<{ task: Message }>('/tasks', { channel: input.channel, text: input.text, id: input.id })
-      await settle(task, [c.tasks.utils.rows])
+      await settle(async () => (await client.post<{ task: Message }>('/tasks', { channel: input.channel, text: input.text, id: input.id })).task, [c.tasks.utils.rows])
     },
   })
 
@@ -119,9 +100,7 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
    * then the board refuses it, and the write rolls back.
    */
   const createDoc = async (input: { channel: string; slug: string; body: string; re?: string }) => {
-    const { message } = await client.post<{ message: Message }>('/docs', input)
-    await settle(message, [c.messages.utils.rows])
-    return message
+    return settle(async () => (await client.post<{ message: Message }>('/docs', input)).message, [c.messages.utils.rows])
   }
 
   return { post, edit, createTask, follow, createDoc }
