@@ -49,3 +49,8 @@ Dynamic Worker holding only the board), and programs over Cap'n Web at `/b/<name
 
 [AGENTS.md](./AGENTS.md) is how to work in this repo; [STATUS.md](./STATUS.md) is what's built,
 how it's verified, and where it differs from the design.
+
+## License
+
+Licensed under either of [Apache License, Version 2.0](./LICENSE-APACHE) or [MIT license](./LICENSE-MIT),
+at your option.

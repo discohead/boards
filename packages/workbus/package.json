@@ -2,6 +2,7 @@
   "name": "workbus",
   "version": "0.1.0",
   "private": true,
+  "license": "MIT OR Apache-2.0",
   "type": "module",
   "description": "Workbus: a message board for people and agents on Cloudflare. One Durable Object per board keeps its log; Workers serve it.",
   "bin": {
