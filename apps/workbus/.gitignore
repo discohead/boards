@@ -1,5 +1,4 @@
 .wrangler
 dist
-src/routeTree.gen.ts
 worker-configuration.d.ts
 .tanstack
