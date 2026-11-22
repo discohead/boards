@@ -36,6 +36,7 @@ Fix the request; sending it again unchanged fails the same way.
 | `invalid_profile` | `x-board-profile` (or `as()`, or a binding's `profile`) isn't a name of up to 32 letters, digits, and hyphens with an https `avatar`. **Fix:** `fixer` or `fixer;avatar="https://example.com/fixer.png"`. |
 | `invalid_scope` | `x-board-can` doesn't parse, or the request sent the old `x-board-scope`. **Fix:** `pattern=permissions;...`, like `deploys=read;work/=read,post`. |
 | `invalid_can` | A grant's or a binding's `can` names a bad pattern or an unknown permission. **Fix:** Patterns are `*`, `deploys`, or `work/`; permissions are `read`, `post`, `react`, `label`, `edit`, `sync`, `manage`, or `all`. |
+| `read_point_too_far` | A mark read's `upto` reaches back past the newest 5,000 messages. **Fix:** Mark read up to a newer message, or up to now (no `upto`). |
 | `invalid_cursor` | An `after` isn't a cursor or message ID on this board, or a `before` isn't a page of threads. **Fix:** Pass back a `cursor`, `next`, or `older` the board gave you. |
 | `invalid_after` | A reply's `after` names no message in that thread. **Fix:** Name the newest message of the thread you reply in. |
 | `message_deleted` | The message is deleted, so it can't be edited, reacted to, labeled, or replied to. **Fix:** Write in another message. |
@@ -84,6 +85,7 @@ A thing you can't read answers 404, the same as one that doesn't exist.
 | --- | --- |
 | `not_found` | No such route (`no route: GET /b/acme/nope`), no board mount (`boards live at /b/<name>`), or no such binding method. **Fix:** Check the method and path. |
 | `message_not_found` | No message with that ID that you can read, or (`GET /links`) no message on this board for that link. **Fix:** Check the ID and your grants. |
+| `channel_not_found` | Marking a channel read named one that has no messages, or one you can't read (a [private channel](/guides/identity-and-access/#private-channels) you aren't a party to answers the same). **Fix:** `wb channels` lists the channels you can read. |
 | `doc_not_found` | No doc with that ID or at that path that you can read: the message isn't a doc's root, or it was deleted or moved. **Fix:** `wb docs` lists the docs you can read; a moved doc keeps its ID. |
 | `section_not_found` | No section with that key in the doc, for a read, an edit, a proposal, or a comment. **Fix:** Read the doc's outline (`doc.sections`) and use a `key` from it. |
 | `post_not_found` | No post of yours has that client ID. **Fix:** Check the ID and who wrote it. |
@@ -110,6 +112,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | `section_conflict` | A doc edit's section changed after the `revision` it names (its own text, or for `subtree: true` and `remove` anything under it), or was renamed or removed since. `data` names the `section` and its `revision`. Completing an overtaken proposal answers it too, and the task stays open. **Fix:** Read that section again, fold your change into it, and edit with the doc's new revision. |
 | `merge_conflict` | A whole-body merge found sections changed differently in your body and in the doc. `data.sections` names every one; nothing was applied. **Fix:** Read those sections, settle them in your body, and merge again. |
 | `slug_taken` | Another doc has that path. **Fix:** Pick another slug, or edit the doc that's there. |
+| `already_a_doc` | The message you made a doc from (`re`) is a doc's root already. **Fix:** Edit that doc, or make one from another thread. |
 | `private_move` | A doc move would take it into or out of a [private channel](/guides/identity-and-access/#private-channels), or between private channels with other parties. **Fix:** Make a new doc where it should be. |
 | `doc_mirrored` | The doc mirrors a page a sync keeps it from (a [Notion mirror](/guides/sync-notion/#a-mirror)), so only that sync's imports change it. Proposals on it are refused too. **Fix:** Edit the page on its platform. |
 | `label_conflict` | A label write's `if` doesn't hold. **Fix:** Read the labels, then decide. |

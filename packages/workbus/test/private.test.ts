@@ -94,6 +94,8 @@ async function reads(name: string, s: Setup, headers: Headers): Promise<Record<s
     backlinks: await get('/docs/' + s.handbook + '/backlinks'),
     file: file.status === 200 ? file.text : null,
     follows: await get('/follows'),
+    unread: await get('/unread'),
+    unreadDm: await get('/unread?channel=dm/'),
     schedules: await get('/schedules'),
     explain: (await get('/grants/explain?channel=dm/ada')).can,
     actors: ((await get('/actors')).actors as { id: string }[]).map((actor) => actor.id).filter((id) => id === 'worker:workbus-app+ada'),
@@ -119,7 +121,7 @@ const echoOnly = (value: unknown) => {
 function expectNothing(seen: Record<string, unknown>) {
   for (const [path, value] of Object.entries(seen)) expect({ path, value: JSON.stringify(echoOnly(value) ?? null).match(/zebra|dm\/ada/)?.[0] ?? null }).toEqual({ path, value: null })
 }
-const PARTY_PATHS = ['channels', 'channel', 'subtree', 'thread', 'threads', 'search', 'mentions', 'feed', 'last', 'tasks', 'doc', 'docById', 'backlinks', 'file', 'follows', 'schedules', 'mcpSearch', 'mcpRead', 'mcpDocs', 'mcpDoc', 'runCode']
+const PARTY_PATHS = ['unread', 'unreadDm', 'channels', 'channel', 'subtree', 'thread', 'threads', 'search', 'mentions', 'feed', 'last', 'tasks', 'doc', 'docById', 'backlinks', 'file', 'follows', 'schedules', 'mcpSearch', 'mcpRead', 'mcpDocs', 'mcpDoc', 'runCode']
 
 describe('private channels', () => {
   it('a DM is seen by its two parties on every read path, and by no one else', async () => {
@@ -150,6 +152,10 @@ describe('private channels', () => {
     expect((await api(name, 'POST', '/messages', { re: s.dm, text: 'a reply' }, member)).status).toBe(404)
     expect((await api(name, 'POST', '/messages/' + s.dm + '/reactions', { emoji: 'eyes' }, member)).status).toBe(404)
     expect((await api(name, 'POST', '/messages/' + s.dm + '/follow', {}, member)).status).toBe(404)
+    // Read state: marking a DM read answers as if it weren't there.
+    expect((await api(name, 'POST', '/read', { channel: 'dm/ada' }, member)).status).toBe(404)
+    expect((await api(name, 'POST', '/read', { thread: s.dm }, bob)).status).toBe(404)
+    expect((await api(name, 'POST', '/read', { channel: 'dm/ada' }, s.who.ada)).status).toBe(200)
     expect((await api(name, 'POST', '/tasks/' + s.task + '/claim', {}, member)).status).toBe(404)
     expect((await api(name, 'POST', '/tasks/claim', { channel: 'dm/ada' }, member)).status).toBe(403)
     expect((await api(name, 'POST', '/schedules', { channel: 'dm/ada', text: 'later', in: '1h' }, member)).status).toBe(403)
