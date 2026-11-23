@@ -21,7 +21,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'request-2026-11-23.1'
+export const SEAT_CODE = 'request-2026-11-23.2'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -130,7 +130,9 @@ export class Seat extends DurableObject<Env> {
     // A seat provisioned for the first time (a hire, §5.7) introduces itself: one turn, queued like any wake-up.
     if (runtime !== null && this.runtime === null && !this.ctx.storage.kv.get('introduced')) {
       this.ctx.storage.kv.put('introduced', new Date().toISOString())
-      this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at) values ('intro', ?, null, ?, 'queued', ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now())
+      // Part of the request that hired it, when a proposal did: its introductions show under it.
+      const request: RequestHint | null = runtime.request ? { id: runtime.request, via: 'label', reply: false } : null
+      this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at, request) values ('intro', ?, null, ?, 'queued', ?, ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now(), JSON.stringify(request))
     }
     if (!same) {
       if (runtime === null) {

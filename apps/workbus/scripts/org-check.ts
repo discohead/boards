@@ -197,6 +197,13 @@ check("seat@2 takes 'owned'; seat@1 and seat@2 read the same", () => {
   assert.match(why(both)[0]!, /has 2 `json#seat@1` or `json#seat@2` blocks/)
 })
 
+check("a hire's request: a seat doc made by applying a proposal keeps its org.request, which its introduction carries; a seeded seat has none", () => {
+  const hire = { ...docOf('org/seats', 'dana', SEED.find((doc) => doc.slug === 'ada')!.body.replace('"handle": "ada"', '"handle": "dana"')), labels: { 'org.request': '1372', 'board.doc': 'org/seats/dana' } }
+  const planned = plan([...seed(), hire], holds)
+  assert.equal(planned.seats.find((seat) => seat.key === 'dana')!.request, '1372')
+  assert.equal(planned.seats.find((seat) => seat.key === 'ada')!.request, null)
+})
+
 check('the revisions: the config is the newest of the seat, the teams, and the root; the wake, of the seat and the teams (their edges add rules)', () => {
   const docs = seed()
   const team = docs.find((doc) => doc.slug === 'core')!
