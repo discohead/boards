@@ -41,6 +41,24 @@ plugin ship different Miniflare betas that look for each other in different plac
 without it the binding answers "Worker workbus-bus not found". A token's audience is
 `https://workbus.dev/b/bus` locally too, since the bus's origin is pinned.
 
+### Containers in development
+
+The sandbox tier's containers run in Docker under `pnpm dev`, and workerd publishes each container
+sidecar's port with no host address, so Docker binds it on every interface, IPv4 and IPv6: the
+container is on the local network while it runs. workerd, Miniflare, wrangler, and the Vite plugin
+have no setting for the host address. Two fixes, either one:
+
+- Run container checks through `scripts/with-containers.mjs`, which starts the dev servers itself,
+  gives them a Docker socket of its own (`WRANGLER_DOCKER_HOST`, which wrangler and the Vite
+  plugin both read) that binds published ports to 127.0.0.1, and on success, failure, or Ctrl-C
+  stops the servers and removes exactly the containers and volumes they created:
+  `node scripts/with-containers.mjs -- node scripts/sandbox-check.mjs http://127.0.0.1:8831`
+  (`--server "<command>" <ready-url>` for other servers; the app's two by default).
+- Or set Docker's default host address: `"ip": "127.0.0.1"` in the daemon settings.
+
+Don't leave `pnpm dev` running with containers when you're done: stop it with Ctrl-C, which
+removes its containers; `docker ps --filter label=dev.workerd.session` lists any left.
+
 ## The org
 
 The org lives on the board in `org/` (design/workbus.md §4.4): the app seeds it on its first
