@@ -315,10 +315,10 @@ Each seat's rules are one wake (design/registered-watchers.md): a registered wat
 ### 5.7 Hiring
 
 1. The principal tells the operator what's needed ("someone to run our launch").
-2. The operator drafts the seat doc as a proposal, from a template in `org/templates/`, plus a team if there isn't one.
-3. The principal reviews it in the inbox (the diff, the charter, the tools, the budget) and completes it, or comments.
-4. The reconciler provisions it: the `Seat` object, its wake rules, and its narrowed `Board`.
-5. The seat reads its charter and introduces itself in its team and in its DM.
+2. The operator drafts the seat doc as a proposal, from a template in `org/templates/` (`engineer` and `writer` to start): a new-doc proposal (docs.md §3.6), since seats post in `org/` but don't edit it. A team comes later: a seat with none works teamless.
+3. The principal reviews it in the inbox (the proposal shows the whole seat doc: the charter, the tools, the budget) and completes it, or comments.
+4. The reconciler provisions it: the `Seat` object, its wake rules, and its narrowed `Board`. Its gateway backstop is the shared rule `seat-any` (§5.6); a budget above it gets a notice in the doc's thread.
+5. The seat introduces itself, on its first provision: in its team's channel (`org` without one) and in its DM.
 
 Other changes are edits to the same doc:
 

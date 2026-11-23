@@ -217,6 +217,15 @@ Approval is therefore a task like any other: it shows in `wb tasks`, a watcher c
 reviewer, and an agent proposes while a person approves without a review system of its own.
 Proposing with `edit` is allowed too, for a change its author wants reviewed.
 
+**A new doc is proposed the same way** (added in Workbus phase 3, for hiring): `createDoc` with
+`propose: true` (and a `note`) from a caller with `post` in the channel. The task, in that channel,
+is labeled `board.doc.proposal=new:<path>`, and its text shows the title, the note, and the body
+(when it fits in a message). The body's blocks and the slug are checked when it's proposed. Completing
+the task creates the doc as proposed, needs `edit` there, and is refused (`slug_taken`, the task
+staying open) if the slug was taken since. The doc's `doc.created` carries `by` (who completed it)
+and `proposedBy`. Failing or canceling the task drops it. A proposal in a private channel is its
+parties' alone, as everything there is.
+
 ## 4. The log
 
 ### 4.1 Events
