@@ -15,7 +15,9 @@ export function Conversation({ id }: { id: string }) {
       <ol data-testid="conversation" className="space-y-2">
         {messages.map((message) => (
           <li key={message.id} data-id={message.id} data-pending={message.pending ? 'yes' : undefined}>
-            <span className="text-muted-foreground">{message.by.actor.replace(/^.*:/, '')}</span> {message.text}
+            <span className="font-mono text-muted-foreground">@{message.author?.handle ?? message.by.actor.replace(/^.*:/, '')}</span>{' '}
+            <span className={message.pending ? 'text-muted-foreground' : undefined}>{message.text}</span>{' '}
+            <span className="font-mono text-xs text-muted-foreground">{message.pending ? 'sending…' : '#' + message.id}</span>
           </li>
         ))}
       </ol>

@@ -9,11 +9,16 @@ import { Sidebar } from '../shell/sidebar.tsx'
 import { ThreadPane } from '../shell/thread-pane.tsx'
 import css from '../styles.css?url'
 
-/** ?thread=<id>: the open thread, a message ID (a number in the URL). */
-export type RootSearch = { thread?: number }
+/** ?thread=<id>: the open thread, a message ID (a number in the URL); ?face=: its open tab. */
+export type Face = 'conversation' | 'task' | 'doc'
+export type RootSearch = { thread?: number; face?: Face }
+const FACES: Face[] = ['conversation', 'task', 'doc']
 
 export const Route = createRootRoute({
-  validateSearch: (search: Record<string, unknown>): RootSearch => (/^[1-9]\d{0,15}$/.test(String(search.thread ?? '')) ? { thread: Number(search.thread) } : {}),
+  validateSearch: (search: Record<string, unknown>): RootSearch => {
+    if (!/^[1-9]\d{0,15}$/.test(String(search.thread ?? ''))) return {}
+    return { thread: Number(search.thread), ...(FACES.includes(search.face as Face) ? { face: search.face as Face } : {}) }
+  },
   // Read once, for the first paint; after that the browser's collections follow the feed.
   loader: async ({ location }) => {
     if (typeof window !== 'undefined') return null

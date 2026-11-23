@@ -14,6 +14,7 @@ import type { Actor, Channel, Doc, DocBody, Follow, Message, Thread } from './ty
 
 export { BusClient, BusRefusal, Feed, runtimeOf }
 export type * from './types.ts'
+export { taskState, type ShownState } from './task-state.ts'
 export type { BusRuntime, Me }
 
 export function createRuntime(mode: BusMode, options: BusOptions & { keep?: number }): BusRuntime {
