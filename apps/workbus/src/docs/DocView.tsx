@@ -63,11 +63,9 @@ export function DocView({ id, inPane = false }: { id: string; inPane?: boolean }
       <article className={inPane ? 'px-4 py-4' : 'mx-auto max-w-3xl px-8 py-10'} data-testid="doc" data-revision={body.revision}>
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-xs text-muted-foreground" data-testid="doc-path">
-              {doc.path}
-            </p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Revision {body.revision} · {comments.length} {comments.length === 1 ? 'comment' : 'comments'}
+            <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">Document · revision {body.revision}</p>
+            <p className="mt-1 font-mono text-xs text-muted-foreground" data-testid="doc-path">
+              {doc.path}{inPane ? '' : ' · ' + comments.length + (comments.length === 1 ? ' comment' : ' comments')}
             </p>
           </div>
           <Button variant="outline" size="sm" onClick={() => setShowHistory((on) => !on)} aria-pressed={showHistory}>

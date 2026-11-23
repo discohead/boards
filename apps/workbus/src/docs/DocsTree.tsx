@@ -5,11 +5,15 @@ import { Link } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { ChevronRight, FileText, Folder } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOpenThread } from '@/shell/open-thread'
 import { useDocsBus } from './bus'
 import { ancestors, buildTree, label, type TreeNode } from './tree'
 
-export function DocsTree({ current }: { current?: string }) {
+export function DocsTree({ current: given }: { current?: string }) {
   const bus = useDocsBus()
+  // The open doc: the one named, or the thread open in the pane.
+  const opened = useOpenThread().thread
+  const current = given ?? opened ?? undefined
   const { data: docs } = useLiveQuery((q) => q.from({ doc: bus.docs }))
   const tree = useMemo(() => buildTree(docs), [docs])
   const currentPath = docs.find((doc) => doc.id === current)?.path

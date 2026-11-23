@@ -5,13 +5,21 @@ import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { CheckSquare, FileText, Hash, Keyboard, MessageSquare, PenSquare, Search } from 'lucide-react'
-import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandShortcut } from '@/components/ui/command'
+import { CheckSquare, FileText, Hash, Inbox, Keyboard, LayoutGrid, MessageSquare, PenSquare, Search, UserRound } from 'lucide-react'
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import type { Message } from '@/data/types'
 import { useDocsBus } from '@/docs/bus'
 import { isIssue } from '@/docs/tree'
 import { Composer, type ComposerKind } from './Composer'
 import { usePlaces } from './places'
+
+const SCREENS = [
+  { to: '/', label: 'Inbox', icon: Inbox },
+  { to: '/my-work', label: 'My work', icon: UserRound },
+  { to: '/tasks', label: 'Tasks', icon: LayoutGrid },
+  { to: '/docs', label: 'Docs', icon: FileText },
+]
 
 const firstLine = (text: string) => text.split('\n').find((line) => line.trim())?.replace(/^#+\s*/, '').slice(0, 120) ?? ''
 
@@ -25,6 +33,12 @@ export function CommandPalette({ onCheatSheet }: { onCheatSheet?: () => void }) 
   const [found, setFound] = useState<{ query: string; threads: Message[] } | null>(null)
 
   useHotkey('Mod+K', () => setOpen((was) => !was), { meta: { name: 'Command palette', group: 'Everywhere' } })
+  // The sidebar's "Search or ask" button opens it too.
+  useEffect(() => {
+    const show = () => setOpen(true)
+    window.addEventListener('workbus:command', show)
+    return () => window.removeEventListener('workbus:command', show)
+  }, [])
 
   const { data: threads } = useLiveQuery((q) => q.from({ thread: bus.threads }))
   const { data: docs } = useLiveQuery((q) => q.from({ doc: bus.docs }))
@@ -57,67 +71,84 @@ export function CommandPalette({ onCheatSheet }: { onCheatSheet?: () => void }) 
 
   return (
     <>
-      <CommandDialog open={open} onOpenChange={(next) => (setOpen(next), next || setQuery(''))} title="Command palette" description="Go somewhere, write something, or search">
-        <CommandInput autoFocus placeholder="Type a command, or search…" value={query} onValueChange={setQuery} data-testid="palette-input" />
-        <CommandList data-testid="palette">
-          <CommandEmpty>{query.trim().length < 2 ? 'Nothing matches.' : 'Searching…'}</CommandEmpty>
-          <CommandGroup heading="Write">
-            <CommandItem value="new post write message" onSelect={() => (setOpen(false), setComposer('post'))}>
-              <PenSquare /> New post
-            </CommandItem>
-            <CommandItem value="make a task new task" onSelect={() => (setOpen(false), setComposer('task'))}>
-              <CheckSquare /> Make a task
-            </CommandItem>
-            {onCheatSheet && (
-              <CommandItem value="keyboard shortcuts cheat sheet help" onSelect={() => (setOpen(false), onCheatSheet())}>
-                <Keyboard /> Keyboard shortcuts <CommandShortcut>?</CommandShortcut>
-              </CommandItem>
-            )}
-          </CommandGroup>
-          {results.length > 0 && (
-            <CommandGroup heading={'Search: “' + found!.query + '”'} forceMount data-testid="palette-results">
-              {results.map((message) => (
-                <CommandItem key={'found-' + message.id} value={'search ' + query + ' ' + message.id} forceMount onSelect={() => openThread(message)}>
-                  {message.doc ? <FileText /> : <Search />}
-                  <span className="truncate">{message.doc?.title ?? firstLine(message.text)}</span>
-                  <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{message.doc?.path ?? message.channel}</span>
+      <Dialog open={open} onOpenChange={(next) => (setOpen(next), next || setQuery(''))}>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg" showCloseButton={false}>
+          <DialogHeader className="border-b px-4 py-3">
+            <DialogTitle className="text-sm">Search or go to</DialogTitle>
+            <DialogDescription className="sr-only">Go to a screen, a channel, a doc, a task, or a thread; write something; or search</DialogDescription>
+          </DialogHeader>
+          <Command className="[&_[cmdk-group-heading]]:font-mono [&_[cmdk-group-heading]]:tracking-wider [&_[cmdk-group-heading]]:uppercase">
+            <CommandInput autoFocus placeholder="Find a thread, a doc, or a channel…" value={query} onValueChange={setQuery} data-testid="palette-input" />
+            <CommandList data-testid="palette" className="max-h-[420px]">
+              <CommandEmpty>{query.trim().length < 2 ? 'Nothing matches.' : 'Searching…'}</CommandEmpty>
+              <CommandGroup heading="Actions">
+                <CommandItem value="make a task new task" onSelect={() => (setOpen(false), setComposer('task'))}>
+                  <CheckSquare /> Make a task <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">Action</span>
                 </CommandItem>
-              ))}
-            </CommandGroup>
-          )}
-          <CommandGroup heading="Channels">
-            {channels.map((path) => (
-              <CommandItem key={'channel-' + path} value={'channel ' + path} onSelect={() => go(places.channel(path))}>
-                <Hash /> {path}
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Docs">
-            {docs.filter((doc) => !isIssue(doc)).map((doc) => (
-              <CommandItem key={'doc-' + doc.id} value={'doc ' + doc.title + ' ' + doc.path} onSelect={() => go(places.doc(doc.id))}>
-                <FileText /> <span className="truncate">{doc.title}</span>
-                <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{doc.path}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Tasks">
-            {tasks.filter((task) => !['done', 'canceled', 'failed'].includes(task.task?.state ?? '')).map((task) => (
-              <CommandItem key={'task-' + task.id} value={'task ' + task.id + ' ' + firstLine(task.text)} onSelect={() => go(places.thread(task.id))}>
-                <CheckSquare /> <span className="truncate">{firstLine(task.text)}</span>
-                <span className="ml-auto shrink-0 text-xs text-muted-foreground">{task.task?.state}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-          <CommandGroup heading="Threads">
-            {threads.filter((thread) => !docIds.has(thread.id) && !taskIds.has(thread.id)).slice(0, 200).map((thread) => (
-              <CommandItem key={'thread-' + thread.id} value={'thread ' + thread.id + ' ' + firstLine(thread.root.text)} onSelect={() => go(places.thread(thread.id))}>
-                <MessageSquare /> <span className="truncate">{firstLine(thread.root.text)}</span>
-                <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{thread.channel}</span>
-              </CommandItem>
-            ))}
-          </CommandGroup>
-        </CommandList>
-      </CommandDialog>
+                <CommandItem value="new post write message" onSelect={() => (setOpen(false), setComposer('post'))}>
+                  <PenSquare /> New post <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">Action</span>
+                </CommandItem>
+                {onCheatSheet && (
+                  <CommandItem value="keyboard shortcuts cheat sheet help" onSelect={() => (setOpen(false), onCheatSheet())}>
+                    <Keyboard /> Keyboard shortcuts <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">?</span>
+                  </CommandItem>
+                )}
+              </CommandGroup>
+              {results.length > 0 && (
+                <CommandGroup heading={'Search: “' + found!.query + '”'} forceMount data-testid="palette-results">
+                  {results.map((message) => (
+                    <CommandItem key={'found-' + message.id} value={'search ' + query + ' ' + message.id} forceMount onSelect={() => openThread(message)}>
+                      {message.doc ? <FileText /> : <Search />}
+                      <span className="truncate">{message.doc?.title ?? firstLine(message.text)}</span>
+                      <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{message.doc?.path ?? '#' + message.id}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              )}
+              <CommandGroup heading="Screens">
+                {SCREENS.map((screen) => (
+                  <CommandItem key={'screen-' + screen.to} value={'screen ' + screen.label} onSelect={() => go(screen.to)}>
+                    <screen.icon /> {screen.label} <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">Screen</span>
+                  </CommandItem>
+                ))}
+                {channels.map((path) => (
+                  <CommandItem key={'channel-' + path} value={'channel ' + path} onSelect={() => go(places.channel(path))}>
+                    <Hash /> {path} <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">Channel</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandGroup heading="Docs">
+                {docs.filter((doc) => !isIssue(doc)).map((doc) => (
+                  <CommandItem key={'doc-' + doc.id} value={'doc ' + doc.title + ' ' + doc.path} onSelect={() => go(places.doc(doc.id))}>
+                    <FileText /> <span className="truncate">{doc.title}</span>
+                    <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{doc.path}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandGroup heading="Tasks">
+                {tasks.filter((task) => !['done', 'canceled', 'failed'].includes(task.task?.state ?? '')).map((task) => (
+                  <CommandItem key={'task-' + task.id} value={'task ' + task.id + ' ' + firstLine(task.text)} onSelect={() => go(places.thread(task.id))}>
+                    <CheckSquare /> <span className="truncate">{firstLine(task.text)}</span>
+                    <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{'#' + task.id}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+              <CommandGroup heading="Threads">
+                {threads.filter((thread) => !docIds.has(thread.id) && !taskIds.has(thread.id)).slice(0, 200).map((thread) => (
+                  <CommandItem key={'thread-' + thread.id} value={'thread ' + thread.id + ' ' + firstLine(thread.root.text)} onSelect={() => go(places.thread(thread.id))}>
+                    <MessageSquare /> <span className="truncate">{firstLine(thread.root.text)}</span>
+                    <span className="ml-auto shrink-0 font-mono text-xs text-muted-foreground">{'#' + thread.id}</span>
+                  </CommandItem>
+                ))}
+              </CommandGroup>
+            </CommandList>
+          </Command>
+          <footer className="flex items-center gap-1 border-t px-4 py-2 font-mono text-xs text-muted-foreground">
+            <kbd className="rounded-sm border px-1">↑</kbd>
+            <kbd className="rounded-sm border px-1">↓</kbd> navigate <kbd className="ml-2 rounded-sm border px-1">↵</kbd> open <kbd className="ml-2 rounded-sm border px-1">Esc</kbd> close
+          </footer>
+        </DialogContent>
+      </Dialog>
       <Composer kind={composer} onClose={() => setComposer(null)} channels={channels} />
     </>
   )
