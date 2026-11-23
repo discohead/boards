@@ -172,6 +172,15 @@ export class Seat extends DurableObject<Env> {
     await this.pump()
   }
 
+  /**
+   * Send its runs to Basin again (all, or those that ended at or after `since`): a backfill, as for
+   * runs sent before the stream had a sink. Basin queries count each run id once, so it can't double a cost.
+   */
+  async resendRuns(since?: string): Promise<{ marked: number; sent: number }> {
+    const marked = this.totals.resend(since)
+    return { marked, sent: await this.totals.flush(this.env.RUNS) }
+  }
+
   /** This month's spend, in USD, from its runs. */
   spend(): number {
     const key = this.runtime?.key
