@@ -15,7 +15,7 @@ export function Composer({ kind, onClose, channels, initialChannel }: { kind: Co
   const [failedKind, setFailedKind] = useState<ComposerKind>('post')
   const send = () => {
     if (!text.trim() || !channel.trim()) return
-    const tx = kind === 'task' ? bus.actions.createTask({ channel: channel.trim(), text }) : bus.actions.post({ channel: channel.trim(), text })
+    const tx = kind === 'task' ? bus.actions.task.create({ channel: channel.trim(), text }) : bus.actions.post({ channel: channel.trim(), text })
     const kept = { channel, text, kind: kind ?? 'post' }
     setText('')
     setError(null)

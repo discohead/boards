@@ -60,8 +60,9 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
   }
 
   /** Send a task write; it settles on its event (the answer's version), or after ECHO_MS its answer is written. */
-  const settle = (send: () => Promise<Answer>) =>
-    sendAndSettle(feed, send, { cursor: (answer) => answer.task.version }, (answer) => {
+  /** With a client ID, it settles on that event and then on the feed reaching the answer's version (settle.ts). */
+  const settle = (send: () => Promise<Answer>, clientId?: string) =>
+    sendAndSettle(feed, send, { ...(clientId ? { clientId } : {}), cursor: (answer) => answer.task.version }, (answer) => {
       c.tasks.utils.rows.merge([answer.task], (row) => row.version)
       if (c.messages.has(answer.task.id)) c.messages.utils.rows.merge([answer.task], (row) => row.version)
     })
@@ -96,9 +97,9 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     onMutate: (input) => {
       const facet: TaskFacet = { state: 'ready', owner: me(), by: me(), for: input.for ?? null, needs: [], epoch: 0, claim: null, blocked: null, result: null, reason: null }
       if ('re' in input) {
-        const root = c.messages.get(input.re)
+        const root = c.messages.get(input.re) ?? c.threads.get(input.re)?.root
         if (root && !c.tasks.has(input.re)) c.tasks.insert({ ...root, labels: { ...root.labels, 'board.task': 'ready' }, task: facet, pending: input.re })
-        if (root) c.messages.update(input.re, (message) => void ((message.task = facet), (message.labels['board.task'] = 'ready')))
+        if (root && c.messages.has(input.re)) c.messages.update(input.re, (message) => void ((message.task = facet), (message.labels['board.task'] = 'ready')))
         return
       }
       const id = (input.id ??= 'web-' + safeRandomUUID())
@@ -109,10 +110,7 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     },
     mutationFn: async (input) => {
       const body = 're' in input ? { re: input.re, ...(input.for ? { for: input.for } : {}) } : { channel: input.channel, text: input.text, id: input.id, ...(input.labels ? { labels: input.labels } : {}), ...(input.for ? { for: input.for } : {}) }
-      // Not by its client ID: that echo is the root's message.posted, which comes before the task.created
-      // that puts it in tasks, so settling there would drop the pending row for a moment. The answer's
-      // version is task.created's cursor.
-      await settle(() => client.post<Answer>('/tasks', body))
+      await settle(() => client.post<Answer>('/tasks', body), 're' in input ? undefined : input.id)
     },
   })
 

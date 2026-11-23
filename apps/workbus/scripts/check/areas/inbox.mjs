@@ -8,8 +8,8 @@ import { hydrated, until } from '../lib.mjs'
 
 export async function run({ page, base, owner, other, run: id, channel, must, step }) {
   const item = (thread) => page.locator('[data-testid=inbox] [data-item="' + thread + '"]')
-  // The sidebar's Inbox link ends with its count (SidebarItem's badge), absent at 0.
-  const count = async () => Number(/(\d+)\s*$/.exec(await page.getByTestId('sidebar').getByRole('link', { name: /Inbox/ }).innerText().catch(() => ''))?.[1] ?? 0)
+  // The sidebar's Inbox row ends with the count (the sidebar's one brand fill).
+  const count = async () => Number(/(\d+)\s*$/.exec(await page.getByRole('navigation').getByRole('link', { name: /^Inbox/ }).first().innerText().catch(() => ''))?.[1] ?? 0)
   const unreadThreads = async () => (await owner.get('/unread')).threads.map((row) => row.thread)
   const settle = (thread) => until(async () => (await item(thread).count()) === 0 || (await item(thread).getAttribute('data-gone')) === 'yes', 8_000)
 
@@ -55,7 +55,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   const proposal = (await other.post('/docs/' + doc.id + '/edit', { edits: [{ section: read.doc.sections.find((one) => one.key.endsWith('threshold')).key, text: 'Two percent.' }], revision: read.doc.revision, propose: true })).proposal
   await step('a proposal on the owner\'s doc shows live', await until(async () => (await item(proposal.id).getAttribute('data-kinds')) === 'proposal', 8_000), await item(proposal.id).innerText().catch(() => ''))
   await item(proposal.id).click()
-  await page.getByTestId('thread-pane').getByRole('tab', { name: 'Task' }).click()
+  await page.getByTestId('thread-pane').getByRole('tab', { name: 'Task' }).or(page.locator('[data-face=task]')).first().click()
   await page.getByTestId('task-actions').getByRole('button', { name: 'Apply' }).click()
   await step('Apply in the Task tab applies it to the doc', await until(async () => (await owner.get('/docs/' + doc.id)).body.includes('Two percent.')))
   await step('and it leaves the inbox', await settle(proposal.id))

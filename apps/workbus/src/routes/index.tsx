@@ -7,7 +7,8 @@ import { Fragment, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { AtSignIcon, GitBranchIcon, HandIcon, MessageSquareIcon } from 'lucide-react'
+import { MessageSquareIcon } from 'lucide-react'
+import { Kbd, Kind, type KindName } from '@/components/system'
 import { useBus } from '@/data'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -99,7 +100,7 @@ function Inbox() {
               <div className="flex items-center justify-between gap-2">
                 <span className="flex items-center gap-1.5">
                   {one.reasons.map((reason, n) => (
-                    <Kind key={n} reason={reason} />
+                    <ItemKind key={n} reason={reason} />
                   ))}
                 </span>
                 <span className="font-mono text-xs text-muted-foreground tabular-nums">
@@ -164,19 +165,17 @@ function detail(one: InboxItem, docPath: (id: string) => string) {
 }
 const plain = (text: string) => text.replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1').split('\n')[0]!
 
-/** The kind of an item, in mono on a tint: held kinds and proposals and mentions. */
-function Kind({ reason }: { reason: Reason }) {
+/** The kind of an item, as the prototype's inbox row draws it: the system's Kind, plain (its icon and word). A plain reply has no system kind. */
+function ItemKind({ reason }: { reason: Reason }) {
   const mention = reason.kind === 'mention' || (reason.kind === 'reply' && reason.mentions > 0)
-  const text = reason.kind === 'held' ? (reason.hold ?? 'held') : reason.kind === 'proposal' ? 'proposal' : mention ? 'mention' : 'reply'
-  const Icon = reason.kind === 'held' ? HandIcon : reason.kind === 'proposal' ? GitBranchIcon : mention ? AtSignIcon : MessageSquareIcon
+  if (reason.kind === 'held') return reason.hold && HELD_KINDS.includes(reason.hold) ? <Kind plain kind={reason.hold as KindName} /> : <Kind plain kind="approval">{reason.hold ?? 'held'}</Kind>
+  if (reason.kind === 'proposal') return <Kind plain kind="proposal" />
+  if (mention) return <Kind plain kind="mention" />
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm px-1 font-mono text-xs', reason.kind === 'held' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
-      <Icon className="size-3" aria-hidden />
-      {text}
+    <span className="inline-flex items-center gap-1 font-mono text-mono-label text-muted-foreground">
+      <MessageSquareIcon size={13} strokeWidth={1.5} aria-hidden />
+      Reply
     </span>
   )
 }
-
-function Kbd({ children }: { children: string }) {
-  return <kbd className="rounded-sm border px-1 font-mono text-xs">{children}</kbd>
-}
+const HELD_KINDS: readonly string[] = ['approval', 'decision', 'budget', 'review']
