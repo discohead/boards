@@ -23,14 +23,19 @@
   "ai": { "binding": "AI", "remote": true },
   // A computer workspace's exec runs in Dynamic Workers minted through this, with no network.
   "worker_loaders": [{ "binding": "LOADER" }],
+  // The seats' runtime (design/workbus.md §5.2): a Seat per seat key, a Session per seat and thread.
   "durable_objects": {
     "bindings": [
+      { "name": "SEAT", "class_name": "Seat" },
       { "name": "SESSION", "class_name": "Session" },
       // A seat's computer workspace, shared by its sessions: one per seat key.
       { "name": "WORKSPACE", "class_name": "SeatWorkspace" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Session", "SeatWorkspace"] }],
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Seat", "Session", "SeatWorkspace"] }],
+  // Run records (src/telemetry/): the stream runs_v1, into the Iceberg table telemetry.runs_v1 in the
+  // bucket workbus-telemetry (design/workbus.md §8.1). Its schema is src/telemetry/runs_v1.schema.json.
+  "pipelines": [{ "stream": "9f6075496bea44d488f44b0ee429d5f0", "binding": "RUNS" }],
   "observability": { "enabled": true },
   "upload_source_maps": true
 }
