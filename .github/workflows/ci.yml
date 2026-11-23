@@ -1,5 +1,5 @@
 # Checks every pull request and push to main: the typecheck, the workerd suite, the CLI end to end
-# against wrangler dev, and the docs build with its link check.
+# against wrangler dev, the app's typecheck and build, and the docs build with its link check.
 # The docs site is served at https://docs.workbus.dev by the workbus-docs Worker: pnpm --filter ./apps/docs run deploy.
 name: ci
 
@@ -90,6 +90,24 @@ jobs:
           if [ -f wrangler.pid ]; then kill "$(cat wrangler.pid)" 2>/dev/null || true; fi
           pkill -f workerd || true
           if [ -f wrangler.log ]; then tail -n 50 wrangler.log; fi
+
+  app:
+    runs-on: ubuntu-latest
+    env:
+      WRANGLER_SEND_METRICS: 'false'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter ./apps/workbus --filter ./packages/workbus
+      - name: Typecheck (the app and the bus)
+        run: pnpm --filter ./apps/workbus typecheck
+      - name: Build
+        run: pnpm --filter ./apps/workbus build
 
   docs:
     runs-on: ubuntu-latest

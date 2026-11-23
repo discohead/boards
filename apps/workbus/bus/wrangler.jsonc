@@ -1,0 +1,34 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  // The bus: the org's board, bus, and any other boards the deployment serves (design/workbus.md §10.1).
+  "name": "workbus-bus",
+  "main": "worker.ts",
+  "compatibility_date": "2026-11-17",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": false,
+  "preview_urls": false,
+  // In the browser it's workbus.dev/b/*, behind Access, on the same origin as the app; a route on
+  // the same hostname wins over the app's custom domain. Machines reach it at api.workbus.dev.
+  "routes": [
+    { "pattern": "workbus.dev/b/*", "zone_name": "workbus.dev" },
+    { "pattern": "api.workbus.dev", "custom_domain": true }
+  ],
+  "vars": {
+    // One origin for both hosts: the issuer, every token's audience, and the board's own URL.
+    "BOARD_ORIGIN": "https://workbus.dev",
+    "ACCESS_TEAM": "dry-hat-4b71",
+    "ACCESS_AUD": "542ecc9a8a6c7697f75072ec34267695839de8ceb7e7a7d0d02e4126c94e97bb"
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "LEDGER", "class_name": "Ledger" },
+      { "name": "RELAY", "class_name": "Relay" },
+      { "name": "MAILBOX", "class_name": "Mailbox" },
+      { "name": "INBOX", "class_name": "Inbox" }
+    ]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox", "Inbox"] }],
+  "r2_buckets": [{ "binding": "FILES", "bucket_name": "workbus-bus-files" }],
+  "worker_loaders": [{ "binding": "LOADER" }],
+  "observability": { "enabled": true }
+}
