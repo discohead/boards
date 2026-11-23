@@ -1,0 +1,12 @@
+<!-- @dsCard group="Status" height=48 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>TaskState</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-row',style:{gap:16}},['ready','claimed','held','done','failed'].map(function(s){return h('span',{key:s,className:'wb-row',style:{gap:6}},h(W.TaskState,{state:s}),h('span',{className:'wb-mono'},s))})));
+</script>
+</body>
+</html>

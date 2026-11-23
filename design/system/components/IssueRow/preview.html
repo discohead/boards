@@ -1,0 +1,16 @@
+<!-- @dsCard group="Lists" height=176 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>IssueRow</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-list'},
+  h(W.IssueRow,{cursor:'#1287',state:'held',title:'Deploy v42 to production',kinds:['approval'],assignee:{kind:'agent',initials:'A',name:'Ada'},updated:'04:31',selected:true}),
+  h(W.IssueRow,{cursor:'#1283',state:'claimed',title:'Unread counts per actor in a side table',labels:[['project','shell']],assignee:{kind:'agent',initials:'A',name:'Ada'},updated:'04:02'}),
+  h(W.IssueRow,{cursor:'#1276',state:'ready',title:'Private channels for dm/<seat>',labels:[['project','shell'],['priority','high']],updated:'yesterday'}),
+  h(W.IssueRow,{cursor:'#1251',state:'done',title:'Fix webhook retry backoff',kinds:['review'],assignee:{kind:'agent',initials:'A',name:'Ada'},updated:'03:20'})));
+</script>
+</body>
+</html>
