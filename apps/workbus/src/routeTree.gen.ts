@@ -15,6 +15,8 @@ import { Route as MyWorkRouteImport } from './routes/my-work'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as CSplatRouteImport } from './routes/c.$'
+import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DocsIdRouteImport } from './routes/docs.$id'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -46,43 +48,75 @@ const CSplatRoute = CSplatRouteImport.update({
   path: '/c/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DocsIndexRoute = DocsIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => DocsRoute,
+} as any)
+const DocsIdRoute = DocsIdRouteImport.update({
+  id: '/$id',
+  path: '/$id',
+  getParentRoute: () => DocsRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
-  '/docs': typeof DocsRoute
+  '/docs': typeof DocsRouteWithChildren
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/docs/$id': typeof DocsIdRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
-  '/docs': typeof DocsRoute
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/docs/$id': typeof DocsIdRoute
+  '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
-  '/docs': typeof DocsRoute
+  '/docs': typeof DocsRouteWithChildren
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/docs/$id': typeof DocsIdRoute
+  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/docs' | '/my-work' | '/settings' | '/tasks' | '/c/$'
+  fullPaths:
+    | '/'
+    | '/docs'
+    | '/my-work'
+    | '/settings'
+    | '/tasks'
+    | '/c/$'
+    | '/docs/$id'
+    | '/docs/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/docs' | '/my-work' | '/settings' | '/tasks' | '/c/$'
-  id: '__root__' | '/' | '/docs' | '/my-work' | '/settings' | '/tasks' | '/c/$'
+  to: '/' | '/my-work' | '/settings' | '/tasks' | '/c/$' | '/docs/$id' | '/docs'
+  id:
+    | '__root__'
+    | '/'
+    | '/docs'
+    | '/my-work'
+    | '/settings'
+    | '/tasks'
+    | '/c/$'
+    | '/docs/$id'
+    | '/docs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
-  DocsRoute: typeof DocsRoute
+  DocsRoute: typeof DocsRouteWithChildren
   MyWorkRoute: typeof MyWorkRoute
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
@@ -133,12 +167,38 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/docs/': {
+      id: '/docs/'
+      path: '/'
+      fullPath: '/docs/'
+      preLoaderRoute: typeof DocsIndexRouteImport
+      parentRoute: typeof DocsRoute
+    }
+    '/docs/$id': {
+      id: '/docs/$id'
+      path: '/$id'
+      fullPath: '/docs/$id'
+      preLoaderRoute: typeof DocsIdRouteImport
+      parentRoute: typeof DocsRoute
+    }
   }
 }
 
+interface DocsRouteChildren {
+  DocsIdRoute: typeof DocsIdRoute
+  DocsIndexRoute: typeof DocsIndexRoute
+}
+
+const DocsRouteChildren: DocsRouteChildren = {
+  DocsIdRoute: DocsIdRoute,
+  DocsIndexRoute: DocsIndexRoute,
+}
+
+const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
-  DocsRoute: DocsRoute,
+  DocsRoute: DocsRouteWithChildren,
   MyWorkRoute: MyWorkRoute,
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,

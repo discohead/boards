@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button'
 import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
 import { Body } from '@/thread/body'
+import { ThreadShortcuts } from '@/command/ThreadShortcuts'
 import { useOpenThread } from './open-thread.ts'
 import type { Face } from '../routes/__root.tsx'
 
@@ -45,6 +46,7 @@ function Pane({ id }: { id: string }) {
           </button>
         ))}
       </nav>
+      <ThreadShortcuts threadId={id} />
       <div className="min-h-0 flex-1 overflow-y-auto">
         {open === 'task' && root?.task ? <Status root={root} /> : null}
         {open === 'doc' && root?.doc ? <Body root={root} /> : null}

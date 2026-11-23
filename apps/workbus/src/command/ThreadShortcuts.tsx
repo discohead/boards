@@ -1,0 +1,82 @@
+// The open thread's single keys (design/workbus.md §9.3): C makes it a task, A assigns that task.
+// TanStack Hotkeys skips single keys while focus is in a text field, so typing a C or an A in a
+// reply never fires them. Mount this in the thread pane with the open thread's ID.
+import { useEffect, useState } from 'react'
+import { useLiveQuery } from '@tanstack/react-db'
+import { useHotkey } from '@tanstack/react-hotkeys'
+import { UserRound } from 'lucide-react'
+import { CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command'
+import { useDocsBus } from '@/docs/bus'
+
+export function ThreadShortcuts({ threadId, onNotice }: { threadId: string; onNotice?: (text: string) => void }) {
+  const bus = useDocsBus()
+  const [assigning, setAssigning] = useState(false)
+  const { data: actors } = useLiveQuery((q) => q.from({ actor: bus.actors }))
+  const { data: tasks } = useLiveQuery((q) => q.from({ task: bus.tasks }))
+  // The board assigns a task to one of its owner's profiles (owner+name): those are who A offers.
+  const owner = tasks.find((task) => task.id === threadId)?.task?.owner
+  const assignable = owner ? actors.filter((actor) => actor.id.startsWith(owner + '+')) : []
+  const [toast, setToast] = useState('')
+  const notice = (text: string) => (onNotice ? onNotice(text) : setToast(text))
+  useEffect(() => {
+    if (!toast) return
+    const timer = setTimeout(() => setToast(''), 4000)
+    return () => clearTimeout(timer)
+  }, [toast])
+
+  useHotkey(
+    'C',
+    () => {
+      if (bus.tasks.has(threadId)) return notice('This thread is a task already.')
+      const tx = bus.threadActions.makeTask({ thread: threadId })
+      tx.when('settled').then(
+        () => notice('It is a task now.'),
+        (error: Error) => notice('Not made a task: ' + error.message),
+      )
+    },
+    { meta: { name: 'Make this thread a task', group: 'Thread' } },
+  )
+  useHotkey(
+    'A',
+    () => {
+      if (!bus.tasks.has(threadId)) return notice('Make it a task first (C), then assign it.')
+      setAssigning(true)
+    },
+    { meta: { name: 'Assign this task', group: 'Thread' } },
+  )
+
+  const assign = (actor: string | null) => {
+    setAssigning(false)
+    const tx = bus.threadActions.assign({ task: threadId, for: actor })
+    tx.when('settled').then(
+      () => notice(actor ? 'Assigned to ' + (bus.actors.get(actor)?.name ?? actor) + '.' : 'Unassigned.'),
+      (error: Error) => notice('Not assigned: ' + error.message),
+    )
+  }
+
+  return (
+    <>
+    {toast && (
+      <p role="status" data-testid="notice" className="fixed right-4 bottom-4 z-50 rounded-md border bg-popover px-3 py-2 text-sm shadow-md">
+        {toast}
+      </p>
+    )}
+    <CommandDialog open={assigning} onOpenChange={setAssigning} title="Assign" description="Who should do this task">
+      <CommandInput placeholder="Assign to…" data-testid="assign-input" />
+      <CommandList data-testid="assign-list">
+        <CommandEmpty>{assignable.length ? 'No one by that name.' : "No one to assign to: a task goes to one of its owner's profiles."}</CommandEmpty>
+        <CommandGroup heading="Assign to">
+          {assignable.map((actor) => (
+            <CommandItem key={actor.id} value={actor.name + ' ' + actor.handle + ' ' + actor.id} onSelect={() => assign(actor.id)}>
+              <UserRound /> {actor.name} <span className="ml-auto font-mono text-xs text-muted-foreground">{actor.kind}</span>
+            </CommandItem>
+          ))}
+          <CommandItem value="no one unassign" onSelect={() => assign(null)}>
+            No one
+          </CommandItem>
+        </CommandGroup>
+      </CommandList>
+    </CommandDialog>
+    </>
+  )
+}

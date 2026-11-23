@@ -35,7 +35,8 @@ export async function readFirstPages(runtime: BusRuntime, options: { deadlineMs?
   // The channel the page shows: its own first page of threads, as an opened channel reads it.
   if (options.channel) loads.push(Promise.all(loads).then(() => busOf(db).openChannel(options.channel!)))
   const timer = new Promise<'late'>((resolve) => setTimeout(() => resolve('late'), deadlineMs))
-  const result = await Promise.race([Promise.all(loads).then(() => 'read' as const), timer])
+  // A read the bus refuses leaves its collection out, as a late one is: the browser reads it itself.
+  const result = await Promise.race([Promise.allSettled(loads).then(() => 'read' as const), timer])
   const state = db.dehydrate({ shouldDehydrateCollection: (collection) => collection.status === 'ready' })
   await db.cleanup()
   return { state, late: result === 'late' }
@@ -85,8 +86,12 @@ function makeBus(db: DbClient) {
    * A channel's newest threads (the first pages are the whole board's), merged where they're no
    * older than what's here: the feed's events replayed over them change nothing.
    */
+  const reading = new Map<string, Promise<{ threads: ThreadEntry[] }>>()
   const openChannel = async (path: string) => {
-    const page = await runtime.client.get<{ threads: ThreadEntry[] }>('/threads?channel=' + encodeURIComponent(path) + '&limit=50')
+    // One read at a time per channel: a view mounted twice (React's dev double effects) asks once.
+    let read = reading.get(path)
+    if (!read) reading.set(path, (read = runtime.client.get<{ threads: ThreadEntry[] }>('/threads?channel=' + encodeURIComponent(path) + '&limit=50').finally(() => reading.delete(path))))
+    const page = await read
     c.threads.utils.rows.merge(page.threads.map(threadOf), (row) => Number(row.last?.id ?? row.id) * 1e6 + row.root.version)
     c.messages.utils.rows.merge(page.threads.flatMap((entry) => [entry.message, ...(entry.last ? [entry.last] : [])]), (row) => row.version)
   }

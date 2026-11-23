@@ -7,6 +7,7 @@ import { firstPages } from '../first-pages.ts'
 import { BusProvider } from '../db.tsx'
 import { Sidebar } from '../shell/sidebar.tsx'
 import { ThreadPane } from '../shell/thread-pane.tsx'
+import { Keyboard } from '../command/Keyboard.tsx'
 import css from '../styles.css?url'
 
 /** ?thread=<id>: the open thread, a message ID (a number in the URL); ?face=: its open tab. */
@@ -33,6 +34,12 @@ export const Route = createRootRoute({
   }),
   shellComponent: Document,
   component: Frame,
+  errorComponent: ({ error }) => (
+    <div role="alert" className="p-8 text-sm">
+      <p className="font-medium">Something went wrong showing this page.</p>
+      <p className="mt-1 font-mono text-muted-foreground">{error instanceof Error ? error.message : String(error)}</p>
+    </div>
+  ),
 })
 
 function Document({ children }: { children: ReactNode }) {
@@ -61,6 +68,7 @@ function Frame() {
         </main>
         <ThreadPane />
       </div>
+      <Keyboard />
     </BusProvider>
   )
 }

@@ -1,6 +1,7 @@
 // The sidebar (design/workbus.md §9.3): the places, and the channels, live. Teams, seats, Apps, and
 // Ops come in later phases; they're shown here, inert, so the frame has their room.
-import { Link } from '@tanstack/react-router'
+import { Link, useParams } from '@tanstack/react-router'
+import { DocsTree } from '@/docs/DocsTree'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useBus } from '@/data'
 import { CircleDot, FileText, Hash, Inbox, Settings, SquareCheck, type LucideIcon } from 'lucide-react'
@@ -18,9 +19,10 @@ const active = { className: 'bg-sidebar-accent text-sidebar-accent-foreground fo
 
 export function Sidebar() {
   const bus = useBus()
+  const docId = useParams({ strict: false, select: (params: { id?: string }) => params.id })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
   return (
-    <nav aria-label="Workbus" className="flex w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar p-2 text-sm">
+    <nav aria-label="Workbus" className="flex w-60 shrink-0 flex-col overflow-y-auto border-r border-sidebar-border bg-sidebar p-2 text-sm">
       <div className="px-2 py-2 font-semibold">Workbus</div>
       {PLACES.map((place) => (
         <Link key={place.to} to={place.to} className={item} activeProps={active} activeOptions={{ exact: place.to === '/' }}>
@@ -39,6 +41,8 @@ export function Sidebar() {
           </li>
         ))}
       </ul>
+      <div className="mt-4 px-2 pb-1 font-mono text-xs text-muted-foreground">// docs</div>
+      <DocsTree {...(docId ? { current: docId } : {})} />
       <div className="mt-4 px-2 pb-1 font-mono text-xs text-muted-foreground">// later</div>
       {['Teams', 'Seats', 'Apps', 'Ops'].map((label) => (
         <span key={label} className={cn(item, 'cursor-default opacity-50 hover:bg-transparent')}>
