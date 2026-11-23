@@ -24,9 +24,10 @@ export async function run({ page, base, owner, run: id, step, must }) {
   }
   await must('the seat holds its exec for the principal: a task of its own, held for approval', !!hold && (await owner.get('/messages/' + hold.task + '?limit=1')).message.task.blocked?.kind === 'approval', hold)
   const task = hold.task
-  await step('the sidebar shows Ada waiting', await until(async () => (await ada.getAttribute('data-state')) === 'waiting', 15_000), await ada.getAttribute('data-state'))
+  await step('the sidebar shows Ada waiting', await until(async () => (await ada.getAttribute('data-state')) === 'waiting', 90_000), await ada.getAttribute('data-state'))
   const item = page.locator('[data-testid=inbox] [data-item="' + task + '"]')
-  await step('the inbox shows the held task, an approval', await until(async () => /approval/i.test(await item.innerText()), 10_000), await item.innerText().catch(() => ''))
+  const shownInInbox = await until(async () => /approval/i.test(await item.innerText()), 90_000)
+  await step('the inbox shows the held task, an approval', shownInInbox, shownInInbox ? await item.innerText() : 'no approval for #' + task + ' in the inbox after 90 s')
   await item.click()
   const card = page.locator('[data-slot=approval-card]')
   await must('its ApprovalCard shows in the thread pane', await until(() => card.isVisible(), 10_000))
@@ -42,6 +43,6 @@ export async function run({ page, base, owner, run: id, step, must }) {
   const rows = page.locator('[data-testid=runs] tbody tr')
   // Her Seat lists its last 20 runs: the new ones are those it didn't list before, each a row here.
   const fresh = after.runs.filter((one) => !before.runs.some((had) => had.id === one.id)).map((one) => one.id)
-  await step('her page lists the new runs, as her Seat does', fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
+  await step('her page lists the new runs, as her Seat does', after.spend.runs > before.spend.runs && fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
   await step('and her spend went up by their cost', await until(async () => Math.abs(Number(await page.getByTestId('spend').getAttribute('data-cost')) - after.spend.cost) < 1e-9) && after.spend.cost > before.spend.cost, { before: before.spend.cost, after: after.spend.cost })
 }

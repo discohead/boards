@@ -52,11 +52,13 @@ export async function run({ page, base, owner, run: id, step, must }) {
   try {
     let hold = null
     await must('Ada\'s exec is held for approval', await until(async () => (hold = (await status('ada')).holds.find((one) => one.state === 'held' && !holdsBefore.has(one.task))), 240_000, 2_000), { asked })
-    await step('her state shows waiting', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 15_000), { seat: states, sidebar: shown })
+    await step('her state shows waiting', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 90_000), { seat: states, sidebar: shown })
     await page.goto(base + '/')
     await hydrated(page)
     const item = page.locator('[data-testid=inbox] [data-item="' + hold.task + '"]')
-    await must('the inbox shows it, an approval', await until(async () => /approval/i.test(await item.innerText()), 15_000))
+    // A model turn can take a while: the inbox gets up to 90 s to show the approval.
+    const shownInInbox = await until(async () => /approval/i.test(await item.innerText()), 90_000)
+    await must('the inbox shows it, an approval', shownInInbox, shownInInbox ? undefined : 'no approval for #' + hold.task + ' in the inbox after 90 s')
     await item.click()
     const card = page.locator('[data-slot=approval-card]')
     await must('its ApprovalCard shows', await until(() => card.isVisible(), 10_000))
@@ -80,12 +82,15 @@ export async function run({ page, base, owner, run: id, step, must }) {
     await watch.stop()
     const from = states.lastIndexOf('waiting')
     await step('her Seat went waiting during the hold, then active (working when it lasted)', from >= 0 && states.at(-1) === 'active', { seat: states, sidebar: shown, working: states.indexOf('working', from) > from })
+    // Her Seat records a run as its operation ends, a moment after the task completes.
+    await until(async () => ((await status('ada')).spend?.runs ?? 0) > (before.spend?.runs ?? 0), 30_000)
     const after = await status('ada')
     await seatRow('ada').click()
     await until(() => seat.isVisible(), 10_000)
-    // Her Seat lists its last 20 runs: the new ones are those it didn't list before, each a row here.
+    // Her Seat counts her runs this period (spend.runs) and lists its last 20: the count went up, and
+    // the new ones (those it didn't list before) are each a row here.
     const fresh = after.runs.filter((one) => !before.runs.some((had) => had.id === one.id)).map((one) => one.id)
-    await step('her page lists the new runs', fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
+    await step('her page lists the new runs', (after.spend?.runs ?? 0) > (before.spend?.runs ?? 0) && fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
     await step('and her spend went up by their cost', (after.spend?.cost ?? 0) > (before.spend?.cost ?? 0) && (await until(async () => Math.abs(Number(await page.getByTestId('spend').getAttribute('data-cost')) - after.spend.cost) < 1e-9)), { before: before.spend?.cost, after: after.spend?.cost })
   } finally {
     await watch.stop()
