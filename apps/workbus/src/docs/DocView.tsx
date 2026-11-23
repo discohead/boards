@@ -5,7 +5,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { History, MessageSquare, Pencil } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button as IconButton } from '@/components/ui/button'
+import { Avatar, Button } from '@/components/system'
 import { DocConflict } from '@/data/docs-actions'
 import type { Message } from '@/data/types'
 import { cn } from '@/lib/utils'
@@ -43,7 +44,7 @@ export function DocView({ id, inPane = false }: { id: string; inPane?: boolean }
     if (key !== undefined) document.getElementById(anchor(key))?.scrollIntoView({ block: 'start' })
   }, [body?.id, Boolean(body)])
 
-  if (failed) return <p className="p-8 text-destructive">This doc didn't load: {failed}</p>
+  if (failed) return <p className="p-8 text-danger">This doc didn't load: {failed}</p>
   if (!doc || !body) return <p className="p-8 text-muted-foreground">Loading…</p>
 
   const sections = parseDoc(body.body)
@@ -63,17 +64,17 @@ export function DocView({ id, inPane = false }: { id: string; inPane?: boolean }
       <article className={inPane ? 'px-4 py-4' : 'mx-auto max-w-3xl px-8 py-10'} data-testid="doc" data-revision={body.revision}>
         <header className="mb-6 flex items-start justify-between gap-4">
           <div>
-            <p className="font-mono text-xs tracking-wider text-muted-foreground uppercase">Document · revision {body.revision}</p>
-            <p className="mt-1 font-mono text-xs text-muted-foreground" data-testid="doc-path">
+            <p className="font-mono text-mono-ui tracking-wider text-muted-foreground uppercase">Document · revision {body.revision}</p>
+            <p className="mt-1 font-mono text-mono-ui text-muted-foreground" data-testid="doc-path">
               {doc.path}{inPane ? '' : ' · ' + comments.length + (comments.length === 1 ? ' comment' : ' comments')}
             </p>
           </div>
-          <Button variant="outline" size="sm" onClick={() => setShowHistory((on) => !on)} aria-pressed={showHistory}>
-            <History /> History
+          <Button variant="outline" size="sm" icon={History} onClick={() => setShowHistory((on) => !on)}>
+            {showHistory ? 'Hide history' : 'History'}
           </Button>
         </header>
         {showHistory && <DocHistory id={id} />}
-        <div className="doc-body">
+        <div className="doc-body text-doc">
           {sections.map((section) => (
             <DocSection key={section.key} docId={id} section={section} revision={body.revision} comments={bySection.get(section.key) ?? []} />
           ))}
@@ -143,26 +144,26 @@ function SectionTools({ onEdit, onComment, comments, label }: { onEdit?: () => v
   return (
     <div className="absolute top-0 right-0 flex gap-1 rounded-md bg-background/90 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
       {onEdit && (
-        <Button variant="ghost" size="icon" className="size-7" onClick={onEdit} aria-label={'Edit ' + label} title="Edit this section">
+        <IconButton variant="ghost" size="icon" className="size-7" onClick={onEdit} aria-label={'Edit ' + label} title="Edit this section">
           <Pencil />
-        </Button>
+        </IconButton>
       )}
-      <Button variant="ghost" size="icon" className="size-7" onClick={onComment} aria-label={'Comment on ' + label} title="Comment on this section">
+      <IconButton variant="ghost" size="icon" className="size-7" onClick={onComment} aria-label={'Comment on ' + label} title="Comment on this section">
         <MessageSquare />
         {comments > 0 && <span className="sr-only">{comments}</span>}
-      </Button>
+      </IconButton>
     </div>
   )
 }
 
 function SectionEditor({ editing, setDraft, onSave, onCancel, onTakeTheirs }: { editing: Editing; setDraft: (draft: string) => void; onSave: () => void; onCancel: () => void; onTakeTheirs: () => void }) {
   return (
-    <div className="my-3 rounded-lg border p-3" data-testid="section-editor">
+    <div className="my-3 rounded-md border p-3" data-testid="section-editor">
       {editing.conflict && (
-        <div className="mb-3 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm dark:bg-amber-950" role="alert" data-testid="section-conflict">
+        <div className="mb-3 rounded-md border border-held bg-held-soft p-3 text-ui" role="alert" data-testid="section-conflict">
           <p className="font-medium">Someone changed this section after you opened it (now revision {editing.conflict.revision}). Your text is below, unchanged.</p>
-          <p className="mt-2 text-xs text-muted-foreground">What it says now:</p>
-          <div className="mt-1 rounded border bg-background px-3 py-1" data-testid="section-theirs">
+          <p className="mt-2 text-small text-muted-foreground">What it says now:</p>
+          <div className="mt-1 rounded border border-line-control bg-surface px-3 py-1" data-testid="section-theirs">
             <Markdown>{editing.conflict.theirs || '*(empty)*'}</Markdown>
           </div>
         </div>
@@ -176,13 +177,13 @@ function SectionEditor({ editing, setDraft, onSave, onCancel, onTakeTheirs }: { 
           if (event.key === 'Escape') onCancel()
         }}
         rows={Math.min(24, Math.max(4, editing.draft.split('\n').length + 1))}
-        className="w-full resize-y rounded-md border bg-background p-2 font-mono text-sm"
+        className="w-full resize-y rounded-md border border-line-control bg-surface p-2 font-mono text-ui"
         aria-label="Section text"
         disabled={editing.saving}
       />
-      {editing.error && <p className="mt-2 text-sm text-destructive">{editing.error}</p>}
+      {editing.error && <p className="mt-2 text-ui text-danger">{editing.error}</p>}
       <div className="mt-2 flex items-center gap-2">
-        <Button size="sm" onClick={onSave} disabled={editing.saving}>
+        <Button variant="primary" size="sm" kbd="⌘↵" onClick={onSave} disabled={editing.saving}>
           {editing.saving ? 'Saving…' : editing.conflict ? 'Save mine over it' : 'Save'}
         </Button>
         {editing.conflict && (
@@ -190,10 +191,9 @@ function SectionEditor({ editing, setDraft, onSave, onCancel, onTakeTheirs }: { 
             Keep theirs, drop mine
           </Button>
         )}
-        <Button size="sm" variant="ghost" onClick={onCancel} disabled={editing.saving}>
+        <Button size="sm" variant="ghost" kbd="esc" onClick={onCancel} disabled={editing.saving}>
           Cancel
         </Button>
-        <span className="ml-auto text-xs text-muted-foreground">⌘↵ to save</span>
       </div>
     </div>
   )
@@ -202,7 +202,7 @@ function SectionEditor({ editing, setDraft, onSave, onCancel, onTakeTheirs }: { 
 function Comments({ docId, title, comments, readOnly = false }: { docId: string; title: string; comments: Message[]; readOnly?: boolean }) {
   return (
     <section className="mt-10 border-t pt-6" data-testid={readOnly ? 'detached-comments' : 'doc-comments'}>
-      <h2 className="mb-3 text-sm font-semibold">{title}</h2>
+      <h2 className="mb-3 text-ui font-semibold">{title}</h2>
       {comments.map((comment) => (
         <Comment key={comment.id} comment={comment} detached={readOnly} />
       ))}
@@ -215,9 +215,12 @@ function Comment({ comment, detached = false }: { comment: Message; detached?: b
   const bus = useDocsBus()
   const author = bus.actors.get(comment.by.actor)
   return (
-    <div className={cn('mb-3 text-sm', comment.pending && 'opacity-60')} data-testid="comment" data-pending={comment.pending ? 'yes' : undefined}>
-      <p className="text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{author?.name ?? comment.by.actor}</span> · {new Date(comment.createdAt).toLocaleString()}
+    <div className={cn('mb-3 text-ui', comment.pending && 'opacity-60')} data-testid="comment" data-pending={comment.pending ? 'yes' : undefined}>
+      <p className="flex items-center gap-2 text-small text-muted-foreground">
+        <Avatar size="xs" kind={author && author.kind !== 'person' ? 'agent' : 'person'} initials={(author?.name ?? comment.by.actor.replace(/^.*:/, '')).slice(0, 2).toUpperCase()} />
+        <span className="font-medium text-foreground">{author?.name ?? comment.by.actor}</span>
+        <span className="font-mono">@{author?.handle ?? comment.by.actor.replace(/^.*:/, '')}</span>
+        <span className="ml-auto font-mono">{comment.pending ? 'sending…' : new Date(comment.createdAt).toLocaleTimeString([], { hour12: false }) + ' · #' + comment.id}</span>
         {detached && <> · on “{comment.labels['board.doc.section']}”</>}
       </p>
       <Markdown>{comment.text}</Markdown>
@@ -245,12 +248,12 @@ function CommentBox({ docId, section, onDone }: { docId: string; section?: strin
         onKeyDown={(event) => (event.metaKey || event.ctrlKey) && event.key === 'Enter' && send()}
         rows={2}
         placeholder={section !== undefined ? 'Comment on this section' : 'Comment on the doc'}
-        className="w-full rounded-md border bg-background p-2 text-sm"
+        className="w-full rounded-md border border-line-control bg-surface p-2 text-ui"
         aria-label={section !== undefined ? 'Comment on this section' : 'Comment on the doc'}
       />
-      {error && <p className="text-sm text-destructive">Not sent: {error}</p>}
+      {error && <p className="text-ui text-danger">Not sent: {error}</p>}
       <div>
-        <Button size="sm" type="submit" disabled={!text.trim()}>
+        <Button size="sm" type="submit" kbd="⌘↵" disabled={!text.trim()}>
           Comment
         </Button>
       </div>

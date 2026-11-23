@@ -2,6 +2,7 @@
 // registrations, so it never drifts from what the keys do. ? opens it.
 import { useHotkey, useHotkeyRegistrations, useFormatForDisplay } from '@tanstack/react-hotkeys'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Kbd } from '@/components/system'
 
 export function CheatSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   useHotkey('Shift+/', () => onOpenChange(!open), { meta: { name: 'Keyboard shortcuts', group: 'Everywhere' } })
@@ -24,12 +25,12 @@ export function CheatSheet({ open, onOpenChange }: { open: boolean; onOpenChange
         </DialogHeader>
         {[...groups].map(([group, entries]) => (
           <section key={group}>
-            <h3 className="mb-1 text-xs font-medium text-muted-foreground">{group}</h3>
-            <ul className="space-y-1 text-sm">
+            <h3 className="mb-1 font-mono text-mono-label tracking-wider text-muted-foreground uppercase">{group}</h3>
+            <ul className="space-y-1 text-ui">
               {entries.map((entry) => (
                 <li key={entry.key} className="flex items-center justify-between">
                   {entry.name}
-                  <kbd className="rounded border bg-muted px-1.5 py-0.5 font-mono text-xs">{entry.key}</kbd>
+                  <Kbd>{entry.key}</Kbd>
                 </li>
               ))}
             </ul>
