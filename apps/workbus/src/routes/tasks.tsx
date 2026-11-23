@@ -3,7 +3,7 @@
 // /tasks?channel=<team>/.
 import { createFileRoute } from '@tanstack/react-router'
 import { ListPane } from '@/shell/list-pane'
-import { TaskList, useTaskRows } from '@/task/list'
+import { ListActions, stateChips, TaskList, useTaskRows } from '@/task/list'
 import { useTasks } from '@/task/use-tasks'
 import { useSetView, validateViewSearch, viewOf } from '@/task/view'
 
@@ -17,7 +17,7 @@ function Tasks() {
   const queue = view.channel.length === 1 ? view.channel[0]! : null
   const title = queue ? (queue.endsWith('/') ? queue.slice(0, -1) + ' team' : '#' + queue) + ' queue' : 'Tasks'
   return (
-    <ListPane title={title}>
+    <ListPane title={title} chips={stateChips(rows, view, setView)} actions={<ListActions view={view} onView={setView} channel={queue && !queue.endsWith('/') ? queue : undefined} />}>
       <TaskList label={title} rows={rows} view={view} onView={setView} empty="No tasks yet. Make one from a message, or with ⌘K." />
     </ListPane>
   )

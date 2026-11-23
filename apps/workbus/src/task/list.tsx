@@ -21,7 +21,9 @@ import {
   type SortingState,
 } from '@tanstack/react-table'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { ChevronDownIcon, ArrowDownIcon, ArrowUpIcon } from 'lucide-react'
+import { ChevronDownIcon, ArrowDownIcon, ArrowUpIcon, LayoutGridIcon, ListIcon } from 'lucide-react'
+import type { Chip } from '@/shell/list-pane'
+import { NewTask } from './new-task.tsx'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -29,8 +31,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as Tr } f
 import { cn } from '@/lib/utils'
 import { useOpenThread } from '@/shell/open-thread'
 import { holdSelected } from './hold.ts'
-import { assigneeOf, holdLabel, holdOf, OPEN, shownLabels, STATE_LABEL, STATES, stateOf, type Task, type TaskState } from './model.ts'
-import { ago } from './time.ts'
+import { taskState, type ShownState } from '@/data'
+import { assigneeOf, holdOf, shownLabels, SHOWN, SHOWN_LABEL, stateOf, type Task, type TaskState } from './model.ts'
 import { useActorNames } from './actors.ts'
 import { StateIcon } from './state-icon.tsx'
 
@@ -39,15 +41,17 @@ export type TaskRow = {
   id: string
   title: string
   state: TaskState
+  /** The state as the app shows it (taskState): the group, and its word. */
+  shown: ShownState
+  word: string
   assignee: string
   assigneeName: string
   owner: string
   ownerName: string
   channel: string
   labels: string[]
-  /** The board's cursor at its last change: newer is more recent. */
+  /** The cursor of its last change (its message's version): newer is more recent, and it's what the list shows. */
   updated: number
-  updatedAt: string
   hold: string | null
   pending: boolean
   task: Task
@@ -85,13 +89,12 @@ const anyOf = (row: R, id: string, chosen: string[]) => {
 }
 anyOf.autoRemove = (value: unknown) => !Array.isArray(value) || value.length === 0
 
-const rank = (state: TaskState) => STATES.indexOf(state)
-const isOpenSet = (states: string[]) => states.length === OPEN.length && OPEN.every((state) => states.includes(state))
+const rank = (state: ShownState) => SHOWN.indexOf(state)
 const helper = createColumnHelper<typeof features, TaskRow>()
 const columns = helper.columns([
   helper.accessor('id', { header: '#', sortFn: (a, b) => Number(a.original.id) - Number(b.original.id) }),
   helper.accessor('title', { header: 'Title', sortFn: 'alphanumeric' }),
-  helper.accessor('state', { header: 'State', filterFn: anyOf, sortFn: (a, b) => rank(a.original.state) - rank(b.original.state) }),
+  helper.accessor('state', { header: 'State', filterFn: anyOf, sortFn: (a, b) => rank(a.original.shown) - rank(b.original.shown) }),
   helper.accessor('assignee', { header: 'Assignee', filterFn: anyOf, sortFn: (a, b) => a.original.assigneeName.localeCompare(b.original.assigneeName) }),
   helper.accessor('owner', { header: 'Owner', filterFn: anyOf, sortFn: (a, b) => a.original.ownerName.localeCompare(b.original.ownerName) }),
   helper.accessor('channel', { header: 'Channel', filterFn: anyOf, sortFn: 'alphanumeric' }),
@@ -100,6 +103,8 @@ const columns = helper.columns([
 ])
 
 const FILTERED = ['state', 'owner', 'assignee', 'channel', 'label'] as const
+/** The menus: state is the list pane's chips. */
+const MENUS = ['owner', 'assignee', 'channel', 'label'] as const
 const COLUMN_OF = { state: 'state', owner: 'owner', assignee: 'assignee', channel: 'channel', label: 'labels' } as const
 
 /** Task rows from tasks, named. */
@@ -113,6 +118,8 @@ export function useTaskRows(tasks: Task[]): TaskRow[] {
           id: task.id,
           title: (task.text.split('\n')[0] ?? '').replace(/^#+\s*/, '') || '(no text)',
           state: stateOf(task),
+          shown: taskState(task.task).state,
+          word: taskState(task.task).waitsOn?.length ? 'waits on ' + taskState(task.task).waitsOn!.map((id) => '#' + id).join(' ') : taskState(task.task).word,
           assignee,
           assigneeName: assignee ? name(assignee) : '',
           owner: task.task.owner ?? '',
@@ -120,7 +127,6 @@ export function useTaskRows(tasks: Task[]): TaskRow[] {
           channel: task.channel,
           labels: shownLabels(task.labels).map(([key, value]) => key + '=' + value),
           updated: task.version || Number.MAX_SAFE_INTEGER,
-          updatedAt: (task.updatedAt as string | undefined) ?? task.editedAt ?? task.createdAt,
           hold: holdOf(task)?.kind ?? null,
           pending: !!task.pending,
           task,
@@ -156,9 +162,9 @@ export function TaskList({ rows, view, onView, empty, label }: { rows: TaskRow[]
   const shown = useRef<Item[]>([])
   const byId = useMemo(() => new Map(rows.map((row) => [row.id, row])), [rows])
   const grouped = view.group || view.layout === 'board'
-  const next: Item[] = (grouped ? [...sorted].sort((a, b) => rank(a.state) - rank(b.state)) : sorted).map((row) => ({ key: row.id, group: grouped ? row.state : '', row }))
+  const next: Item[] = (grouped ? [...sorted].sort((a, b) => rank(a.shown) - rank(b.shown)) : sorted).map((row) => ({ key: row.id, group: grouped ? row.shown : '', row }))
   const kept = selected ? byId.get(selected) : undefined
-  const items = holdSelected(shown.current, next, selected, kept ? { key: kept.id, group: kept.state, row: kept } : undefined)
+  const items = holdSelected(shown.current, next, selected, kept ? { key: kept.id, group: grouped ? kept.shown : '', row: kept } : undefined)
   shown.current = items
   const gone = new Set(items.filter((item) => !next.some((one) => one.key === item.key)).map((item) => item.key))
 
@@ -258,8 +264,8 @@ function Compact({ item, header, count, selected, opened, gone, onPick }: { item
     <>
       {header !== null ? (
         <li data-group={header} className="flex items-center gap-2 border-b bg-muted/40 px-4 py-1.5 text-xs font-medium">
-          <StateIcon state={header as TaskState} />
-          {STATE_LABEL[header as TaskState]}
+          <StateIcon state={header as ShownState} />
+          {SHOWN_LABEL[header as ShownState]}
           <span className="text-muted-foreground">{count}</span>
         </li>
       ) : null}
@@ -271,11 +277,11 @@ function Compact({ item, header, count, selected, opened, gone, onPick }: { item
         className={cn('flex cursor-default items-center gap-2 border-b px-4 py-1.5 text-sm hover:bg-muted/50', selected && 'bg-muted', opened && 'bg-accent', (gone || row.pending) && 'opacity-60')}
       >
         <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{row.pending ? 'sending…' : '#' + row.id}</span>
-        <StateIcon state={row.state} />
+        <StateIcon state={row.shown} />
         <span className="min-w-0 flex-1 truncate">{row.title}</span>
         {row.hold ? <span className="shrink-0 font-mono text-xs text-primary">{row.hold}</span> : null}
-        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
-          {ago(row.updatedAt)}
+        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums" title="The cursor of its last change">
+          {row.pending ? '' : '#' + row.updated}
         </span>
       </li>
     </>
@@ -284,7 +290,7 @@ function Compact({ item, header, count, selected, opened, gone, onPick }: { item
 
 // Beside an open thread the list is narrow: it keeps the cursor, title, state, and when; the rest
 // come back as it widens (container queries on the list).
-const WIDTH: Record<string, string> = { id: 'w-14', title: 'w-auto', state: 'w-24', assignee: 'hidden w-28 @2xl:table-cell', owner: 'hidden w-28 @4xl:table-cell', channel: 'hidden w-28 @3xl:table-cell', labels: 'hidden w-40 @5xl:table-cell', updated: 'w-14' }
+const WIDTH: Record<string, string> = { id: 'w-14', title: 'w-auto', state: 'w-24', assignee: 'hidden w-28 @2xl:table-cell', owner: 'hidden w-28 @4xl:table-cell', channel: 'hidden w-28 @3xl:table-cell', labels: 'hidden w-40 @5xl:table-cell', updated: 'w-20' }
 
 function Line({ item, header, count, selected, opened, gone, onPick }: { item: Item; header: string | null; count: number; selected: boolean; opened: boolean; gone: boolean; onPick: (id: string) => void }) {
   const row = item.row
@@ -294,8 +300,8 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
         <Tr data-group={header} className="bg-muted/40 hover:bg-muted/40">
           <TableCell colSpan={8} className="py-1.5 text-xs font-medium">
             <span className="inline-flex items-center gap-2">
-              <StateIcon state={header as TaskState} />
-              {STATE_LABEL[header as TaskState]}
+              <StateIcon state={header as ShownState} />
+              {SHOWN_LABEL[header as ShownState]}
               <span className="text-muted-foreground">{count}</span>
             </span>
           </TableCell>
@@ -313,8 +319,9 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
         <TableCell className="truncate">{row.title}</TableCell>
         <TableCell>
           <span className="inline-flex items-center gap-1.5 text-xs">
-            <StateIcon state={row.state} />
-            {row.hold ? holdLabel(row.hold) : STATE_LABEL[row.state]}
+            <StateIcon state={row.shown} />
+            {row.word}
+            {row.hold ? <span className="font-mono text-held">{row.hold}</span> : null}
           </span>
         </TableCell>
         <TableCell className={cn('truncate font-mono text-xs', WIDTH.assignee)}>{row.assigneeName ? '@' + row.assigneeName : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -329,25 +336,25 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
             ))}
           </span>
         </TableCell>
-        <TableCell className="font-mono text-xs text-muted-foreground tabular-nums" suppressHydrationWarning>
-          {ago(row.updatedAt)}
+        <TableCell className="font-mono text-xs text-muted-foreground tabular-nums" title="The cursor of its last change">
+          {row.pending ? '' : '#' + row.updated}
         </TableCell>
       </Tr>
     </>
   )
 }
 
-/** The board by state: a column per state that has tasks, the same rows and selection as the list. */
+/** The board by state: a column per state, as the prototype lays them out, the same rows and selection as the list. */
 function Board({ items, selected, openId, gone, onPick }: { items: Item[]; selected: string | null; openId: string | null; gone: Set<string>; onPick: (id: string) => void }) {
-  const groups = STATES.filter((state) => items.some((item) => item.group === state))
+  const groups = SHOWN.filter((state) => state !== 'failed' || items.some((item) => item.group === state))
   return (
     <div className="flex h-full gap-3 p-3" data-testid="task-board">
       {groups.map((state) => (
-        <section key={state} data-group={state} aria-label={STATE_LABEL[state]} className="flex w-72 shrink-0 flex-col rounded-lg bg-muted/40">
+        <section key={state} data-group={state} aria-label={SHOWN_LABEL[state]} className="flex w-72 shrink-0 flex-col rounded-md bg-muted/40">
           <header className="flex items-center gap-2 px-3 py-2 text-xs font-medium">
             <StateIcon state={state} />
-            {STATE_LABEL[state]}
-            <span className="text-muted-foreground">{items.filter((item) => item.group === state).length}</span>
+            {SHOWN_LABEL[state]}
+            <span className="ml-auto font-mono text-muted-foreground">{items.filter((item) => item.group === state).length}</span>
           </header>
           <ul className="flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2">
             {items
@@ -358,17 +365,17 @@ function Board({ items, selected, openId, gone, onPick }: { items: Item[]; selec
                     data-row={row.id}
                     aria-selected={selected === row.id}
                     onClick={() => onPick(row.id)}
-                    className={cn('w-full rounded-md border bg-background p-2 text-left text-sm shadow-xs', selected === row.id && 'ring-2 ring-ring', openId === row.id && 'bg-accent', gone.has(row.id) && 'opacity-50')}
+                    className={cn('w-full rounded-md border bg-background p-2 text-left text-sm', selected === row.id && 'ring-2 ring-ring', openId === row.id && 'bg-accent', gone.has(row.id) && 'opacity-50')}
                   >
-                    <div className="text-xs text-muted-foreground">
-                      #{row.id} · #{row.channel}
+                    <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
+                      <span>{row.pending ? 'sending…' : '#' + row.id}</span>
+                      {row.hold ? <span className="text-primary">{row.hold}</span> : <span>{row.channel}</span>}
                     </div>
-                    <div className="mt-0.5 line-clamp-2">{row.title}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground">
-                      {row.hold ? <Badge variant="secondary">{holdLabel(row.hold)}</Badge> : null}
-                      {row.assigneeName ? <span>@{row.assigneeName}</span> : null}
+                    <div className="mt-0.5 line-clamp-2 font-medium">{row.title}</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-1 font-mono text-xs text-muted-foreground">
+                      {row.assigneeName ? <span>@{row.assigneeName}</span> : <span>@{row.ownerName}</span>}
                       {row.labels.map((label) => (
-                        <Badge key={label} variant="outline" className="font-normal">
+                        <Badge key={label} variant="outline" className="font-mono font-normal">
                           {label}
                         </Badge>
                       ))}
@@ -385,29 +392,26 @@ function Board({ items, selected, openId, gone, onPick }: { items: Item[]; selec
 
 type T = ReturnType<typeof useTable<typeof features, TaskRow>>
 
-/** Filters by state, owner, assignee, channel, and label (each a menu of the values there are, with counts), the grouping, and the layout. */
+/** Filters by owner, assignee, channel, and label (each a menu of the values there are, with counts), and the grouping. State is the list pane's chips. */
 function Toolbar({ table, view, onView, rows, count }: { table: T; view: ListView; onView: (view: ListView) => void; rows: TaskRow[]; count: number }) {
   const name = useMemo(() => new Map(rows.flatMap((row) => [[row.owner, row.ownerName], [row.assignee, row.assigneeName]] as const)), [rows])
-  const facet = (key: (typeof FILTERED)[number]) => {
+  const facet = (key: (typeof MENUS)[number]) => {
     const counts = new Map<string, number>()
     if (key === 'label') for (const row of rows) for (const label of row.labels) counts.set(label, (counts.get(label) ?? 0) + 1)
     else for (const [value, n] of table.getColumn(COLUMN_OF[key])!.getFacetedUniqueValues()) counts.set(String(value), n as number)
     for (const value of view[key]) if (!counts.has(value)) counts.set(value, 0)
-    const values = [...counts.keys()]
-    if (key === 'state') values.sort((a, b) => rank(a as TaskState) - rank(b as TaskState))
-    else values.sort()
-    return values.map((value) => ({ value, n: counts.get(value)!, text: key === 'state' ? STATE_LABEL[value as TaskState] : key === 'owner' || key === 'assignee' ? (value ? '@' + (name.get(value) ?? value) : 'No one') : key === 'channel' ? '#' + value : value }))
+    return [...counts.keys()].sort().map((value) => ({ value, n: counts.get(value)!, text: key === 'owner' || key === 'assignee' ? (value ? '@' + (name.get(value) ?? value) : 'No one') : value }))
   }
-  const toggle = (key: (typeof FILTERED)[number], value: string) => onView({ ...view, [key]: view[key].includes(value) ? view[key].filter((one) => one !== value) : [...view[key], value] })
-  const TITLE = { state: 'State', owner: 'Owner', assignee: 'Assignee', channel: 'Channel', label: 'Label' } as const
+  const toggle = (key: (typeof MENUS)[number], value: string) => onView({ ...view, [key]: view[key].includes(value) ? view[key].filter((one) => one !== value) : [...view[key], value] })
+  const TITLE = { owner: 'Owner', assignee: 'Assignee', channel: 'Channel', label: 'Label' } as const
   return (
     <div className="flex flex-wrap items-center gap-1.5 border-b px-4 py-2" role="toolbar" aria-label="Filters">
-      {FILTERED.map((key) => (
+      {MENUS.map((key) => (
         <DropdownMenu key={key}>
           <DropdownMenuTrigger asChild>
             <Button variant={view[key].length ? 'secondary' : 'ghost'} size="xs" aria-label={'Filter by ' + TITLE[key].toLowerCase()}>
               {TITLE[key]}
-              {view[key].length ? <span className="text-muted-foreground">: {key === 'state' && isOpenSet(view.state) ? 'open' : view[key].length === 1 ? facet(key).find((one) => one.value === view[key][0])?.text ?? view[key][0] : view[key].length}</span> : null}
+              {view[key].length ? <span className="font-mono text-muted-foreground">{view[key].length === 1 ? (facet(key).find((one) => one.value === view[key][0])?.text ?? view[key][0]) : view[key].length}</span> : null}
               <ChevronDownIcon />
             </Button>
           </DropdownMenuTrigger>
@@ -415,8 +419,8 @@ function Toolbar({ table, view, onView, rows, count }: { table: T; view: ListVie
             <DropdownMenuLabel className="text-xs text-muted-foreground">{TITLE[key]}</DropdownMenuLabel>
             {facet(key).map((option) => (
               <DropdownMenuCheckboxItem key={option.value} checked={view[key].includes(option.value)} onSelect={(event) => event.preventDefault()} onCheckedChange={() => toggle(key, option.value)}>
-                <span className="flex-1 truncate">{option.text}</span>
-                <span className="text-xs text-muted-foreground tabular-nums">{option.n}</span>
+                <span className="flex-1 truncate font-mono text-xs">{option.text}</span>
+                <span className="font-mono text-xs text-muted-foreground tabular-nums">{option.n}</span>
               </DropdownMenuCheckboxItem>
             ))}
             {view[key].length ? (
@@ -428,15 +432,45 @@ function Toolbar({ table, view, onView, rows, count }: { table: T; view: ListVie
           </DropdownMenuContent>
         </DropdownMenu>
       ))}
-      <span className="ml-auto text-xs text-muted-foreground tabular-nums" data-testid="task-count">
+      <span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums" data-testid="task-count">
         {count} {count === 1 ? 'task' : 'tasks'}
       </span>
       <Button variant={view.group ? 'secondary' : 'ghost'} size="xs" aria-pressed={view.group} onClick={() => onView({ ...view, group: !view.group })} disabled={view.layout === 'board'}>
         Group by state
       </Button>
+    </div>
+  )
+}
+
+/** The list pane's state chips: Open (the default), each shown state, and All. */
+const CHIP_STATES: { label: string; states: TaskState[] }[] = [
+  { label: 'Open', states: ['waiting', 'ready', 'claimed', 'blocked'] },
+  { label: 'Ready', states: ['waiting', 'ready'] },
+  { label: 'Claimed', states: ['claimed'] },
+  { label: 'Held', states: ['blocked'] },
+  { label: 'Done', states: ['completed', 'canceled'] },
+  { label: 'All', states: [] },
+]
+const same = (a: string[], b: string[]) => a.length === b.length && a.every((one) => b.includes(one))
+
+export function stateChips(rows: TaskRow[], view: ListView, onView: (view: ListView) => void): Chip[] {
+  return CHIP_STATES.map((chip) => ({
+    label: chip.label,
+    count: chip.states.length ? rows.filter((row) => chip.states.includes(row.state)).length : rows.length,
+    active: same(view.state, chip.states),
+    onClick: () => onView({ ...view, state: chip.states }),
+  }))
+}
+
+/** The list pane's actions: the board or the list, and a new task. */
+export function ListActions({ view, onView, channel }: { view: ListView; onView: (view: ListView) => void; channel?: string }) {
+  return (
+    <div className="flex items-center gap-1.5">
       <Button variant="ghost" size="xs" aria-pressed={view.layout === 'board'} onClick={() => onView({ ...view, layout: view.layout === 'board' ? 'list' : 'board' })}>
-        {view.layout === 'board' ? 'List' : 'Board'}
+        {view.layout === 'board' ? <ListIcon /> : <LayoutGridIcon />}
+        {view.layout === 'board' ? 'List view' : 'Board view'}
       </Button>
+      <NewTask channel={channel} />
     </div>
   )
 }
