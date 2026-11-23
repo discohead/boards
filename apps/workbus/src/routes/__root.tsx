@@ -10,6 +10,8 @@ import { ThreadPane } from '../shell/thread-pane.tsx'
 import { TopBar } from '../shell/top-bar.tsx'
 import type { Me } from '../data/index.ts'
 import { Keyboard } from '../command/Keyboard.tsx'
+import { Toaster } from '@/components/ui/sonner'
+import { appearanceScript } from '@/components/system/appearance'
 import css from '../styles.css?url'
 
 /** ?thread=<id>: the open thread, a message ID (a number in the URL); ?face=: its open tab. */
@@ -31,8 +33,16 @@ export const Route = createRootRoute({
   staleTime: Infinity,
   shouldReload: false,
   head: () => ({
-    meta: [{ charSet: 'utf-8' }, { name: 'viewport', content: 'width=device-width, initial-scale=1' }, { title: 'Workbus' }],
-    links: [{ rel: 'stylesheet', href: css }, { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' }],
+    meta: [
+      { charSet: 'utf-8' },
+      { name: 'viewport', content: 'width=device-width, initial-scale=1' },
+      { title: 'Workbus' },
+    ],
+    links: [
+      { rel: 'stylesheet', href: css },
+      { rel: 'icon', href: '/favicon.svg', type: 'image/svg+xml' },
+      { rel: 'apple-touch-icon', href: '/apple-touch-icon.png' },
+    ],
   }),
   shellComponent: Document,
   component: Frame,
@@ -44,14 +54,17 @@ export const Route = createRootRoute({
   ),
 })
 
+// data-theme and data-density are set before paint by the inline script, so React leaves them be.
 function Document({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" data-theme="light" data-density="compact" suppressHydrationWarning>
       <head>
+        <script dangerouslySetInnerHTML={{ __html: appearanceScript }} />
         <HeadContent />
       </head>
-      <body className="bg-background text-foreground antialiased">
+      <body>
         {children}
+        <Toaster />
         <Scripts />
       </body>
     </html>

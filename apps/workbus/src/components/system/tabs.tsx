@@ -1,0 +1,53 @@
+import { useState, type ReactNode } from 'react'
+import { Tabs as UITabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { cn } from '@/lib/utils'
+
+export interface TabsProps {
+  tabs: { id: string; label: string; count?: number; add?: boolean; onAdd?: () => void }[]
+  value?: string
+  onChange?: (id: string) => void
+  /** Panels (TabsContent from '@/components/ui/tabs'), if the tabs own them. */
+  children?: ReactNode
+  className?: string
+}
+
+/**
+ * The faces of a thread (Conversation, Task, Doc) and a seat doc's sections. A face the thread
+ * doesn't have yet is an add action ("+ Write it up"), never an empty tab. Keep the open tab in
+ * the URL: pass value and onChange.
+ */
+export function Tabs({ tabs, value, onChange, children, className }: TabsProps) {
+  const [own, setOwn] = useState(() => tabs.find((t) => !t.add)?.id)
+  const current = value ?? own
+  return (
+    <UITabs
+      value={current}
+      onValueChange={(id) => {
+        setOwn(id)
+        onChange?.(id)
+      }}
+      className={className}
+    >
+      <TabsList>
+        {tabs.map((t) =>
+          t.add ? (
+            <button
+              key={t.id}
+              type="button"
+              onClick={t.onAdd}
+              className="-mb-px inline-flex cursor-pointer border-b-2 border-transparent py-[7px] text-[12.5px] text-muted-foreground opacity-80 transition-fast hover:text-text"
+            >
+              + {t.label}
+            </button>
+          ) : (
+            <TabsTrigger key={t.id} value={t.id}>
+              {t.label}
+              {t.count != null ? <span className={cn('font-mono text-mono-ui font-normal text-muted-foreground')}>{t.count}</span> : null}
+            </TabsTrigger>
+          ),
+        )}
+      </TabsList>
+      {children}
+    </UITabs>
+  )
+}

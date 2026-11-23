@@ -1,75 +1,152 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@custom-variant dark (&:is(.dark *));
+/* The Workbus design system (design/system/): its tokens, Tailwind's theme over them, and
+   shadcn/ui's variables mapped per the system's README. The theme is data-theme on <html> (light
+   or dark, resolved from the setting before paint) and density is data-density (compact by
+   default). Either can sit on any element: the gallery at /dev/system shows all four. */
 
-/* shadcn/ui's neutral theme, with one accent: primary (and ring), a blue. No web fonts: the system's. */
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+/* The faces. Each family is one line: the system's own fallback stacks, no web fonts. */
 :root {
-  --radius: 0.625rem;
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.546 0.215 262.9);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.546 0.215 262.9);
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.546 0.215 262.9);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.546 0.215 262.9);
+  --wb-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --wb-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.623 0.188 259.8);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.623 0.188 259.8);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.623 0.188 259.8);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.623 0.188 259.8);
+/* Color, from tokens.css. The --wb- prefix keeps them apart from shadcn's names (its --muted is a
+   fill, the system's is a text color). */
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+  --wb-bg: #ffffff;
+  --wb-sidebar: #f6f7f9;
+  --wb-surface: #ffffff;
+  --wb-raised: #f2f4f7;
+  --wb-selected: #fbf3f1;
+  --wb-line: #e3e5ea;
+  --wb-line-strong: #cfd3db;
+  --wb-line-control: #7f8693;
+  --wb-text: #12141a;
+  --wb-body: #2b2f38;
+  --wb-muted: #687080;
+  --wb-brand: #d63f18;
+  --wb-on-brand: #ffffff;
+  --wb-held: #c23a12;
+  --wb-held-soft: #f9ebe7;
+  --wb-agent: #0e7c86;
+  --wb-agent-soft: #f0f7f7;
+  --wb-warning: #9a6700;
+  --wb-danger: #be123c;
+  --wb-info: #0969da;
+  --wb-success: #1a7f37;
+  --wb-focus: var(--wb-held);
+  --wb-shadow-float: 0 1px 2px rgba(18, 20, 26, 0.06), 0 8px 24px -8px rgba(18, 20, 26, 0.16);
+  --wb-show-light: inline-block;
+  --wb-show-dark: none;
+}
+[data-theme="dark"] {
+  color-scheme: dark;
+  --wb-bg: #0e1014;
+  --wb-sidebar: #121419;
+  --wb-surface: #14171d;
+  --wb-raised: #1a1d24;
+  --wb-selected: #1d1719;
+  --wb-line: #262a33;
+  --wb-line-strong: #363b46;
+  --wb-line-control: #666d7c;
+  --wb-text: #eceef2;
+  --wb-body: #c3c7d0;
+  --wb-muted: #858c9a;
+  --wb-brand: #ff6a3d;
+  --wb-on-brand: #1a0b05;
+  --wb-held: #ff8a62;
+  --wb-held-soft: #2b1f1d;
+  --wb-agent: #4fc1c9;
+  --wb-agent-soft: #162529;
+  --wb-warning: #d4a72c;
+  --wb-danger: #fb7185;
+  --wb-info: #6cb6ff;
+  --wb-success: #3fb950;
+  --wb-focus: var(--wb-held);
+  --wb-shadow-float: 0 1px 2px rgba(0, 0, 0, 0.4), 0 12px 32px -8px rgba(0, 0, 0, 0.6);
+  --wb-show-light: none;
+  --wb-show-dark: inline-block;
+}
+
+/* Density: rows, shell text, and message padding follow it. */
+:root,
+[data-density="compact"] {
+  --wb-row: 26px;
+  --wb-ui-size: 13px;
+  --wb-ui-lh: 18px;
+  --wb-pad-y: 8px;
+}
+[data-density="comfortable"] {
+  --wb-row: 32px;
+  --wb-ui-size: 14px;
+  --wb-ui-lh: 20px;
+  --wb-pad-y: 12px;
+}
+
+/* Motion: color and opacity only. Reduced motion turns it off. */
+:root {
+  --wb-fast: 120ms;
+  --wb-base: 160ms;
+  --wb-arrive: 260ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --wb-fast: 0ms;
+    --wb-base: 0ms;
+    --wb-arrive: 0ms;
+  }
+  *,
+  ::before,
+  ::after {
+    animation-duration: 0ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0ms !important;
+  }
+}
+
+/* shadcn/ui's variables, per the README's table. */
+:root,
+[data-theme] {
+  --radius: 6px;
+  --background: var(--wb-bg);
+  --foreground: var(--wb-text);
+  --card: var(--wb-surface);
+  --card-foreground: var(--wb-text);
+  --popover: var(--wb-surface);
+  --popover-foreground: var(--wb-text);
+  --primary: var(--wb-brand);
+  --primary-foreground: var(--wb-on-brand);
+  --secondary: var(--wb-raised);
+  --secondary-foreground: var(--wb-text);
+  --muted: var(--wb-raised);
+  --muted-foreground: var(--wb-muted);
+  --accent: var(--wb-raised);
+  --accent-foreground: var(--wb-text);
+  --destructive: var(--wb-danger);
+  --border: var(--wb-line);
+  --input: var(--wb-line-control);
+  --ring: var(--wb-focus);
+  --sidebar: var(--wb-sidebar);
+  --sidebar-foreground: var(--wb-body);
+  --sidebar-primary: var(--wb-brand);
+  --sidebar-primary-foreground: var(--wb-on-brand);
+  --sidebar-accent: var(--wb-raised);
+  --sidebar-accent-foreground: var(--wb-text);
+  --sidebar-border: var(--wb-line);
+  --sidebar-ring: var(--wb-focus);
 }
 
 @theme inline {
-  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--wb-font-sans);
+  --font-mono: var(--wb-font-mono);
+
+  /* shadcn's names */
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);
@@ -96,13 +173,137 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+
+  /* The system's names. Its muted text is text-muted-foreground (bg-muted is shadcn's fill). */
+  --color-bg: var(--wb-bg);
+  --color-surface: var(--wb-surface);
+  --color-raised: var(--wb-raised);
+  --color-selected: var(--wb-selected);
+  --color-line: var(--wb-line);
+  --color-line-strong: var(--wb-line-strong);
+  --color-line-control: var(--wb-line-control);
+  --color-text: var(--wb-text);
+  --color-body: var(--wb-body);
+  --color-brand: var(--wb-brand);
+  --color-on-brand: var(--wb-on-brand);
+  --color-held: var(--wb-held);
+  --color-held-soft: var(--wb-held-soft);
+  --color-agent: var(--wb-agent);
+  --color-agent-soft: var(--wb-agent-soft);
+  --color-warning: var(--wb-warning);
+  --color-danger: var(--wb-danger);
+  --color-info: var(--wb-info);
+  --color-success: var(--wb-success);
+  --color-focus: var(--wb-focus);
+
+  /* Type. The system's body style is text-doc here (text-body is its color). */
+  --text-title-xl: 26px;
+  --text-title-xl--line-height: 32px;
+  --text-title-xl--letter-spacing: -0.025em;
+  --text-title-xl--font-weight: 620;
+  --text-title-lg: 21px;
+  --text-title-lg--line-height: 26px;
+  --text-title-lg--letter-spacing: -0.02em;
+  --text-title-lg--font-weight: 600;
+  --text-title-md: 15px;
+  --text-title-md--line-height: 20px;
+  --text-title-md--letter-spacing: -0.01em;
+  --text-title-md--font-weight: 600;
+  --text-doc: 14px;
+  --text-doc--line-height: 22px;
+  --text-ui: var(--wb-ui-size);
+  --text-ui--line-height: var(--wb-ui-lh);
+  --text-small: 12px;
+  --text-small--line-height: 16px;
+  --text-mono-ui: 11px;
+  --text-mono-ui--line-height: 16px;
+  --text-mono-label: 10.5px;
+  --text-mono-label--line-height: 16px;
+  --text-mono-label--font-weight: 500;
+  --text-code: 12px;
+  --text-code--line-height: 18px;
+
+  /* Radii: xs for agents, kinds and labels; sm for controls; md for surfaces. Nothing larger. */
+  --radius-xs: 3px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 6px;
+  --radius-xl: 6px;
+
+  /* Spacing: Tailwind's 4px steps are the system's, except space-5, 22px (the thread pane). */
+  --spacing-5: 22px;
+  --spacing-row: var(--wb-row);
+  --spacing-row-compact: 26px;
+  --spacing-row-comfortable: 32px;
+  --spacing-control-sm: 24px;
+  --spacing-control-md: 28px;
+  --spacing-control-lg: 34px;
+  --spacing-avatar-xs: 16px;
+  --spacing-avatar-sm: 20px;
+  --spacing-avatar-md: 26px;
+  --spacing-avatar-lg: 40px;
+  --spacing-icon: 16px;
+  --spacing-sidebar: 208px;
+  --spacing-list: 344px;
+
+  --shadow-float: var(--wb-shadow-float);
+
+  --animate-arrive: wb-arrive var(--wb-arrive) ease-out;
+}
+
+@keyframes wb-arrive {
+  from {
+    background-color: var(--wb-agent-soft);
+  }
+  to {
+    background-color: transparent;
+  }
 }
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border;
+  }
+  /* The root stays at 16px so rem-based steps hold; the shell's text size is on body. */
+  html {
+    background: var(--wb-bg);
+    font-family: var(--wb-font-sans);
+    -webkit-font-smoothing: antialiased;
   }
   body {
-    @apply bg-background text-foreground font-sans;
+    color: var(--wb-body);
+    font-size: var(--wb-ui-size);
+    line-height: var(--wb-ui-lh);
   }
+  /* Digits from the log line up. */
+  code,
+  kbd,
+  pre,
+  .font-mono {
+    font-variant-numeric: tabular-nums;
+  }
+  /* Keyboard focus: a solid 2px ring, 2px off, in focus (3:1 on every ground). */
+  :focus-visible {
+    outline: 2px solid var(--wb-focus);
+    outline-offset: 2px;
+  }
+}
+
+@utility transition-fast {
+  transition-property: color, background-color, border-color, opacity, filter;
+  transition-timing-function: ease-out;
+  transition-duration: var(--wb-fast);
+}
+@utility transition-base {
+  transition-property: color, background-color, border-color, opacity;
+  transition-timing-function: ease-out;
+  transition-duration: var(--wb-base);
+}
+
+/* The logo files have fixed inks: show the one for the nearest theme. */
+.wb-on-light {
+  display: var(--wb-show-light);
+}
+.wb-on-dark {
+  display: var(--wb-show-dark);
 }

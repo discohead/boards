@@ -15,6 +15,7 @@ import { Route as MyWorkRouteImport } from './routes/my-work'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as CSplatRouteImport } from './routes/c.$'
+import { Route as DevSystemRouteImport } from './routes/dev.system'
 import { Route as DocsIdRouteImport } from './routes/docs.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -47,6 +48,11 @@ const CSplatRoute = CSplatRouteImport.update({
   path: '/c/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DevSystemRoute = DevSystemRouteImport.update({
+  id: '/dev/system',
+  path: '/dev/system',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DocsIdRoute = DocsIdRouteImport.update({
   id: '/$id',
   path: '/$id',
@@ -60,6 +66,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
 }
 export interface FileRoutesByTo {
@@ -69,6 +76,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
 }
 export interface FileRoutesById {
@@ -79,14 +87,30 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/docs' | '/my-work' | '/settings' | '/tasks' | '/c/$' | '/docs/$id'
+    | '/'
+    | '/docs'
+    | '/my-work'
+    | '/settings'
+    | '/tasks'
+    | '/c/$'
+    | '/dev/system'
+    | '/docs/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/docs' | '/my-work' | '/settings' | '/tasks' | '/c/$' | '/docs/$id'
+  to:
+    | '/'
+    | '/docs'
+    | '/my-work'
+    | '/settings'
+    | '/tasks'
+    | '/c/$'
+    | '/dev/system'
+    | '/docs/$id'
   id:
     | '__root__'
     | '/'
@@ -95,6 +119,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/c/$'
+    | '/dev/system'
     | '/docs/$id'
   fileRoutesById: FileRoutesById
 }
@@ -105,6 +130,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
   CSplatRoute: typeof CSplatRoute
+  DevSystemRoute: typeof DevSystemRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -151,6 +177,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dev/system': {
+      id: '/dev/system'
+      path: '/dev/system'
+      fullPath: '/dev/system'
+      preLoaderRoute: typeof DevSystemRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/docs/$id': {
       id: '/docs/$id'
       path: '/$id'
@@ -178,6 +211,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
   CSplatRoute: CSplatRoute,
+  DevSystemRoute: DevSystemRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

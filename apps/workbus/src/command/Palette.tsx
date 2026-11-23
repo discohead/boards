@@ -72,7 +72,7 @@ export function CommandPalette({ onCheatSheet }: { onCheatSheet?: () => void }) 
   return (
     <>
       <Dialog open={open} onOpenChange={(next) => (setOpen(next), next || setQuery(''))}>
-        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg" showCloseButton={false}>
+        <DialogContent className="gap-0 overflow-hidden p-0 sm:max-w-lg">
           <DialogHeader className="border-b px-4 py-3">
             <DialogTitle className="text-sm">Search or go to</DialogTitle>
             <DialogDescription className="sr-only">Go to a screen, a channel, a doc, a task, or a thread; write something; or search</DialogDescription>
