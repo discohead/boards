@@ -26,7 +26,7 @@ export function useChannelCounts() {
 export function MentionCount({ count }: { count?: { unread: number; mentions: number } }) {
   if (!count?.mentions) return null
   return (
-    <span className="ml-auto rounded-sm bg-primary px-1.5 font-mono text-[10.5px] font-semibold leading-4 tabular-nums text-primary-foreground" data-testid="mentions" aria-label={count.mentions + ' mentions'}>
+    <span className="ml-auto rounded-xs bg-held-soft px-[5px] font-mono text-mono-label font-semibold tabular-nums text-held" data-testid="mentions" aria-label={count.mentions + ' mentions'}>
       {count.mentions}
     </span>
   )

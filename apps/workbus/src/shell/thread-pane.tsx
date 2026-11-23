@@ -5,7 +5,8 @@ import { useEffect } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
 import { taskState, useBus } from '@/data'
-import { FileText, MessageSquare, SquareCheck, X, type LucideIcon } from 'lucide-react'
+import { X } from 'lucide-react'
+import { HeldPill, Label, Tabs, TaskState } from '@/components/system'
 import { Button } from '@/components/ui/button'
 import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
@@ -36,42 +37,30 @@ function Pane({ id }: { id: string }) {
   const shown = root?.task ? taskState(root.task) : null
   const title = root?.doc?.title ?? root?.text.split('\n')[0]?.replace(/^#+\s*/, '') ?? ''
   const labels = Object.entries(root?.labels ?? {}).filter(([key]) => !key.startsWith('board.'))
-  const icons: Record<Face, LucideIcon> = { conversation: MessageSquare, task: SquareCheck, doc: FileText }
   return (
     <aside aria-label="Thread" data-testid="thread-pane" className="flex min-w-0 flex-1 flex-col">
-      <header className="px-6 pt-5">
+      <header className="px-5 pt-5">
         <div className="flex items-center justify-between">
-          <span data-testid="thread-path" className="font-mono text-xs text-muted-foreground">
+          <span data-testid="thread-path" className="font-mono text-mono-ui text-muted-foreground">
             {root ? root.channel : '…'} <span aria-hidden>/</span> #{id}
           </span>
           <Button variant="ghost" size="icon-sm" onClick={close} aria-label="Close the thread">
             <X size={16} strokeWidth={1.5} aria-hidden />
           </Button>
         </div>
-        <h2 data-testid="thread-title" className="mt-2 text-[21px] font-semibold tracking-tight">{title}</h2>
-        <div data-testid="thread-facts" className="mt-2 flex flex-wrap items-center gap-2 font-mono text-xs text-muted-foreground">
-          {shown?.state === 'held' ? <span data-held className="rounded-sm bg-primary/10 px-2 py-0.5 font-sans text-primary">Held for you</span> : null}
-          {shown && shown.state !== 'held' ? <span data-state={shown.state} className="rounded-sm border px-1.5">{shown.word}</span> : null}
+        <h2 data-testid="thread-title" className="mt-2 text-title-lg text-text">{title}</h2>
+        <div data-testid="thread-facts" className="mt-2 flex flex-wrap items-center gap-2 font-mono text-mono-ui text-muted-foreground">
+          {shown?.state === 'held' ? <span data-held><HeldPill kind="approval" /></span> : null}
+          {shown && shown.state !== 'held' ? <span data-state={shown.state}><TaskState state={shown.state} label={shown.waitsOn?.length ? 'waits on #' + shown.waitsOn.join(', #') : shown.word} muted={shown.word === 'canceled'} /></span> : null}
           {root ? <span>@{root.author?.handle ?? root.by.actor.replace(/^.*:/, '')}</span> : null}
           {labels.map(([key, value]) => (
-            <span key={key} className="rounded-sm border px-1.5">
-              {key}={value}
-            </span>
+            <Label key={key} name={key} value={value} />
           ))}
         </div>
         {root ? <AddFaces root={root} onFace={show} /> : null}
-        <nav aria-label="Faces" className="mt-4 flex gap-5 border-b text-sm">
-          {faces.map((tab) => {
-            const Icon = icons[tab.id]
-            return (
-              <button key={tab.id} type="button" data-face={tab.id} aria-current={tab.id === open ? 'page' : undefined} onClick={() => show(tab.id)} className={'-mb-px flex items-center gap-1.5 border-b-2 py-2 ' + (tab.id === open ? 'border-foreground font-medium text-foreground' : 'border-transparent text-muted-foreground')}>
-                <Icon size={16} strokeWidth={1.5} aria-hidden />
-                {tab.label}
-                {tab.id === 'conversation' && replies !== undefined ? <span className="rounded-sm border px-1 font-mono text-[11px]">{replies + 1}</span> : null}
-              </button>
-            )
-          })}
-        </nav>
+        <div aria-label="Faces" className="mt-4">
+          <Tabs tabs={faces.map((tab) => ({ id: tab.id, label: tab.label, ...(tab.id === 'conversation' && replies !== undefined ? { count: replies + 1 } : {}) }))} value={open} onChange={(id) => show(id as Face)} />
+        </div>
       </header>
       <ThreadShortcuts threadId={id} />
       <div className="flex min-h-0 flex-1 flex-col">

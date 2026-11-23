@@ -15,7 +15,7 @@ import { Route as MyWorkRouteImport } from './routes/my-work'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as CSplatRouteImport } from './routes/c.$'
-import { Route as DocsIndexRouteImport } from './routes/docs.index'
+import { Route as DevSystemRouteImport } from './routes/dev.system'
 import { Route as DocsIdRouteImport } from './routes/docs.$id'
 
 const IndexRoute = IndexRouteImport.update({
@@ -48,10 +48,10 @@ const CSplatRoute = CSplatRouteImport.update({
   path: '/c/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsIndexRoute = DocsIndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => DocsRoute,
+const DevSystemRoute = DevSystemRouteImport.update({
+  id: '/dev/system',
+  path: '/dev/system',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const DocsIdRoute = DocsIdRouteImport.update({
   id: '/$id',
@@ -66,17 +66,18 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
-  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/docs': typeof DocsRouteWithChildren
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
-  '/docs': typeof DocsIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -86,8 +87,8 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
   '/c/$': typeof CSplatRoute
+  '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
-  '/docs/': typeof DocsIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -98,10 +99,18 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/c/$'
+    | '/dev/system'
     | '/docs/$id'
-    | '/docs/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/my-work' | '/settings' | '/tasks' | '/c/$' | '/docs/$id' | '/docs'
+  to:
+    | '/'
+    | '/docs'
+    | '/my-work'
+    | '/settings'
+    | '/tasks'
+    | '/c/$'
+    | '/dev/system'
+    | '/docs/$id'
   id:
     | '__root__'
     | '/'
@@ -110,8 +119,8 @@ export interface FileRouteTypes {
     | '/settings'
     | '/tasks'
     | '/c/$'
+    | '/dev/system'
     | '/docs/$id'
-    | '/docs/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -121,6 +130,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
   CSplatRoute: typeof CSplatRoute
+  DevSystemRoute: typeof DevSystemRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -167,12 +177,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/': {
-      id: '/docs/'
-      path: '/'
-      fullPath: '/docs/'
-      preLoaderRoute: typeof DocsIndexRouteImport
-      parentRoute: typeof DocsRoute
+    '/dev/system': {
+      id: '/dev/system'
+      path: '/dev/system'
+      fullPath: '/dev/system'
+      preLoaderRoute: typeof DevSystemRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/docs/$id': {
       id: '/docs/$id'
@@ -186,12 +196,10 @@ declare module '@tanstack/react-router' {
 
 interface DocsRouteChildren {
   DocsIdRoute: typeof DocsIdRoute
-  DocsIndexRoute: typeof DocsIndexRoute
 }
 
 const DocsRouteChildren: DocsRouteChildren = {
   DocsIdRoute: DocsIdRoute,
-  DocsIndexRoute: DocsIndexRoute,
 }
 
 const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
@@ -203,6 +211,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
   CSplatRoute: CSplatRoute,
+  DevSystemRoute: DevSystemRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

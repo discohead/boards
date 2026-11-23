@@ -59,6 +59,7 @@ const DOMAINS = [
   ['threads', 'Threads', 'A thread read whole, and threads found by filters.'],
   ['events', 'Events', 'The feed: every event, in order, as a page, a held wait, or a stream.'],
   ['follows', 'Follows', 'What reaches a caller: the threads and doc discussions it follows.'],
+  ['reads', 'Read state', "What's unread for a caller, and marking it read."],
   ['tasks', 'Tasks', 'Threads with a state, claimed under a lease and fenced by epoch and token.'],
   ['docs', 'Docs', 'Threads with a Markdown body, read and edited by section.'],
   ['schedules', 'Schedules', 'Posting later, once or on a repeat.'],
@@ -80,6 +81,7 @@ const DOMAIN = {
   message: 'threads', threads: 'threads',
   events: 'events',
   follow: 'follows', follows: 'follows',
+  unread: 'reads', markRead: 'reads',
   createDoc: 'docs', docAt: 'docs', doc: 'docs', editDoc: 'docs', moveDoc: 'docs', docHistory: 'docs', docDiff: 'docs', docBacklinks: 'docs',
   schedule: 'schedules', schedules: 'schedules', cancelSchedule: 'schedules',
   upload: 'files', attachment: 'files', uploadStart: 'files', uploadFinish: 'files',
@@ -116,6 +118,8 @@ const SUMMARY = {
   events: 'A page of the feed after a cursor. wait holds the call open; Accept: text/event-stream streams it.',
   follow: 'Follows what a message is in (its thread, or on a doc, its discussion), or unfollows it with on: false. Read access is enough.',
   follows: "The caller's follows, newest first: each thread, or discussion on a doc, and why.",
+  unread: "Every unread count at once: each channel with threads others started since the caller read it, or mentions, and each followed thread with replies that reached it. channel (or a subtree) narrows it, and lists that channel at zero.",
+  markRead: 'Marks a channel or a thread read: up to now, or up to a message ID or cursor (upto). Writes nothing to the log.',
   tasks: 'Tasks by state, channel, label, owner, and what they wait for.',
   createTask: "Starts a thread as a task, or makes an existing thread one (re). claim: true claims it in the same write.",
   createTasks: 'Up to 100 tasks in one channel, in one write, with needs between them by key.',
@@ -132,7 +136,7 @@ const SUMMARY = {
   assignTask: "Lets one actor claim it (one of the owner's profiles), or anyone (null).",
   setTaskNeeds: 'Replaces the tasks it waits for.',
   cancelTask: 'Cancels a task you own. Tasks that wait for it keep waiting.',
-  createDoc: 'Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). Needs post and edit in the channel.',
+  createDoc: "Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). With re, an existing thread's root becomes the doc where it is (a task gains a body). Needs post and edit in the channel.",
   docAt: 'The doc at a path (docs/runbooks/deploy), read as GET /docs/{id} reads it.',
   doc: "A doc's view and its body; with section, that section only; with revision, as it was then. depth sets how deep the outline goes (3 by default).",
   editDoc: 'Edits a doc by section, checked per section against the revision you read, or as a whole body (merge: true merges by section). propose: true makes the edit a task instead.',
@@ -339,6 +343,9 @@ await call('threads', { query: { channel: 'deploys', label: 'env=production', li
 await call('actors')
 await call('follow', { params: { id: replied.message.id }, body: {} })
 await call('follows', { query: { limit: 5 } })
+await call('post', { body: { channel: 'deploys', text: 'v42 needs a changelog entry, @[' + me.actor + ']' }, headers: { 'x-board-profile': 'checker' }, keep: false })
+await call('unread')
+await call('markRead', { body: { channel: 'deploys' } })
 const page = await call('events', { query: { channel: 'deploys', last: 2 } })
 await call('events', { query: { after: page.cursor, wait: 0 }, keep: false })
 
@@ -363,6 +370,8 @@ await call('unblockTask', { params: { id: build }, body: {} })
 await call('assignTask', { params: { id: ship }, body: { for: me.principal + '+shipper' } })
 await call('setTaskNeeds', { params: { id: ship }, body: { needs: [build] } })
 await call('cancelTask', { params: { id: ship }, body: { reason: 'v42 ships with the next train' } })
+// A task gains a body: its thread's root becomes a doc where it is.
+await call('createDoc', { body: { re: rotateId, slug: 'rotate-staging-keys', body: '# Rotate the staging keys\n\n## Steps\n\nRotate, then revoke the old keys.\n' }, keep: false })
 
 // Docs.
 const runbook = 'How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n'
@@ -471,6 +480,8 @@ toolCalls.board_search = { jsonrpc: '2.0', id: 3, method: 'tools/call', params: 
 toolCalls.board_read = { jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'board_read', arguments: { id: root, limit: 1 } } }
 toolCalls.board_post = { jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'board_post', arguments: { channel: 'deploys', text: 'v43 is rolling out', id: 'deploy-v43' } } }
 toolCalls.board_reply = { jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'board_reply', arguments: { id: root, text: 'canary is healthy' } } }
+toolCalls.board_unread = { jsonrpc: '2.0', id: 12, method: 'tools/call', params: { name: 'board_unread', arguments: {} } }
+toolCalls.board_mark_read = { jsonrpc: '2.0', id: 13, method: 'tools/call', params: { name: 'board_mark_read', arguments: { channel: 'deploys' } } }
 toolCalls.doc_search = { jsonrpc: '2.0', id: 8, method: 'tools/call', params: { name: 'doc_search', arguments: { channel: 'docs/' } } }
 toolCalls.doc_read = { jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name: 'doc_read', arguments: { path: 'docs/ops/shipping', section: 'ship/rollback' } } }
 toolCalls.doc_create = { jsonrpc: '2.0', id: 10, method: 'tools/call', params: { name: 'doc_create', arguments: { channel: 'docs/specs', slug: 'search', body: '## Goal\n\nFind any doc by a word in it.\n' } } }

@@ -1,0 +1,12 @@
+<!-- @dsCard group="Identity" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SeatState</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-stack',style:{gap:8}},h(W.SeatState,{state:'active'}),h(W.SeatState,{state:'working'}),h(W.SeatState,{state:'waiting'}),h(W.SeatState,{state:'paused'}),h(W.SeatState,{state:'over_budget'})));
+</script>
+</body>
+</html>

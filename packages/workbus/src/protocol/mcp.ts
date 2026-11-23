@@ -1,6 +1,6 @@
 // MCP at /b/<name>/mcp: streamable HTTP, stateless, answered as JSON. The Gateway authenticates each
 // request (a bearer token, with x-board-profile and x-board-can) and every tool acts as that caller.
-// Four tools do one thing each; run_code is Code Mode: the model's JavaScript runs in a Dynamic Worker
+// The board_ and doc_ tools do one thing each; run_code is Code Mode: the model's JavaScript runs in a Dynamic Worker
 // with no network whose env holds only the caller's Board, so one script can make many board calls.
 import { exports } from 'cloudflare:workers'
 import { boardFor, sessionProps, type Board } from '../binding.ts'
@@ -62,6 +62,9 @@ interface Board {
   follow(id: string, options?: { on?: boolean }): Promise<{ following: boolean; thread: string; discussion: string | null }>
   follows(query?: { limit?: number }): Promise<{ follows: { thread: string; discussion: string | null; channel: string; cause: string; at: string }[] }>
   events(query?: { channel?: string; after?: string; last?: number; wait?: number; for?: string; roots?: boolean }): Promise<{ events: unknown[]; cursor: string }>
+  /** What's unread for you: channels with new threads or mentions since you read them, and followed threads with new replies. */
+  unread(query?: { channel?: string }): Promise<{ channels: { channel: string; unread: number; mentions: number; read: string | null }[]; threads: { thread: string; channel: string; unread: number; mentions: number; read: string }[]; cursor: string }>
+  markRead(input: { channel: string; upto?: string } | { thread: string; upto?: string }): Promise<{ unread: number; mentions: number; read: string }>
   schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>
   as(profile: string): Board                                   // writes as <you>+<profile>
   channel(pattern: string): Board                              // 'work/' : only that subtree
@@ -143,6 +146,17 @@ const TOOLS = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: 'board_unread',
+    description: "What's unread for you: each channel with threads started since you last read it (unread) or messages that mention you (mentions), and each thread you follow with new replies. A channel or subtree (work/) narrows it.",
+    inputSchema: { type: 'object', properties: { channel: { type: 'string' } }, additionalProperties: false },
+    annotations: { readOnlyHint: true },
+  },
+  {
+    name: 'board_mark_read',
+    description: 'Mark a channel or a thread (any message ID in it) read: up to now, or up to a message (upto).',
+    inputSchema: { type: 'object', properties: { channel: { type: 'string' }, thread: { type: 'string' }, upto: { type: 'string' } }, additionalProperties: false },
+  },
+  {
     name: 'run_code',
     description: RUN_CODE,
     inputSchema: { type: 'object', properties: { code: { type: 'string', description: 'An async arrow function, like async () => { ... }' } }, required: ['code'], additionalProperties: false },
@@ -182,6 +196,10 @@ async function callTool(ctx: Ctx, name: string, args: Record<string, unknown>) {
         const page = (await ctx.board.threads({ ...pick(args, ['text', 'channel', 'limit']), label })) as { threads: { message: { doc?: { id: string; path: string; title: string; revision: string }; editedAt: string | null; createdAt: string } }[] }
         return content({ docs: page.threads.map((thread) => thread.message.doc && { ...thread.message.doc, sections: undefined, editedAt: thread.message.editedAt ?? thread.message.createdAt }).filter(Boolean) })
       }
+      case 'board_unread':
+        return content(await ctx.board.unread(pick(args, ['channel'])))
+      case 'board_mark_read':
+        return content(await ctx.board.markRead(pick(args, ['channel', 'thread', 'upto'])))
       case 'run_code': {
         const run = await runCode(ctx, args.code)
         return content(run, 'error' in run)
@@ -265,7 +283,7 @@ async function answer(ctx: Ctx, message: Rpc): Promise<Record<string, unknown> |
         protocolVersion: PROTOCOL_VERSIONS.includes(asked) ? asked : PROTOCOL_VERSIONS[0],
         capabilities: { tools: { listChanged: false } },
         serverInfo: { name: 'workbus', title: 'Workbus: ' + ctx.mount.name, version: '0.1.0' },
-        instructions: 'The board ' + ctx.mount.name + ', as ' + ctx.caller.principal.handle + '. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once.',
+        instructions: 'The board ' + ctx.mount.name + ', as ' + ctx.caller.principal.handle + '. board_read, board_post, board_reply, board_search, board_unread, and board_mark_read do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once.',
       })
     }
     case 'ping':

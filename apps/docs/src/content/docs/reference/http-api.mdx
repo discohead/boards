@@ -211,6 +211,8 @@ curl "$WORKBUS_URL/messages" \
 
 ## Events
 
+A write made with a client `id` (a post or a reply, a task, a doc) carries it on its `message.posted` as `payload.clientId`, and a batch's tasks carry `payload.batch`: `{ id, index, key }`. A client that shows a write at once settles it when that event comes back. A retry with the same `id` writes no second event.
+
 <ApiGroup tag="events" />
 
 ## Follows
@@ -218,6 +220,12 @@ curl "$WORKBUS_URL/messages" \
 An event about a message reaches an actor when it mentions them, or is in a thread (on a doc, a discussion) they follow, and they didn't write it. `for=me` (or `for=<handle>`) on `GET /events` is that stream, and `roots=true` keeps events about thread roots. [Follows](/guides/follows/) has the rule.
 
 <ApiGroup tag="follows" />
+
+## Read state
+
+What's unread for the caller: in a channel, the threads others started since its cursor there; in a thread it follows, the replies that reached it. Mentions count the same way. Marking read writes nothing to the log. [Read state](/guides/read-state/) has the rule.
+
+<ApiGroup tag="reads" />
 
 ## Tasks
 

@@ -3,59 +3,46 @@
 // state); replying in its thread marks it read up to the reply; ⌘↵ answers a held task (unblock) or
 // applies a proposal. The list never moves the selected item: one that leaves stays, faded, until
 // the selection moves on.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { AtSignIcon, GitBranchIcon, HandIcon, MessageSquareIcon } from 'lucide-react'
-import { useBus, type Message } from '@/data'
+import { useBus } from '@/data'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useOpenThread } from '@/shell/open-thread'
-import { holdLabel } from '@/task/model'
-import { useMe } from '@/task/me'
-import { useTasks } from '@/task/use-tasks'
 import { useActorNames } from '@/task/actors'
 import { holdSelected } from '@/task/hold'
-import { ago } from '@/task/time'
-import { inboxItems, type InboxItem, type Reason } from '@/inbox/items'
-import { useReach } from '@/inbox/reach'
+import type { InboxItem, Reason } from '@/inbox/items'
+import { useInbox } from '@/inbox/use-inbox'
+import { DateBar, ListPane } from '@/shell/list-pane'
+import { Clock } from '@/shell/clock'
 
 export const Route = createFileRoute('/')({ component: Inbox })
 
+type Chip = 'all' | 'held' | 'unread'
+const CHIPS: Record<Chip, Reason['kind'][]> = { all: [], held: ['held'], unread: ['mention', 'reply'] }
+const CHIP_LABEL: Record<Chip, string> = { all: 'All', held: 'Held', unread: 'Unread' }
+
 function Inbox() {
   const bus = useBus()
-  const me = useMe()
-  const reach = useReach()
-  const tasks = useTasks()
+  const { items: all, ready, markRead } = useInbox()
   const name = useActorNames()
+  const [chip, setChip] = useState<Chip>('all')
+  const items = useMemo(() => all.filter((one) => chip === 'all' || one.reasons.some((reason) => CHIPS[chip].includes(reason.kind))), [all, chip])
   const { thread: openId, open } = useOpenThread()
   const { data: docs } = useLiveQuery({ query: (q) => q.from({ doc: bus.docs }) })
   const docPath = (id: string) => docs.find((doc) => doc.id === id)?.path ?? 'doc #' + id
-  const { data: all } = useLiveQuery({ query: (q) => q.from({ message: bus.messages }) })
-  const messages = useMemo(() => new Map(all.map((message) => [message.id, message as Message])), [all])
-  const items = useMemo(() => (me && reach.ready ? inboxItems({ reach, tasks, messages, me: me.actor, can: me.can }) : []), [me, reach, tasks, messages])
 
-  // Answered: my newest message in a thread with something unread is after what's unread, so the
-  // thread is read up to it.
-  useEffect(() => {
-    if (!me) return
-    for (const row of reach.threads.values()) {
-      if (row.unread <= 0) continue
-      let mine: Message | null = null
-      for (const message of messages.values()) if (message.re === row.thread && message.by.actor === me.actor && !message.pending && (!mine || Number(message.id) > Number(mine.id))) mine = message
-      const theirs = reach.reached.filter((message) => message.re === row.thread && message.by.actor !== me.actor).at(-1)
-      if (mine && (!theirs || Number(mine.id) > Number(theirs.id))) void reach.markRead({ thread: row.thread }, mine.id)
-    }
-  }, [me, reach, messages])
-
+  // By day, newest first; the selected item keeps its day and its place in it while the list changes.
   const [selected, setSelected] = useState<string | null>(null)
   const shown = useRef<{ key: string; group: string }[]>([])
   const last = useRef(new Map<string, InboxItem>())
-  const next = items.map((one) => ({ key: one.thread, group: '', one }))
+  const next = items.map((one) => ({ key: one.thread, group: dayOf(whenOf(one)), one }))
   for (const one of items) last.current.set(one.thread, one)
   const kept = selected ? last.current.get(selected) : undefined
-  const list = holdSelected(shown.current, next, selected, kept ? { key: kept.thread, group: '', one: kept } : undefined)
+  const list = holdSelected(shown.current, next, selected, kept ? { key: kept.thread, group: dayOf(whenOf(kept)), one: kept } : undefined)
   shown.current = list
   const live = new Set(items.map((one) => one.thread))
 
@@ -67,107 +54,127 @@ function Inbox() {
     document.querySelector('[data-item="' + list[to]!.key + '"]')?.scrollIntoView({ block: 'nearest' })
   }
   const current = list.find((row) => row.key === selected)?.one
-  const done = (one: InboxItem) => void reach.markRead({ thread: one.thread })
+  const done = (one: InboxItem) => void markRead({ thread: one.thread })
   const approve = (one: InboxItem) => {
     const task = one.task
     if (!task) return
     if (one.reasons.some((reason) => reason.kind === 'held')) bus.actions.task.unblock({ id: task.id })
     else if (one.reasons.some((reason) => reason.kind === 'proposal')) bus.actions.task.complete({ id: task.id })
   }
-  useHotkey('J', () => move(1))
-  useHotkey('K', () => move(-1))
+  useHotkey('J', () => move(1), { meta: { name: 'Next item', group: 'Inbox' } })
+  useHotkey('K', () => move(-1), { meta: { name: 'Previous item', group: 'Inbox' } })
   useHotkey('ArrowDown', () => move(1))
   useHotkey('ArrowUp', () => move(-1))
   useHotkey('Enter', () => selected && open(selected), { enabled: selected !== null })
-  useHotkey('E', () => current && done(current), { enabled: !!current })
-  useHotkey('Mod+Enter', () => current && approve(current), { enabled: !!current?.task })
+  useHotkey('E', () => current && done(current), { enabled: !!current, meta: { name: 'Mark done', group: 'Inbox' } })
+  useHotkey('Mod+Enter', () => current && approve(current), { enabled: !!current?.task, meta: { name: 'Approve: unblock, or apply the proposal', group: 'Inbox' } })
 
   return (
-    <div className="flex h-full flex-col">
-      <header className="flex items-baseline gap-2 border-b px-4 pt-4 pb-2">
-        <h1 className="text-lg font-semibold">Inbox</h1>
-        <span className="font-mono text-xs text-muted-foreground tabular-nums" data-testid="inbox-count">
-          {items.length}
+    <ListPane
+      title="Inbox"
+      chips={(Object.keys(CHIPS) as Chip[]).map((key) => ({ label: CHIP_LABEL[key], count: key === 'all' ? all.length : all.filter((one) => one.reasons.some((reason) => CHIPS[key].includes(reason.kind))).length, active: chip === key, onClick: () => setChip(key) }))}
+      actions={
+        <span className="font-mono text-xs text-muted-foreground">
+          <Kbd>E</Kbd> done <Kbd>⌘↵</Kbd> approve
         </span>
-        <span className="ml-auto text-xs text-muted-foreground">
-          <Kbd>J</Kbd> <Kbd>K</Kbd> move · <Kbd>↵</Kbd> open · <Kbd>E</Kbd> done · <Kbd>⌘↵</Kbd> approve
-        </span>
-      </header>
-      <ul data-testid="inbox" aria-label="Inbox" className="min-h-0 flex-1 overflow-y-auto">
-        {!reach.ready ? <li className="p-8 text-sm text-muted-foreground">Reading what's waiting on you…</li> : list.length === 0 ? <li className="p-8 text-sm text-muted-foreground">Nothing is waiting on you.</li> : null}
-        {list.map(({ key, one }) => (
-          <li
-            key={key}
-            data-item={key}
-            data-kinds={one.reasons.map((reason) => reason.kind).join(' ')}
-            aria-selected={selected === key}
-            data-gone={live.has(key) ? undefined : 'yes'}
-            onClick={() => {
-              setSelected(key)
-              open(key)
-            }}
-            className={cn('flex cursor-default items-start gap-3 border-b px-4 py-2 text-sm hover:bg-muted/50', selected === key && 'bg-muted', openId === key && 'bg-accent', !live.has(key) && 'opacity-50')}
-          >
-            <ReasonIcon reason={one.reasons[0]!} />
-            <div className="min-w-0 flex-1">
-              <div className="flex items-baseline gap-2">
-                <span className={cn('truncate', live.has(key) && 'font-medium')}>{title(one)}</span>
-                {one.reasons.map((reason, at) => (
-                  <Kind key={at} reason={reason} />
-                ))}
+      }
+    >
+      <div data-testid="inbox" data-count={items.length} role="list" aria-label="Inbox" className="h-full overflow-y-auto">
+        {!ready ? <p className="p-8 text-sm text-muted-foreground">Reading what's waiting on you…</p> : list.length === 0 ? <p className="p-8 text-sm text-muted-foreground">Nothing is waiting on you.</p> : null}
+        {list.map(({ key, group, one }, at) => (
+          <Fragment key={key}>
+            {at === 0 || list[at - 1]!.group !== group ? <DateBar day={group} count={list.filter((row) => row.group === group).length} /> : null}
+            <div
+              role="listitem"
+              data-item={key}
+              data-kinds={one.reasons.map((reason) => reason.kind).join(' ')}
+              aria-selected={selected === key}
+              data-gone={live.has(key) ? undefined : 'yes'}
+              onClick={() => {
+                setSelected(key)
+                open(key)
+              }}
+              className={cn('group flex cursor-default flex-col gap-0.5 border-b px-4 py-2 text-sm hover:bg-muted/50', selected === key && 'bg-muted', openId === key && 'bg-accent', !live.has(key) && 'opacity-50')}
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5">
+                  {one.reasons.map((reason, n) => (
+                    <Kind key={n} reason={reason} />
+                  ))}
+                </span>
+                <span className="font-mono text-xs text-muted-foreground tabular-nums">
+                  <Clock at={whenOf(one)} />
+                </span>
               </div>
-              <div className="truncate text-xs text-muted-foreground" suppressHydrationWarning>
-                {detail(one, name, docPath)}
+              <div className={cn('truncate', live.has(key) && 'font-medium')}>{title(one)}</div>
+              <div className="flex items-center gap-2">
+                <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                  @{name(whoOf(one))} · {one.channel}
+                  <span className="font-sans"> {detail(one, docPath)}</span>
+                </span>
+                {one.reasons.some((reason) => reason.kind === 'reply' || reason.kind === 'mention') && live.has(key) ? (
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    className="opacity-0 group-hover:opacity-100"
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      done(one)
+                    }}
+                  >
+                    Done
+                  </Button>
+                ) : null}
               </div>
             </div>
-            <div className="flex shrink-0 flex-col items-end gap-1">
-              <span className="font-mono text-xs text-muted-foreground tabular-nums">
-                #{one.thread} · #{one.channel}
-              </span>
-              {one.reasons.some((reason) => reason.kind === 'reply' || reason.kind === 'mention') && live.has(key) ? (
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    done(one)
-                  }}
-                >
-                  Done
-                </Button>
-              ) : null}
-            </div>
-          </li>
+          </Fragment>
         ))}
-      </ul>
-    </div>
+      </div>
+    </ListPane>
   )
 }
 
 const title = (one: InboxItem) => ((one.root?.text ?? '').split('\n')[0] ?? '').replace(/^#+\s*/, '').replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1') || '#' + one.thread
 
-function detail(one: InboxItem, name: (id: string) => string, docPath: (id: string) => string) {
+/** The message that put it here: the newest reply or mention, else its root. */
+const latestOf = (one: InboxItem) => {
+  for (const reason of one.reasons) if ((reason.kind === 'reply' || reason.kind === 'mention') && reason.latest) return reason.latest
+  return one.root
+}
+const whenOf = (one: InboxItem) => latestOf(one)?.createdAt ?? new Date(0).toISOString()
+const whoOf = (one: InboxItem) => latestOf(one)?.by.actor ?? one.task?.task.by ?? ''
+
+/** Today, Yesterday, or the date, in the reader's own zone. */
+function dayOf(iso: string) {
+  const date = new Date(iso)
+  const today = new Date()
+  const start = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime()
+  const days = Math.round((start(today) - start(date)) / 86_400_000)
+  return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+/** What it asks of me, after who and where. */
+function detail(one: InboxItem, docPath: (id: string) => string) {
   for (const reason of one.reasons) {
-    if (reason.kind === 'held') return holdLabel(reason.hold) + ': ' + reason.reason
-    if (reason.kind === 'proposal') return 'Proposes a change to ' + docPath(reason.doc) + '. Apply it, or drop it.'
-    if (reason.kind === 'reply' && reason.latest) return '@' + name(reason.latest.by.actor) + ': ' + plain(reason.latest.text) + (reason.unread > 1 ? ' · ' + reason.unread + ' new' : '') + ' · ' + ago(reason.latest.createdAt)
-    if (reason.kind === 'reply') return reason.unread + ' new'
-    if (reason.kind === 'mention') return '@' + name(reason.latest.by.actor) + ' mentioned you · ' + ago(reason.latest.createdAt)
+    if (reason.kind === 'held') return '· ' + reason.reason
+    if (reason.kind === 'proposal') return '· proposes a change to ' + docPath(reason.doc)
+    if (reason.kind === 'reply' && reason.latest) return '· ' + plain(reason.latest.text) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
   }
   return ''
 }
 const plain = (text: string) => text.replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1').split('\n')[0]!
 
-function ReasonIcon({ reason }: { reason: Reason }) {
-  const Icon = reason.kind === 'held' ? HandIcon : reason.kind === 'proposal' ? GitBranchIcon : reason.kind === 'mention' || (reason.kind === 'reply' && reason.mentions > 0) ? AtSignIcon : MessageSquareIcon
-  return <Icon className={cn('mt-0.5 size-4 shrink-0', reason.kind === 'held' ? 'text-primary' : 'text-muted-foreground')} aria-hidden />
-}
-
 /** The kind of an item, in mono on a tint: held kinds and proposals and mentions. */
 function Kind({ reason }: { reason: Reason }) {
-  const text = reason.kind === 'held' ? (reason.hold ?? 'held') : reason.kind === 'proposal' ? 'proposal' : reason.kind === 'mention' || (reason.kind === 'reply' && reason.mentions > 0) ? 'mention' : null
-  if (!text) return null
-  return <span className={cn('shrink-0 rounded-sm px-1 font-mono text-xs', reason.kind === 'held' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>{text}</span>
+  const mention = reason.kind === 'mention' || (reason.kind === 'reply' && reason.mentions > 0)
+  const text = reason.kind === 'held' ? (reason.hold ?? 'held') : reason.kind === 'proposal' ? 'proposal' : mention ? 'mention' : 'reply'
+  const Icon = reason.kind === 'held' ? HandIcon : reason.kind === 'proposal' ? GitBranchIcon : mention ? AtSignIcon : MessageSquareIcon
+  return (
+    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm px-1 font-mono text-xs', reason.kind === 'held' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+      <Icon className="size-3" aria-hidden />
+      {text}
+    </span>
+  )
 }
 
 function Kbd({ children }: { children: string }) {

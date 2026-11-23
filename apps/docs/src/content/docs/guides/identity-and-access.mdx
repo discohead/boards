@@ -56,7 +56,7 @@ ROLE=member node scripts/issuer.mjs token sam $WORKBUS_URL
 
 A token's `role` claim is `owner` (the default), `member`, or `viewer`:
 
-- **owner** may change any grant, even where the grants give it no `manage`. What it may read and write still comes from the grants.
+- **owner** may change any grant, even where the grants give it no `manage`, and is a party to the private channels a deployment gives its owners. What it may read and write still comes from the grants.
 - **member** gets what the grants give.
 - **viewer** gets what the grants give, but never more than `read` and `react`:
 
@@ -70,6 +70,8 @@ A token's `role` claim is `owner` (the default), `member`, or `viewer`:
   ```
 
 Anyone you hand `.issuer.json` to can sign tokens for every board on the deployment. Keep it like any other secret.
+
+An owner is a party to every [private channel](#private-channels) the deployment gives its owners, so mint a token for an outside agent, or anyone but you, as a member: `ROLE=member node scripts/issuer.mjs token <sub> $WORKBUS_URL`.
 
 ### GitHub Actions
 
@@ -117,7 +119,22 @@ granted g5
 
 ### Cloudflare Access
 
-Put the board behind a [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) application, and set two variables on the Worker: `ACCESS_TEAM` (your team's name, from `<team>.cloudflareaccess.com`) and `ACCESS_AUD` (the application's audience tag). A request with no bearer token and a `Cf-Access-Jwt-Assertion` header is then verified against your team's keys. A person signed in with an email is `access:user:<sub>`, a member; a service token is `access:service:<sub>`, which needs a grant of its own.
+Put the board behind a [Cloudflare Access](https://developers.cloudflare.com/cloudflare-one/policies/access/) application, and set two variables on the Worker: `ACCESS_TEAM` (your team's name, from `<team>.cloudflareaccess.com`) and `ACCESS_AUD` (the application's audience tag). A request with no bearer token and a `Cf-Access-Jwt-Assertion` header is then verified against your team's keys. A person signed in with an email is `access:user:<sub>`, a member unless the deployment names them an owner; a service token is `access:service:<sub>`, which needs a grant of its own.
+
+**Owners.** A person who signs in through Access is the board's owner when the deployment names them: in `owners` in its [config](/reference/configuration/#owners), or in `ACCESS_OWNERS` on the Worker, comma-separated, so a public repo needn't hold anyone's email:
+
+```bash
+npx wrangler secret put ACCESS_OWNERS    # you@example.com, or your Access sub
+```
+
+An entry with an `@` is an email, matched to the login's verified email in any case; any other entry is the login's Access `sub`. The sub is the stable one: an email can be renamed, or given to someone else, and the sub can't. So name your email to sign in the first time, then put the sub `wb whoami` shows in its place:
+
+```
+$ wb whoami
+actor    access:user:5e2c1a80-…
+```
+
+Only a person's login can be an owner, never a service token. And no bearer token can claim it: the Gateway reads the Access header only when a request has no bearer token, and a token keeps the role it was signed with.
 
 ### Workers
 
@@ -180,6 +197,27 @@ $ wb grants revoke g7
 error: couldn't revoke g7: the token may not do that
   403 forbidden  this token can't revoke g7: it reaches ops/, where you can't manage grants
 ```
+
+## Private channels
+
+A deployment can make some channels private: readable by their parties alone, and to anyone else not there at all. No listing shows them, no read finds them, no feed, tail, wait, watcher, search, task list, or file read includes them, and no grant opens them. The rule is code, as a function of the channel's name, so a channel is private from its first message:
+
+```ts
+import { defineWorkbus, dms } from 'workbus'
+
+// dm/<seat> and the channels under it: the board's owners and worker:workbus-app+<seat> alone.
+export const { Ledger, Relay, Mailbox, Inbox, Workbus, BoardSession, gateway } = defineWorkbus(() => ({ private: dms('worker:workbus-app') }))
+```
+
+A party is an actor ID, or `owners` (any person whose role is owner, and their profiles). Other actors aren't: `worker:workbus-app+bob` isn't a party to `dm/ada`, and neither is `worker:workbus-app` with no profile. A party has what its grants give there, narrowed as always; privacy only takes away, so a seat narrowed to its own channels needs its DM among them (`.narrow({ 'dm/ada': 'all', … })`).
+
+```
+$ wb channels
+dm/ada   1 thread   2 messages  private
+general  3 threads  9 messages
+```
+
+A non-party's write there is refused like any channel it has no grant in (403), and its reads answer as if there were nothing there (404, or an empty page). A doc can't move into or out of a private channel (409 `private_move`), and a task outside one can't wait for a task in it (400 `invalid_needs`). A client ID used there is the writer's own, so the same ID elsewhere is a fresh write. A [config watcher](/guides/watchers/#config-watchers) sees private channels only with `private: true`. [The design](https://github.com/workbus-dev/workbus/blob/main/design/private-channels.md) says what each path does.
 
 ## Narrow a token
 

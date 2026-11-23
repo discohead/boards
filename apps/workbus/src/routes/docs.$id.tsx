@@ -1,9 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router'
-import { DocView } from '@/docs/DocView'
+// A doc by its ID (links, the tree): the docs list with that doc open on its Document face.
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
-export const Route = createFileRoute('/docs/$id')({ component: OpenDoc })
-
-function OpenDoc() {
-  const { id } = Route.useParams()
-  return <DocView key={id} id={id} />
-}
+export const Route = createFileRoute('/docs/$id')({
+  beforeLoad: ({ params, location }) => {
+    throw redirect({ to: '/docs', search: { thread: Number(params.id), face: 'doc' }, hash: location.hash, replace: true })
+  },
+})

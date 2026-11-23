@@ -1,0 +1,12 @@
+<!-- @dsCard group="Feedback" height=72 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Toast</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-stack'},h(W.Toast,{cursor:'#1288',action:{label:'Undo',kbd:'Z'}},'Approved. Ada is deploying v42.'),h(W.Toast,{tone:'danger',action:{label:'Retry'}},"Couldn't apply the proposal: org/seats/ada changed since you opened it.")));
+</script>
+</body>
+</html>

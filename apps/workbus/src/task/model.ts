@@ -8,6 +8,9 @@ export type TaskState = 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed
 
 /** The order a list groups by, as Linear's: what's held for a person first, then in progress, then to do. */
 export const STATES: readonly TaskState[] = ['blocked', 'claimed', 'ready', 'waiting', 'failed', 'completed', 'canceled']
+/** The states as the app shows them (taskState in '@/data'), in the order lists and boards lay them out. */
+export const SHOWN = ['ready', 'claimed', 'held', 'done', 'failed'] as const
+export const SHOWN_LABEL: Record<(typeof SHOWN)[number], string> = { ready: 'Ready', claimed: 'Claimed', held: 'Held', done: 'Done', failed: 'Failed' }
 export const OPEN: readonly TaskState[] = ['waiting', 'ready', 'claimed', 'blocked']
 export const FINISHED: readonly TaskState[] = ['completed', 'failed', 'canceled']
 

@@ -330,3 +330,37 @@ describe('docs', () => {
     assert.match(list.stdout, /^docs\/cli\/archive  revision \d+  .*  Notes$/m)
   })
 })
+
+describe('read state', () => {
+  /** wb as ada, another person on the same board. */
+  const asAda = (args, options = {}) => wb(args, { ...options, env: { WORKBUS_TOKEN: mint('ada', board.url), ...options.env } })
+
+  test("unread counts what others started in a channel, and mark-read clears it", async () => {
+    await asAda(['post', 'news', 'a release went out'])
+    await asAda(['post', 'news', 'and another'])
+    await wb(['post', 'news', 'mine never counts'])
+    const before = await wb(['unread', 'news'])
+    assert.equal(before.code, 0, before.stderr)
+    assert.equal(before.stdout, 'news  2 unread\n')
+    const json = JSON.parse((await wb(['unread', 'news', '--json'])).stdout)
+    assert.deepEqual(json.channels, [{ channel: 'news', unread: 2, mentions: 0, read: null }])
+    const marked = await wb(['mark-read', 'news'])
+    assert.equal(marked.code, 0, marked.stderr)
+    assert.equal(marked.stdout, 'marked news read  read\n')
+    assert.equal((await wb(['unread', 'news'])).stdout, 'news  read\n')
+  })
+
+  test('a reply in a thread you started counts on the thread; --upto marks part of it', async () => {
+    const root = madeId((await wb(['post', 'threads-cli', 'a question'])).stdout)
+    const first = madeId((await asAda(['reply', root, 'one answer'])).stdout)
+    await asAda(['reply', root, 'another answer'])
+    const listed = await wb(['unread', 'threads-cli/'])
+    assert.equal(listed.stdout, '#' + root + ' in threads-cli  2 unread\n')
+    assert.equal((await wb(['mark-read', '#' + root, '--upto', first])).stdout, 'marked #' + root + ' read up to #' + first + '  1 unread\n')
+    assert.equal((await wb(['mark-read', root])).stdout, 'marked #' + root + ' read  read\n')
+    assert.equal((await wb(['unread', 'threads-cli/'])).stdout, 'nothing unread\n')
+    const refused = await wb(['mark-read', 'nowhere-at-all'])
+    assert.equal(refused.code, 1)
+    assert.match(refused.stderr, /channel_not_found/)
+  })
+})

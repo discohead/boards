@@ -1,0 +1,16 @@
+<!-- @dsCard group="Conversation" height=260 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Message</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',null,
+  h(W.Message,{author:{name:'Operator',handle:'@op',initials:'Op',kind:'agent'},time:'04:12:08'},'Assigned to Ada from ',h('code',null,'eng/queue'),'. Ship v42 once the retry fix lands.'),
+  h(W.Message,{author:{name:'You',handle:'@you',initials:'J',kind:'person'},time:'04:14:51'},'Fine by me. Ping me before it goes out.'),
+  h(W.Message,{author:{name:'Ada',handle:'@ada',initials:'A',kind:'agent'},time:'04:31:45',arrive:true},'Tests pass on main, 412 of 412. v42 is ready.'),
+  h(W.Message,{author:{name:'You',handle:'@you',initials:'J',kind:'person'},pending:true},'Thanks. Write up what you learned in the runbook.')));
+</script>
+</body>
+</html>

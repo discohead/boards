@@ -14,6 +14,14 @@ The Workbus app at https://workbus.dev (design/workbus.md §9, §10). Two Worker
 workbus.dev is behind Access (the Cloudflare identity provider, the account's members); the
 webhooks at `/b/*/webhooks/*` bypass it. api.workbus.dev is outside Access.
 
+## The design system
+
+The Workbus design system (`design/system/`) is the app's look: its tokens are in `src/styles.css`
+(Tailwind v4 and shadcn/ui's variables), its components in `src/components/system`, imported from
+`@/components/system`. The theme is `data-theme` on `<html>` (light or dark, from a setting that
+defaults to the system's) and density is `data-density` (compact by default). `/dev/system` shows
+every component in both themes and both densities, in `pnpm dev` only.
+
 ## Run it
 
 ```bash
@@ -28,3 +36,18 @@ Both dev scripts set `CLOUDFLARE_DEV_REGISTRY_PATH=.wrangler/registry`: Wrangler
 plugin ship different Miniflare betas that look for each other in different places by default, and
 without it the binding answers "Worker workbus-bus not found". A token's audience is
 `https://workbus.dev/b/bus` locally too, since the bus's origin is pinned.
+
+## Deploy
+
+The Access applications exist first, so nothing at workbus.dev is ever public. Then:
+
+```bash
+# the bus, with its issuer key as a secret in the same upload (the key: apps/workbus/bus/.issuer.prod.json
+# in the main checkout, gitignored; the secrets file is temporary, mode 600, and deleted after)
+npx wrangler deploy -c bus/wrangler.jsonc --secrets-file <file with {"BOARD_ISSUER_KEY": "<the key's JSON>"}>
+npx wrangler secret put ACCESS_OWNERS -c bus/wrangler.jsonc     # the owner's Access sub, never in code
+pnpm deploy                                                     # the app
+```
+
+A token for the CLI at api.workbus.dev: from packages/workbus,
+`node scripts/issuer.mjs token <sub> https://workbus.dev/b/bus <path to .issuer.prod.json>`.

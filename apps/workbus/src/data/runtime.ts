@@ -33,6 +33,13 @@ export type BusRuntime = {
   unread: { refresh: () => Promise<void>; soon: () => void } | null
   /** Channels shown in a view: their newest messages stay in memory. */
   viewing: Set<string>
+  /**
+   * Resolves once the page has hydrated (BusProvider calls markHydrated in an effect). Until then
+   * the collections hold the server's rows and take nothing from the feed or their own reads, so
+   * the first client render matches the server's. Already resolved outside React (scripts).
+   */
+  hydrated: Promise<void>
+  markHydrated: () => void
 }
 
 export const runtimeOf = (db: DbClient): BusRuntime => db.requireDependency<BusRuntime>('bus')

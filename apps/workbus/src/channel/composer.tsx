@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useBus } from '@/data'
 import { cn } from '@/lib/utils'
+import { Kbd } from '@/components/system'
 
 const draftKey = (key: string) => 'workbus:draft:' + key
 const readDraft = (key: string) => {
@@ -24,8 +25,7 @@ const keepDraft = (key: string, text: string) => {
 /** The @word being typed at the caret, if any. */
 const typing = (text: string, caret: number) => /(?:^|[\s(])@([a-z0-9_.+-]{0,40})$/i.exec(text.slice(0, caret))
 
-/** A key, in mono (designer's Kbd replaces this). */
-export const Kbd = ({ children }: { children: string }) => <kbd className="rounded-sm border bg-background px-1 font-mono text-[10.5px] text-muted-foreground">{children}</kbd>
+export { Kbd }
 
 export function Composer({ place, label, placeholder, onSend, onEditLast, autoFocus }: { place: string; label: string; placeholder?: string; onSend: (text: string) => void; onEditLast?: () => void; autoFocus?: boolean }) {
   const bus = useBus()

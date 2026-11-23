@@ -487,6 +487,33 @@ hooks.channelRows = (ctx, channel, after, limit, rows) => {
   }
 }
 
+// Marking a channel read up to a point counts its roots after it (reads.ts): a cold thread's root is
+// in its summary rows, a frozen one's in its page, read when a page's range for the channel reaches past the point.
+hooks.archivedRoots = (ctx, channel, after, limit) => {
+  const board = ctx.board
+  if (!archivedAny(board)) return []
+  const out = ctx.sql
+    .all<{ row: string }>("select r.row from cold_threads c join cold_rows r on r.id = c.root where c.state = 'cold' and c.channel = ? and c.root > ? order by c.root limit ?", channel, after, limit)
+    .map((found) => unpackRow(ctx.sql, found.row))
+  const waiting: PageMeta[] = []
+  for (const meta of pagesOf(board)) {
+    const range = meta.channels[channel]
+    if (range === undefined || range[1] <= after) continue
+    const page = pageOf(board, meta.id)
+    if (!page) {
+      waiting.push(meta)
+      continue
+    }
+    for (const thread of page.threads) {
+      if (thread.channel !== channel || thread.root <= after || !frozenValid(ctx.sql, meta.at, thread.root)) continue
+      const own = thread.rows.find(([id]) => id === thread.root)
+      if (own) out.push(unpackRow(ctx.sql, own[1]))
+    }
+  }
+  if (waiting.length) faultPages(board, waiting)
+  return out
+}
+
 // A cold task thread keeps only its latest view hot; a view at an older position is in R2.
 const hotTaskView = hooks.taskView
 hooks.taskView = (ctx, root, at) => {

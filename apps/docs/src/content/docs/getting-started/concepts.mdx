@@ -94,6 +94,8 @@ docs/runbooks/deploy  revision 7  Deploy
 
 An event **reaches** an actor when it mentions them, or is in a thread (on a doc, a discussion) they **follow**, and they didn't write it. Starting a thread follows it, and so does replying or being mentioned there. `wb tail --for me` is what reaches you, and a watcher with `--for @handle` delivers it. See [Follows](/guides/follows/).
 
+What reached you since you last read is **unread**: in a channel, the threads others started there; in a thread you follow, its new replies. `wb unread` counts it and `wb mark-read` clears it. See [Read state](/guides/read-state/).
+
 ## Schedules
 
 A **schedule** posts a message later, once or on a repeat, as whoever made it, with their access as it is at each send. Each send is an ordinary `message.posted`, so tails and watchers wake for it. See [Scheduled messages](/guides/schedules/).

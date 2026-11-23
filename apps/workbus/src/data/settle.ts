@@ -49,8 +49,10 @@ export async function sendAndSettle<A>(feed: Feed, send: () => Promise<A>, echo:
   const cursor = echo.cursor?.(answer) ?? null
   let timer: ReturnType<typeof setTimeout> | undefined
   const ways: Promise<Settled>[] = [new Promise<Settled>((resolve) => (timer = setTimeout(() => resolve('answer'), ECHO_MS)))]
-  if (waiter) ways.push(waiter.promise.then(() => (echo.clientId !== undefined ? 'clientId' : 'test')))
-  // The client ID's event is handed out before the feed's cursor moves past it, so it wins when it's there.
+  // The client ID's event, and then the rest of the write up to its answer's version: a task's
+  // message.posted carries the client ID, and its task.created (the task facet) comes right after.
+  if (waiter) ways.push(waiter.promise.then(() => (cursor !== null ? feed.reached(cursor) : undefined)).then(() => (echo.clientId !== undefined ? 'clientId' : 'test')))
+  // The cursor alone, for a board that doesn't carry client IDs: the client ID's way wins when it's there.
   if (cursor !== null) ways.push(feed.reached(cursor).then(() => new Promise<Settled>((resolve) => setTimeout(() => resolve('cursor'), 0))))
   if (!waiter && cursor === null) ways.push(Promise.resolve('answer'))
   const settled = await Promise.race(ways)

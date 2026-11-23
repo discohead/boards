@@ -1,0 +1,12 @@
+<!-- @dsCard group="Overlays" height=190 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Menu</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h(W.Menu,{items:[{label:'Assign…',icon:'user',kbd:'A',active:true},{label:'Make a task',icon:'task',kbd:'C'},{label:'Write it up',icon:'doc'},'-',{label:'Pause Ada',icon:'pause',kbd:'⇧P',danger:true}]}));
+</script>
+</body>
+</html>

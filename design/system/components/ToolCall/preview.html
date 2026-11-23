@@ -1,0 +1,12 @@
+<!-- @dsCard group="Conversation" height=150 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>ToolCall</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-stack',style:{maxWidth:460}},h(W.ToolCall,{name:'deploy.production',input:{worker:'workbus-app',version:'v42'},status:'held'}),h(W.ToolCall,{name:'board.tasks.complete',input:{id:'1251',outcome:'done'},status:'ok'})));
+</script>
+</body>
+</html>

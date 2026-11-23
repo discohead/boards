@@ -125,11 +125,15 @@ export type Access = {
   everywhere(permission: Permission): boolean
   summary(): Summary
   narrowed: boolean
+  /** Some private channel may be closed to this caller: everywhere() says what the grants give, so a shortcut on it must check each channel then. */
+  hides: boolean
 }
 
-export function accessOf(options: { full: boolean; grants: Record<string, Grant>[]; levels?: undefined; narrow: Record<string, Grant> | null; resolve?: (channel: string) => Permission[] }): Access {
+export function accessOf(options: { full: boolean; grants: Record<string, Grant>[]; levels?: undefined; narrow: Record<string, Grant> | null; resolve?: (channel: string) => Permission[]; closed?: ((channel: string) => boolean) | null }): Access {
   const base = (channel: string): Permission[] => (options.full ? [...PERMISSIONS] : options.resolve ? options.resolve(channel) : [])
   const permissions = (channel: string): Permission[] => {
+    // A private channel the caller isn't a party to: nothing, whatever the grants say.
+    if (options.closed?.(channel)) return []
     const given = base(channel)
     if (!options.narrow) return given
     const held = decide(options.narrow, channel) ?? []
@@ -145,6 +149,7 @@ export function accessOf(options: { full: boolean; grants: Record<string, Grant>
   const probe = (pattern: string) => (pattern === '*' ? '\u0000any' : pattern.endsWith('/') ? pattern + '\u0000child' : pattern)
   return {
     narrowed: options.narrow !== null,
+    hides: Boolean(options.closed),
     permissions,
     can: (permission, channel) => permissions(channel).includes(permission),
     readable: (channel) => permissions(channel).includes('read'),

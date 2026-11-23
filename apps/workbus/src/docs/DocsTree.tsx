@@ -5,11 +5,15 @@ import { Link } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { ChevronRight, FileText, Folder } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { useOpenThread } from '@/shell/open-thread'
 import { useDocsBus } from './bus'
 import { ancestors, buildTree, label, type TreeNode } from './tree'
 
-export function DocsTree({ current }: { current?: string }) {
+export function DocsTree({ current: given }: { current?: string }) {
   const bus = useDocsBus()
+  // The open doc: the one named, or the thread open in the pane.
+  const opened = useOpenThread().thread
+  const current = given ?? opened ?? undefined
   const { data: docs } = useLiveQuery((q) => q.from({ doc: bus.docs }))
   const tree = useMemo(() => buildTree(docs), [docs])
   const currentPath = docs.find((doc) => doc.id === current)?.path
@@ -22,9 +26,9 @@ export function DocsTree({ current }: { current?: string }) {
       else next.add(path)
       return next
     })
-  if (tree.length === 0) return <p className="px-2 py-1 text-sm text-muted-foreground">No docs yet.</p>
+  if (tree.length === 0) return <p className="px-2 py-1 text-ui text-muted-foreground">No docs yet.</p>
   return (
-    <ul role="tree" aria-label="Docs" className="text-sm" data-testid="docs-tree">
+    <ul role="tree" aria-label="Docs" className="text-ui" data-testid="docs-tree">
       {tree.map((node) => (
         <Branch key={node.path} node={node} depth={0} current={current} isOpen={isOpen} toggle={toggle} />
       ))}

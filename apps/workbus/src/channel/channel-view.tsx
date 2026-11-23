@@ -8,6 +8,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { Hash, MessageSquare } from 'lucide-react'
+import { NewEventsPill } from '@/components/system'
 import { useBus, type Message, type Thread } from '@/data'
 import { useOpenThread } from '@/shell/open-thread'
 import { channelKey } from '@/data/unread'
@@ -227,9 +228,9 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
         <div className="h-2" />
       </div>
       {below > 0 ? (
-        <button type="button" onClick={() => virtualizer.scrollToEnd({ behavior: 'smooth' })} className="absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full border bg-popover px-3 py-1 font-mono text-[11px] text-foreground shadow-md" data-testid="new-below" aria-label={below + ' new below'}>
-          {below} new ↓
-        </button>
+        <div className="absolute bottom-2 left-1/2 -translate-x-1/2" data-testid="new-below">
+          <NewEventsPill count={below} onClick={() => virtualizer.scrollToEnd({ behavior: 'smooth' })} />
+        </div>
       ) : null}
     </div>
   )

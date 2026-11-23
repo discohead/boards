@@ -8,20 +8,16 @@ import { MessageText } from '@/thread/message-text'
 import { handleOf, typedText } from '@/thread/mentions'
 import { cn } from '@/lib/utils'
 import { Clock } from '@/shell/clock'
+import { Avatar as SystemAvatar } from '@/components/system'
 import { REACTIONS, Reaction } from './reactions.tsx'
 
-/** People are round, agents are square (the design system's one identity rule). designer's Avatar replaces this. */
+/** An actor's avatar: the design system's (people round, agents square), from what the app knows of it. */
 export function Avatar({ actor, size = 'md' }: { actor: string; size?: 'sm' | 'md' }) {
   const bus = useBus()
   const known = bus.actors.get(actor)
   const name = known?.name ?? handleOf(bus.actors, actor)
-  const agent = isAgent(known?.kind, actor)
   const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('') || '?'
-  return (
-    <span aria-hidden data-kind={agent ? 'agent' : 'person'} className={cn('flex shrink-0 select-none items-center justify-center font-semibold', size === 'sm' ? 'size-4 text-[8px]' : 'size-7 text-[11px]', agent ? 'rounded-[3px] bg-secondary text-foreground' : 'rounded-full bg-foreground text-background')}>
-      {initials}
-    </span>
-  )
+  return <SystemAvatar kind={isAgent(known?.kind, actor) ? 'agent' : 'person'} initials={initials} name={name} size={size === 'sm' ? 'xs' : 'md'} />
 }
 
 /** An actor is an agent unless it's a person: a person's kind is "person", and people sign in as workbus:user: or access:user:. */
@@ -101,7 +97,7 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
       </div>
     )
   return (
-    <div data-id={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className={cn('group relative flex gap-2 px-4 text-[13px] leading-[18px] hover:bg-accent', grouped ? 'py-0.5' : 'pt-2 pb-0.5', message.pending && 'text-muted-foreground', arrive && 'arrive')}>
+    <div data-id={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className={cn('group relative flex gap-2 px-4 text-[13px] leading-[18px] hover:bg-accent', grouped ? 'py-0.5' : 'pt-2 pb-0.5', message.pending && 'text-muted-foreground', arrive && 'animate-arrive')}>
       {grouped ? <When iso={message.createdAt} className="invisible w-7 shrink-0 text-right font-mono text-[10px] leading-[18px] tabular-nums text-muted-foreground group-hover:visible" /> : <Avatar actor={message.by.actor} />}
       <div className="min-w-0 flex-1">
         {grouped ? null : (

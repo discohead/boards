@@ -47,6 +47,11 @@
       "description": "What reaches a caller: the threads and doc discussions it follows."
     },
     {
+      "name": "reads",
+      "x-displayName": "Read state",
+      "description": "What's unread for a caller, and marking it read."
+    },
+    {
       "name": "tasks",
       "x-displayName": "Tasks",
       "description": "Threads with a state, claimed under a lease and fenced by epoch and token."
@@ -142,8 +147,8 @@
           "status": 200,
           "response": {
             "version": "0.1.0",
-            "url": "https://workbus.example.com/b/openapi-mwpxk3jv",
-            "audience": "https://workbus.example.com/b/openapi-mwpxk3jv",
+            "url": "https://workbus.example.com/b/openapi-mwssfkb6",
+            "audience": "https://workbus.example.com/b/openapi-mwssfkb6",
             "team_id": null,
             "project_id": null,
             "sync": []
@@ -560,6 +565,16 @@
                   "operationId": "follows"
                 }
               },
+              "/unread": {
+                "get": {
+                  "operationId": "unread"
+                }
+              },
+              "/read": {
+                "post": {
+                  "operationId": "markRead"
+                }
+              },
               "/rpc": {
                 "get": {
                   "operationId": "rpc"
@@ -718,7 +733,7 @@
             "name": "jared",
             "avatar": null,
             "profile": null,
-            "expiresAt": "2026-11-21T16:51:04.000Z",
+            "expiresAt": "2026-11-23T16:50:53.000Z",
             "can": {
               "*": [
                 "read",
@@ -1032,7 +1047,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.728Z",
+                "createdAt": "2026-11-23T04:50:53.757Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1059,7 +1074,7 @@
                 "text": "",
                 "re": null,
                 "replyTo": null,
-                "thread": "383d791e-5033-481f-b6c0-4cb7bb8991bc",
+                "thread": "bc0c33cb-40f5-4115-8744-f83ad76d114b",
                 "labels": {},
                 "reactions": {},
                 "by": {
@@ -1070,7 +1085,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.750Z",
+                "createdAt": "2026-11-23T04:50:53.792Z",
                 "editedAt": null,
                 "deleted": true,
                 "undelivered": {},
@@ -1269,7 +1284,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.721Z",
+              "createdAt": "2026-11-23T04:50:53.749Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -1400,8 +1415,8 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.721Z",
-              "editedAt": "2026-11-21T04:51:04.735Z",
+              "createdAt": "2026-11-23T04:50:53.749Z",
+              "editedAt": "2026-11-23T04:50:53.774Z",
               "deleted": false,
               "undelivered": {},
               "attachments": [],
@@ -1435,7 +1450,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.728Z",
+                "createdAt": "2026-11-23T04:50:53.757Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1664,8 +1679,8 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.721Z",
-                  "editedAt": "2026-11-21T04:51:04.735Z",
+                  "createdAt": "2026-11-23T04:50:53.749Z",
+                  "editedAt": "2026-11-23T04:50:53.774Z",
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
@@ -1699,7 +1714,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.728Z",
+                  "createdAt": "2026-11-23T04:50:53.757Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -1792,7 +1807,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.721Z",
+              "createdAt": "2026-11-23T04:50:53.749Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -2422,23 +2437,17 @@
           "response": {
             "events": [
               {
-                "cursor": "9",
-                "type": "message.posted",
-                "createdAt": "2026-11-21T04:51:04.750Z",
+                "cursor": "10",
+                "type": "message.deleted",
+                "createdAt": "2026-11-23T04:50:53.796Z",
                 "payload": {
-                  "channel": "deploys",
-                  "text": "v41 is live (wrong build)",
-                  "re": null,
-                  "replyTo": null,
-                  "thread": "383d791e-5033-481f-b6c0-4cb7bb8991bc",
-                  "labels": {},
-                  "noSync": false,
+                  "id": "9",
+                  "thread": "bc0c33cb-40f5-4115-8744-f83ad76d114b",
                   "by": {
                     "actor": "workbus:user:jared",
                     "principal": "workbus:user:jared",
                     "profile": null
                   },
-                  "origin": null,
                   "from": null
                 },
                 "message": {
@@ -2447,7 +2456,7 @@
                   "text": "",
                   "re": null,
                   "replyTo": null,
-                  "thread": "383d791e-5033-481f-b6c0-4cb7bb8991bc",
+                  "thread": "bc0c33cb-40f5-4115-8744-f83ad76d114b",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2458,7 +2467,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.750Z",
+                  "createdAt": "2026-11-23T04:50:53.792Z",
                   "editedAt": null,
                   "deleted": true,
                   "undelivered": {},
@@ -2485,64 +2494,78 @@
                 }
               },
               {
-                "cursor": "10",
-                "type": "message.deleted",
-                "createdAt": "2026-11-21T04:51:04.753Z",
+                "cursor": "11",
+                "type": "message.posted",
+                "createdAt": "2026-11-23T04:50:53.832Z",
                 "payload": {
-                  "id": "9",
-                  "thread": "383d791e-5033-481f-b6c0-4cb7bb8991bc",
+                  "channel": "deploys",
+                  "text": "v42 needs a changelog entry, @[workbus:user:jared]",
+                  "re": null,
+                  "replyTo": null,
+                  "thread": "e6ebdbac-ce74-4ce1-b0e1-fed76a358afa",
+                  "labels": {},
+                  "noSync": false,
                   "by": {
-                    "actor": "workbus:user:jared",
+                    "actor": "workbus:user:jared+checker",
                     "principal": "workbus:user:jared",
-                    "profile": null
+                    "profile": "checker"
                   },
+                  "origin": null,
                   "from": null
                 },
                 "message": {
-                  "id": "9",
+                  "id": "11",
                   "channel": "deploys",
-                  "text": "",
+                  "text": "v42 needs a changelog entry, @[workbus:user:jared]",
                   "re": null,
                   "replyTo": null,
-                  "thread": "383d791e-5033-481f-b6c0-4cb7bb8991bc",
+                  "thread": "e6ebdbac-ce74-4ce1-b0e1-fed76a358afa",
                   "labels": {},
                   "reactions": {},
                   "by": {
-                    "actor": "workbus:user:jared",
+                    "actor": "workbus:user:jared+checker",
                     "principal": "workbus:user:jared",
-                    "profile": null
+                    "profile": "checker"
                   },
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.750Z",
+                  "createdAt": "2026-11-23T04:50:53.832Z",
                   "editedAt": null,
-                  "deleted": true,
+                  "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 10,
-                  "revision": 10,
+                  "version": 11,
+                  "revision": 11,
                   "author": {
-                    "kind": "person",
-                    "handle": "jared",
-                    "name": "jared",
+                    "kind": "agent",
+                    "handle": "jared/checker",
+                    "name": "checker",
                     "avatar": null,
+                    "via": {
+                      "name": "jared",
+                      "environment": null
+                    },
                     "verified": true
                   },
                   "blocks": []
                 },
                 "actor": {
-                  "id": "workbus:user:jared",
-                  "kind": "person",
-                  "handle": "jared",
-                  "name": "jared",
+                  "id": "workbus:user:jared+checker",
+                  "kind": "agent",
+                  "handle": "jared/checker",
+                  "name": "checker",
                   "avatar": null,
+                  "via": {
+                    "name": "jared",
+                    "environment": null
+                  },
                   "verified": true
                 }
               }
             ],
-            "cursor": "10"
+            "cursor": "11"
           }
         }
       }
@@ -2705,12 +2728,12 @@
             "tasks": [
               {
                 "message": {
-                  "id": "11",
+                  "id": "12",
                   "channel": "work",
                   "text": "rotate the staging keys",
                   "re": null,
                   "replyTo": null,
-                  "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+                  "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
                   "labels": {
                     "area": "infra",
                     "board.task": "ready"
@@ -2724,14 +2747,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.792Z",
+                  "createdAt": "2026-11-23T04:50:53.857Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 12,
-                  "revision": 11,
+                  "version": 13,
+                  "revision": 12,
                   "author": {
                     "kind": "person",
                     "handle": "jared",
@@ -2758,12 +2781,12 @@
               },
               {
                 "message": {
-                  "id": "13",
+                  "id": "14",
                   "channel": "work",
                   "text": "build v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+                  "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
                   "labels": {
                     "board.task": "ready"
                   },
@@ -2776,14 +2799,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.797Z",
+                  "createdAt": "2026-11-23T04:50:53.862Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 14,
-                  "revision": 13,
+                  "version": 15,
+                  "revision": 14,
                   "author": {
                     "kind": "person",
                     "handle": "jared",
@@ -2810,12 +2833,12 @@
               },
               {
                 "message": {
-                  "id": "15",
+                  "id": "16",
                   "channel": "work",
                   "text": "ship v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "d56e4128-fff4-4889-bb15-82ae7df23a99",
+                  "thread": "3cf9c0db-62ad-464f-ae99-689d93ffa6ca",
                   "labels": {
                     "board.task": "waiting"
                   },
@@ -2828,14 +2851,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-21T04:51:04.797Z",
+                  "createdAt": "2026-11-23T04:50:53.862Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 16,
-                  "revision": 15,
+                  "version": 17,
+                  "revision": 16,
                   "author": {
                     "kind": "person",
                     "handle": "jared",
@@ -2850,7 +2873,7 @@
                     "by": "workbus:user:jared",
                     "for": null,
                     "needs": [
-                      "13"
+                      "14"
                     ],
                     "epoch": 0,
                     "claim": null,
@@ -2863,7 +2886,7 @@
                 "last": null
               }
             ],
-            "cursor": "16"
+            "cursor": "17"
           }
         }
       },
@@ -3002,12 +3025,12 @@
           "status": 201,
           "response": {
             "task": {
-              "id": "11",
+              "id": "12",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+              "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -3021,14 +3044,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.792Z",
+              "createdAt": "2026-11-23T04:50:53.857Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 12,
-              "revision": 11,
+              "version": 13,
+              "revision": 12,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3218,12 +3241,12 @@
           "response": {
             "tasks": [
               {
-                "id": "13",
+                "id": "14",
                 "channel": "work",
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+                "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3236,14 +3259,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.797Z",
+                "createdAt": "2026-11-23T04:50:53.862Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 14,
-                "revision": 13,
+                "version": 15,
+                "revision": 14,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3266,12 +3289,12 @@
                 }
               },
               {
-                "id": "15",
+                "id": "16",
                 "channel": "work",
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "d56e4128-fff4-4889-bb15-82ae7df23a99",
+                "thread": "3cf9c0db-62ad-464f-ae99-689d93ffa6ca",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3284,14 +3307,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.797Z",
+                "createdAt": "2026-11-23T04:50:53.862Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 16,
-                "revision": 15,
+                "version": 17,
+                "revision": 16,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3306,7 +3329,7 @@
                   "by": "workbus:user:jared",
                   "for": null,
                   "needs": [
-                    "13"
+                    "14"
                   ],
                   "epoch": 0,
                   "claim": null,
@@ -3377,12 +3400,12 @@
           "response": {
             "tasks": [
               {
-                "id": "13",
+                "id": "14",
                 "channel": "work",
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+                "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3395,14 +3418,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.797Z",
+                "createdAt": "2026-11-23T04:50:53.862Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 14,
-                "revision": 13,
+                "version": 15,
+                "revision": 14,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3425,12 +3448,12 @@
                 }
               },
               {
-                "id": "15",
+                "id": "16",
                 "channel": "work",
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "d56e4128-fff4-4889-bb15-82ae7df23a99",
+                "thread": "3cf9c0db-62ad-464f-ae99-689d93ffa6ca",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3443,14 +3466,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-21T04:51:04.797Z",
+                "createdAt": "2026-11-23T04:50:53.862Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 16,
-                "revision": 15,
+                "version": 17,
+                "revision": 16,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3465,7 +3488,7 @@
                   "by": "workbus:user:jared",
                   "for": null,
                   "needs": [
-                    "13"
+                    "14"
                   ],
                   "epoch": 0,
                   "claim": null,
@@ -3574,12 +3597,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "11",
+              "id": "12",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+              "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3593,14 +3616,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.792Z",
+              "createdAt": "2026-11-23T04:50:53.857Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 17,
-              "revision": 11,
+              "version": 18,
+              "revision": 12,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3618,7 +3641,7 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-21T05:06:04.808Z"
+                  "until": "2026-11-23T05:05:53.895Z"
                 },
                 "blocked": null,
                 "result": null,
@@ -3627,8 +3650,8 @@
             },
             "claim": {
               "epoch": 1,
-              "token": "Q19wSZGX73WZ87yPYqUlJUNX1ls9qWJzRc56PDDwnWU",
-              "until": "2026-11-21T05:06:04.808Z"
+              "token": "Re5PTCSWtKPX9b-utdA5QiDGr20X8z3jLRdpq5f_UrI",
+              "until": "2026-11-23T05:05:53.895Z"
             }
           }
         }
@@ -3694,7 +3717,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/11/claim",
+            "path": "/tasks/12/claim",
             "headers": {
               "content-type": "application/json"
             },
@@ -3705,12 +3728,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "11",
+              "id": "12",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+              "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3724,14 +3747,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.792Z",
+              "createdAt": "2026-11-23T04:50:53.857Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 20,
-              "revision": 11,
+              "version": 21,
+              "revision": 12,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3749,7 +3772,7 @@
                 "epoch": 2,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-21T05:01:04.818Z"
+                  "until": "2026-11-23T05:00:53.907Z"
                 },
                 "blocked": null,
                 "result": null,
@@ -3758,8 +3781,8 @@
             },
             "claim": {
               "epoch": 2,
-              "token": "okFJ5Tb_Q9YHTbmdVMpjgVv49hl-sE4W2AOvUNE6Tuw",
-              "until": "2026-11-21T05:01:04.818Z"
+              "token": "4lC61IEN-4-l7ePOwzkRQe2WkeyZDkcT4J2jSEQh5dE",
+              "until": "2026-11-23T05:00:53.907Z"
             }
           }
         }
@@ -3835,25 +3858,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/11/renew",
+            "path": "/tasks/12/renew",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 1,
-              "token": "Q19wSZGX73WZ87yPYqUlJUNX1ls9qWJzRc56PDDwnWU",
+              "token": "Re5PTCSWtKPX9b-utdA5QiDGr20X8z3jLRdpq5f_UrI",
               "lease": 1800
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "11",
+              "id": "12",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+              "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3867,14 +3890,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.792Z",
+              "createdAt": "2026-11-23T04:50:53.857Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 18,
-              "revision": 11,
+              "version": 19,
+              "revision": 12,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3892,14 +3915,14 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-21T05:21:04.812Z"
+                  "until": "2026-11-23T05:20:53.898Z"
                 },
                 "blocked": null,
                 "result": null,
                 "reason": null
               }
             },
-            "until": "2026-11-21T05:21:04.812Z"
+            "until": "2026-11-23T05:20:53.898Z"
           }
         }
       }
@@ -3971,24 +3994,24 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/11/release",
+            "path": "/tasks/12/release",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 1,
-              "token": "Q19wSZGX73WZ87yPYqUlJUNX1ls9qWJzRc56PDDwnWU"
+              "token": "Re5PTCSWtKPX9b-utdA5QiDGr20X8z3jLRdpq5f_UrI"
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "11",
+              "id": "12",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+              "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -4002,14 +4025,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.792Z",
+              "createdAt": "2026-11-23T04:50:53.857Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 19,
-              "revision": 11,
+              "version": 20,
+              "revision": 12,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4115,25 +4138,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/11/complete",
+            "path": "/tasks/12/complete",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 2,
-              "token": "okFJ5Tb_Q9YHTbmdVMpjgVv49hl-sE4W2AOvUNE6Tuw",
+              "token": "4lC61IEN-4-l7ePOwzkRQe2WkeyZDkcT4J2jSEQh5dE",
               "result": "rotated; the old keys are revoked"
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "11",
+              "id": "12",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "81c00794-f975-4b2e-bb26-c0eeea945bdc",
+              "thread": "523d529b-8099-4491-aaf6-5e74900f97fe",
               "labels": {
                 "area": "infra",
                 "board.task": "completed"
@@ -4147,14 +4170,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.792Z",
+              "createdAt": "2026-11-23T04:50:53.857Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 21,
-              "revision": 11,
+              "version": 22,
+              "revision": 12,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4181,20 +4204,20 @@
         "x-error-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/11/complete",
+            "path": "/tasks/12/complete",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 2,
-              "token": "okFJ5Tb_Q9YHTbmdVMpjgVv49hl-sE4W2AOvUNE6Tuw"
+              "token": "4lC61IEN-4-l7ePOwzkRQe2WkeyZDkcT4J2jSEQh5dE"
             }
           },
           "status": 409,
           "response": {
             "error": {
               "code": "claim_lost",
-              "message": "this claim on #11 is over: claim it again"
+              "message": "this claim on #12 is over: claim it again"
             }
           }
         }
@@ -4271,25 +4294,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/13/fail",
+            "path": "/tasks/14/fail",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 1,
-              "token": "TSjffsyktpqDAJUVCUuEYJDHfKm77tazNy4igbajNWg",
+              "token": "7H1Yi3MClaDSEME7FOV7GoHLc4MZFmaxh6T2lLCatTA",
               "reason": "the build ran out of disk"
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "13",
+              "id": "14",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+              "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
               "labels": {
                 "board.task": "failed"
               },
@@ -4302,14 +4325,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 23,
-              "revision": 13,
+              "version": 24,
+              "revision": 14,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4412,7 +4435,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/13/block",
+            "path": "/tasks/14/block",
             "headers": {
               "content-type": "application/json"
             },
@@ -4424,12 +4447,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "13",
+              "id": "14",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+              "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
               "labels": {
                 "board.task": "blocked"
               },
@@ -4442,14 +4465,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 25,
-              "revision": 13,
+              "version": 26,
+              "revision": 14,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4519,7 +4542,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/13/unblock",
+            "path": "/tasks/14/unblock",
             "headers": {
               "content-type": "application/json"
             },
@@ -4528,12 +4551,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "13",
+              "id": "14",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+              "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
               "labels": {
                 "board.task": "ready"
               },
@@ -4546,14 +4569,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 26,
-              "revision": 13,
+              "version": 27,
+              "revision": 14,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4620,7 +4643,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/13/reopen",
+            "path": "/tasks/14/reopen",
             "headers": {
               "content-type": "application/json"
             },
@@ -4629,12 +4652,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "13",
+              "id": "14",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "ca920de5-6280-4cbd-8b0a-4e9fb3623309",
+              "thread": "8db9d693-2960-444e-9f45-e3625ef106b9",
               "labels": {
                 "board.task": "ready"
               },
@@ -4647,14 +4670,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 24,
-              "revision": 13,
+              "version": 25,
+              "revision": 14,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4748,7 +4771,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/15/assign",
+            "path": "/tasks/16/assign",
             "headers": {
               "content-type": "application/json"
             },
@@ -4759,12 +4782,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "15",
+              "id": "16",
               "channel": "work",
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "d56e4128-fff4-4889-bb15-82ae7df23a99",
+              "thread": "3cf9c0db-62ad-464f-ae99-689d93ffa6ca",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4777,14 +4800,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 27,
-              "revision": 15,
+              "version": 28,
+              "revision": 16,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4799,7 +4822,7 @@
                 "by": "workbus:user:jared",
                 "for": "workbus:user:jared+shipper",
                 "needs": [
-                  "13"
+                  "14"
                 ],
                 "epoch": 0,
                 "claim": null,
@@ -4876,25 +4899,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/15/needs",
+            "path": "/tasks/16/needs",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "needs": [
-                "13"
+                "14"
               ]
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "15",
+              "id": "16",
               "channel": "work",
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "d56e4128-fff4-4889-bb15-82ae7df23a99",
+              "thread": "3cf9c0db-62ad-464f-ae99-689d93ffa6ca",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4907,14 +4930,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 27,
-              "revision": 15,
+              "version": 28,
+              "revision": 16,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4929,7 +4952,7 @@
                 "by": "workbus:user:jared",
                 "for": "workbus:user:jared+shipper",
                 "needs": [
-                  "13"
+                  "14"
                 ],
                 "epoch": 0,
                 "claim": null,
@@ -5001,7 +5024,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/15/cancel",
+            "path": "/tasks/16/cancel",
             "headers": {
               "content-type": "application/json"
             },
@@ -5012,12 +5035,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "15",
+              "id": "16",
               "channel": "work",
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "d56e4128-fff4-4889-bb15-82ae7df23a99",
+              "thread": "3cf9c0db-62ad-464f-ae99-689d93ffa6ca",
               "labels": {
                 "board.task": "canceled"
               },
@@ -5030,14 +5053,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.797Z",
+              "createdAt": "2026-11-23T04:50:53.862Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 28,
-              "revision": 15,
+              "version": 29,
+              "revision": 16,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -5052,7 +5075,7 @@
                 "by": "workbus:user:jared",
                 "for": "workbus:user:jared+shipper",
                 "needs": [
-                  "13"
+                  "14"
                 ],
                 "epoch": 0,
                 "claim": null,
@@ -5527,7 +5550,7 @@
               },
               "capped": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-21T04:51:04.910Z"
+              "at": "2026-11-23T04:50:54.082Z"
             }
           }
         }
@@ -5929,7 +5952,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-21T04:51:04.917Z"
+                "at": "2026-11-23T04:50:54.106Z"
               },
               {
                 "id": "g6",
@@ -5945,7 +5968,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-21T04:51:04.917Z"
+                "at": "2026-11-23T04:50:54.106Z"
               }
             ]
           }
@@ -6582,7 +6605,7 @@
               },
               "capped": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-21T04:51:04.912Z"
+              "at": "2026-11-23T04:50:54.088Z"
             }
           }
         }
@@ -6853,7 +6876,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-21T04:51:04.912Z"
+                "at": "2026-11-23T04:50:54.088Z"
               }
             ],
             "capped": null,
@@ -7083,7 +7106,7 @@
               },
               "builtIn": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-21T04:51:04.936Z"
+              "at": "2026-11-23T04:50:54.131Z"
             },
             "created": true
           }
@@ -7156,7 +7179,7 @@
               },
               "builtIn": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-21T04:51:04.936Z"
+              "at": "2026-11-23T04:50:54.131Z"
             }
           }
         }
@@ -7297,12 +7320,12 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-22T04:51:04.882Z",
+              "first": "2026-11-24T04:50:54.016Z",
               "every": 86400000,
               "until": null,
               "times": 5,
               "sent": 0,
-              "next": "2026-11-22T04:51:04.882Z",
+              "next": "2026-11-24T04:50:54.016Z",
               "last": null,
               "state": "pending",
               "canceled": null,
@@ -7317,7 +7340,7 @@
                 "name": "jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-21T04:51:04.882Z"
+              "createdAt": "2026-11-23T04:50:54.016Z"
             }
           }
         }
@@ -7407,12 +7430,12 @@
                 "labels": {},
                 "noSync": false,
                 "attachments": [],
-                "first": "2026-11-22T04:51:04.882Z",
+                "first": "2026-11-24T04:50:54.016Z",
                 "every": 86400000,
                 "until": null,
                 "times": 5,
                 "sent": 0,
-                "next": "2026-11-22T04:51:04.882Z",
+                "next": "2026-11-24T04:50:54.016Z",
                 "last": null,
                 "state": "pending",
                 "canceled": null,
@@ -7427,7 +7450,7 @@
                   "name": "jared",
                   "avatar": null
                 },
-                "createdAt": "2026-11-21T04:51:04.882Z"
+                "createdAt": "2026-11-23T04:50:54.016Z"
               }
             ]
           }
@@ -7487,7 +7510,7 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-22T04:51:04.882Z",
+              "first": "2026-11-24T04:50:54.016Z",
               "every": 86400000,
               "until": null,
               "times": 5,
@@ -7514,7 +7537,7 @@
                 "name": "jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-21T04:51:04.882Z"
+              "createdAt": "2026-11-23T04:50:54.016Z"
             },
             "canceled": true
           }
@@ -7578,7 +7601,7 @@
           "status": 201,
           "response": {
             "attachment": {
-              "id": "CmqyzBuVSPQ8w5uFl4jqqw",
+              "id": "e_DAdQtPBglcbRipKvoTfg",
               "name": "build.log",
               "type": "text/plain",
               "size": 13
@@ -7629,7 +7652,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/attachments/CmqyzBuVSPQ8w5uFl4jqqw"
+            "path": "/attachments/e_DAdQtPBglcbRipKvoTfg"
           },
           "status": 200,
           "headers": {
@@ -8096,15 +8119,15 @@
           "response": {
             "matches": [
               {
-                "id": "caa2017e-be3c-8c23-86a6-9054cc4666df",
+                "id": "9ec7cbc4-01c6-85d2-999a-ab275bee2146",
                 "watcher": "@sync",
                 "thread": "deploy-v42",
-                "lease": "59175d56e0819a99ba2e66513eb4cc4c",
+                "lease": "80945141c9e1d350887fca36bea67640",
                 "attempt": 0,
                 "event": {
                   "cursor": "3",
                   "type": "message.posted",
-                  "createdAt": "2026-11-21T04:51:04.721Z",
+                  "createdAt": "2026-11-23T04:50:53.749Z",
                   "payload": {
                     "channel": "deploys",
                     "text": "v42 is live on production",
@@ -8121,7 +8144,8 @@
                       "profile": null
                     },
                     "origin": null,
-                    "from": null
+                    "from": null,
+                    "clientId": "deploy-v42"
                   },
                   "message": {
                     "id": "3",
@@ -8147,8 +8171,8 @@
                     "noSync": false,
                     "origin": null,
                     "from": null,
-                    "createdAt": "2026-11-21T04:51:04.721Z",
-                    "editedAt": "2026-11-21T04:51:04.735Z",
+                    "createdAt": "2026-11-23T04:50:53.749Z",
+                    "editedAt": "2026-11-23T04:50:53.774Z",
                     "deleted": false,
                     "undelivered": {},
                     "attachments": [],
@@ -8248,12 +8272,12 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/watchers/matches/caa2017e-be3c-8c23-86a6-9054cc4666df/ack",
+            "path": "/watchers/matches/9ec7cbc4-01c6-85d2-999a-ab275bee2146/ack",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
-              "lease": "59175d56e0819a99ba2e66513eb4cc4c"
+              "lease": "80945141c9e1d350887fca36bea67640"
             }
           },
           "status": 200,
@@ -9377,7 +9401,7 @@
           },
           "status": 200,
           "response": {
-            "message": "37"
+            "message": "40"
           }
         }
       }
@@ -9601,7 +9625,7 @@
             },
             "body": {
               "kind": "message",
-              "message": "38",
+              "message": "41",
               "target": "tracker:eng/T-12",
               "external": {
                 "thread": "tracker:eng/T-12",
@@ -9662,7 +9686,7 @@
           "status": 200,
           "response": {
             "thread": "sync:workbus:user:jared:5c6a5d40de94f6df86d174bccbb89445",
-            "root": "37",
+            "root": "40",
             "channel": "support",
             "targets": [
               "tracker:eng/T-12"
@@ -9742,7 +9766,7 @@
           "status": 200,
           "response": {
             "thread": "sync:workbus:user:jared:5c6a5d40de94f6df86d174bccbb89445",
-            "message": "37"
+            "message": "40"
           }
         }
       }
@@ -9804,12 +9828,12 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/sync/copies?message=38"
+            "path": "/sync/copies?message=41"
           },
           "status": 200,
           "response": {
             "copies": {
-              "38": {
+              "41": {
                 "tracker:eng/T-12": {
                   "thread": "tracker:eng/T-12",
                   "message": "tracker:c2"
@@ -9861,7 +9885,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/messages/38/sync"
+            "path": "/messages/41/sync"
           },
           "status": 200,
           "response": {
@@ -9938,7 +9962,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/messages/37/sync",
+            "path": "/messages/40/sync",
             "headers": {
               "content-type": "application/json"
             },
@@ -10145,9 +10169,9 @@
           "response": {
             "events": [
               {
-                "id": "bff5033e-e0c5-8be4-9838-4f41ce90c36d",
+                "id": "b99aa6b9-1702-867f-bf59-3ee00fad58fe",
                 "channel": "tracker:eng",
-                "createdAt": "2026-11-21T04:51:04.976Z",
+                "createdAt": "2026-11-23T04:50:54.219Z",
                 "sync": "tracker",
                 "event": {
                   "kind": "message",
@@ -10416,10 +10440,10 @@
           "response": {
             "items": [
               {
-                "id": "bff5033e-e0c5-8be4-9838-4f41ce90c36d",
+                "id": "b99aa6b9-1702-867f-bf59-3ee00fad58fe",
                 "key": "tracker",
                 "thread": "tracker:eng/T-12",
-                "lease": "40138a57a7a19e196de264f7368e22af",
+                "lease": "2aac3256ad544beb80ee3a0c54158f6b",
                 "attempt": 0,
                 "event": {
                   "kind": "message",
@@ -10521,12 +10545,12 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/inbox/tracker/bff5033e-e0c5-8be4-9838-4f41ce90c36d/ack",
+            "path": "/inbox/tracker/b99aa6b9-1702-867f-bf59-3ee00fad58fe/ack",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
-              "lease": "40138a57a7a19e196de264f7368e22af"
+              "lease": "2aac3256ad544beb80ee3a0c54158f6b"
             }
           },
           "status": 200,
@@ -10542,7 +10566,7 @@
         "tags": [
           "docs"
         ],
-        "summary": "Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). Needs post and edit in the channel.",
+        "summary": "Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). With re, an existing thread's root becomes the doc where it is (a task gains a body). Needs post and edit in the channel.",
         "x-order": 68,
         "security": [
           {
@@ -10550,7 +10574,11 @@
           }
         ],
         "x-rules": [
-          "a doc starts from its body, or from another doc: pass one of `body` and `from`"
+          "a new doc names its `channel`; a thread that becomes a doc names its root, `re`: pass one",
+          "slug: a new doc names its `slug`",
+          "a doc starts from its body, or from another doc: pass one of `body` and `from`",
+          "a thread becomes a doc with its root's text, a new `body`, or another doc's (`from`): pass one at most",
+          "`id` and `mirror` are for a new doc, not a thread that becomes one"
         ],
         "requestBody": {
           "required": true,
@@ -10563,6 +10591,11 @@
                     "type": "string",
                     "maxLength": 2048,
                     "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\/[a-z0-9][a-z0-9_-]*)*$"
+                  },
+                  "re": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
                   },
                   "slug": {
                     "type": "string",
@@ -10598,10 +10631,6 @@
                     "type": "boolean"
                   }
                 },
-                "required": [
-                  "channel",
-                  "slug"
-                ],
                 "additionalProperties": false
               }
             }
@@ -10641,12 +10670,12 @@
           "status": 201,
           "response": {
             "message": {
-              "id": "29",
+              "id": "32",
               "channel": "docs/runbooks",
               "text": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n",
               "re": null,
               "replyTo": null,
-              "thread": "de5a55ff-26eb-468c-9e17-bc83f0965403",
+              "thread": "7ea344f8-8116-43eb-a1f6-f64f0aaedfd4",
               "labels": {
                 "owner": "ops",
                 "board.doc": "docs/runbooks/deploy"
@@ -10660,14 +10689,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-21T04:51:04.854Z",
+              "createdAt": "2026-11-23T04:50:53.968Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 29,
-              "revision": 29,
+              "version": 32,
+              "revision": 32,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -10677,35 +10706,35 @@
               },
               "blocks": [],
               "doc": {
-                "id": "29",
+                "id": "32",
                 "path": "docs/runbooks/deploy",
                 "title": "Deploy",
-                "revision": "29",
+                "revision": "32",
                 "size": 171,
                 "sections": [
                   {
                     "key": "ship",
                     "title": "Ship",
                     "level": 2,
-                    "changed": "29",
-                    "subtree": "29"
+                    "changed": "32",
+                    "subtree": "32"
                   },
                   {
                     "key": "ship/rollback",
                     "title": "Rollback",
                     "level": 3,
-                    "changed": "29",
-                    "subtree": "29"
+                    "changed": "32",
+                    "subtree": "32"
                   },
                   {
                     "key": "monitoring",
                     "title": "Monitoring",
                     "level": 2,
-                    "changed": "29",
-                    "subtree": "29"
+                    "changed": "32",
+                    "subtree": "32"
                   }
                 ],
-                "createdAt": "2026-11-21T04:51:04.854Z",
+                "createdAt": "2026-11-23T04:50:53.968Z",
                 "proposals": []
               }
             }
@@ -10787,35 +10816,35 @@
           "status": 200,
           "response": {
             "doc": {
-              "id": "29",
+              "id": "32",
               "path": "docs/runbooks/deploy",
               "title": "Deploy",
-              "revision": "29",
+              "revision": "32",
               "size": 171,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-21T04:51:04.854Z"
+              "createdAt": "2026-11-23T04:50:53.968Z"
             },
             "body": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n"
           }
@@ -10891,40 +10920,40 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/29?section=ship%2Frollback"
+            "path": "/docs/32?section=ship%2Frollback"
           },
           "status": 200,
           "response": {
             "doc": {
-              "id": "29",
+              "id": "32",
               "path": "docs/runbooks/deploy",
               "title": "Deploy",
-              "revision": "29",
+              "revision": "32",
               "size": 171,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-21T04:51:04.854Z"
+              "createdAt": "2026-11-23T04:50:53.968Z"
             },
             "section": {
               "key": "ship/rollback",
@@ -10932,8 +10961,8 @@
               "level": 3,
               "text": "\nRoll back to the previous version by its ID.\n\n",
               "subtree": "",
-              "changed": "29",
-              "subtreeChanged": "29"
+              "changed": "32",
+              "subtreeChanged": "32"
             }
           }
         }
@@ -11096,12 +11125,12 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/docs/29/edit",
+            "path": "/docs/32/edit",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
-              "revision": "29",
+              "revision": "32",
               "edits": [
                 {
                   "section": "ship/rollback",
@@ -11113,48 +11142,48 @@
           "status": 200,
           "response": {
             "doc": {
-              "id": "29",
+              "id": "32",
               "path": "docs/runbooks/deploy",
               "title": "Deploy",
-              "revision": "32",
+              "revision": "35",
               "size": 197,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "32"
+                  "changed": "32",
+                  "subtree": "35"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-21T04:51:04.854Z"
+              "createdAt": "2026-11-23T04:50:53.968Z"
             },
-            "revision": "32"
+            "revision": "35"
           }
         },
         "x-error-example": {
           "request": {
             "method": "POST",
-            "path": "/docs/29/edit",
+            "path": "/docs/32/edit",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
-              "revision": "29",
+              "revision": "32",
               "edits": [
                 {
                   "section": "ship/rollback",
@@ -11167,10 +11196,10 @@
           "response": {
             "error": {
               "code": "section_conflict",
-              "message": "\"ship/rollback\" changed at revision 32, after revision 29: read it again and redo your change",
+              "message": "\"ship/rollback\" changed at revision 35, after revision 32: read it again and redo your change",
               "data": {
                 "section": "ship/rollback",
-                "revision": "32"
+                "revision": "35"
               }
             }
           }
@@ -11243,7 +11272,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/docs/29/move",
+            "path": "/docs/32/move",
             "headers": {
               "content-type": "application/json"
             },
@@ -11255,37 +11284,37 @@
           "status": 200,
           "response": {
             "doc": {
-              "id": "29",
+              "id": "32",
               "path": "docs/ops/shipping",
               "title": "Shipping",
-              "revision": "32",
+              "revision": "35",
               "size": 197,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "32"
+                  "changed": "32",
+                  "subtree": "35"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "29",
-                  "subtree": "29"
+                  "changed": "32",
+                  "subtree": "32"
                 }
               ],
-              "createdAt": "2026-11-21T04:51:04.854Z"
+              "createdAt": "2026-11-23T04:50:53.968Z"
             },
-            "revision": "32"
+            "revision": "35"
           }
         }
       }
@@ -11350,15 +11379,15 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/29/history"
+            "path": "/docs/32/history"
           },
           "status": 200,
           "response": {
             "edits": [
               {
-                "revision": "29",
+                "revision": "32",
                 "kind": "created",
-                "at": "2026-11-21T04:51:04.854Z",
+                "at": "2026-11-23T04:50:53.968Z",
                 "by": {
                   "actor": "workbus:user:jared",
                   "principal": "workbus:user:jared",
@@ -11366,15 +11395,15 @@
                 }
               },
               {
-                "revision": "32",
+                "revision": "35",
                 "kind": "edited",
-                "at": "2026-11-21T04:51:04.862Z",
+                "at": "2026-11-23T04:50:53.981Z",
                 "by": {
                   "actor": "workbus:user:jared",
                   "principal": "workbus:user:jared",
                   "profile": null
                 },
-                "base": "29",
+                "base": "32",
                 "sections": [
                   {
                     "section": "ship/rollback",
@@ -11383,7 +11412,7 @@
                 ]
               }
             ],
-            "cursor": "32",
+            "cursor": "35",
             "more": false
           }
         }
@@ -11448,12 +11477,12 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/29/diff?from=29&to=32"
+            "path": "/docs/32/diff?from=32&to=35"
           },
           "status": 200,
           "response": {
-            "from": "29",
-            "to": "32",
+            "from": "32",
+            "to": "35",
             "sections": [
               {
                 "section": "ship/rollback",
@@ -11507,14 +11536,14 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/29/backlinks"
+            "path": "/docs/32/backlinks"
           },
           "status": 200,
           "response": {
             "backlinks": [
               {
-                "id": "33",
-                "thread": "33",
+                "id": "36",
+                "thread": "36",
                 "channel": "deploys",
                 "kind": "thread",
                 "summary": "v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]"
@@ -11649,9 +11678,164 @@
                 "discussion": null,
                 "channel": "deploys",
                 "cause": "created",
-                "at": "2026-11-21T04:51:04.721Z"
+                "at": "2026-11-23T04:50:53.749Z"
               }
             ]
+          }
+        }
+      }
+    },
+    "/unread": {
+      "get": {
+        "operationId": "unread",
+        "tags": [
+          "reads"
+        ],
+        "summary": "Every unread count at once: each channel with threads others started since the caller read it, or mentions, and each followed thread with replies that reached it. channel (or a subtree) narrows it, and lists that channel at zero.",
+        "x-order": 78,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "channel",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 501
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "GET",
+            "path": "/unread"
+          },
+          "status": 200,
+          "response": {
+            "channels": [
+              {
+                "channel": "deploys",
+                "unread": 1,
+                "mentions": 1,
+                "read": null
+              }
+            ],
+            "threads": [
+              {
+                "thread": "11",
+                "channel": "deploys",
+                "unread": 1,
+                "mentions": 1,
+                "read": "10"
+              },
+              {
+                "thread": "3",
+                "channel": "deploys",
+                "unread": 1,
+                "mentions": 0,
+                "read": "4"
+              }
+            ],
+            "cursor": "11"
+          }
+        }
+      }
+    },
+    "/read": {
+      "post": {
+        "operationId": "markRead",
+        "tags": [
+          "reads"
+        ],
+        "summary": "Marks a channel or a thread read: up to now, or up to a message ID or cursor (upto). Writes nothing to the log.",
+        "x-order": 79,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "x-rules": [
+          "mark one thing read: a `channel` or a `thread`"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "maxLength": 2048,
+                    "pattern": "^[a-z0-9][a-z0-9_-]*(?:\\/[a-z0-9][a-z0-9_-]*)*$"
+                  },
+                  "thread": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 128
+                  },
+                  "upto": {
+                    "type": "string",
+                    "pattern": "^(0|[1-9]\\d{0,15})$"
+                  }
+                },
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "POST",
+            "path": "/read",
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "channel": "deploys"
+            }
+          },
+          "status": 200,
+          "response": {
+            "channel": "deploys",
+            "unread": 0,
+            "mentions": 0,
+            "read": "11"
           }
         }
       }
@@ -11663,7 +11847,7 @@
           "rpc"
         ],
         "summary": "The Board capability over a Cap'n Web WebSocket (send Upgrade: websocket).",
-        "x-order": 78,
+        "x-order": 80,
         "security": [
           {
             "bearer": []
@@ -11712,7 +11896,7 @@
           "rpc"
         ],
         "summary": "The Board capability over a Cap'n Web HTTP batch.",
-        "x-order": 79,
+        "x-order": 81,
         "security": [
           {
             "bearer": []
@@ -11747,7 +11931,7 @@
           "headers": {
             "content-type": "text/plain;charset=UTF-8"
           },
-          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-21T16:51:04.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
+          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-23T16:50:53.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
         }
       }
     },
@@ -11758,7 +11942,7 @@
           "mcp"
         ],
         "summary": "MCP over streamable HTTP: JSON-RPC 2.0 in, JSON out. Stateless.",
-        "x-order": 80,
+        "x-order": 82,
         "security": [
           {
             "bearer": []
@@ -11814,10 +11998,10 @@
               },
               "serverInfo": {
                 "name": "workbus",
-                "title": "Workbus: openapi-mwpxk3jv",
+                "title": "Workbus: openapi-mwssfkb6",
                 "version": "0.1.0"
               },
-              "instructions": "The board openapi-mwpxk3jv, as jared. board_read, board_post, board_reply, and board_search do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
+              "instructions": "The board openapi-mwssfkb6, as jared. board_read, board_post, board_reply, board_search, board_unread, and board_mark_read do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
             }
           }
         }
@@ -11828,7 +12012,7 @@
           "mcp"
         ],
         "summary": "No server-to-client stream: answers 405, Allow: POST.",
-        "x-order": 81,
+        "x-order": 83,
         "security": [
           {
             "bearer": []
@@ -11876,7 +12060,7 @@
           "archive"
         ],
         "summary": "Where the board's history stands: hot, sealed, and cold. Needs manage everywhere.",
-        "x-order": 82,
+        "x-order": 84,
         "security": [
           {
             "bearer": []
@@ -11920,7 +12104,7 @@
           },
           "status": 200,
           "response": {
-            "head": 39,
+            "head": 42,
             "config": {
               "enabled": true,
               "sealAfterMs": 2592000000,
@@ -11933,12 +12117,12 @@
               "freezeAfterMs": 2592000000,
               "pageThreads": 256
             },
-            "databaseSize": 348160,
+            "databaseSize": 368640,
             "hot": {
-              "events": 39,
-              "messages": 11,
-              "threads": 8,
-              "terms": 18,
+              "events": 42,
+              "messages": 12,
+              "threads": 9,
+              "terms": 21,
               "taskViews": 15
             },
             "sealed": {
@@ -11979,7 +12163,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795258264699
+            "next": 1795431053705
           }
         }
       },
@@ -11989,7 +12173,7 @@
           "archive"
         ],
         "summary": "Changes the board's archival settings, or runs a pass now. Needs manage everywhere.",
-        "x-order": 83,
+        "x-order": 85,
         "security": [
           {
             "bearer": []
@@ -12091,7 +12275,7 @@
           },
           "status": 200,
           "response": {
-            "head": 39,
+            "head": 42,
             "config": {
               "enabled": true,
               "sealAfterMs": 2592000000,
@@ -12104,12 +12288,12 @@
               "freezeAfterMs": 2592000000,
               "pageThreads": 256
             },
-            "databaseSize": 348160,
+            "databaseSize": 368640,
             "hot": {
-              "events": 39,
-              "messages": 11,
-              "threads": 8,
-              "terms": 18,
+              "events": 42,
+              "messages": 12,
+              "threads": 9,
+              "terms": 21,
               "taskViews": 15
             },
             "sealed": {
@@ -12150,7 +12334,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795258264699
+            "next": 1795431053705
           }
         }
       }
@@ -12162,7 +12346,7 @@
           "archive"
         ],
         "summary": "Writes a bench history fast. Only where ARCHIVE_BENCH is 1.",
-        "x-order": 84,
+        "x-order": 86,
         "security": [
           {
             "bearer": []
@@ -12314,8 +12498,8 @@
     "version": "0.1.0",
     "discovery": {
       "version": "0.1.0",
-      "url": "https://workbus.example.com/b/openapi-mwpxk3jv",
-      "audience": "https://workbus.example.com/b/openapi-mwpxk3jv",
+      "url": "https://workbus.example.com/b/openapi-mwssfkb6",
+      "audience": "https://workbus.example.com/b/openapi-mwssfkb6",
       "team_id": null,
       "project_id": null,
       "sync": []
@@ -12568,8 +12752,43 @@
         }
       },
       {
+        "name": "board_unread",
+        "description": "What's unread for you: each channel with threads started since you last read it (unread) or messages that mention you (mentions), and each thread you follow with new replies. A channel or subtree (work/) narrows it.",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "channel": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        },
+        "annotations": {
+          "readOnlyHint": true
+        }
+      },
+      {
+        "name": "board_mark_read",
+        "description": "Mark a channel or a thread (any message ID in it) read: up to now, or up to a message (upto).",
+        "inputSchema": {
+          "type": "object",
+          "properties": {
+            "channel": {
+              "type": "string"
+            },
+            "thread": {
+              "type": "string"
+            },
+            "upto": {
+              "type": "string"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      {
         "name": "run_code",
-        "description": "Run JavaScript against the board, as you, in a sandbox with no network. Write an async arrow function that awaits every call and returns what you want back (JSON). console.log output comes back too. Its one global is board:\n\ntype Labels = Record<string, string>\ninterface Message {\n  id: string; channel: string; text: string; re: string | null; thread: string; labels: Labels\n  reactions: Record<string, string[]>; by: { actor: string; principal: string; profile: string | null }\n  createdAt: string; editedAt: string | null; deleted: boolean; task?: Task\n}\ninterface Task { state: 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed' | 'failed' | 'canceled'; owner: string; needs: string[]; epoch: number; claim: { actor: string; until: string } | null }\ninterface Thread { message: Message; replies: Message[]; cursor: string }\ninterface ThreadsPage { threads: { message: Message; replies: number; last: Message | null }[]; cursor: string; older?: string | null }\ninterface PostInput { text: string; labels?: Labels; id?: string; noSync?: boolean }\ninterface Claim {                       // fenced: its token stays on the server\n  readonly id: string; readonly epoch: number; readonly until: string; readonly task: Message\n  renew(lease?: number): Promise<string>                      // seconds; the new until\n  complete(result?: string): Promise<{ task: Message }>\n  fail(reason: string): Promise<{ task: Message }>\n  release(): Promise<{ task: Message }>\n  block(reason: string, kind?: string): Promise<{ task: Message }>\n}\ninterface Tasks {\n  create(input: { channel: string; text: string; labels?: Labels; needs?: string[]; claim?: boolean } | { re: string; needs?: string[] }): Promise<{ task: Message; claim?: Claim }>\n  list(query?: { channel?: string; state?: string; label?: Labels; limit?: number; latest?: boolean }): Promise<{ tasks: Message[]; cursor: string }>\n  claim(target: { id: string } | { channel: string; label?: Labels }, options?: { lease?: number; wait?: number }): Promise<Claim | null>\n  cancel(id: string, reason: string): Promise<unknown>\n}\ninterface Board {\n  readonly name: string\n  me(): Promise<{ actor: string; principal: string; handle: string; profile: string | null; can: Record<string, string[]> }>\n  post(channel: string, input: string | PostInput): Promise<{ message: Message }>      // starts a thread\n  reply(id: string, input: string | PostInput): Promise<{ message: Message }>\n  read(id: string, options?: { after?: string; limit?: number }): Promise<Thread>\n  threads(query?: { channel?: string; by?: string; mentions?: string; label?: Labels; text?: string; limit?: number; before?: string }): Promise<ThreadsPage>\n  messages(channel: string, options?: { after?: string; limit?: number }): Promise<{ messages: Message[]; cursor: string }>\n  edit(id: string, text: string): Promise<unknown>\n  delete(id: string): Promise<unknown>\n  react(id: string, emoji: string, options?: { remove?: boolean }): Promise<unknown>\n  label(id: string, change: { set?: Labels; unset?: string[] }): Promise<unknown>\n  /** Follow what a message is in (its thread, or its discussion on a doc); on: false unfollows. What reaches you is events({ for: 'me' }). */\n  follow(id: string, options?: { on?: boolean }): Promise<{ following: boolean; thread: string; discussion: string | null }>\n  follows(query?: { limit?: number }): Promise<{ follows: { thread: string; discussion: string | null; channel: string; cause: string; at: string }[] }>\n  events(query?: { channel?: string; after?: string; last?: number; wait?: number; for?: string; roots?: boolean }): Promise<{ events: unknown[]; cursor: string }>\n  schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>\n  as(profile: string): Board                                   // writes as <you>+<profile>\n  channel(pattern: string): Board                              // 'work/' : only that subtree\n  readonly tasks: Tasks\n  readonly docs: Docs\n}\ninterface DocView { id: string; path: string; title: string; revision: string; size: number; sections: { key: string; title: string; level: number; changed: string; subtree: string }[] }\ntype SectionEdit = { section: string; text?: string; title?: string; subtree?: boolean } | { after: string; text: string } | { remove: string }\ninterface Docs {                        // a doc is a thread whose root holds a Markdown body\n  read(id: string, query?: { section?: string; revision?: string }): Promise<{ doc: DocView; body?: string; section?: { key: string; text: string; subtree: string; changed: string } }>\n  at(path: string, query?: { section?: string }): Promise<{ doc: DocView; body?: string; section?: unknown }>\n  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Labels }): Promise<{ message: Message }>\n  // Section edits name the revision you read; a section changed since is refused (section_conflict): read it and redo.\n  edit(id: string, input: { revision: string; edits: SectionEdit[]; propose?: boolean } | { revision?: string; base?: string; body: string; merge?: boolean }): Promise<{ doc: DocView; revision: string }>\n  history(id: string): Promise<{ edits: { revision: string; at: string; sections?: { section: string; op: string }[] }[] }>\n  backlinks(id: string): Promise<{ backlinks: { id: string; kind: string; summary: string }[] }>\n}\ndeclare const board: Board    // the board, as you. There is no network: fetch() fails.\n\nExample:\nasync () => {\n  const { message } = await board.post(\"work\", \"starting the deploy\")\n  await board.reply(message.id, \"done\")\n  return (await board.read(message.id)).replies.map((reply) => reply.text)\n}",
+        "description": "Run JavaScript against the board, as you, in a sandbox with no network. Write an async arrow function that awaits every call and returns what you want back (JSON). console.log output comes back too. Its one global is board:\n\ntype Labels = Record<string, string>\ninterface Message {\n  id: string; channel: string; text: string; re: string | null; thread: string; labels: Labels\n  reactions: Record<string, string[]>; by: { actor: string; principal: string; profile: string | null }\n  createdAt: string; editedAt: string | null; deleted: boolean; task?: Task\n}\ninterface Task { state: 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed' | 'failed' | 'canceled'; owner: string; needs: string[]; epoch: number; claim: { actor: string; until: string } | null }\ninterface Thread { message: Message; replies: Message[]; cursor: string }\ninterface ThreadsPage { threads: { message: Message; replies: number; last: Message | null }[]; cursor: string; older?: string | null }\ninterface PostInput { text: string; labels?: Labels; id?: string; noSync?: boolean }\ninterface Claim {                       // fenced: its token stays on the server\n  readonly id: string; readonly epoch: number; readonly until: string; readonly task: Message\n  renew(lease?: number): Promise<string>                      // seconds; the new until\n  complete(result?: string): Promise<{ task: Message }>\n  fail(reason: string): Promise<{ task: Message }>\n  release(): Promise<{ task: Message }>\n  block(reason: string, kind?: string): Promise<{ task: Message }>\n}\ninterface Tasks {\n  create(input: { channel: string; text: string; labels?: Labels; needs?: string[]; claim?: boolean } | { re: string; needs?: string[] }): Promise<{ task: Message; claim?: Claim }>\n  list(query?: { channel?: string; state?: string; label?: Labels; limit?: number; latest?: boolean }): Promise<{ tasks: Message[]; cursor: string }>\n  claim(target: { id: string } | { channel: string; label?: Labels }, options?: { lease?: number; wait?: number }): Promise<Claim | null>\n  cancel(id: string, reason: string): Promise<unknown>\n}\ninterface Board {\n  readonly name: string\n  me(): Promise<{ actor: string; principal: string; handle: string; profile: string | null; can: Record<string, string[]> }>\n  post(channel: string, input: string | PostInput): Promise<{ message: Message }>      // starts a thread\n  reply(id: string, input: string | PostInput): Promise<{ message: Message }>\n  read(id: string, options?: { after?: string; limit?: number }): Promise<Thread>\n  threads(query?: { channel?: string; by?: string; mentions?: string; label?: Labels; text?: string; limit?: number; before?: string }): Promise<ThreadsPage>\n  messages(channel: string, options?: { after?: string; limit?: number }): Promise<{ messages: Message[]; cursor: string }>\n  edit(id: string, text: string): Promise<unknown>\n  delete(id: string): Promise<unknown>\n  react(id: string, emoji: string, options?: { remove?: boolean }): Promise<unknown>\n  label(id: string, change: { set?: Labels; unset?: string[] }): Promise<unknown>\n  /** Follow what a message is in (its thread, or its discussion on a doc); on: false unfollows. What reaches you is events({ for: 'me' }). */\n  follow(id: string, options?: { on?: boolean }): Promise<{ following: boolean; thread: string; discussion: string | null }>\n  follows(query?: { limit?: number }): Promise<{ follows: { thread: string; discussion: string | null; channel: string; cause: string; at: string }[] }>\n  events(query?: { channel?: string; after?: string; last?: number; wait?: number; for?: string; roots?: boolean }): Promise<{ events: unknown[]; cursor: string }>\n  /** What's unread for you: channels with new threads or mentions since you read them, and followed threads with new replies. */\n  unread(query?: { channel?: string }): Promise<{ channels: { channel: string; unread: number; mentions: number; read: string | null }[]; threads: { thread: string; channel: string; unread: number; mentions: number; read: string }[]; cursor: string }>\n  markRead(input: { channel: string; upto?: string } | { thread: string; upto?: string }): Promise<{ unread: number; mentions: number; read: string }>\n  schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>\n  as(profile: string): Board                                   // writes as <you>+<profile>\n  channel(pattern: string): Board                              // 'work/' : only that subtree\n  readonly tasks: Tasks\n  readonly docs: Docs\n}\ninterface DocView { id: string; path: string; title: string; revision: string; size: number; sections: { key: string; title: string; level: number; changed: string; subtree: string }[] }\ntype SectionEdit = { section: string; text?: string; title?: string; subtree?: boolean } | { after: string; text: string } | { remove: string }\ninterface Docs {                        // a doc is a thread whose root holds a Markdown body\n  read(id: string, query?: { section?: string; revision?: string }): Promise<{ doc: DocView; body?: string; section?: { key: string; text: string; subtree: string; changed: string } }>\n  at(path: string, query?: { section?: string }): Promise<{ doc: DocView; body?: string; section?: unknown }>\n  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Labels }): Promise<{ message: Message }>\n  // Section edits name the revision you read; a section changed since is refused (section_conflict): read it and redo.\n  edit(id: string, input: { revision: string; edits: SectionEdit[]; propose?: boolean } | { revision?: string; base?: string; body: string; merge?: boolean }): Promise<{ doc: DocView; revision: string }>\n  history(id: string): Promise<{ edits: { revision: string; at: string; sections?: { section: string; op: string }[] }[] }>\n  backlinks(id: string): Promise<{ backlinks: { id: string; kind: string; summary: string }[] }>\n}\ndeclare const board: Board    // the board, as you. There is no network: fetch() fails.\n\nExample:\nasync () => {\n  const { message } = await board.post(\"work\", \"starting the deploy\")\n  await board.reply(message.id, \"done\")\n  return (await board.read(message.id)).replies.map((reply) => reply.text)\n}",
         "inputSchema": {
           "type": "object",
           "properties": {
@@ -12606,7 +12825,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T04:51:04.721Z\",\n        \"editedAt\": \"2026-11-21T04:51:04.735Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"35\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-21T04:51:04.901Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"CmqyzBuVSPQ8w5uFl4jqqw\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 35,\n        \"revision\": 35,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"39\",\n  \"older\": \"35.3\"\n}"
+                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-23T04:50:53.749Z\",\n        \"editedAt\": \"2026-11-23T04:50:53.774Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"38\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-23T04:50:54.040Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"e_DAdQtPBglcbRipKvoTfg\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 38,\n        \"revision\": 38,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"42\",\n  \"older\": \"38.3\"\n}"
               }
             ]
           }
@@ -12632,7 +12851,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:04.721Z\",\n    \"editedAt\": \"2026-11-21T04:51:04.735Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"35\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-21T04:51:04.901Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"CmqyzBuVSPQ8w5uFl4jqqw\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 35,\n      \"revision\": 35,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"39\",\n  \"schedules\": []\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T04:50:53.749Z\",\n    \"editedAt\": \"2026-11-23T04:50:53.774Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"38\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-23T04:50:54.040Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"e_DAdQtPBglcbRipKvoTfg\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 38,\n      \"revision\": 38,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"42\",\n  \"schedules\": []\n}"
               }
             ]
           }
@@ -12659,7 +12878,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"40\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.020Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 40,\n    \"revision\": 40,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"43\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T04:50:54.328Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 43,\n    \"revision\": 43,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -12685,7 +12904,55 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"41\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.022Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 41,\n    \"revision\": 41,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"44\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T04:50:54.342Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 44,\n    \"revision\": 44,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+              }
+            ]
+          }
+        }
+      },
+      "board_unread": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 12,
+          "method": "tools/call",
+          "params": {
+            "name": "board_unread",
+            "arguments": {}
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 12,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"channels\": [\n    {\n      \"channel\": \"support\",\n      \"unread\": 1,\n      \"mentions\": 0,\n      \"read\": null\n    }\n  ],\n  \"threads\": [\n    {\n      \"thread\": \"3\",\n      \"channel\": \"deploys\",\n      \"unread\": 1,\n      \"mentions\": 0,\n      \"read\": \"4\"\n    }\n  ],\n  \"cursor\": \"44\"\n}"
+              }
+            ]
+          }
+        }
+      },
+      "board_mark_read": {
+        "request": {
+          "jsonrpc": "2.0",
+          "id": 13,
+          "method": "tools/call",
+          "params": {
+            "name": "board_mark_read",
+            "arguments": {
+              "channel": "deploys"
+            }
+          }
+        },
+        "response": {
+          "jsonrpc": "2.0",
+          "id": 13,
+          "result": {
+            "content": [
+              {
+                "type": "text",
+                "text": "{\n  \"channel\": \"deploys\",\n  \"unread\": 0,\n  \"mentions\": 0,\n  \"read\": \"44\"\n}"
               }
             ]
           }
@@ -12710,7 +12977,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"29\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"32\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-21T04:51:04.854Z\",\n      \"proposals\": [],\n      \"editedAt\": \"2026-11-21T04:51:04.862Z\"\n    }\n  ]\n}"
+                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"32\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"35\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-23T04:50:53.968Z\",\n      \"proposals\": [],\n      \"editedAt\": \"2026-11-23T04:50:53.981Z\"\n    }\n  ]\n}"
               }
             ]
           }
@@ -12736,7 +13003,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"doc\": {\n    \"id\": \"29\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"32\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"29\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"29\",\n        \"subtree\": \"29\"\n      }\n    ],\n    \"createdAt\": \"2026-11-21T04:51:04.854Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"32\",\n    \"subtreeChanged\": \"32\"\n  }\n}"
+                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"35\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      }\n    ],\n    \"createdAt\": \"2026-11-23T04:50:53.968Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"35\",\n    \"subtreeChanged\": \"35\"\n  }\n}"
               }
             ]
           }
@@ -12763,7 +13030,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"42\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"7207ce59-4971-402a-864f-cc088b7b6965\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-21T04:51:05.032Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 42,\n    \"revision\": 42,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"42\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"42\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"42\",\n          \"subtree\": \"42\"\n        }\n      ],\n      \"createdAt\": \"2026-11-21T04:51:05.032Z\",\n      \"proposals\": []\n    }\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"45\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"d4ca2889-acc4-40cd-9481-474b0d980c30\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T04:50:54.383Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 45,\n    \"revision\": 45,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"45\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"45\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"45\",\n          \"subtree\": \"45\"\n        }\n      ],\n      \"createdAt\": \"2026-11-23T04:50:54.383Z\",\n      \"proposals\": []\n    }\n  }\n}"
               }
             ]
           }
@@ -12788,7 +13055,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"result\": [\n    \"v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]\",\n    \"v43 is rolling out\",\n    \"v42 is live on production (eu and us)\"\n  ],\n  \"logs\": []\n}"
+                "text": "{\n  \"result\": [\n    \"v42 needs a changelog entry, @[workbus:user:jared]\",\n    \"v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]\",\n    \"v43 is rolling out\",\n    \"v42 is live on production (eu and us)\"\n  ],\n  \"logs\": []\n}"
               }
             ]
           }
@@ -12803,7 +13070,7 @@
             "name": "doc_edit",
             "arguments": {
               "path": "docs/ops/shipping",
-              "revision": "32",
+              "revision": "35",
               "edits": [
                 {
                   "section": "monitoring",
@@ -12820,7 +13087,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"doc\": {\n    \"id\": \"29\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"45\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"29\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"45\",\n        \"subtree\": \"45\"\n      }\n    ],\n    \"createdAt\": \"2026-11-21T04:51:04.854Z\"\n  },\n  \"revision\": \"45\"\n}"
+                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"48\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"48\",\n        \"subtree\": \"48\"\n      }\n    ],\n    \"createdAt\": \"2026-11-23T04:50:53.968Z\"\n  },\n  \"revision\": \"48\"\n}"
               }
             ]
           }

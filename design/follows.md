@@ -73,5 +73,6 @@ in the threads themselves, and an operator checking what wakes an agent is the u
 
 ## Not doing
 
-Digests, read state, or a notifications inbox: `wb tail --for me` is the stream, and a watcher
-with `--for` delivers it anywhere. Following a channel is a tail on it, as today.
+Digests, or a notifications inbox: `wb tail --for me` is the stream, and a watcher with `--for`
+delivers it anywhere. Following a channel is a tail on it, as today. Read state was here too; the app
+needs it, so design/read-state.md adds it, built on these follows.

@@ -1,0 +1,15 @@
+<!-- @dsCard group="Forms" height=200 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Input</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-stack',style:{maxWidth:320}},
+  h(W.Input,{id:'budget',label:'Budget per month',prefix:'$',defaultValue:'80',kbd:'↵ save',hint:'Ada gets a task at 80% of this.'}),
+  h(W.Input,{id:'handle',label:'Handle',prefix:'@',defaultValue:'op',error:'@op is taken by Operator. Try @ops.'}),
+  h(W.Input,{id:'filter',placeholder:'Filter threads…',kbd:'/'})));
+</script>
+</body>
+</html>

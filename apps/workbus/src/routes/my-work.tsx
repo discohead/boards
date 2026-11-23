@@ -2,7 +2,7 @@
 import { useMemo } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { ListPane } from '@/shell/list-pane'
-import { TaskList, useTaskRows } from '@/task/list'
+import { ListActions, stateChips, TaskList, useTaskRows } from '@/task/list'
 import { isMine } from '@/task/model'
 import { useMe } from '@/task/me'
 import { useTasks } from '@/task/use-tasks'
@@ -19,7 +19,7 @@ function MyWork() {
   const mine = useMemo(() => (me ? tasks.filter((task) => isMine(task, me)) : []), [tasks, me])
   const rows = useTaskRows(mine)
   return (
-    <ListPane title="My work">
+    <ListPane title="My work" chips={stateChips(rows, view, setView)} actions={<ListActions view={view} onView={setView} />}>
       <TaskList label="My work" rows={rows} view={view} onView={setView} empty="Nothing claimed by you or assigned to you." />
     </ListPane>
   )

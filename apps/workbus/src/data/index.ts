@@ -21,9 +21,11 @@ export type * from './types.ts'
 export { taskState, type ShownState } from './task-state.ts'
 export type { BusRuntime, Me }
 
-export function createRuntime(mode: BusMode, options: BusOptions & { keep?: number }): BusRuntime {
+export function createRuntime(mode: BusMode, options: BusOptions & { keep?: number; gate?: boolean }): BusRuntime {
   const client = new BusClient(options)
-  return { mode, client, feed: mode === 'browser' ? new Feed(client) : null, me: { actor: '' }, shared: new Map(), open: new Set(), keep: options.keep ?? MESSAGES_KEPT, following: () => false, unread: null, viewing: new Set() }
+  let markHydrated = () => {}
+  const hydrated = options.gate ? new Promise<void>((resolve) => (markHydrated = resolve)) : Promise.resolve()
+  return { mode, client, feed: mode === 'browser' ? new Feed(client) : null, me: { actor: '' }, shared: new Map(), open: new Set(), keep: options.keep ?? MESSAGES_KEPT, hydrated, markHydrated, following: () => false, unread: null, viewing: new Set() }
 }
 
 /**
@@ -49,7 +51,7 @@ export async function readFirstPages(runtime: BusRuntime, options: { deadlineMs?
 }
 
 /** A DbClient whose collections follow one feed: the page's one, or a script's. `me`, when the server read it, saves asking. */
-export function liveDb(options: BusOptions & { keep?: number; me?: Me | null }): DbClient {
+export function liveDb(options: BusOptions & { keep?: number; me?: Me | null; gate?: boolean }): DbClient {
   const runtime = createRuntime('browser', options)
   if (options.me) Object.assign(runtime.me, options.me)
   runtime.shared.set('me', options.me ? Promise.resolve(runtime.me) : runtime.client.get<Me>('/me').then((me) => Object.assign(runtime.me, me)))
@@ -58,7 +60,7 @@ export function liveDb(options: BusOptions & { keep?: number; me?: Me | null }):
 
 let browser: DbClient | null = null
 /** The page's one DbClient. */
-export const browserDb = (options: BusOptions & { me?: Me | null }) => (browser ??= liveDb(options))
+export const browserDb = (options: BusOptions & { me?: Me | null }) => (browser ??= liveDb({ ...options, gate: true }))
 
 /** A DbClient for the server's render: it holds the loader's rows and never reads. */
 export const renderDb = (me?: Me | null) => {

@@ -28,13 +28,27 @@ export function payloadView(ctx: Ctx, payload: Record<string, unknown>): Record<
   return out
 }
 
+/**
+ * An event about no one message, for a caller who reads everywhere: and when it has a channel (a
+ * channel made, a thread synced, a doc's snapshot), one it may read, which a private channel isn't.
+ */
+function boardEventReadable(ctx: Ctx, row: EventRow, readsAll: boolean): boolean {
+  if (!readsAll) return false
+  if (row.thread !== null) {
+    const root = ctx.board.message(row.thread)
+    return root !== null && ctx.access.readable(root.channel)
+  }
+  const channel = (JSON.parse(row.payload) as { channel?: unknown }).channel
+  return typeof channel === 'string' ? ctx.access.readable(channel) : true
+}
+
 /** Whether the caller sees an event, and its view when it does. */
 export function eventView(ctx: Ctx, row: EventRow, compiled: Compiled, all: boolean, readsAll: boolean): Record<string, unknown> | null {
   const facets = JSON.parse(row.facets) as { before: Facet | null; after: Facet | null } | null
   const concerned = facets ? (facets.after ?? facets.before) : null
-  const readable = row.message === null ? readsAll : concerned !== null && ctx.access.readable(concerned.channel)
-  if (!readable) return null
   if (HIDDEN.has(row.type) && !all) return null
+  const readable = row.message === null ? boardEventReadable(ctx, row, readsAll) : concerned !== null && ctx.access.readable(concerned.channel)
+  if (!readable) return null
   if (compiled.criteria) {
     if (row.message === null || !facets) return null
     if (!(matches(compiled, facets.before, row.actor) || matches(compiled, facets.after, row.actor))) return null

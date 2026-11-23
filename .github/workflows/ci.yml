@@ -103,7 +103,7 @@ jobs:
           node-version: 24
           cache: pnpm
       - name: Install
-        run: pnpm install --frozen-lockfile --filter ./apps/workbus...
+        run: pnpm install --frozen-lockfile --filter ./apps/workbus --filter ./packages/workbus
       - name: Typecheck (the app and the bus)
         run: pnpm --filter ./apps/workbus typecheck
       - name: Build
