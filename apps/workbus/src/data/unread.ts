@@ -83,11 +83,13 @@ type ReadNotice = { type: 'read'; key: string; read: string | null } | { type: '
  */
 export function readState(runtime: BusRuntime, rows: Rows<Unread>) {
   const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('workbus-read:' + runtime.client.url)
-  const zero = (key: string, read: string | null) => {
-    const had = rows.get(key)
-    if (!had || (had.unread === 0 && had.mentions === 0 && had.read === read)) return
-    rows.apply([{ ...had, unread: 0, mentions: 0, read }])
-  }
+  // Nothing changes before the page has hydrated: its first render is the server's (runtime.hydrated).
+  const zero = (key: string, read: string | null) =>
+    void runtime.hydrated.then(() => {
+      const had = rows.get(key)
+      if (!had || (had.unread === 0 && had.mentions === 0 && had.read === read)) return
+      rows.apply([{ ...had, unread: 0, mentions: 0, read }])
+    })
   if (channel)
     channel.onmessage = (event: MessageEvent<ReadNotice>) => {
       if (event.data?.type === 'read') zero(event.data.key, event.data.read)
@@ -105,6 +107,7 @@ export function readState(runtime: BusRuntime, rows: Rows<Unread>) {
     asking = (async () => {
       try {
         const answer = await runtime.client.get<Answer>('/unread')
+        await runtime.hydrated
         const fresh = rowsOf(answer)
         const keys = new Set(fresh.map((row) => row.key))
         rows.apply(fresh, [...rows.map.keys()].filter((key) => !keys.has(key)))

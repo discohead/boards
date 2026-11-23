@@ -108,6 +108,11 @@ export function ChannelView({ channel }: { channel: string }) {
     return at > 0 && Date.now() - at < 1000
   }
 
+  // Thread dots show after hydration: an open thread marks itself read meanwhile (the route's code
+  // can hydrate after the pane's), and the first render must match the server's.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const [editing, setEditing] = useState<string | null>(null)
   const editLast = () => {
     const mine = [...items].reverse().find((item) => item.root.by.actor === bus.runtime.me.actor && !item.root.deleted && !item.root.pending)
@@ -133,7 +138,7 @@ export function ChannelView({ channel }: { channel: string }) {
               grouped={item.grouped}
               thread={item.thread}
               replies={repliesOf.get(item.thread.id)}
-              unreadReplies={unreadOf.get(item.thread.id)}
+              unreadReplies={mounted ? unreadOf.get(item.thread.id) : undefined}
               arrive={arrived(item)}
               onOpenThread={() => open(item.thread.id)}
               editing={editing === item.root.id}
