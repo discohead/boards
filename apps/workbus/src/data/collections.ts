@@ -65,7 +65,7 @@ export type FeedSpec<T extends object> = {
 
 type SyncMeta = { v: 1; cursor: number }
 
-function feedCollection<T extends object>(spec: FeedSpec<T>) {
+export function feedCollection<T extends object>(spec: FeedSpec<T>) {
   return collectionOptions(spec.id, (db: DbClient) => {
     const runtime = runtimeOf(db)
     const rows = new Rows<T>(spec.getKey)
@@ -143,6 +143,8 @@ export type { ThreadEntry }
 
 /** Messages kept in memory beyond open threads and the first page's roots; past it the oldest go. */
 export const MESSAGES_KEPT = 1000
+/** A channel in view keeps its newest this many messages past MESSAGES_KEPT. */
+export const VIEWED_KEPT = 200
 
 export const messages = feedCollection<Message>({
   id: 'messages',
@@ -153,10 +155,14 @@ export const messages = feedCollection<Message>({
     return { rows: page.threads.flatMap((thread) => [thread.message, ...(thread.last ? [thread.last] : [])]), cursor: Number(page.cursor) }
   },
   apply: (event) => (event.message ? { upserts: [event.message] } : undefined),
-  // Past MESSAGES_KEPT, the oldest messages not in an open thread go; opening the thread reads them again.
+  // Past MESSAGES_KEPT, the oldest messages not in an open thread go (nor the newest VIEWED_KEPT of
+  // a channel in view); opening the thread reads them again.
   trim: (rows, runtime) => {
     if (rows.map.size <= runtime.keep * 1.1) return []
-    const loose = [...rows.map.values()].filter((message) => !runtime.open.has(message.re ?? message.id)).sort((a, b) => Number(a.id) - Number(b.id))
+    const viewed = new Set<string>()
+    for (const channel of runtime.viewing)
+      for (const message of [...rows.map.values()].filter((row) => row.channel === channel).sort((a, b) => Number(b.id) - Number(a.id)).slice(0, VIEWED_KEPT)) viewed.add(message.id)
+    const loose = [...rows.map.values()].filter((message) => !runtime.open.has(message.re ?? message.id) && !viewed.has(message.id)).sort((a, b) => Number(a.id) - Number(b.id))
     return loose.slice(0, rows.map.size - runtime.keep).map((message) => message.id)
   },
 })
@@ -235,7 +241,8 @@ export const actors = feedCollection<Actor>({
 })
 
 // Follows aren't in the feed: the board keeps them aside. They load, and change by the follow
-// write's own answer (actions.ts), and by a thread this caller starts (the board follows its author).
+// write's own answer (actions.ts), and as the board follows: a thread this caller starts, replies
+// in, or is mentioned in (ledger/follows.ts).
 export const follows = feedCollection<Follow>({
   id: 'follows',
   getKey: (row) => row.thread,
@@ -245,8 +252,13 @@ export const follows = feedCollection<Follow>({
   },
   apply: (event, rows, runtime) => {
     const message = event.message
-    if (!message || event.type !== 'message.posted' || !isRoot(message) || rows.get(message.id) || message.by.actor !== runtime.me.actor) return
-    return { upserts: [{ thread: message.id, discussion: null, channel: message.channel, cause: 'created', at: message.createdAt }] }
+    const me = runtime.me.actor
+    if (!message || event.type !== 'message.posted' || message.deleted || !me) return
+    const thread = message.re ?? message.id
+    if (rows.get(thread)) return
+    const cause = message.by.actor === me ? (isRoot(message) ? 'created' : 'commented') : message.text.includes('@[' + me + ']') ? 'mentioned' : null
+    if (!cause) return
+    return { upserts: [{ thread, discussion: null, channel: message.channel, cause, at: message.createdAt }] }
   },
 })
 

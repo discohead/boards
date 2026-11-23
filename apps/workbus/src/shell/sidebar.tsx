@@ -9,6 +9,7 @@ import type { ReactNode } from 'react'
 import { useBus, type Channel } from '@/data'
 import { DocsTree } from '@/docs/DocsTree'
 import { cn } from '@/lib/utils'
+import { MentionCount, NewChannel, useChannelCounts } from './channel-list.tsx'
 
 const row = 'flex h-7 w-full items-center gap-2 rounded-sm px-2 text-sm text-sidebar-foreground hover:bg-sidebar-accent'
 const active = { className: 'bg-background text-foreground font-medium shadow-[inset_0_0_0_1px_var(--border)]' }
@@ -38,14 +39,20 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
   const { dms, loose, teams } = arrange(channels)
   const me = bus.runtime.me
-  const channelLink = (channel: Channel, label: string, child = false) => (
-    <li key={channel.path}>
-      <Link to="/c/$" params={{ _splat: channel.path }} className={cn(row, child && 'pl-7')} activeProps={active}>
-        {icon(channel.path.startsWith('dm/') ? MessageSquare : Hash)}
-        <span className="truncate">{label}</span>
-      </Link>
-    </li>
-  )
+  const counts = useChannelCounts()
+  const channelLink = (channel: Channel, label: string, child = false) => {
+    const count = counts.get(channel.path)
+    const unread = (count?.unread ?? 0) > 0 || (count?.mentions ?? 0) > 0
+    return (
+      <li key={channel.path}>
+        <Link to="/c/$" params={{ _splat: channel.path }} className={cn(row, child && 'pl-7', unread && 'font-semibold text-foreground')} activeProps={active} data-channel={channel.path} data-unread={unread ? 'yes' : undefined}>
+          {icon(channel.path.startsWith('dm/') ? MessageSquare : Hash)}
+          <span className="truncate">{label}</span>
+          <MentionCount count={count} />
+        </Link>
+      </li>
+    )
+  }
   return (
     <nav aria-label="Workspace navigation" data-testid="sidebar" className="flex w-52 shrink-0 flex-col border-r border-sidebar-border bg-sidebar">
       <div className="px-4 pt-4 pb-3 text-lg font-semibold tracking-tight">workbus</div>
@@ -67,7 +74,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         {dms.length ? (
           <>
             <Group>Direct messages</Group>
-            <ul>{dms.map((channel) => channelLink(channel, channel.path.slice(3)))}</ul>
+            <ul data-testid="dms">{dms.map((channel) => channelLink(channel, channel.path.slice(3)))}</ul>
           </>
         ) : null}
         {teams.length ? <Group>Teams</Group> : null}
@@ -82,7 +89,12 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
             </li>
           ))}
         </ul>
-        {loose.length ? <Group>Channels</Group> : null}
+        <div className="relative flex items-center">
+          <Group>Channels</Group>
+          <div className="ml-auto mt-3 pr-1">
+            <NewChannel />
+          </div>
+        </div>
         <ul data-testid="channels">{loose.map((channel) => channelLink(channel, channel.path))}</ul>
         <Group>Workspace</Group>
         <span className={cn(row, 'cursor-default opacity-50 hover:bg-transparent')}>{icon(Network)}Org &amp; seats</span>

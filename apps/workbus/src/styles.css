@@ -106,3 +106,8 @@
     @apply bg-background text-foreground font-sans;
   }
 }
+
+/* Someone else's new event: one brief tint (design system: duration-arrive, agent-soft). */
+.arrive { animation: arrive 260ms ease-out; }
+@keyframes arrive { from { background-color: var(--agent-soft, var(--accent)); } }
+@media (prefers-reduced-motion: reduce) { .arrive { animation: none; } }
