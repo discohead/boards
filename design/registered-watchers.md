@@ -107,6 +107,7 @@ left it (`task_views` at the event's position):
 | `'mention'` | a message posted that mentions it, or edited to mention it | `--mentions`, by actor ID and handle |
 | `'follow'` | events by others in threads and doc discussions it follows, or that mention it | `--for` itself |
 | `'assigned'` | any event on a task that's its (assigned to it, or claimed by it), or in its thread; one that takes the task from it (assigned away, released, expired); and the answer to a hold it placed | the task's `for` and `claim`, as of the event (and just before); `task.unblocked`'s `holder` |
+| `'owned'` | a task it made (its `by`) changing state: ready, claimed, released, expired, completed, failed, blocked, unblocked, canceled, reopened; not replies, renewals, or its making | the task's `by`, as of the event; the event's type |
 | `{ ready: <channel> }` | a task in the channel (or subtree, `work/`) that just became ready, unassigned or assigned to it | `board.task=ready` after, not before |
 | `'dm'` (or `{ dm: true }`) | everything in `dm/<profile>` and its subtree | the channel; needs a profile |
 | `{ docs: <channel> }` | a doc made, edited, moved, or deleted in the channel (or subtree) | `doc.*` events there, and a doc root's `message.deleted` |

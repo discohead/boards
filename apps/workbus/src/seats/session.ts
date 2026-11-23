@@ -109,7 +109,18 @@ export class Session extends Agent<Env> {
   /** The seat's tools, by its tiers. */
   #tools(seat: SeatRef): Tool<any>[] {
     const tools: Tool<any>[] = []
-    if (seat.tools.includes('board')) tools.push(...boardTools(() => seatBoard(this.env.WORKBUS, BOARD, this.#seat()), () => this.#claimToken(), () => this.#configured()?.assigns))
+    if (seat.tools.includes('board')) tools.push(
+        ...boardTools(() => seatBoard(this.env.WORKBUS, BOARD, this.#seat()), {
+          claimToken: () => this.#claimToken(),
+          seat: () => this.#configured(),
+          // A reviews edge (§4.5): the Seat makes the review tasks, as the app, before the work is complete.
+          escalate: (task, reason, kind) => (this.env.SEAT.getByName(this.#seat().key) as unknown as { escalate(task: string, reason: string, kind?: string): Promise<unknown> }).escalate(task, reason, kind),
+          beforeComplete: async (task) => {
+            const now = this.#configured()
+            if (now?.reviewed) await (this.env.SEAT.getByName(now.key) as unknown as { review(task: string): Promise<unknown> }).review(task)
+          },
+        }),
+      )
     if (seat.tools.includes('computer') && this.#declared) tools.push(...computerTools(this.#declared, this.#workspace(seat)))
     return tools
   }

@@ -8442,6 +8442,7 @@
                             "mention",
                             "follow",
                             "assigned",
+                            "owned",
                             "dm",
                             "schedules"
                           ]

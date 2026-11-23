@@ -20,7 +20,10 @@ export type SeatBoard = {
     createMany(channel: string, tasks: unknown[], opts?: { id?: string }): Promise<unknown>
     claim(target: { id: string }, opts?: { lease?: number; token?: string }): Promise<{ complete(result?: string): Promise<unknown>; block(reason: string, kind?: string): Promise<unknown>; fail(reason: string): Promise<unknown>; task: unknown }>
     block(id: string, reason: string, kind?: string): Promise<unknown>
+    approve(id: string, note?: string): Promise<unknown>
+    decline(id: string, note?: string): Promise<unknown>
   }
+  label(id: string, change: { set?: Record<string, string>; unset?: string[] }): Promise<unknown>
   docs: {
     create(input: Record<string, unknown>): Promise<unknown>
     read(id: string, query?: { section?: string }): Promise<unknown>
@@ -52,14 +55,33 @@ const Id = z.string().describe("a message's ID, as the board gives it")
 const Channel = z.string().describe("a channel's path, like 'eng' or 'dm/op'")
 const Text = z.string().min(1).describe('markdown; @handle mentions someone')
 
-/**
- * The board tools. claimToken is the session's own claim token: a claim made with it is the
- * session's to complete later, after the stub is gone (a retry with the token gets the claim back).
- */
-export function boardTools(board: () => SeatBoard, claimToken: () => string, assigns?: () => readonly string[] | undefined): Tool<any>[] {
+/** The labels a seat's edges write (org/rules.ts): a consult, and a hold escalated to a seat. */
+const CONSULT = 'org.consult'
+const ESCALATED = 'org.escalated'
+const ANSWER = 'org.answer'
+/** A text without a leading mention of whom it's for: the tool adds that mention itself. */
+const unmention = (text: string, to: { handle: string; actor: string }) => text.replace(/^\s*(?:@\[([^\]]+)\]|@([a-z0-9-]+))[:,]?\s*/, (all, actor, handle) => (actor === to.actor || handle === to.handle ? '' : all))
+/** Where a consult goes when the session's thread is a DM, which the other seat can't read. */
+const CONSULTS = 'ops/consults'
+
+export type BoardToolsOptions = {
+  /** The session's own claim token: a claim made with it is the session's to complete later, after the stub is gone. */
+  claimToken: () => string
+  /** The seat as configured now: whom it may assign, where its escalations go, whom it consults. */
+  seat?: () => SeatRef | null
+  /** Before a task is completed: the Seat makes its review tasks (a reviews edge), so work that needs it waits on them. */
+  beforeComplete?: (task: string) => Promise<unknown>
+  /** An escalation to a seat: held by the Seat as the app, so the seat it's for can answer it (a hold by a seat's claim is the principal's alone). */
+  escalate?: (task: string, reason: string, kind?: string) => Promise<unknown>
+}
+
+/** The board tools, over the seat's Board, shaped by its edges (§4.5). */
+export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): Tool<any>[] {
+  const { claimToken } = options
+  const seat = () => options.seat?.() ?? null
   // A seat that may assign only to some (the advisor, to the operator) is refused any other, before the board is asked.
   const refused = (fors: (string | undefined)[]): ToolResult | null => {
-    const allowed = assigns?.()
+    const allowed = seat()?.assigns
     if (!allowed) return null
     const other = fors.find((to) => to === undefined || !allowed.includes(to))
     if (other === undefined && fors.every((to) => to !== undefined)) return null
@@ -148,15 +170,82 @@ export function boardTools(board: () => SeatBoard, claimToken: () => string, ass
       input: z.object({ id: Id, result: z.string().optional() }),
       replay: 'unsafe',
       approval: 'never',
-      run: ({ id, result }) => answer(async () => (await claimed(id)).complete(result)),
+      run: ({ id, result }) =>
+        answer(async () => {
+          const claim = await claimed(id)
+          if (options.beforeComplete) await options.beforeComplete(id)
+          return claim.complete(result)
+        }),
     },
     {
       name: 'task_block',
-      description: 'Hold a task for a person, with why and a kind: decision, review, or budget.',
+      description: "Escalate a task: hold it, with why and a kind (decision, review, or budget), for whoever you escalate to (the seat your edges name, or the principal).",
       input: z.object({ id: Id, reason: Text, kind: z.enum(['decision', 'review', 'budget']).optional() }),
       replay: 'unsafe',
       approval: 'never',
-      run: ({ id, reason, kind }) => answer(() => board().tasks.block(id, reason, kind)),
+      run: ({ id, reason, kind }) =>
+        answer(async () => {
+          // To a seat, the hold is labeled for it, which wakes it (its derived escalated rule); to the principal, it's in their inbox.
+          const to = seat()?.escalates
+          // Only a task the app owns (a seat made it) can be held for a seat; a person's task is held for them by its claim, as before.
+          const view = to ? ((await board().read(id, { limit: 1 }).catch(() => null)) as { message?: { task?: { owner?: string } } } | null) : null
+          if (to && options.escalate && view?.message?.task?.owner === 'worker:workbus-app') {
+            await board().label(id, { set: { [ESCALATED]: to.key } })
+            // Its claim lets go first: the hold is the task's, for the seat to answer; the seat claims it again after.
+            const claim = await claimed(id).catch(() => null)
+            if (claim) await (claim as unknown as { release(): Promise<unknown> }).release()
+            return { escalatedTo: to.actor, held: await options.escalate(id, reason, kind) }
+          }
+          // To the principal: held by its claim when it holds one (theirs alone to answer), else as the task's maker.
+          const claim = await claimed(id).catch(() => null)
+          return claim ? claim.block(reason, kind) : board().tasks.block(id, reason, kind)
+        }),
+    },
+    {
+      name: 'task_answer',
+      description: 'Answer a task escalated to you (labeled org.escalated=<your key>): approved or declined, with a note saying what to do. The holder goes on with your answer.',
+      input: z.object({ id: Id, decision: z.enum(['approved', 'declined']), note: z.string().min(1).max(1000) }),
+      replay: 'unsafe',
+      approval: 'never',
+      run: async ({ id, decision, note }) => {
+        const me = seat()
+        const thread = (await board().read(id, { limit: 1 }).catch(() => null)) as { message?: { labels?: Record<string, string> } } | null
+        if (!me || thread?.message?.labels?.[ESCALATED] !== me.key) return { text: '#' + id + " wasn't escalated to you: you answer only tasks labeled " + ESCALATED + '=' + (me?.key ?? '<your key>') + '.', isError: true }
+        return answer(() => (decision === 'approved' ? board().tasks.approve(id, note) : board().tasks.decline(id, note)))
+      },
+    },
+    {
+      name: 'board_consult',
+      description: "Ask a seat you consult a question (only those your edges name). It's posted mentioning it and labeled as a consult, which wakes it, in re, or this session's thread, or (when that's a DM, which it can't read) a new thread in ops/consults. Its answer wakes you. A plain @mention of another seat wakes nothing.",
+      input: z.object({ to: z.string().describe('its key or handle'), question: Text, re: Id.optional().describe('a thread you both read; this session\'s thread by default') }),
+      replay: 'unsafe',
+      approval: 'never',
+      run: async ({ to, question, re }, context) => {
+        const target = seat()?.consults?.find((one) => one.key === to || one.handle === to.replace(/^@/, ''))
+        if (!target) return { text: 'You consult only ' + (seat()?.consults?.map((one) => '@' + one.handle).join(', ') || 'no one') + '.', isError: true }
+        const message = { text: '@[' + target.actor + '] ' + unmention(question, target), labels: { [CONSULT]: target.key } }
+        const thread = re ?? context.thread
+        const where = (await board().read(thread, { limit: 1 }).catch(() => null)) as { message?: { channel?: string } } | null
+        // A DM is the seat's alone: the seat it consults couldn't read it, so the consult starts a thread where both can.
+        if (!where?.message?.channel || where.message.channel.startsWith('dm/')) return answer(() => board().post(CONSULTS, message))
+        return answer(() => board().reply(thread, message))
+      },
+    },
+    {
+      name: 'board_answer',
+      description: 'Answer a consult (a message labeled org.consult=<your key>, from a seat that consults you), once, in its thread. Your answer wakes the seat that asked.',
+      input: z.object({ id: Id.describe("the consult's message ID"), answer: Text }),
+      replay: 'unsafe',
+      approval: 'never',
+      run: async ({ id, answer: text }) => {
+        const me = seat()
+        const asked = (await board().read(id, { limit: 1 }).catch(() => null)) as { message?: { id: string; re: string | null; by?: { actor?: string } }; replies?: { id: string; by?: { actor?: string }; labels?: Record<string, string> }[] } | null
+        // The consult may be the thread's root or a reply in it: find it, and who asked.
+        const consult = asked?.message?.id === id ? asked?.message : asked?.replies?.find((reply) => reply.id === id)
+        const asker = me?.consultedBy?.find((one) => one.actor === consult?.by?.actor)
+        if (!me || !asker) return { text: '#' + id + " isn't a consult from a seat that consults you" + (me?.consultedBy?.length ? ' (' + me.consultedBy.map((one) => '@' + one.handle).join(', ') + ')' : '') + '.', isError: true }
+        return answer(() => board().reply(id, { text: '@[' + asker.actor + '] ' + unmention(text, asker), labels: { [ANSWER]: asker.key } }))
+      },
     },
     {
       name: 'doc_read',

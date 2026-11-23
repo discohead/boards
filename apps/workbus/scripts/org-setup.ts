@@ -1,5 +1,5 @@
 // What an owner sets up on the board once, before the app seeds the org (design/workbus.md §4.4,
-// §5.1): the org's block schemas (json#seat@1, json#team@1), and the grant that gives
+// §5.1): the org's block schemas (json#seat@1 and @2, json#team@1, json#org@1), and the grant that gives
 // worker:workbus-app the most any seat may have, plus edit in org/ to seed it (each seat is
 // narrowed to post there). Idempotent: a schema already registered the same is left; the app's
 // grant is updated in place.

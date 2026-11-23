@@ -40,7 +40,8 @@ check('the seed plans three seats, with no problems', () => {
   assert.equal(op.handle, 'op')
   assert.equal(op.team, 'eng')
   assert.deepEqual(op.tools, ['board'])
-  assert.deepEqual(op.rules, { dm: 'dm', mention: 'mention', assigned: 'assigned', follow: 'follow' })
+  // owned, not follow (#20); escalated: ada's holds reach it (ada escalates_to op).
+  assert.deepEqual(op.rules, { dm: 'dm', mention: 'mention', assigned: 'assigned', owned: 'owned', answered: { tail: '--by worker:workbus-app+advisor --label org.answer=op' }, escalated: { tail: '--label org.escalated=op --label board.task=blocked' } })
   // Its own DM is in its narrowing (design/private-channels.md).
   assert.deepEqual(op.can['dm/op/'], ['read', 'post', 'react', 'label', 'edit'])
   const ada = planned.seats.find((seat) => seat.key === 'ada')!
@@ -95,7 +96,7 @@ check('an edge or a seat that names no seat doc is refused, and the team lends i
 
 check("a seat doc with no block, or two, is refused, and the others still plan", () => {
   const docs = seed().map((doc) => (doc.slug === 'ada' ? { ...doc, blocks: [] } : doc))
-  assert.match(why(docs)[0]!, /org\/seats\/ada: it has no `json#seat@1` block/)
+  assert.match(why(docs)[0]!, /org\/seats\/ada: it has no `json#seat@1` or `json#seat@2` block/)
   assert.deepEqual(plan(docs, holds).seats.map((seat) => seat.key), ['advisor', 'op'])
 })
 
@@ -112,7 +113,8 @@ check('the advisor: board only, its DM and dm wakes, in Core with its edges, and
   assert.equal(advisor.role, 'advisor')
   assert.equal(advisor.team, 'core')
   assert.deepEqual(advisor.tools, ['board'])
-  assert.deepEqual(advisor.rules, { dm: 'dm', mention: 'mention' })
+  // consulted: op consults it, by a consult only.
+  assert.deepEqual(advisor.rules, { dm: 'dm', mention: 'mention', consulted: { tail: '--mentions=worker:workbus-app+advisor --by worker:workbus-app+op --label org.consult=advisor' } })
   assert.deepEqual(advisor.can['dm/advisor/'], ['read', 'post', 'react', 'label', 'edit'])
   assert.deepEqual(advisor.can['docs/plans/'], ['read', 'post', 'react', 'label', 'edit'])
   assert.deepEqual(advisor.assigns, ['worker:workbus-app+op'])
@@ -137,13 +139,72 @@ check('an edge may end at the principal, and principal is no seat key', () => {
   assert.match(why(docs).find((problem) => problem.startsWith('org/seats/principal'))!, /principal is reserved/)
 })
 
-check('the config revision is the newest of the seat, its team, and the root', () => {
+check('edges have their meaning: escalations, consults, reviews, and assigning', () => {
+  const planned = plan(seed(), holds)
+  const seat = (key: string) => planned.seats.find((one) => one.key === key)!
+  // ada escalates_to op; op and the advisor escalate to the principal (null).
+  assert.deepEqual(seat('ada').escalates, { key: 'op', actor: 'worker:workbus-app+op' })
+  assert.equal(seat('op').escalates, null)
+  assert.equal(seat('advisor').escalates, null)
+  // Without escalates_to, a delegation routes escalations back to the delegator.
+  const noEscalation = replace(seed(), 'org/teams/eng', (data) => (data.edges = data.edges.filter((edge: any) => edge.kind !== 'escalates_to')))
+  assert.deepEqual(plan(noEscalation, holds).seats.find((one) => one.key === 'ada')!.escalates, { key: 'op', actor: 'worker:workbus-app+op' })
+  const none = replace(seed(), 'org/teams/eng', (data) => (data.edges = []))
+  assert.equal(plan(none, holds).seats.find((one) => one.key === 'ada')!.escalates, null)
+  assert.ok(!('escalated' in plan(none, holds).seats.find((one) => one.key === 'op')!.rules))
+  // op consults the advisor.
+  assert.deepEqual(seat('op').consults, [{ key: 'advisor', handle: 'advisor', actor: 'worker:workbus-app+advisor' }])
+  assert.deepEqual(seat('ada').consults, [])
+  assert.deepEqual(seat('advisor').consultedBy, [{ key: 'op', handle: 'op', actor: 'worker:workbus-app+op' }])
+  // reviews: op reviews ada.
+  assert.deepEqual(seat('ada').reviewers, [])
+  const reviewed = plan(replace(seed(), 'org/teams/eng', (data) => data.edges.push({ from: 'op', kind: 'reviews', to: 'ada' })), holds)
+  assert.deepEqual(reviewed.seats.find((one) => one.key === 'ada')!.reviewers, ['op'])
+  // Assigning: open, but the advisor's follows its delegation.
+  assert.equal(seat('op').assigns, null)
+  assert.deepEqual(seat('advisor').assigns, ['worker:workbus-app+op'])
+})
+
+check('the org-chart profile: one tree of delegations, answered when an edit breaks it', () => {
+  const optIn = (docs: OrgDoc[]) => docs.map((doc) => (doc.slug === 'structure' ? { ...doc, revision: next++, blocks: [{ schema: 'org', version: 1, data: { profile: 'org-chart' } }] } : doc))
+  // The seed is a tree: advisor → op → ada.
+  const tree = plan(optIn(seed()), holds)
+  assert.deepEqual(tree.problems, [])
+  // Under the profile, every seat assigns only along its delegations.
+  assert.deepEqual(tree.seats.find((one) => one.key === 'op')!.assigns, ['worker:workbus-app+ada'])
+  assert.deepEqual(tree.seats.find((one) => one.key === 'ada')!.assigns, [])
+  // Two delegations into ada.
+  const two = why(optIn(replace(seed(), 'org/teams/eng', (data) => data.edges.push({ from: 'advisor', kind: 'delegates_to', to: 'ada' }))))
+  assert.ok(two.some((problem) => /org\/teams\/eng: its delegations break the org-chart profile .*ada has two delegates_to coming in/.test(problem)), two.join('\n'))
+  // A circle.
+  const circle = why(optIn(replace(seed(), 'org/teams/eng', (data) => data.edges.push({ from: 'ada', kind: 'delegates_to', to: 'advisor' }))))
+  assert.ok(circle.some((problem) => /go in a circle/.test(problem)), circle.join('\n'))
+  // A seat with no delegation in: two roots. And its edges then do nothing.
+  const hire = optIn([...seed(), docOf('org/seats', 'rel', SEED.find((doc) => doc.slug === 'ada')!.body.replace('"handle": "ada"', '"handle": "rel"'))])
+  assert.ok(why(hire).some((problem) => /2 roots \(advisor and rel\)/.test(problem)), why(hire).join('\n'))
+  assert.equal(plan(hire, holds).seats.find((one) => one.key === 'ada')!.escalates, null)
+  // Not opted in, the same docs plan with no problem from it.
+  assert.ok(!why([...seed(), docOf('org/seats', 'rel', SEED.find((doc) => doc.slug === 'ada')!.body.replace('"handle": "ada"', '"handle": "rel"'))]).some((problem) => /roots/.test(problem)))
+})
+
+check("seat@2 takes 'owned'; seat@1 and seat@2 read the same", () => {
+  const v1 = seed().map((doc) => (doc.slug === 'op' ? { ...doc, blocks: doc.blocks.map((block) => ({ ...block, version: 1, data: { ...(block.data as any), wakes: ['dm'] } })) } : doc))
+  assert.deepEqual(plan(v1, holds).seats.find((one) => one.key === 'op')!.rules.dm, 'dm')
+  const both = seed().map((doc) => (doc.slug === 'op' ? { ...doc, blocks: [...doc.blocks, { ...doc.blocks[0]!, version: 1 }] } : doc))
+  assert.match(why(both)[0]!, /has 2 `json#seat@1` or `json#seat@2` blocks/)
+})
+
+check('the revisions: the config is the newest of the seat, the teams, and the root; the wake, of the seat and the teams (their edges add rules)', () => {
   const docs = seed()
-  const team = docs.find((doc) => doc.slug === 'eng')!
+  const team = docs.find((doc) => doc.slug === 'core')!
   team.revision = 999
   const ada = plan(docs, holds).seats.find((seat) => seat.key === 'ada')!
+  // Core isn't ada's team, but its edges could add to anyone's rules: an edit to it orders the next apply.
   assert.equal(ada.configRevision, 999)
-  assert.ok(ada.revision < 999)
+  assert.equal(ada.revision, 999)
+  const own = docs.find((doc) => doc.slug === 'ada')!
+  own.revision = 1000
+  assert.equal(plan(docs, holds).seats.find((seat) => seat.key === 'ada')!.revision, 1000)
 })
 
 check("a budget the gateway's backstop doesn't cover is a notice, not a problem", () => {

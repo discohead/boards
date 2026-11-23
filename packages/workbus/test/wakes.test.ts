@@ -75,6 +75,39 @@ describe('wakes', () => {
     expect((await api(name, 'GET', '/wakes', undefined, who.app)).body.wakes).toEqual([])
   })
 
+  it("wakes a seat for state changes of the tasks it made, not for replies in them (owned, #20)", async () => {
+    const name = freshBoard('sub-owned')
+    const who = await callers(name)
+    const op = await bearer(name, 'workbus-app', { kind: 'workload' }, { 'x-board-profile': 'op' })
+    expect((await api(name, 'POST', '/wakes', { key: 'op', sink: 'wake', rules: { owned: 'owned' } }, op)).status).toBe(201)
+    // Beside it, the follow rule op had: it wakes for the replies too.
+    expect((await api(name, 'POST', '/wakes', { key: 'op-follow', sink: 'wake', rules: { follow: 'follow' } }, op)).status).toBe(201)
+    const made = await api(name, 'POST', '/tasks', { channel: 'eng', text: 'a task op made, for ada', for: ADA }, op)
+    expect(made.status).toBe(201)
+    const id = made.body.task.id as string
+    // Another seat's task, changing state, is none of op's.
+    const other = await api(name, 'POST', '/tasks', { channel: 'eng', text: 'a task bob made', for: ADA }, who.bob)
+    expect(other.status).toBe(201)
+
+    await post(name, who.owner, { re: id, text: 'a reply in its thread' })
+    const claimed = await api(name, 'POST', '/tasks/' + id + '/claim', {}, who.ada)
+    expect(claimed.status).toBe(200)
+    await post(name, who.ada, { re: id, text: 'ada says how it goes' })
+    const { epoch, token } = claimed.body.claim
+    expect((await api(name, 'POST', '/tasks/' + id + '/complete', { epoch, token, result: 'done' }, who.ada)).status).toBe(200)
+    const otherClaim = await api(name, 'POST', '/tasks/' + other.body.task.id + '/claim', {}, who.ada)
+    expect(otherClaim.status).toBe(200)
+
+    const owned = () => ok(wokenFor(name, 'op'))
+    await until(() => owned().some((entry) => entry.event.type === 'task.completed'), 'the completion')
+    await settle()
+    expect(owned().map((entry) => entry.event.type)).toEqual(['task.claimed', 'task.completed'])
+    expect(owned().every((entry) => entry.rules.length === 1 && entry.rules[0] === 'owned' && entry.event.message?.id === id)).toBe(true)
+    // follow, for the same thread, also took both replies.
+    const followed = ok(wokenFor(name, 'op-follow'))
+    expect(texts(followed)).toEqual(expect.arrayContaining(['a reply in its thread', 'ada says how it goes']))
+  })
+
   it("wakes a seat by each rule its seat doc holds, and never for its own writes", async () => {
     const name = freshBoard('sub-rules')
     const who = await callers(name)
