@@ -1,4 +1,5 @@
-// One connection to the board's live feed (GET /events as SSE), shared by every collection. It
+// One connection to the board's live feed (GET /events as SSE, with all=true so actor changes come
+// too), shared by every collection. It
 // reads with fetch, not EventSource, so a bearer token works as well as the Access cookie. The
 // Gateway ends a stream after about 280 s; the feed reconnects after the last cursor it saw.
 import type { BusClient } from './client.ts'
@@ -41,7 +42,7 @@ export class Feed {
     } else {
       let at = after
       while (at < this.#recentFrom) {
-        const page = await this.#client.get<{ events: BoardEvent[]; cursor: string }>('/events?after=' + at)
+        const page = await this.#client.get<{ events: BoardEvent[]; cursor: string }>('/events?all=true&after=' + at)
         for (const event of page.events) if (Number(event.cursor) <= this.#recentFrom) listener(event)
         if (Number(page.cursor) <= at) break
         at = Number(page.cursor)
@@ -106,7 +107,7 @@ export class Feed {
   async #run(signal: AbortSignal) {
     while (!signal.aborted) {
       try {
-        const response = await this.#client.raw('/events?after=' + this.cursor, { headers: { accept: 'text/event-stream' }, signal })
+        const response = await this.#client.raw('/events?all=true&after=' + this.cursor, { headers: { accept: 'text/event-stream' }, signal })
         if (!response.ok || !response.body) throw new Error('the feed answered ' + response.status)
         if (this.#retry) for (const health of this.health) health.healthy()
         this.#retry = 0

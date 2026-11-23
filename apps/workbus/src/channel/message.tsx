@@ -4,6 +4,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { MessageSquare, Pencil, SmilePlus, Trash2 } from 'lucide-react'
 import { useBus, type Message, type Thread } from '@/data'
+import { useDisplayNames } from '@/shell/display-name'
 import { MessageText } from '@/thread/message-text'
 import { handleOf, typedText } from '@/thread/mentions'
 import { cn } from '@/lib/utils'
@@ -56,6 +57,7 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
   arrive?: boolean
 }) {
   const bus = useBus()
+  const names = useDisplayNames()
   const me = bus.runtime.me.actor
   const mine = message.by.actor === me
   const [picking, setPicking] = useState(false)
@@ -83,7 +85,7 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
     setUp((toolbar.current?.getBoundingClientRect().top ?? 999) > 260)
     open(true)
   }
-  const name = message.author?.name ?? handleOf(bus.actors, message.by.actor)
+  const name = names(message.by.actor, message.author?.name ?? handleOf(bus.actors, message.by.actor))
   const handle = message.author?.handle ?? handleOf(bus.actors, message.by.actor)
   const reactions = Object.entries(message.reactions as Record<string, string[]>).filter(([, by]) => Array.isArray(by) && by.length > 0)
   const react = (emoji: string, remove: boolean) => {

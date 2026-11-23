@@ -194,6 +194,28 @@ const before = await bus.openChannel(long, { before: newest.older! })
 check(before.older === null && [...bus.threads.values()].some((thread) => thread.root.text === 'page root 0'), 'the page before has its first root, and nothing before it', before)
 }
 
+// 13. Your display name: at once on your actor, settled on the board's answer, and another live view
+// (a second DbClient on the same board) gets it from the feed's actor.seen. A bad name rolls back.
+{
+  const other = busOf(liveDb({ url, token }))
+  await other.runtime.shared.get('me')
+  await other.actors.preload()
+  const me = bus.runtime.me.actor
+  const was = bus.actors.get(me)?.name ?? bus.runtime.me.name
+  const named = 'Checked ' + Date.now().toString(36)
+  const tx = bus.actions.setName({ name: named })
+  check(bus.actors.get(me)?.name === named, 'a new name shows at once', bus.actors.get(me)?.name)
+  await tx.when('settled')
+  check(bus.actors.get(me)?.name === named && bus.runtime.me.name === named, 'and settles on the answer')
+  const live = await until(other.actors, () => other.actors.get(me)?.name === named)
+  check(live >= 0, 'another live view gets it from the feed (actor.seen)', other.actors.get(me)?.name)
+  const bad = bus.actions.setName({ name: 'x'.repeat(65) })
+  const refused = await bad.when('settled').then(() => null, (error: unknown) => error)
+  check(refused instanceof BusRefusal && bus.actors.get(me)?.name === named, 'a name the board refuses rolls back', refused instanceof Error ? refused.message : refused)
+  await bus.actions.setName({ name: was || 'jared' }).when('settled')
+  other.runtime.feed?.close()
+}
+
 console.log(failures ? failures + ' failed' : 'all passed')
 feed.close()
 process.exit(failures ? 1 : 0)
