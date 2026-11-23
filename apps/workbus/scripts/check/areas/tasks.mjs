@@ -60,7 +60,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   // Complete from the pane's Task tab: it claims, then completes.
   await page.goto(queue('&thread=' + a))
   await hydrated(page)
-  await page.locator('[data-face=task]').click()
+  await page.getByTestId('thread-pane').getByRole('tab', { name: 'Task' }).click()
   await page.getByTestId('task-actions').getByRole('button', { name: 'Complete' }).click()
   await step('Complete in the Task tab completes it on the board', await until(async () => (await taskOf(a)).state === 'completed'), await taskOf(a))
 
