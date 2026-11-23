@@ -66,7 +66,7 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
   const conflict = rollback.getByTestId('section-conflict')
   await conflict.waitFor({ timeout: 10_000 }).catch(() => {})
   await step('a conflicting edit is refused, and the view says so', await conflict.isVisible())
-  await step('the editor keeps its text, with theirs beside it', (await rollback.getByLabel('Section text').inputValue()) === draft && (await rollback.getByTestId('section-theirs').innerText()).includes('theirs'))
+  await step('the editor keeps its text, with theirs beside it', (await rollback.getByLabel('Section text').inputValue()) === draft && (await rollback.getByTestId('section-theirs').innerText().catch(() => '')).includes('theirs'))
   await rollback.getByRole('button', { name: 'Save mine over it' }).click()
   const over = await until(async () => (await owner.get('/docs/' + doc + '?section=' + encodeURIComponent(key('rollback')))).section?.text.includes(draft))
   await step('saving mine over it lands', over)

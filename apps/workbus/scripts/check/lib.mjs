@@ -26,6 +26,8 @@ export async function browser({ base, chrome, accessToken, width = 1440, height 
   const context = await instance.newContext({ viewport: { width, height }, ...(accessToken ? { extraHTTPHeaders: { 'cf-access-token': accessToken } } : {}) })
   if (accessToken) await context.addCookies([{ name: 'CF_Authorization', value: accessToken, url: base }])
   const page = await context.newPage()
+  // A step waits this long for an element it acts on; one that isn't there fails the step, not the run.
+  page.setDefaultTimeout(10_000)
   const errors = []
   page.on('pageerror', (error) => errors.push(error.message))
   return { instance, context, page, errors }
