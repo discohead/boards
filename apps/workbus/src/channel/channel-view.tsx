@@ -227,19 +227,15 @@ function History({ items, hasOlder, loading, onOlder, render, opened, selectedIn
   useEffect(() => {
     if (lastMine) virtualizer.scrollToEnd()
   }, [lastMine, virtualizer])
-  // Below the fold and not following: a pill says new posts came.
-  const [below, setBelow] = useState(0)
+  // Below the fold and not following: a pill says how many posts came after the last one seen at the
+  // bottom. Counted from the list, not per change, so posts that land in one render all count.
   const seenLast = useRef(last?.key)
   const atEnd = mounted ? virtualizer.isAtEnd(80) : true
   useEffect(() => {
-    if (atEnd) {
-      setBelow(0)
-      seenLast.current = last?.key
-    } else if (last && last.key !== seenLast.current) {
-      seenLast.current = last.key
-      setBelow((n) => n + 1)
-    }
+    if (atEnd) seenLast.current = last?.key
   }, [atEnd, last?.key])
+  const seenIndex = items.findIndex((item) => item.key === seenLast.current)
+  const below = atEnd || seenIndex < 0 ? 0 : items.length - 1 - seenIndex
   // The selected thread (J/K) is kept in view.
   useEffect(() => {
     if (mounted && selectedIndex >= 0) virtualizer.scrollToIndex(selectedIndex, { align: 'auto' })
@@ -254,7 +250,8 @@ function History({ items, hasOlder, loading, onOlder, render, opened, selectedIn
   return (
     <div className="relative min-h-0 flex-1">
       <div ref={scroller} className={'h-full overflow-y-auto' + (mounted ? '' : ' flex flex-col-reverse')} data-testid="history" data-opened={opened ?? undefined}>
-        <div>
+        {/* A channel shorter than the view sits at its bottom too, before and after the swap. */}
+        <div className="flex min-h-full shrink-0 flex-col justify-end">
         {hasOlder || loading ? <div className="py-2 text-center text-xs text-muted-foreground">{loading ? 'Loading older threads…' : ' '}</div> : <ChannelStart empty={items.length === 0} />}
         {mounted ? (
           <ul style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
