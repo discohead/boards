@@ -36,7 +36,7 @@ function Channel() {
       <ul data-testid="threads">
         {threads.map((thread) => (
           <li key={thread.id} data-id={thread.id} data-pending={thread.root.pending ? 'yes' : undefined}>
-            <button type="button" onClick={() => open(thread.id)} aria-current={thread.id === openId ? 'true' : undefined} className={cn('block w-full border-b px-4 py-2.5 text-left hover:bg-accent', thread.id === openId && 'bg-accent')}>
+            <button type="button" onClick={() => open(thread.id)} aria-current={thread.id === openId ? 'true' : undefined} className={cn('block w-full border-b border-line px-4 py-2.5 text-left hover:bg-raised', thread.id === openId && 'bg-selected shadow-[inset_2px_0_var(--wb-held)]')}>
               <span className="flex justify-between gap-2">
                 <span className={cn('truncate text-sm', thread.root.pending ? 'text-muted-foreground' : 'font-medium')}>{thread.root.text.split('\n')[0]}</span>
                 <span className="shrink-0 font-mono text-xs text-muted-foreground">{thread.root.pending ? 'sending…' : <Clock at={thread.root.createdAt} />}</span>

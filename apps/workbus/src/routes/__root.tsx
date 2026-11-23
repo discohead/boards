@@ -79,6 +79,13 @@ function Frame() {
   const me = useMemo(() => (first?.me ? (JSON.parse(first.me) as Me) : null), [first?.me])
   const pathname = useLocation({ select: (location) => location.pathname })
   const threadOpen = useSearch({ strict: false, select: (search: RootSearch) => search.thread !== undefined })
+  // The dev gallery (/dev/system) draws its own screens, outside the frame.
+  if (pathname.startsWith('/dev/'))
+    return (
+      <BusProvider state={state} me={me} token={first?.token ?? null}>
+        <Outlet />
+      </BusProvider>
+    )
   return (
     <BusProvider state={state} me={me} token={first?.token ?? null}>
       <div className="flex h-svh overflow-hidden">
