@@ -15,7 +15,7 @@ import { WorkbusError, failureOf, type Failure } from './errors.ts'
 import { canMap, canText, decide, parseCan, parsePattern, type Can, type Grant } from './ledger/access.ts'
 import type { Caller, Principal } from './ledger/core.ts'
 import { Bell, validationFailure, type GatewayEnv, type LedgerStub, type Mount } from './gateway/gateway.ts'
-import { parseProfile } from './gateway/headers.ts'
+import { profileOf as checkProfile } from './gateway/headers.ts'
 import { ROUTES } from './protocol/routes.ts'
 import type { IssuerKey } from './gateway/auth.ts'
 
@@ -143,12 +143,13 @@ function canOf(can: unknown): Record<string, Grant> {
 }
 
 function profileOf(profile: unknown) {
-  const name = typeof profile === 'string' ? profile : isPlain(profile) && typeof profile.name === 'string' ? profile.name : null
-  if (name === null) throw refuse(400, 'invalid_profile', "pass a profile's name, or { name, avatar }")
-  const avatar = isPlain(profile) ? profile.avatar : undefined
-  if (avatar !== undefined && typeof avatar !== 'string') throw refuse(400, 'invalid_profile', 'avatar is an https URL')
+  const given = typeof profile === 'string' ? { key: profile } : isPlain(profile) ? { ...profile, key: profile.key ?? profile.name } : null
+  if (!given || typeof given.key !== 'string') throw refuse(400, 'invalid_profile', "pass a profile's key, or { key, name, handle, avatar }")
+  for (const field of ['name', 'handle', 'avatar'] as const)
+    if ((given as Record<string, unknown>)[field] !== undefined && (given as Record<string, unknown>)[field] !== null && typeof (given as Record<string, unknown>)[field] !== 'string')
+      throw refuse(400, 'invalid_profile', field + ' is a string')
   try {
-    return parseProfile(name + (avatar !== undefined ? ';avatar=' + JSON.stringify(avatar) : ''))
+    return checkProfile(given as { key: string; name?: string; handle?: string; avatar?: string })
   } catch (error) {
     if (error instanceof WorkbusError) throw crossing(error.toFailure())
     throw error
@@ -187,8 +188,11 @@ export class Board extends RpcTarget {
     return call(this.#seat, 'me', checked('me', query))
   }
 
-  /** The same caller, writing as profile: actor <principal>+<profile>. What it may do doesn't change. */
-  as(profile: string | { name: string; avatar?: string }): Board {
+  /**
+   * The same caller, writing as a profile: actor <principal>+<key>. Its name shows, and its handle
+   * (@op) is the one mentions settle to, unique on the board. What it may do doesn't change.
+   */
+  as(profile: string | { key?: string; name: string; handle?: string; avatar?: string }): Board {
     return new Board({ ...this.#seat, caller: { ...this.#seat.caller, profile: profileOf(profile) } })
   }
 
@@ -438,8 +442,38 @@ export class Tasks extends RpcTarget {
     return call(this.#seat, 'blockTask', checked('blockTask', { reason, ...(kind !== undefined ? { kind } : {}) }, { id }))
   }
 
-  unblock(id: string) {
-    return call(this.#seat, 'unblockTask', checked('unblockTask', undefined, { id }))
+  /**
+   * Gives a held task back. With an answer ({ decision: 'approved' | 'declined', note }), the one
+   * that held it reads it on the task. A hold its claim placed is answered by manage in the channel,
+   * or by the task's owner when that's a person as themselves.
+   */
+  unblock(id: string, answer?: { decision: 'approved' | 'declined'; note?: string }) {
+    return call(this.#seat, 'unblockTask', checked('unblockTask', answer, { id }))
+  }
+
+  /** Answers a hold: approved, with a note. */
+  approve(id: string, note?: string) {
+    return this.unblock(id, { decision: 'approved', ...(note !== undefined ? { note } : {}) })
+  }
+
+  /** Answers a hold: declined, with a note. The task is given back; whoever held it goes on without that step. */
+  decline(id: string, note?: string) {
+    return this.unblock(id, { decision: 'declined', ...(note !== undefined ? { note } : {}) })
+  }
+
+  /** Completes a task as its owner (or a manager), ending whatever claim holds it. */
+  complete(id: string, result?: string) {
+    return call(this.#seat, 'completeTask', checked('completeTask', result !== undefined ? { result } : undefined, { id }))
+  }
+
+  /** Fails a task as its owner (or a manager), ending whatever claim holds it. */
+  fail(id: string, reason: string) {
+    return call(this.#seat, 'failTask', checked('failTask', { reason }, { id }))
+  }
+
+  /** Takes a task back from whoever holds it, as its owner (or a manager): it's ready again. */
+  release(id: string) {
+    return call(this.#seat, 'releaseTask', checked('releaseTask', undefined, { id }))
   }
 
   reopen(id: string) {

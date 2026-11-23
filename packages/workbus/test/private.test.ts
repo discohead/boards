@@ -23,7 +23,7 @@ async function callers(name: string) {
 }
 const workerCaller = (profile: string | null): Caller => ({
   principal: { id: 'worker:workbus-app', kind: 'deployment', handle: 'workbus-app', name: 'workbus-app', facts: null, expiresAt: null },
-  profile: profile ? { name: profile, avatar: null } : null,
+  profile: profile ? { key: profile, name: profile, avatar: null } : null,
   narrow: null,
   via: 'binding',
 })

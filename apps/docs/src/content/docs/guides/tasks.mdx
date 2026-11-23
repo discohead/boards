@@ -46,7 +46,7 @@ A task's state is on its root as the label `board.task`, so thread filters and t
 `wb tasks create <channel> <text>` starts a thread that is a task. Its creator's principal is its **owner**.
 
 - `--needs <id>` (repeatable, up to 20) makes it wait for other tasks. It becomes ready when every one of them completes; a failed need keeps it waiting. Needs can't form a cycle, and a canceled task can't be one.
-- `--for <actor>` lets only one of the owner's profiles claim it: `--for workbus:user:jared+reviewer`.
+- `--for <actor>` lets only that actor claim it: one of the owner's profiles (`--for workbus:user:jared+reviewer`), a person, or another principal's profile, such as a seat (`--for worker:workbus-app+eng`). See [Across people and seats](#across-people-and-seats).
 - `--claim` claims it in the same write, so no one else can take it first.
 
 `POST /tasks` with `{ "re": "<id>" }` makes a thread that's already there a task, a doc's thread included. A task's thread can gain a body too, and be [a doc](/guides/docs/#a-thread-becomes-a-doc) as well. `POST /tasks/batch` makes up to 100 tasks in one channel at once, with needs between them by key:
@@ -180,11 +180,13 @@ Over HTTP, `POST /tasks/claim` takes `wait` in seconds (up to 300). The Gateway 
 | `tasks complete <id> [result]` | completes it; tasks that need it may become ready |
 | `tasks fail <id> <reason>` | fails it; its owner may `reopen` it |
 | `tasks release <id>` | gives the claim up: the task is ready again |
+| `tasks complete\|fail\|release <id> --owner` | the same as its owner, without a claim: whoever holds it, their claim is over |
 | `tasks block <id> <reason> [--kind k]` | holds it for a person; with a claim kept here the claim holds it and ends, without one you hold it as its owner |
 | `tasks unblock <id>` | lifts the hold: ready, or waiting if it still needs something |
+| `tasks approve\|decline <id> [note]` | answers a hold: lifted either way, with the answer on the task for whoever held it |
 | `tasks reopen <id>` | makes a failed task ready again |
 | `tasks cancel <id> <reason>` | calls it off; tasks that wait for it keep waiting |
-| `tasks assign <id> <actor>` | lets one of the owner's profiles claim it, or `--anyone` |
+| `tasks assign <id> <actor>` | lets one actor claim it (a person, a profile, a seat), or `--anyone` |
 | `tasks needs <id> [<id>...]` | replaces what it waits for |
 
 ```
@@ -198,6 +200,23 @@ unblocked #52  ready
 ```
 
 The owner (as itself, or the profile that made the task) or anyone with `manage` in its channel changes a task outside a claim. When someone else edits a task's root, the board blocks it with kind `edited`: the work it describes changed, so a person looks before anyone claims it again.
+
+## Across people and seats
+
+A task can be for anyone on the board: a person can hand work to an agent's profile, and an agent to a person. Authority still comes from grants and from who owns the task, never from who works with whom:
+
+- **Assign.** The task's owner (or `manage` in its channel) sets `for` to an actor the board knows: one of its own profiles, a person, another principal's profile, or a profile of a principal the board knows (a seat that hasn't written yet). Being assigned gives nothing. The assignee claims it only where its own grants let it `label`, and nobody else claims it, its owner included.
+- **Hold.** The claim holds it for a person with a kind: `approval`, `decision`, `review`, `budget`. The claim ends, and the task waits for an answer.
+- **Answer.** `POST /tasks/{id}/unblock` with `{ "decision": "approved" | "declined", "note": "…" }` (`wb tasks approve`, `wb tasks decline`) gives the task back either way, with `answer: { decision, note, by }` on its view until it's held again. A hold the claim placed is answered only with `manage` in the channel, or by the task's owner when that's a person acting as themselves. An agent that only made the task can't answer it, so an operator can't approve the side effects of the work it hands out. A hold the owner placed without a claim is the owner's to lift, as before.
+- **Finish.** The owner (or `manage`) completes, fails, or releases a task without the claim's `epoch` and `token`: whoever holds it, their claim is over, and their next write gets `claim_lost`. A task that still waits for others, or is held, isn't finished this way: answer it, or cancel it.
+
+```
+$ wb tasks create work 'ship it' --for worker:workbus-app+eng
+$ wb tasks approve 61 'go ahead'          # the seat held it with --kind approval
+approved #61  ready
+$ wb tasks complete 61 'shipped by hand' --owner
+completed #61
+```
 
 ## From code
 

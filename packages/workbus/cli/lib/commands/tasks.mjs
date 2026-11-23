@@ -188,8 +188,8 @@ const renew = {
 
 function finishing(verb, past, { note, needsNote = false, usage }) {
   return {
-    usage,
-    flags: {},
+    usage: usage + '\n\nWith --owner, as the task\'s owner (or with manage in its channel) and no claim:\nwhoever holds it, their claim is over.',
+    flags: { owner: 'bool' },
     async run(ctx) {
       const id = idOf(required(ctx.positionals[0], 'a task ID', 'wb tasks ' + verb))
       const words = ctx.positionals.slice(1)
@@ -197,7 +197,8 @@ function finishing(verb, past, { note, needsNote = false, usage }) {
       if (note) {
         if (needsNote || words.length) body = { [note]: await textOf(ctx, words, 'a ' + note, 'wb tasks ' + verb) }
       } else if (words.length) throw misuse('extra_argument', 'wb tasks ' + verb + ' takes only a task ID', [['wb', 'tasks', verb, '--help']])
-      const answer = await byClaim(ctx, id, verb, "couldn't " + verb + ' ' + ref(id), body)
+      const doing = "couldn't " + verb + ' ' + ref(id)
+      const answer = ctx.flags.owner ? await ctx.board().request(doing, 'POST', path(id, verb), { body }) : await byClaim(ctx, id, verb, doing, body)
       dropClaim(ctx.env, ctx.board().url, id, ctx.board().profile)
       if (ctx.json) return ctx.emit({ task: answer.task })
       ctx.print([past + ' ' + ref(id)])
@@ -242,22 +243,39 @@ function owners(verb, past, { usage, body }) {
   }
 }
 
+/** Answers a hold, with an optional note: the task is given back, and the answer is on it for whoever held it. */
+function answering(decision) {
+  const verb = decision === 'approved' ? 'approve' : 'decline'
+  return owners('unblock', (id, task) => decision + ' ' + ref(id) + '  ' + (task?.task?.state ?? ''), {
+    usage: [
+      'wb tasks ' + verb + ' <id> [note|-]',
+      '',
+      (decision === 'approved' ? 'Approve' : 'Decline') + " what a held task asks. It's given back either way, with your answer",
+      'on it. A hold its claim placed is answered with manage in its channel, or by its',
+      'owner as themselves.',
+    ].join('\n'),
+    body: async (ctx, words) => ({ decision, ...(words.length ? { note: await textOf(ctx, words, 'a note', 'wb tasks ' + verb) } : {}) }),
+  })
+}
+
 const SUBCOMMANDS = {
   create,
   claim,
   renew,
-  release: finishing('release', 'released', { usage: 'wb tasks release <id>\n\nGive your claim up: the task is ready again.' }),
-  complete: finishing('complete', 'completed', { note: 'result', usage: 'wb tasks complete <id> [result|-]\n\nComplete the task you claimed, with an optional result.' }),
-  fail: finishing('fail', 'failed', { note: 'reason', needsNote: true, usage: 'wb tasks fail <id> <reason|->\n\nFail the task you claimed. Its owner may reopen it.' }),
+  release: finishing('release', 'released', { usage: 'wb tasks release <id> [--owner]\n\nGive your claim up: the task is ready again.' }),
+  complete: finishing('complete', 'completed', { note: 'result', usage: 'wb tasks complete <id> [result|-] [--owner]\n\nComplete the task you claimed, with an optional result.' }),
+  fail: finishing('fail', 'failed', { note: 'reason', needsNote: true, usage: 'wb tasks fail <id> <reason|-> [--owner]\n\nFail the task you claimed. Its owner may reopen it.' }),
   block,
   unblock: owners('unblock', (id, task) => 'unblocked ' + ref(id) + '  ' + (task?.task?.state ?? ''), { usage: 'wb tasks unblock <id>\n\nLift a hold on a task you own.' }),
+  approve: answering('approved'),
+  decline: answering('declined'),
   reopen: owners('reopen', (id) => 'reopened ' + ref(id), { usage: 'wb tasks reopen <id>\n\nMake a failed task ready again.' }),
   cancel: owners('cancel', (id) => 'canceled ' + ref(id), {
     usage: 'wb tasks cancel <id> <reason|->\n\nCancel a task you own. Tasks that wait for it keep waiting.',
     body: async (ctx, words) => ({ reason: await textOf(ctx, words, 'a reason', 'wb tasks cancel') }),
   }),
   assign: owners('assign', (id, task) => (task?.task?.for ? 'assigned ' + ref(id) + ' to ' + task.task.for : 'assigned ' + ref(id) + ' to anyone'), {
-    usage: "wb tasks assign <id> <actor>|--anyone\n\nLet one of the owner's profiles (<principal>+<profile>) claim it, or anyone.",
+    usage: 'wb tasks assign <id> <actor>|--anyone\n\nLet one actor claim it (a person, a seat: an actor ID), or anyone.',
     body: async (ctx, words) => {
       if (ctx.flags.anyone) return { for: null }
       return { for: required(words[0], 'an actor ID, or --anyone', 'wb tasks assign') }
@@ -275,8 +293,8 @@ export const tasks = {
     '',
     'wb tasks <subcommand> ...',
     '',
-    '  create, claim, renew, release, complete, fail, block, unblock, reopen,',
-    '  cancel, assign, needs',
+    '  create, claim, renew, release, complete, fail, block, unblock, approve,',
+    '  decline, reopen, cancel, assign, needs',
     '',
     'wb tasks <subcommand> --help says more about each.',
   ].join('\n'),

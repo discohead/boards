@@ -13,6 +13,10 @@ const ChannelOrSubtree = z.string().max(2049).regex(/^[a-z0-9][a-z0-9_-]*(?:\/[a
 const SentTaskNote = z.string().refine((text) => text.trim().length > 0, 'it is empty').refine(storable, 'it has a NUL character or a lone surrogate')
 const SentTaskHoldKind = z.string().regex(/^[a-z0-9][a-z0-9_.-]*$/, 'a kind is lowercase letters, numbers, and _.-')
 const Claimed = { epoch: z.number().int().positive(), token: z.string().min(1).max(128) }
+// A claim's proof, or none: without one, it's the task's owner ending a claim it doesn't hold.
+const MaybeClaimed = { epoch: Claimed.epoch.optional(), token: Claimed.token.optional() }
+const bothOrNeither = (body: { epoch?: number; token?: string }) => (body.epoch === undefined) === (body.token === undefined)
+const BOTH_OR_NEITHER = { message: 'a claim is its \u0060epoch\u0060 and its \u0060token\u0060: pass both, or neither' }
 
 const CreateTaskBody = z
   .object({
@@ -100,11 +104,15 @@ route({ name: 'createdTasks', method: 'GET', path: '/tasks/batch/:id', query: z.
 route({ name: 'claimReadyTask', method: 'POST', path: '/tasks/claim', body: ClaimReadyTaskBody })
 route({ name: 'claimTask', method: 'POST', path: '/tasks/:id/claim', body: z.object({ lease: Lease.optional(), token: ClaimToken.optional() }), optionalBody: true })
 route({ name: 'renewTask', method: 'POST', path: '/tasks/:id/renew', body: z.object({ ...Claimed, lease: Lease.optional() }) })
-route({ name: 'releaseTask', method: 'POST', path: '/tasks/:id/release', body: z.object(Claimed) })
-route({ name: 'completeTask', method: 'POST', path: '/tasks/:id/complete', body: z.object({ ...Claimed, result: SentTaskNote.optional() }) })
-route({ name: 'failTask', method: 'POST', path: '/tasks/:id/fail', body: z.object({ ...Claimed, reason: SentTaskNote }) })
+route({ name: 'releaseTask', method: 'POST', path: '/tasks/:id/release', body: z.object(MaybeClaimed).refine(bothOrNeither, BOTH_OR_NEITHER), optionalBody: true })
+route({ name: 'completeTask', method: 'POST', path: '/tasks/:id/complete', body: z.object({ ...MaybeClaimed, result: SentTaskNote.optional() }).refine(bothOrNeither, BOTH_OR_NEITHER), optionalBody: true })
+route({ name: 'failTask', method: 'POST', path: '/tasks/:id/fail', body: z.object({ ...MaybeClaimed, reason: SentTaskNote }).refine(bothOrNeither, BOTH_OR_NEITHER) })
 route({ name: 'blockTask', method: 'POST', path: '/tasks/:id/block', body: BlockTaskBody })
-route({ name: 'unblockTask', method: 'POST', path: '/tasks/:id/unblock', body: z.unknown().transform(() => ({})), optionalBody: true })
+// An answer to a hold: approved or declined, with a note for whoever held it. Either way it's given back.
+const UnblockTaskBody = z
+  .object({ decision: z.enum(['approved', 'declined']).optional(), note: SentTaskNote.optional() })
+  .refine((body) => body.note === undefined || body.decision !== undefined, { path: ['note'], message: 'a note goes with a \u0060decision\u0060, approved or declined' })
+route({ name: 'unblockTask', method: 'POST', path: '/tasks/:id/unblock', body: UnblockTaskBody, optionalBody: true })
 route({ name: 'reopenTask', method: 'POST', path: '/tasks/:id/reopen', body: z.unknown().transform(() => ({})), optionalBody: true })
 route({ name: 'assignTask', method: 'POST', path: '/tasks/:id/assign', body: z.object({ for: ActorId.nullable() }) })
 route({ name: 'setTaskNeeds', method: 'POST', path: '/tasks/:id/needs', body: z.object({ needs: z.array(Ref) }) })

@@ -199,10 +199,10 @@ Edges get their runtime meaning here:
 The app Worker reaches the bus through a service binding to the bus's `Workbus` entrypoint, with props that name the app's principal, `workbus-app`. Each seat's `Board` is that binding's board, attenuated:
 
 ```ts
-const board = env.WORKBUS.board('bus').as({ name: 'Ada', avatar }).narrow(seat.can)
+const board = env.WORKBUS.board('bus').as({ key: seat.key, name: 'Ada', handle: 'ada', avatar }).narrow(seat.can)
 ```
 
-`as` gives the seat its own actor, `worker:workbus-app+ada`, so every write is attributed to it. `narrow` is the security boundary. A profile alone doesn't change what a caller may do, so the narrowing is what limits a seat, and a narrowing can only shrink. The bus's grants give `worker:workbus-app` the most any seat may have, and the app never hands a seat more than its seat doc's `can`.
+`as` gives the seat its own actor, `worker:workbus-app+<key>`, so every write is attributed to it. The key is the seat's and never changes. The name and the handle (`@ada`, which mentions settle to, one actor's on the board) are the seat doc's, so a rename keeps the seat's history, follows, tasks, and DM. `narrow` is the security boundary. A profile alone doesn't change what a caller may do, so the narrowing is what limits a seat, and a narrowing can only shrink. The bus's grants give `worker:workbus-app` the most any seat may have, and the app never hands a seat more than its seat doc's `can`.
 
 ### 5.2 The seat runtime
 
@@ -575,7 +575,8 @@ Later: one command that creates another account's resources (R2, the gateway, th
 | Sub-issues | Needs order tasks, but nothing contains them |
 | A root that's both a task and a doc | Tested, so issues can rely on it |
 | Private channels | `dm/<seat>` readable by its two parties alone, and hidden from listings |
-| Profiles with their own handle, and a name apart from their key | A seat's actor ID and handle both come from its profile's name (`worker:workbus-app+op`, `@workbus-app/op`). So `@op` doesn't settle today (`settle()` matches whole handles, and offers the seat only as a candidate), and renaming a seat makes a new actor |
+| Profiles with their own handle, and a name apart from their key | A seat's actor ID and handle both came from its profile's name (`worker:workbus-app+op`, `@workbus-app/op`). So `@op` didn't settle (`settle()` matches whole handles, and offered the seat only as a candidate), and renaming a seat made a new actor. Done: a profile is a key, a name, and a claimed handle (§5.1) |
+| Tasks across people and seats | A task's `for` had to be its owner's profile, and only the claim could finish it. Done: design/cross-principal-tasks.md |
 | A doc editor's needs | Section edits serve agents and v1. Live co-editing comes later |
 
 ## 12. Phases

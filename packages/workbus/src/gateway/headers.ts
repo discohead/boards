@@ -2,10 +2,11 @@
 // and x-board-can (pattern=permissions;…, which only narrows).
 import { WorkbusError } from '../errors.ts'
 import { parseCan, type Grant } from '../ledger/access.ts'
-import type { Profile } from '../ledger/core.ts'
+import { RESERVED_HANDLES, type Profile } from '../ledger/core.ts'
 
-const invalid = (why: string) => new WorkbusError(400, 'invalid_profile', 'x-board-profile is a structured header, like fixer;avatar="https://example.com/fixer.png": ' + why)
-const PROFILE_NAME = /^[A-Za-z][A-Za-z0-9-]{0,31}$/
+const invalid = (why: string) => new WorkbusError(400, 'invalid_profile', 'x-board-profile is a structured header, like op;name="Operator";handle="op";avatar="https://example.com/op.png": ' + why)
+const PROFILE_KEY = /^[A-Za-z][A-Za-z0-9-]{0,31}$/
+const HANDLE = /^[a-z](?:[a-z0-9-]{0,30}[a-z0-9])?$/
 const TOKEN_CHAR = /[!#$%&'*+\-.^_\u0060|~0-9A-Za-z:/]/
 const OTHER = /^(?:-?\d{1,15}|-?\d{1,12}\.\d{1,3}|\?[01]|:[A-Za-z0-9+/=]*:)$/
 
@@ -46,6 +47,8 @@ export function parseProfile(header: string | null): Profile | null {
   if (name.kind === 'other') throw invalid(name.value === '' ? 'it names no profile' : name.value + " isn't a profile's name")
   i = name.next
   let avatar: string | null = null
+  let named: string | null = null
+  let handle: string | null = null
   while (header[i] === ';') {
     i++
     while (header[i] === ' ') i++
@@ -56,25 +59,47 @@ export function parseProfile(header: string | null): Profile | null {
     i = j
     if (header[i] === '=') {
       const value = bareItem(header, i + 1)
-      if (key === 'avatar') {
-        if (value.kind !== 'string') throw invalid('avatar is a string, in quotes')
-        avatar = value.value
+      if (key === 'avatar' || key === 'name' || key === 'handle') {
+        if (value.kind !== 'string') throw invalid(key + ' is a string, in quotes')
+        if (key === 'avatar') avatar = value.value
+        else if (key === 'name') named = value.value
+        else handle = value.value
       }
       i = value.next
     }
   }
   while (header[i] === ' ') i++
   if (i < header.length) throw invalid('"' + header.slice(i, i + 20) + '" follows the profile')
-  if (!PROFILE_NAME.test(name.value)) throw new WorkbusError(400, 'invalid_profile', 'profile names start with a letter and use up to 32 letters, numbers, and hyphens')
+  return profileOf({ key: name.value, name: named ?? undefined, handle: handle ?? undefined, avatar })
+}
+
+/**
+ * A profile as a caller gives it: its key (a letter, then up to 31 letters, numbers, and hyphens;
+ * the actor is <principal>+<key, lowercased>), its display name (the key as written, when it gives
+ * none), the handle it claims, and its avatar.
+ */
+export function profileOf(given: { key: string; name?: string; handle?: string | null; avatar?: string | null }): Profile {
+  const refuse = (why: string) => new WorkbusError(400, 'invalid_profile', why)
+  if (!PROFILE_KEY.test(given.key)) throw refuse("a profile's key starts with a letter and uses up to 32 letters, numbers, and hyphens")
+  const name = (given.name ?? given.key).trim()
+  if (name.length < 1 || [...name].length > 64) throw refuse("a profile's name is 1 to 64 characters")
+  if (/\p{Cc}/u.test(name)) throw refuse("a profile's name has no control characters")
+  let handle: string | null = null
+  if (given.handle !== undefined && given.handle !== null) {
+    handle = given.handle.replace(/^@/, '').toLowerCase()
+    if (!HANDLE.test(handle)) throw refuse('a handle is 1 to 32 lowercase letters, numbers, and hyphens, starting with a letter: @op, @ops')
+    if (RESERVED_HANDLES.includes(handle)) throw refuse('@' + handle + " is reserved: @me is the caller in filters, and @you is the principal's own seat")
+  }
+  const avatar = given.avatar ?? null
   if (avatar !== null) {
     let ok = false
     try {
       const url = new URL(avatar)
       ok = url.protocol === 'https:' || (url.protocol === 'http:' && (url.hostname === 'localhost' || url.hostname === '127.0.0.1'))
     } catch {}
-    if (!ok) throw new WorkbusError(400, 'invalid_profile', 'avatars must be https URLs (http only on localhost)')
+    if (!ok) throw refuse('avatars must be https URLs (http only on localhost)')
   }
-  return { name: name.value, avatar }
+  return { key: given.key.toLowerCase(), name, ...(handle ? { handle } : {}), avatar, ...(given.name === undefined ? { named: false } : {}) }
 }
 
 export function parseNarrow(header: string | null): Record<string, Grant> | null {
