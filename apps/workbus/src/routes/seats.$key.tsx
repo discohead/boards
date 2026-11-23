@@ -11,6 +11,10 @@ import { assigneeOf, isOpen, stateOf } from '@/task/model'
 import { useTasks } from '@/task/use-tasks'
 import { seatInitials, useSeats } from '@/seats/use-seats'
 import type { SeatRun, SeatView } from '@/seats/views'
+import { setSeatState } from '@/seats/pause'
+import { useBus } from '@/data'
+import { useState } from 'react'
+import { Button } from '@/components/system'
 
 export const Route = createFileRoute('/seats/$key')({ component: SeatPage })
 
@@ -32,6 +36,29 @@ function SeatPage() {
   return <SeatDetail seat={seat} />
 }
 
+/**
+ * Pause or resume: an edit to the seat doc as the principal. The button shows what was asked until
+ * the Seat's state (polled) says it's applied.
+ */
+function PauseButton({ seat }: { seat: SeatView }) {
+  const bus = useBus()
+  const [asked, setAsked] = useState<{ state: 'active' | 'paused'; error: string | null } | null>(null)
+  const paused = seat.state === 'paused'
+  const pending = asked !== null && asked.error === null && (asked.state === 'paused') !== paused
+  const ask = (state: 'active' | 'paused') => {
+    setAsked({ state, error: null })
+    setSeatState(bus.runtime.client, seat.doc!, state).catch((error: unknown) => setAsked({ state, error: error instanceof Error ? error.message.replace(/^[a-z_]+: /, '') : String(error) }))
+  }
+  return (
+    <div className="flex items-center gap-2">
+      {asked?.error ? <span className="text-[12px] text-danger" role="alert">{asked.error}</span> : null}
+      <Button data-testid="pause" data-pending={pending ? 'true' : undefined} size="sm" variant="outline" disabled={pending} onClick={() => ask(paused ? 'active' : 'paused')}>
+        {pending ? (asked!.state === 'paused' ? 'Pausing…' : 'Resuming…') : paused ? 'Resume' : 'Pause'}
+      </Button>
+    </div>
+  )
+}
+
 function SeatDetail({ seat }: { seat: SeatView }) {
   const { open } = useOpenThread()
   const tasks = useTasks().filter((task) => isOpen(task) && assigneeOf(task) === seat.actor)
@@ -50,6 +77,7 @@ function SeatDetail({ seat }: { seat: SeatView }) {
             </div>
           </div>
           {seat.state === 'retired' ? <SeatState state="paused" label="not running" /> : <SeatState state={seat.state} />}
+          {seat.doc && seat.state !== 'retired' ? <PauseButton seat={seat} /> : null}
         </header>
 
         <Section title="Charter" aside={seat.doc ? <button type="button" className="font-mono text-mono-label text-muted-foreground hover:text-text" onClick={() => open(seat.doc!)}>org/seats/{seat.key}</button> : null}>

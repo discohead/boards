@@ -53,6 +53,19 @@ TOKEN=<owner token> node scripts/org-live-check.mjs <app> <bus> [boot,edit,bad,d
 ```
 
 `dm` and `run` call Haiku through the gateway; `run` is the phase-2 run, the approval included.
+`budget` (budgets and pauses, on a board where ada has no budget tasks this month) calls it once.
+
+### The gateway's spend limit per seat
+
+The backstop under each seat's budget (design/workbus.md §5.6) is a rule on the AI Gateway
+`workbus`'s `spend_limits`: id `seat-<key>`, `limitType: cost`, `limit` a quarter above the
+seat's `budget.month`, `window` 2678400 (31 days, sliding), and `metadata: { seat: { mode:
+'filter', values: ['<key>'] } }` (every call carries the seat in its metadata). op and ada have
+$25 each (budgets of $20). A new seat gets one when it's hired: read the gateway
+(`GET /accounts/<account>/ai-gateway/gateways/workbus`), add its rule to `spend_limits.rules`, and
+`PUT` the gateway back with every other field as it was (the PUT replaces the whole config). A
+gateway takes 20 rules: past 19 seats, one rule with `metadata: { seat: { mode: 'partition' } }`
+covers the rest with one limit each.
 
 ## Deploy
 

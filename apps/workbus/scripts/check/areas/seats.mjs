@@ -1,7 +1,7 @@
 // The seats (design/workbus.md §5, §6.2): the sidebar's Direct messages has the operator's DM with
 // its square avatar and @op, and Seats lists each seat with its live state; a seat's page shows its
-// name, handle, state, charter, what it's on, its spend and its runs; pausing a seat
-// shows on the sidebar and the page within a poll; A offers the seats, and assigning to one lands
+// name, handle, state, charter, what it's on, its spend and its runs; Pause and Resume on its page
+// edit its seat doc, and the state shows on the sidebar and the page within a poll; A offers the seats, and assigning to one lands
 // on the board as its actor; a task held for an approval shows the ApprovalCard, and Approve and
 // Decline answer it with their decision. Only the operator's one run needs a model (DM it once before);
 // the seat's state is set as the reconciler sets it, and the holds are written over the bus's API as a seat's tools write them (seats/session.ts).
@@ -59,16 +59,20 @@ export async function run({ page, base, owner, run: id, channel, must, step }) {
     await until(() => page.url().endsWith('/seats/ada'))
   } else await step('a seat with runs to show (DM the operator once first)', false, 'the operator has no runs yet')
 
-  // Paused: her Seat's own state changes, and the sidebar and her page show it within a poll. Set
-  // through the dev door (/dev/seat configure), as the reconciler applies a paused seat doc: an edit
-  // to her doc would also wake her (she follows it), and that's a model call.
-  const dev = async (call, args = []) => (await fetch(base + '/dev/seat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: 'ada', call, args }) })).json()
-  const held = await dev('status')
-  await dev('configure', [{ ...held.runtime, state: 'paused' }, held.revision])
-  await step('paused: the sidebar shows paused', await until(async () => (await ada.getAttribute('data-state')) === 'paused', 15_000), await ada.getAttribute('data-state'))
-  await step('and so does her page', (await seat.getAttribute('data-state')) === 'paused' && /paused/.test(await seat.locator('[data-slot=seat-state]').innerText()))
-  await dev('configure', [held.runtime, held.revision])
-  await step('active again, the same way', await until(async () => (await ada.getAttribute('data-state')) !== 'paused', 15_000), await ada.getAttribute('data-state'))
+  // Pause and Resume: her page's button edits her seat doc as the principal ("state" in its block),
+  // the reconciler applies it, and the sidebar and her page show it within a poll. A seat doc's edit
+  // wakes no seat, so no model is called.
+  const button = page.getByTestId('pause')
+  // A seat left paused by an earlier run is resumed first.
+  if ((await until(async () => /^(Pause|Resume)$/.test(await button.innerText()), 15_000)) && (await button.innerText()) === 'Resume') await button.click()
+  await must('her page has Pause', await until(async () => (await button.innerText()) === 'Pause', 20_000), await button.innerText().catch(() => null))
+  await button.click()
+  await step('Pause: the sidebar shows paused', await until(async () => (await ada.getAttribute('data-state')) === 'paused', 20_000), await ada.getAttribute('data-state'))
+  await step('and so does her page, with Resume', (await seat.getAttribute('data-state')) === 'paused' && /paused/.test(await seat.locator('[data-slot=seat-state]').innerText()) && (await until(async () => (await button.innerText()) === 'Resume', 10_000)))
+  const doc = await owner.get('/docs?path=org/seats/ada')
+  await step('her seat doc says "state": "paused", edited as the principal', /"state": "paused"/.test(doc.body ?? ''), (doc.body ?? '').match(/"state": "\w+"/)?.[0])
+  await button.click()
+  await step('Resume: active again, the same way', await until(async () => (await ada.getAttribute('data-state')) !== 'paused', 20_000) && /"state": "active"/.test((await owner.get('/docs?path=org/seats/ada')).body ?? ''), await ada.getAttribute('data-state'))
 
   // A offers the seats: a task of the owner's, assigned to Ada, is hers on the board.
   const task = (await owner.post('/tasks', { channel, text: 'Bump the canary to 5% ' + id })).task.id
