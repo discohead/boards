@@ -305,9 +305,11 @@ Each seat's rules are one wake (design/registered-watchers.md): a registered wat
 - **Metadata on every call:** `{ seat, team, thread, task }` (the gateway takes up to 5 entries). That gives cost per seat, spend limits per seat, and logs that join to run records.
 - **Models by role.** A seat names a model, or a dynamic route per role (`dynamic/build`, `dynamic/triage`) that the principal tunes in one place. Workers AI handles the cheap, frequent work: summaries, classification, embeddings.
 - **Budgets,** as in Paperclip: per seat and per team, per month.
-  - At `alert`, the principal gets a task saying so.
-  - At the limit, the seat stops starting runs and holds a task for the principal: raise the budget, or leave the seat paused.
-  - The gateway's spend limit is the backstop at the edge.
+  - A seat's budget is `{ month, alert }` in its seat doc, in USD per calendar month (UTC). Its spend is the sum of its run records' cost this month, kept by its `Seat` (§8.1).
+  - At `alert` × `month`, the principal gets one task saying so (kind `budget`, held in the seat's DM), once per month. Answering it ends it.
+  - At the limit, the seat stops starting runs (`over_budget`) and holds a second budget task for the principal: raise the budget (an edit to the seat doc), or leave the seat stopped until the month turns. Wake-ups that come meanwhile wait in its queue; none are dropped. A raised budget or a new month closes the task, and the queue runs. Answering the task without raising the budget holds it again.
+  - Pausing is the seat doc's `"state": "paused"` (a seat's page has Pause and Resume, which edit it as the principal): the seat starts no runs, and its wake-ups wait until it's `active` again.
+  - The gateway's spend limit is the backstop at the edge: one rule per seat on the org's gateway, a cost limit over a sliding 31 days, filtered on the `seat` metadata every call carries, set a margin above the seat's budget (a quarter). A gateway takes at most 20 rules, so past 19 seats a partitioned rule (one limit for every `seat` value) takes over the rest.
 - **During development,** every seat runs Haiku.
 
 ### 5.7 Hiring
@@ -598,7 +600,13 @@ Each phase ends with a real run recorded in STATUS.md.
    3. The seat does them in a computer workspace.
    4. The principal watches in the issue view and approves one step from the inbox.
    5. The cost shows on the seat.
-3. **The org at work:** hiring and templates, teams and edges with their meaning, the org views, budgets and pauses, the other tool tiers, the watchdog, and the daily brief.
+3. **The org at work:** hiring and templates, teams and edges with their meaning, the org views, budgets and pauses, the other tool tiers, the watchdog, and the daily brief. One PR per step, in order: budgets and pauses; the advisor; hiring from templates; teams and edges with their meaning; the watchdog and the daily brief; the tool tiers `web` and `sandbox`. It's verified by one run:
+   1. The principal asks the advisor to plan something small.
+   2. The advisor hands the plan to the operator, which proposes a hire from a template.
+   3. The principal approves the hire in the inbox.
+   4. The new seat does a task using `web` and `sandbox`.
+   5. It hits a test budget and holds a task for the principal.
+   6. The next morning's brief reports all of it.
 4. **Apps:** `AppHost` grains, the Powerbox, the UI sandbox, the builder, and apps as tools.
 5. **Improvement:** K2 session recording and replay, eval sets, the weekly loop, and the Ops views.
 

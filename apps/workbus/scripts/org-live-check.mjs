@@ -4,7 +4,7 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake]
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget]
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
@@ -257,6 +257,67 @@ if (pick.has('docwake')) {
   const comment = await board('POST', '/messages', { re: doc.id, text: '@ada no action needed: just checking that a mention on a doc reaches you. Reply with one word.' })
   const woke = await until(async () => (await status('ada')).wakes.find((wake) => wake.thread === doc.id), 30000)
   check(Boolean(woke), 'a comment on the doc that mentions @ada wakes ada', { comment: comment.message.id, woke })
+}
+
+// Budgets and pauses (design/workbus.md §5.6), on the dev stack: ada paused, a tiny budget, and runs
+// of a known cost recorded through the Seat's own ended() (no model), then the real queue: the
+// alert at 80%, the limit at 100% with ada over budget and a DM's wake waiting, the limit held again
+// when answered while still over, and a raised budget closing it and running the wake (one Haiku turn).
+// Its budget tasks are once per period, so it runs on a board where ada has none yet this month.
+if (pick.has('budget')) {
+  const blockOf = async () => (await board('GET', '/docs?path=org/seats/ada'))
+  const setAda = async (change) => {
+    const doc = await editBlock('org/seats/ada', change)
+    await until(async () => ((await status('ada')).revision === Number(doc.revision) ? true : null))
+    return doc
+  }
+  void blockOf
+  const dmTasks = async () => (await board('GET', '/tasks?channel=dm/ada&state=all&limit=100')).tasks.map((entry) => entry.message).filter((message) => /budget for /.test(message.text))
+  const known = new Set((await dmTasks()).map((message) => message.id))
+  const fresh = async () => (await dmTasks()).filter((message) => !known.has(message.id))
+  const spent = (await status('ada')).spend.cost
+  // The budget sits just above what ada has spent, so a known cost crosses it.
+  const month = Math.round((spent + 0.01) * 1e6) / 1e6
+  await setAda((data) => ((data.state = 'paused'), (data.budget = { month, alert: 0.8 })))
+  check((await status('ada')).state === 'paused', 'a paused seat reads paused')
+  // A DM while paused: its wake waits.
+  const dm = (await board('POST', '/messages', { channel: 'dm/ada', text: 'Reply with the single word: ok.' })).message.id
+  const waits = await until(async () => (await status('ada')).wakes.find((wake) => wake.thread === dm && wake.state === 'queued'))
+  check(Boolean(waits), 'a wake that comes while paused is queued, not run', waits)
+  let n = 0
+  const cost = async (usd) => {
+    const cursor = String(900000 + Math.floor(Math.random() * 99999))
+    const context = { board: 'bus', wake: 'seat.ada', principal: 'worker:workbus-app', actor: 'worker:workbus-app+ada', rules: ['dm'], match: 'm', attempt: 1 }
+    await seat({ seat: 'ada', call: 'wake', args: [{ cursor, type: 'message.posted', message: { id: 'b' + cursor, re: null, channel: 'dm/ada', text: 'cost' } }, context] })
+    const iso = new Date().toISOString()
+    await seat({ seat: 'ada', call: 'ended', args: ['seat.ada:' + cursor, { operationId: 'seat.ada:' + cursor, status: 'done', usage: { model: 'anthropic/claude-haiku-5.5', steps: 1, tokens: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 }, cost: usd, tools: [], logs: [], started: iso, ended: iso } }] })
+    n++
+  }
+  await cost(0.0085)
+  const alert = await until(async () => (await fresh()).find((message) => message.task?.blocked?.kind === 'budget'))
+  check(Boolean(alert && /\(8\d%\)\.$/.test(alert.text)), 'at 80% one task is held for the principal, kind budget', alert && { id: alert.id, text: alert.text, channel: alert.channel })
+  await cost(0.0005)
+  check((await fresh()).length === 1, 'and only one, however many runs end past the alert', (await fresh()).map((message) => message.id))
+  await board('POST', '/tasks/' + alert.id + '/unblock', { decision: 'approved', note: 'noted' })
+  const noted = await until(async () => ((await board('GET', '/messages/' + alert.id)).message.task.state === 'completed' ? true : null))
+  check(noted === true, 'answering the alert ends it')
+  await cost(0.002)
+  const limit = await until(async () => (await fresh()).find((message) => message.id !== alert.id && message.task?.blocked?.kind === 'budget'))
+  check(Boolean(limit && /its limit, and has stopped starting runs \(1 wake-up waits\)/.test(limit.text)), 'at the limit a second task is held: it stopped, and one wake-up waits', limit && { id: limit.id, text: limit.text })
+  await setAda((data) => (data.state = 'active'))
+  const over = await status('ada')
+  check(over.state === 'over_budget' && over.wakes.find((wake) => wake.thread === dm)?.state === 'queued', 'resumed but over budget: it reads over_budget, and the wake still waits', { state: over.state, wake: over.wakes.find((wake) => wake.thread === dm) })
+  await board('POST', '/tasks/' + limit.id + '/unblock', { decision: 'approved' })
+  const reheld = await until(async () => ((await board('GET', '/messages/' + limit.id)).message.task.blocked?.kind === 'budget' ? true : null))
+  check(reheld === true, 'answering the limit task while still over holds it again', (await board('GET', '/messages/' + limit.id)).message.task.blocked)
+  await setAda((data) => (data.budget = { month: Math.round((month + 1) * 1e6) / 1e6, alert: 0.8 }))
+  const closed = await until(async () => ((await board('GET', '/messages/' + limit.id)).message.task.state === 'completed' ? (await board('GET', '/messages/' + limit.id)).message.task : null))
+  check(Boolean(closed && /budget was raised/.test(closed.result ?? '')), 'a raised budget closes the limit task', closed?.result)
+  const ran = await until(async () => (await status('ada')).wakes.find((wake) => wake.thread === dm && wake.state === 'done'), 90000)
+  check(Boolean(ran), 'and the wake that waited runs', ran)
+  const reply = (await board('GET', '/messages/' + dm)).replies.find((message) => message.by.actor === 'worker:workbus-app+ada')
+  check(Boolean(reply), 'ada answered the DM that waited', reply?.text)
+  void n
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')

@@ -14,6 +14,7 @@ import type { SeatRuntime } from '../org/rules.ts'
 import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
 import { bus } from '../bus.ts'
 import { seatBoard } from '../org/reconcile.ts'
+import { budgetStep, budgetText, nextPeriod, periodOf, usd, type BudgetKind, type BudgetTasks } from './budget.ts'
 import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
 import { render } from './turn.ts'
 
@@ -79,6 +80,7 @@ export class Seat extends DurableObject<Env> {
       this.sql.exec(WAKES_DDL)
       this.sql.exec('create index if not exists wakes_state on wakes (state, at)')
       this.sql.exec('create table if not exists holds (task text primary key, thread text not null, operation text, state text not null, at integer not null)')
+      this.sql.exec('create table if not exists budget_tasks (task text primary key, period text not null, kind text not null, open integer not null, at integer not null)')
     })
     this.totals = new Totals(this.sql)
   }
@@ -104,6 +106,8 @@ export class Seat extends DurableObject<Env> {
         this.ctx.storage.kv.put('key', runtime.key)
       }
     }
+    // A raised budget closes the held limit task, and the seat runs again.
+    if (runtime) await this.#budget(runtime)
     await this.pump()
     return { applied: !same, revision: this.ctx.storage.kv.get<number>('revision') ?? -1, state: this.state() }
   }
@@ -115,6 +119,12 @@ export class Seat extends DurableObject<Env> {
     if (event.type.startsWith('doc.') && !context.rules.includes('docs')) return { queued: false, thread: threadOf(event) }
     const id = context.wake + ':' + event.cursor
     const answer = answerOf(event)
+    // A budget task it holds for the principal is theirs: an answer is noted, nothing about it starts a turn.
+    const budgetTask = this.#one<{ task: string; kind: BudgetKind; open: number }>('select task, kind, open from budget_tasks where task = ?', answer?.task ?? threadOf(event) ?? '')
+    if (budgetTask) {
+      if (answer && budgetTask.open) await this.#answered(budgetTask.task, budgetTask.kind, answer.approved)
+      return { queued: false, thread: budgetTask.task }
+    }
     const hold = answer ? this.#one<{ thread: string; state: string }>('select thread, state from holds where task = ?', answer.task) : undefined
     let thread: string | null
     let input: Input
@@ -169,6 +179,7 @@ export class Seat extends DurableObject<Env> {
       const recorded = await record(this.totals, this.env.RUNS, run)
       if (recorded.error) console.error('seat ' + key + ': run ' + run.id + ' kept, not yet sent to Basin:', recorded.error)
     }
+    if (runtime) await this.#budget(runtime)
     await this.pump()
   }
 
@@ -179,6 +190,66 @@ export class Seat extends DurableObject<Env> {
   async resendRuns(since?: string): Promise<{ marked: number; sent: number }> {
     const marked = this.totals.resend(since)
     return { marked, sent: await this.totals.flush(this.env.RUNS) }
+  }
+
+  /** Holds and closes its budget tasks as its spend and budget say (budget.ts), one step at a time. */
+  async #budget(runtime: SeatRuntime): Promise<void> {
+    const now = Date.now()
+    const period = periodOf(now)
+    for (let steps = 0; steps < 4; steps++) {
+      // An open task from an earlier period comes first: a new period closes it.
+      const stale = this.#one<{ period: string }>('select period from budget_tasks where open = 1 and period != ? order by at limit 1', period)
+      const at = stale?.period ?? period
+      const held: BudgetTasks = { period: at }
+      for (const row of this.sql.exec<{ task: string; kind: BudgetKind; open: number }>('select task, kind, open from budget_tasks where period = ?', at).toArray()) held[row.kind] = { task: row.task, open: row.open === 1 }
+      const spend = this.totals.spend(runtime.key, period).cost
+      const step = budgetStep(spend, runtime.budget, held, period)
+      if (!step) return
+      try {
+        if ('close' in step) {
+          const task = held[step.close]!.task
+          const note = step.why === 'period' ? 'A new period started, and ' + runtime.name + "'s budget with it." : runtime.name + "'s budget was raised to " + usd(runtime.budget.month ?? 0) + ', and it runs again.'
+          const tasks = seatBoard(bus(), runtime).tasks
+          // Held for the principal still: the seat lifts its own hold, then ends the task with why.
+          await tasks.unblock(task).catch(() => undefined)
+          await tasks.complete(task, note).catch((error: unknown) => console.warn('seat ' + runtime.key + ': closing budget task #' + task, error))
+          this.sql.exec('update budget_tasks set open = 0 where task = ?', task)
+        } else {
+          const waiting = (this.#one<{ n: number }>("select count(*) as n from wakes where state = 'queued'")?.n ?? 0)
+          const words = budgetText(step.hold, runtime, spend, runtime.budget.month!, period, waiting)
+          const tasks = seatBoard(bus(), runtime).tasks
+          const made = await tasks.create({ channel: 'dm/' + runtime.key, text: words.text, id: 'budget-' + runtime.key + '-' + period + '-' + step.hold })
+          const task = String(made.task.id)
+          await tasks.block(task, words.reason, 'budget').catch((error: unknown) => {
+            // Made by an earlier try and held already: that's what this step wanted.
+            if (!/already|task_blocked|blocked/.test(String(error))) throw error
+          })
+          this.sql.exec('insert or replace into budget_tasks (task, period, kind, open, at) values (?, ?, ?, 1, ?)', task, period, step.hold, now)
+        }
+      } catch (error) {
+        console.error('seat ' + runtime.key + ': budget step ' + JSON.stringify(step) + ' failed', error)
+        // Kept for status(): the seat's page and the checks see why a budget task didn't come.
+        this.ctx.storage.kv.put('budgetError', { at: new Date(now).toISOString(), step, error: String(error) })
+        return
+      }
+    }
+  }
+
+  /** The principal answered a budget task: an alert is noted and ends; the limit holds again while the budget still says so. */
+  async #answered(task: string, kind: BudgetKind, approved: boolean): Promise<void> {
+    const runtime = this.runtime
+    if (!runtime) return
+    const tasks = seatBoard(bus(), runtime).tasks
+    try {
+      if (kind === 'limit' && this.state() === 'over_budget') {
+        await tasks.block(task, 'Still over budget: answering this task doesn\'t raise it. Raise budget.month in org/seats/' + runtime.key + ' to let ' + runtime.name + ' run again.', 'budget')
+        return
+      }
+      await tasks.complete(task, approved ? 'Noted by the principal.' : 'Dismissed by the principal.')
+      this.sql.exec('update budget_tasks set open = 0 where task = ?', task)
+    } catch (error) {
+      console.error('seat ' + runtime.key + ': answering budget task #' + task + ' failed', error)
+    }
   }
 
   /** This month's spend, in USD, from its runs. */
@@ -206,7 +277,8 @@ export class Seat extends DurableObject<Env> {
     const runs = this.sql.exec<{ record: string }>('select record from telemetry_runs order by rowid desc limit 20').toArray().map((row) => JSON.parse(row.record) as Run)
     const wakes = this.sql.exec('select id, thread, state, attempts, error from wakes order by at desc limit 20').toArray()
     const spend = runtime ? this.totals.spend(runtime.key) : null
-    return { seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs }
+    const budget = { tasks: this.sql.exec('select task, period, kind, open from budget_tasks order by at desc limit 12').toArray(), error: this.ctx.storage.kv.get('budgetError') ?? null }
+    return { seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
   }
 
   #pumping = false
@@ -233,7 +305,14 @@ export class Seat extends DurableObject<Env> {
     const runtime = this.runtime
     if (!runtime) return
     const state = this.state()
-    if (state === 'paused' || state === 'over_budget') return
+    if (state === 'paused') return
+    if (state === 'over_budget') {
+      // Its queue waits for a raised budget, or for the next period, when the alarm looks again.
+      const next = nextPeriod(Date.now())
+      const armed = await this.ctx.storage.getAlarm()
+      if (armed === null || armed > next) await this.ctx.storage.setAlarm(next)
+      return
+    }
     // A parked session doesn't hold a slot, nor do the wakes waiting behind it in its thread; a running one does.
     const running = new Set(this.sql.exec<{ thread: string }>(RUNNING_UNHELD).toArray().map((row) => row.thread))
     const open = new Set([...running, ...this.sql.exec<{ thread: string }>("select distinct thread from wakes where state = 'held'").toArray().map((row) => row.thread)])
@@ -321,6 +400,8 @@ export class Seat extends DurableObject<Env> {
     if (runtime)
       for (const row of this.sql.exec<WakeRow>("select * from wakes where state in ('running', 'held')").toArray())
         if (!this.#following.has(row.id)) this.ctx.waitUntil(this.#follow(runtime, row.id, row.thread))
+    // A new period starts its budget over: the limit task closes, and the queue runs.
+    if (runtime) await this.#budget(runtime)
     await this.pump()
   }
 }

@@ -28,6 +28,9 @@ export type Board = {
     list(query?: Record<string, unknown>): Answer
     complete(id: string, result?: string): Answer
     cancel(id: string, reason: string): Answer
+    create(input: Record<string, unknown>): Answer
+    block(id: string, reason: string, kind?: string): Answer
+    unblock(id: string, answer?: { decision: 'approved' | 'declined'; note?: string }): Answer
   }
 }
 
