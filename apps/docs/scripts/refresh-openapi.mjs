@@ -83,7 +83,7 @@ const DOMAIN = {
   events: 'events',
   follow: 'follows', follows: 'follows',
   unread: 'reads', markRead: 'reads',
-  createDoc: 'docs', docAt: 'docs', doc: 'docs', editDoc: 'docs', moveDoc: 'docs', docHistory: 'docs', docDiff: 'docs', docBacklinks: 'docs',
+  createDoc: 'docs', docAt: 'docs', doc: 'docs', editDoc: 'docs', moveDoc: 'docs', docProposal: 'docs', docHistory: 'docs', docDiff: 'docs', docBacklinks: 'docs',
   schedule: 'schedules', schedules: 'schedules', cancelSchedule: 'schedules',
   upload: 'files', attachment: 'files', uploadStart: 'files', uploadFinish: 'files',
   grants: 'grants', createGrant: 'grants', createGrants: 'grants', updateGrant: 'grants', revokeGrant: 'grants', explainGrants: 'grants',
@@ -144,6 +144,7 @@ const SUMMARY = {
   doc: "A doc's view and its body; with section, that section only; with revision, as it was then. depth sets how deep the outline goes (3 by default).",
   editDoc: 'Edits a doc by section, checked per section against the revision you read, or as a whole body (merge: true merges by section). propose: true makes the edit a task instead.',
   moveDoc: 'Moves a doc to a new channel, slug, or both. Its ID, its replies, and every link to it stay. Needs edit in both channels.',
+  docProposal: "A proposal's change, read and not applied: a new doc's path and body, or a change's doc, its body now, the body it would have, and whether applying it would be refused (stale).",
   docHistory: "A doc's versions, oldest first: who, when, and which sections each edit changed.",
   docDiff: 'The sections that changed between two revisions, before and after (to: now).',
   docBacklinks: 'The threads, replies, and docs whose text links the doc, by its path or ID.',
@@ -396,6 +397,8 @@ const edited = await call('editDoc', { params: { id: docId }, body: { revision: 
 await call('editDoc', { params: { id: docId }, body: { revision: docRevision, edits: [{ section: 'ship/rollback', text: '\nRoll back fast.\n\n' }] }, expect: 409 })
 await call('post', { body: { channel: 'deploys', text: 'v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]' }, keep: false })
 await call('moveDoc', { params: { id: docId }, body: { channel: 'docs/ops', slug: 'shipping' } })
+const proposed = await call('editDoc', { params: { id: docId }, body: { revision: (await call('doc', { params: { id: docId }, keep: false })).doc.revision, edits: [{ section: 'monitoring', text: '\nWatch the error rate and p95 latency for an hour.\n\n' }], propose: true, note: 'We missed a latency regression in v41.' }, keep: false })
+await call('docProposal', { params: { id: proposed.proposal.id } })
 await call('docHistory', { params: { id: docId } })
 await call('docDiff', { params: { id: docId }, query: { from: docRevision, to: edited.revision } })
 await call('docBacklinks', { params: { id: docId } })

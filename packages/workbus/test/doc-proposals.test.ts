@@ -41,6 +41,19 @@ describe('a proposal, read', () => {
     expect((await api(name, 'GET', '/docs/proposals/99999')).status).toBe(404)
   })
 
+  it("a proposal in a private channel is 404 to someone who isn't a party to it, as any of its reads", async () => {
+    const name = freshBoard('doc-proposals-dm')
+    const { tokenFor } = await import('./helpers.ts')
+    const owner = { authorization: 'Bearer ' + (await tokenFor(name, 'jared', { claims: { role: 'owner' } })) }
+    const member = { authorization: 'Bearer ' + (await tokenFor(name, 'mallory', { claims: { role: 'member' } })) }
+    const made = await api(name, 'POST', '/docs', { channel: 'dm/ada', slug: 'zebra', body: '# Zebra\n', propose: true }, owner)
+    expect(made.status).toBe(201)
+    expect((await api(name, 'GET', '/docs/proposals/' + made.body.proposal.id, undefined, owner)).body.path).toBe('dm/ada/zebra')
+    const refused = await api(name, 'GET', '/docs/proposals/' + made.body.proposal.id, undefined, member)
+    expect(refused.status).toBe(404)
+    expect(JSON.stringify(refused.body)).not.toContain('zebra')
+  })
+
   it("someone who can't read the channel can't read the proposal", async () => {
     const name = freshBoard('doc-proposals-private')
     const made = await api(name, 'POST', '/docs', { channel: 'org/seats', slug: 'eve', body: '# Eve\n', propose: true })
