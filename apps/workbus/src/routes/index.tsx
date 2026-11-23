@@ -18,6 +18,7 @@ import { holdSelected } from '@/task/hold'
 import type { InboxItem, Reason } from '@/inbox/items'
 import { useInbox } from '@/inbox/use-inbox'
 import { DateBar, ListPane } from '@/shell/list-pane'
+import { typedText } from '@/thread/mentions'
 import { Clock } from '@/shell/clock'
 
 export const Route = createFileRoute('/')({ component: Inbox })
@@ -109,11 +110,11 @@ function Inbox() {
                   <Clock at={whenOf(one)} />
                 </span>
               </div>
-              <div className={cn('truncate', live.has(key) && 'font-medium')}>{title(one)}</div>
+              <div className={cn('truncate', live.has(key) && 'font-medium')}>{title(one, bus.actors)}</div>
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
                   @{name(whoOf(one))} · {one.channel}
-                  <span className="font-sans"> {detail(one, docPath)}</span>
+                  <span className="font-sans"> {detail(one, docPath, bus.actors)}</span>
                 </span>
                 {one.reasons.some((reason) => reason.kind === 'reply') && live.has(key) ? (
                   <Button
@@ -138,9 +139,9 @@ function Inbox() {
 }
 
 /** Its thread's first line: the root's, or, when the root isn't in memory, the newest reply's (opening it reads the thread). */
-const title = (one: InboxItem) => {
-  const text = one.root?.text ?? latestOf(one)?.text ?? ''
-  return (text.split('\n')[0] ?? '').replace(/^#+\s*/, '').replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1') || 'Thread #' + one.thread
+const title = (one: InboxItem, actors: Actors) => {
+  const text = typedText(one.root?.text ?? latestOf(one)?.text ?? '', actors)
+  return (text.split('\n')[0] ?? '').replace(/^#+\s*/, '') || 'Thread #' + one.thread
 }
 
 /** The message that put it here: the newest reply or mention, else its root. */
@@ -161,15 +162,17 @@ function dayOf(iso: string) {
 }
 
 /** What it asks of me, after who and where. */
-function detail(one: InboxItem, docPath: (id: string) => string) {
+function detail(one: InboxItem, docPath: (id: string) => string, actors: Actors) {
   for (const reason of one.reasons) {
     if (reason.kind === 'held') return '· ' + reason.reason
     if (reason.kind === 'proposal') return '· proposes a change to ' + docPath(reason.doc)
-    if (reason.kind === 'reply' && reason.latest) return '· ' + plain(reason.latest.text) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
+    if (reason.kind === 'reply' && reason.latest) return '· ' + plain(reason.latest.text, actors) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
   }
   return ''
 }
-const plain = (text: string) => text.replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1').split('\n')[0]!
+/** A message's first line, its mentions as their handles (@[<actor ID>] → @handle). */
+const plain = (text: string, actors: Actors) => typedText(text, actors).split('\n')[0]!
+type Actors = Parameters<typeof typedText>[1]
 
 /** The kind of an item, as the prototype's inbox row draws it: the system's Kind, plain (its icon and word). A plain reply has no system kind. */
 function ItemKind({ reason }: { reason: Reason }) {
