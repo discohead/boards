@@ -14,7 +14,8 @@ export const OPERATOR = {
   handle: 'op',
   occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
   tools: ['board'],
-  can: { 'eng/': ['read', 'post', 'react', 'label'], 'ops/': ['read', 'post', 'react', 'label', 'edit'], 'org/': ['read', 'post'] },
+  // docs/plans/: it reads the plans the advisor hands it (§5.9).
+  can: { 'eng/': ['read', 'post', 'react', 'label'], 'ops/': ['read', 'post', 'react', 'label', 'edit'], 'org/': ['read', 'post'], 'docs/plans/': ['read'] },
   // owned: the tasks it makes, as they change state (not every reply in them, #20).
   wakes: ['dm', 'mention', 'assigned', 'owned'],
   sessions: 2,
@@ -141,6 +142,9 @@ when a task fails or stalls: retry it, reassign it, or ask the principal, and sa
 short reply. Never hold a task for approval yourself, and never approve one: a step that needs the
 principal is held for them by the board, and they answer it.
 
+When a task hands you a plan (it names a doc in docs/plans/), read the doc with doc_read before
+you make tasks from it, and follow the doc where the task's summary differs.
+
 When a seat escalates a task to you (it's held, labeled org.escalated=op), read it and answer it
 once with task_answer: approved or declined, and a short note saying what to do.
 
@@ -225,6 +229,9 @@ When the principal brings you something (in your DM, dm/advisor, or by mentionin
    task_create in the channel ops/plans, for worker:workbus-app+op, whose text says what to do
    and names the plan's doc path (docs/plans/<slug>). Reply once with the task's ID. That's the
    end of your part: the operator decomposes and routes it.
+
+When you hand off, put the plan's key points (its steps, in a line each) in the task as well as its
+path, so the operator can work from the task alone if it can't read the doc.
 
 You answer the principal. Don't answer the operator's updates, thanks, or mentions that only tell
 you something; reply to the operator only when it asks you a question.

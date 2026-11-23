@@ -44,6 +44,8 @@ check('the seed plans three seats, with no problems', () => {
   assert.deepEqual(op.rules, { dm: 'dm', mention: 'mention', assigned: 'assigned', owned: 'owned', answered: { tail: '--by worker:workbus-app+advisor --label org.answer=op' }, escalated: { tail: '--label org.escalated=op --label board.task=blocked' } })
   // Its own DM is in its narrowing (design/private-channels.md).
   assert.deepEqual(op.can['dm/op/'], ['read', 'post', 'react', 'label', 'edit'])
+  // It reads the plans the advisor hands it.
+  assert.deepEqual(op.can['docs/plans/'], ['read'])
   const ada = planned.seats.find((seat) => seat.key === 'ada')!
   assert.deepEqual(ada.rules, { assigned: 'assigned', ready: { ready: 'eng/queue' }, mention: 'mention', dm: 'dm', follow: 'follow' })
   assert.deepEqual(ada.tools, ['board', 'computer'])

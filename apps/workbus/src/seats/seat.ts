@@ -18,6 +18,9 @@ import { budgetStep, budgetText, nextPeriod, periodOf, usd, type BudgetKind, typ
 import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
 import { render } from './turn.ts'
 
+/** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
+export const SEAT_CODE = 'edges-2026-11-23.2'
+
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
 /** What a wake delivers (design/registered-watchers.md), as the Wake entrypoint hands it on. */
@@ -344,7 +347,7 @@ export class Seat extends DurableObject<Env> {
     const wakes = this.sql.exec('select id, thread, state, attempts, error from wakes order by at desc limit 20').toArray()
     const spend = runtime ? this.totals.spend(runtime.key) : null
     const budget = { tasks: this.sql.exec('select task, period, kind, open from budget_tasks order by at desc limit 12').toArray(), error: this.ctx.storage.kv.get('budgetError') ?? null }
-    return { seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
+    return { code: SEAT_CODE, seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
   }
 
   #pumping = false
