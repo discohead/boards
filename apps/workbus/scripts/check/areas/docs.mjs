@@ -1,7 +1,7 @@
 // Docs (design/workbus.md §9.3, design/docs.md): the tree, a doc by section, a section edit (at
 // once, then settled), a conflict that keeps the editor's text, a section comment, another actor's
 // comment arriving live, and the history's diff. The doc is made fresh in checks/docs.
-import { until } from '../lib.mjs'
+import { hydrated, until } from '../lib.mjs'
 
 const body = (run) => `# Check ${run}
 
@@ -31,6 +31,7 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
 
   // The docs list: the doc is there, under its folder's chip; it opens in the pane, on its Document face.
   await page.goto(base + '/docs')
+  await hydrated(page)
   const row = page.locator('[data-testid=doc-list] li[data-id="' + doc + '"]')
   await must('the docs list shows a new doc, by its path and revision', await until(() => row.isVisible(), 15_000), await row.innerText().catch(() => ''))
   await page.getByRole('group', { name: 'Filter' }).getByRole('button', { name: 'checks/' }).click()

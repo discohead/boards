@@ -1,12 +1,13 @@
 // Signed in (shell's frame): the app answers as the board's owner through its own origin; the
 // sidebar, the profile at its foot, the top bar's view title, and its live cursor, which moves when
 // someone else writes.
-import { until } from '../lib.mjs'
+import { hydrated, until } from '../lib.mjs'
 
 export async function run({ page, base, owner, other, run: id, channel, must, step }) {
   await must("the bus answers through the app's origin as the board's owner", owner.me.kind === 'person' && (owner.me.can?.['*'] ?? []).includes('manage'), { actor: owner.actor, can: owner.me.can })
   await owner.post('/messages', { channel, text: 'Signed in for the checks, run ' + id })
   await page.goto(base + '/')
+  await hydrated(page)
   const sidebar = page.getByTestId('sidebar')
   await sidebar.waitFor({ timeout: 30_000 }).catch(() => {})
   await must('the frame draws: the sidebar', await sidebar.isVisible())

@@ -1,12 +1,13 @@
 // ⌘K (design/workbus.md §9.3): it opens from anywhere, even a text field; it finds a doc and opens
 // it; text that is no command searches threads and docs, and Enter opens the top result in the
 // pane; a new post from it lands; ? lists the shortcuts.
-import { until } from '../lib.mjs'
+import { hydrated, until } from '../lib.mjs'
 
 export async function run({ page, base, owner, other, run: id, channel, must, step }) {
   const doc = (await owner.post('/docs', { channel: 'checks/docs', slug: 'palette-' + id, body: '# Palette ' + id + '\n\nFound by the palette.\n' })).message
   const found = (await other.post('/messages', { channel, text: 'Is the palette search current? ' + id })).message
   await page.goto(base + '/')
+  await hydrated(page)
   await page.getByTestId('sidebar').waitFor({ timeout: 30_000 })
   const palette = page.getByTestId('palette')
   // ⌘K, again until it opens: the shortcut is registered once the page has hydrated.
