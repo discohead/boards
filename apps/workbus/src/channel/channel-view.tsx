@@ -7,8 +7,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
 import { useVirtualizer } from '@tanstack/react-virtual'
+import { useHotkey } from '@tanstack/react-hotkeys'
 import { Hash, MessageSquare } from 'lucide-react'
-import { NewEventsPill } from '@/components/system'
+import { Kbd, NewEventsPill } from '@/components/system'
 import { useBus, type Message, type Thread } from '@/data'
 import { useOpenThread } from '@/shell/open-thread'
 import { channelKey } from '@/data/unread'
@@ -121,6 +122,23 @@ export function ChannelView({ channel }: { channel: string }) {
   const [mounted, setMounted] = useState(false)
   useEffect(() => setMounted(true), [])
 
+  // J and K move through the threads (J down, to newer; K up, to older) and ↵ opens the selected one
+  // in the pane. TanStack Hotkeys skips them while focus is in a text field: Escape leaves the composer.
+  const [selected, setSelected] = useState<string | null>(null)
+  useEffect(() => {
+    if (openId) setSelected(openId)
+  }, [openId])
+  const move = (by: number) => {
+    if (items.length === 0) return
+    const at = items.findIndex((item) => item.thread.id === selected)
+    const next = at < 0 ? items.length - 1 : Math.max(0, Math.min(items.length - 1, at + by))
+    setSelected(items[next]!.thread.id)
+  }
+  useHotkey('J', () => move(1), { meta: { name: 'Next thread', group: 'Channels' } })
+  useHotkey('K', () => move(-1), { meta: { name: 'Previous thread', group: 'Channels' } })
+  useHotkey('Enter', () => selected && open(selected), { enabled: selected !== null, meta: { name: 'Open the thread', group: 'Channels' } })
+  const selectedIndex = items.findIndex((item) => item.thread.id === selected)
+
   const [editing, setEditing] = useState<string | null>(null)
   const editLast = () => {
     const mine = [...items].reverse().find((item) => item.root.by.actor === bus.runtime.me.actor && !item.root.deleted && !item.root.pending)
@@ -131,6 +149,10 @@ export function ChannelView({ channel }: { channel: string }) {
     <div className="flex h-full flex-col">
       <header className="flex shrink-0 items-center border-b px-4 pt-5 pb-2">
         <h1 className="flex items-center gap-1.5 text-xl font-semibold tracking-tight">{channel.startsWith('dm/') ? <MessageSquare size={16} strokeWidth={1.5} aria-hidden /> : <Hash size={16} strokeWidth={1.5} aria-hidden />}{channel.startsWith('dm/') ? channel.slice(3) : channel}</h1>
+        <span className="ml-auto flex items-center gap-1 font-mono text-mono-ui text-muted-foreground">
+          <Kbd>J</Kbd>
+          <Kbd>K</Kbd> move <Kbd className="ml-2">↵</Kbd> open
+        </span>
       </header>
       <History
         key={channel}
@@ -155,6 +177,7 @@ export function ChannelView({ channel }: { channel: string }) {
           </>
         )}
         opened={openId}
+        selectedIndex={selectedIndex}
       />
       <div className="shrink-0 px-4 pb-4">
         <Composer place={'channel:' + channel} label={'Message #' + channel} placeholder={'Message #' + channel} onSend={(text) => bus.actions.post({ channel, text })} onEditLast={editLast} autoFocus />
@@ -172,7 +195,7 @@ function NewLine() {
   )
 }
 
-function History({ items, hasOlder, loading, onOlder, render, opened }: { items: Item[]; hasOlder: boolean; loading: boolean; onOlder: () => void; render: (item: Item) => React.ReactNode; opened: string | null }) {
+function History({ items, hasOlder, loading, onOlder, render, opened, selectedIndex }: { items: Item[]; hasOlder: boolean; loading: boolean; onOlder: () => void; render: (item: Item) => React.ReactNode; opened: string | null; selectedIndex: number }) {
   const scroller = useRef<HTMLDivElement>(null)
   // The first render (the server's, and hydration's) is a plain list of the newest rows, pinned to
   // the bottom by column-reverse with no script. Before the browser paints again, the virtualizer
@@ -217,6 +240,10 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
       setBelow((n) => n + 1)
     }
   }, [atEnd, last?.key])
+  // The selected thread (J/K) is kept in view.
+  useEffect(() => {
+    if (mounted && selectedIndex >= 0) virtualizer.scrollToIndex(selectedIndex, { align: 'auto' })
+  }, [mounted, selectedIndex, virtualizer])
   const virtual = virtualizer.getVirtualItems()
   // Near the top: read the page before.
   const first = virtual[0]?.index ?? 0
@@ -232,7 +259,7 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
         {mounted ? (
           <ul style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
             {virtual.map((row) => (
-              <li key={row.key} data-index={row.index} data-id={items[row.index]!.root.id} data-pending={items[row.index]!.root.pending ? 'yes' : undefined} ref={virtualizer.measureElement} className="hover:z-10 focus-within:z-10 has-[[role=menu]]:z-20 has-[[role=alertdialog]]:z-20" style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: 'translateY(' + row.start + 'px)' }}>
+              <li key={row.key} data-index={row.index} data-id={items[row.index]!.root.id} data-pending={items[row.index]!.root.pending ? 'yes' : undefined} aria-selected={row.index === selectedIndex || undefined} ref={virtualizer.measureElement} className="aria-selected:bg-selected hover:z-10 focus-within:z-10 has-[[role=menu]]:z-20 has-[[role=alertdialog]]:z-20" style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: 'translateY(' + row.start + 'px)' }}>
                 {render(items[row.index]!)}
               </li>
             ))}

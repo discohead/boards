@@ -8,16 +8,18 @@ import { MessageText } from '@/thread/message-text'
 import { handleOf, typedText } from '@/thread/mentions'
 import { cn } from '@/lib/utils'
 import { Clock } from '@/shell/clock'
-import { Avatar as SystemAvatar } from '@/components/system'
+import { Avatar as SystemAvatar, Message as SystemMessage } from '@/components/system'
 import { REACTIONS, Reaction } from './reactions.tsx'
+
+/** A name's initials, for an avatar. */
+export const initialsOf = (name: string) => name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('') || '?'
 
 /** An actor's avatar: the design system's (people round, agents square), from what the app knows of it. */
 export function Avatar({ actor, size = 'md' }: { actor: string; size?: 'sm' | 'md' }) {
   const bus = useBus()
   const known = bus.actors.get(actor)
   const name = known?.name ?? handleOf(bus.actors, actor)
-  const initials = name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('') || '?'
-  return <SystemAvatar kind={isAgent(known?.kind, actor) ? 'agent' : 'person'} initials={initials} name={name} size={size === 'sm' ? 'xs' : 'md'} />
+  return <SystemAvatar kind={isAgent(known?.kind, actor) ? 'agent' : 'person'} initials={initialsOf(name)} name={name} size={size === 'sm' ? 'xs' : 'md'} />
 }
 
 /** An actor is an agent unless it's a person: a person's kind is "person", and people sign in as workbus:user: or access:user:. */
@@ -96,44 +98,34 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
         {thread && thread.replies > 0 ? <ThreadLine thread={thread} replies={replies} onOpen={onOpenThread} unread={unreadReplies} /> : null}
       </div>
     )
-  return (
-    <div data-message={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className={cn('group relative flex gap-2 px-4 text-[13px] leading-[18px] hover:bg-accent', grouped ? 'py-0.5' : 'pt-2 pb-0.5', message.pending && 'text-muted-foreground', arrive && 'animate-arrive')}>
-      {grouped ? <When iso={message.createdAt} className="invisible w-7 shrink-0 text-right font-mono text-[10px] leading-[18px] tabular-nums text-muted-foreground group-hover:visible" /> : <Avatar actor={message.by.actor} />}
-      <div className="min-w-0 flex-1">
-        {grouped ? null : (
-          <div className="flex items-baseline gap-2">
-            <span className="font-semibold" data-testid="author">{name}</span>
-            <span className="font-mono text-[11px] text-muted-foreground">@{handle}</span>
-            <span className="ml-auto flex gap-2 font-mono text-[11px] tabular-nums text-muted-foreground">
-              {message.pending ? <span data-testid="sending">sending…</span> : <span data-testid="cursor">#{message.id}</span>}
-              <When iso={message.createdAt} />
-            </span>
-          </div>
-        )}
-        {editing ? (
-          <EditBox message={message} onDone={() => onEditing?.(false)} />
-        ) : (
-          <div>
-            <MessageText text={message.text} />
-            {message.editedAt ? <span className="text-[11px] text-muted-foreground">(edited)</span> : null}
-          </div>
-        )}
-        {reactions.length ? (
-          <div className="mt-1 flex flex-wrap gap-1" data-testid="reactions">
-            {reactions.map(([emoji, by]) => {
-              const reacted = by.includes(me)
-              return (
-                <button key={emoji} type="button" data-emoji={emoji} aria-pressed={reacted} title={by.map((actor) => handleOf(bus.actors, actor)).join(', ')} onClick={() => react(emoji, reacted)} className={cn('flex h-5 items-center gap-1 rounded-sm border px-1.5 font-mono text-[11px] tabular-nums', reacted ? 'border-primary text-primary' : 'bg-background text-muted-foreground hover:border-foreground/30')}>
-                  <Reaction name={emoji} />
-                  <span>{by.length}</span>
-                </button>
-              )
-            })}
-          </div>
-        ) : null}
-        {thread && thread.replies > 0 ? <ThreadLine thread={thread} replies={replies} onOpen={onOpenThread} unread={unreadReplies} /> : null}
-      </div>
-      {editing || message.pending ? null : (
+  const content = (
+    <>
+      {editing ? (
+        <EditBox message={message} onDone={() => onEditing?.(false)} />
+      ) : (
+        <div>
+          <MessageText text={message.text} />
+          {message.editedAt ? <span className="text-[11px] text-muted-foreground">(edited)</span> : null}
+        </div>
+      )}
+      {reactions.length ? (
+        <div className="mt-1 flex flex-wrap gap-1" data-testid="reactions">
+          {reactions.map(([emoji, by]) => {
+            const reacted = by.includes(me)
+            return (
+              <button key={emoji} type="button" data-emoji={emoji} aria-pressed={reacted} title={by.map((actor) => handleOf(bus.actors, actor)).join(', ')} onClick={() => react(emoji, reacted)} className={cn('flex h-5 items-center gap-1 rounded-sm border px-1.5 font-mono text-[11px] tabular-nums', reacted ? 'border-primary text-primary' : 'bg-background text-muted-foreground hover:border-foreground/30')}>
+                <Reaction name={emoji} />
+                <span>{by.length}</span>
+              </button>
+            )
+          })}
+        </div>
+      ) : null}
+      {thread && thread.replies > 0 ? <ThreadLine thread={thread} replies={replies} onOpen={onOpenThread} unread={unreadReplies} /> : null}
+    </>
+  )
+  const actions =
+    editing || message.pending ? null : (
         <div className={cn('absolute -top-3 right-4 hidden items-center rounded-md border bg-background shadow-sm group-hover:flex focus-within:flex', (picking || confirming) && 'flex')} role="toolbar" aria-label="Message actions" ref={toolbar}>
           <Tool label="Add a reaction" onClick={picking ? () => setPicking(false) : opening(setPicking)}>
             <SmilePlus size={16} strokeWidth={1.5} />
@@ -183,7 +175,28 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
             </div>
           ) : null}
         </div>
-      )}
+      )
+  if (!grouped)
+    return (
+      <div data-message={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className="group relative hover:bg-accent">
+        <SystemMessage
+          author={{ name, handle: '@' + handle, initials: initialsOf(name), kind: isAgent(bus.actors.get(message.by.actor)?.kind, message.by.actor) ? 'agent' : 'person' }}
+          time={<Clock at={message.createdAt} />}
+          cursor={<span data-testid="cursor">#{message.id}</span>}
+          pending={!!message.pending}
+          arrive={!!arrive}
+          className="px-4 pt-2 pb-0.5"
+        >
+          {content}
+        </SystemMessage>
+        {actions}
+      </div>
+    )
+  return (
+    <div data-message={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className={cn('group relative flex gap-2 px-4 py-0.5 text-[13px] leading-[18px] hover:bg-accent', message.pending && 'text-muted-foreground', arrive && 'animate-arrive')}>
+      <When iso={message.createdAt} className="invisible w-7 shrink-0 text-right font-mono text-[10px] leading-[18px] tabular-nums text-muted-foreground group-hover:visible" />
+      <div className="min-w-0 flex-1">{content}</div>
+      {actions}
     </div>
   )
 }
