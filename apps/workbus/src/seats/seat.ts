@@ -109,6 +109,9 @@ export class Seat extends DurableObject<Env> {
 
   /** A delivery: queued once per (wake, cursor), then routed. An answer to a hold goes to the session it holds. */
   async wake(event: Delivered, context: DeliveredContext): Promise<{ queued: boolean; thread: string | null; answer?: string }> {
+    // A doc made, edited, or moved is news only to a seat that wakes for docs ({ docs: <channel> }): a
+    // mention or a follow in a doc's body isn't a message to the seat. Comments on a doc are posts, and still wake it.
+    if (event.type.startsWith('doc.') && !context.rules.includes('docs')) return { queued: false, thread: threadOf(event) }
     const id = context.wake + ':' + event.cursor
     const answer = answerOf(event)
     const hold = answer ? this.#one<{ thread: string; state: string }>('select thread, state from holds where task = ?', answer.task) : undefined
