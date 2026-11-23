@@ -14,7 +14,7 @@ export function ListPane({ title, label, actions, chips, children, foot = true }
         {actions}
       </div>
       {chips?.length ? (
-        <div role="group" aria-label="Filter" className="flex gap-[5px] px-4 pb-3.5">
+        <div role="group" aria-label="Filter" className="flex flex-wrap gap-[5px] px-4 pb-3.5">
           {chips.map((chip) => (
             <button key={chip.label} type="button" aria-pressed={chip.active ?? false} onClick={chip.onClick} className={cn('rounded-sm border border-transparent px-[9px] py-[3px] text-[12px] font-medium text-muted-foreground', chip.active ? 'border-line bg-raised text-text' : 'hover:bg-raised')}>
               {chip.label}

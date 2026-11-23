@@ -94,7 +94,7 @@ function Frame() {
           <TopBar title={titleOf(pathname)} />
           <div data-testid="workspace" className="flex min-h-0 flex-1">
             {/* The view's list: the whole width alone, the list's width beside an open thread. */}
-            <div className={threadOpen ? 'flex w-[344px] shrink-0 flex-col border-r' : 'flex min-w-0 flex-1 flex-col'}>
+            <div className={threadOpen ? 'flex w-[344px] shrink-0 flex-col overflow-hidden border-r border-line' : 'flex min-w-0 flex-1 flex-col'}>
               <Outlet />
             </div>
             <ThreadPane />
