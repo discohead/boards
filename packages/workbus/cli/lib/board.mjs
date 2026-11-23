@@ -18,23 +18,26 @@ export function connect(flags, env, { token: needsToken = true } = {}) {
   const url = (parsed.origin + parsed.pathname).replace(/\/+$/, '')
   const token = flags.token ?? env.WORKBUS_TOKEN
   if (needsToken && !token) throw misuse('no_token', 'no token for ' + url + ': WORKBUS_TOKEN is not set', [['wb', 'token'], 'Or pass --token <token>.'])
-  const profile = flags.as ?? env.WORKBUS_PROFILE ?? null
+  // A profile's key, and maybe its name and handle as x-board-profile carries them: op;name="Operator";handle="op".
+  const given = flags.as ?? env.WORKBUS_PROFILE ?? null
+  const profile = given === null ? null : given.split(';')[0].trim()
   if (profile !== null && profile !== '' && !PROFILE.test(profile))
-    throw misuse('invalid_profile', 'a profile starts with a letter and has up to 32 letters, numbers, and hyphens, not ' + profile)
-  return new Board(url, token ?? null, profile || null)
+    throw misuse('invalid_profile', 'a profile starts with a letter and has up to 32 letters, numbers, and hyphens, not ' + profile, ['Name and handle go after it: --as \'op;name="Operator";handle="op"\'.'])
+  return new Board(url, token ?? null, profile || null, profile ? given.trim() : null)
 }
 
 export class Board {
-  constructor(url, token, profile) {
+  constructor(url, token, profile, header = profile) {
     this.url = url
     this.token = token
     this.profile = profile
+    this.profileHeader = header
   }
 
   headers(extra = {}) {
     return {
       ...(this.token ? { authorization: 'Bearer ' + this.token } : {}),
-      ...(this.profile ? { 'x-board-profile': this.profile } : {}),
+      ...(this.profile ? { 'x-board-profile': this.profileHeader } : {}),
       'user-agent': 'workbus-cli',
       ...extra,
     }

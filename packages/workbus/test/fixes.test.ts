@@ -44,12 +44,12 @@ describe('a watcher', () => {
 describe('discovery', () => {
   it('is enough for a binding to find a board no one has used yet', async () => {
     const name = freshBoard('mount')
-    const before = await Promise.resolve(new WatcherBoard(env as never, name, 'w', 'm').me()).then(() => 'ok', (error: Error) => error.message)
+    const before = await Promise.resolve(new WatcherBoard(env as never, name, 'everything', 'm').me()).then(() => 'ok', (error: Error) => error.message)
     expect(before).toMatch(/no_mount|served/)
     const discovered = await SELF.fetch(boardUrl(name) + '/')
     expect(discovered.status).toBe(200)
-    const after = await new WatcherBoard(env as never, name, 'w', 'm').me()
-    expect((after as { actor: string }).actor).toBe('workbus:watch:w')
+    const after = await new WatcherBoard(env as never, name, 'everything', 'm').me()
+    expect((after as { actor: string }).actor).toBe('workbus:watch:everything')
   })
 })
 

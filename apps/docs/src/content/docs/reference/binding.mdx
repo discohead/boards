@@ -89,7 +89,7 @@ class Board extends RpcTarget {
 
   // who and where
   me(query?: { prefix?: string; after?: string; limit?: number }): Promise<Me>   // GET /me
-  as(profile: string | { name: string; avatar?: string }): Board                  // writes as <principal>+<profile>
+  as(profile: string | { key?: string; name: string; handle?: string; avatar?: string }): Board // writes as <principal>+<key>, shown by its name and handle
   narrow(can: Can | string): Board                                                // { 'work/': ['read', 'post'] } or 'work/=read,post'
   channel(pattern: string): Board                                                 // 'deploys', or 'work/' and its subtree
 
@@ -109,6 +109,9 @@ class Board extends RpcTarget {
   follows(query?: { limit?: number })                                             // GET /follows
   unread(query?: { channel?: string })                                            // GET /unread: every unread count at once
   markRead(input: { channel?: string; thread?: string; upto?: string })           // POST /read: up to now, or up to a message
+  setWake(key: string, input: { sink: string; rules: Record<string, Rule>; revision?: number }) // POST /wakes: as this caller, profile and narrowing too
+  wakes(query?: { prefix?: string })                                              // GET /wakes
+  deleteWake(key: string, opts?: { revision?: number })                           // POST /wakes/{key}/delete
   label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> })
 
   // the feed
@@ -126,6 +129,8 @@ class Board extends RpcTarget {
 
 `PostInput` is the body of `POST /messages` without `channel` or `re` (`{ text, labels, attachments, id, noSync, sync, after }`): where a message goes is the method's first argument. The answers are the HTTP API's answers, as plain objects; see each route in the [HTTP API](/reference/http-api/).
 
+`as({ key: 'op', name: 'Operator', handle: 'op' })` writes as `<principal>+op`, shown as Operator, and claims `@op`. A new name or handle keeps the same actor, so a seat keeps its history across a rename. `as('fixer')` is `{ key: 'fixer' }`, named Fixer as written. See [Profiles](/guides/identity-and-access/#profiles).
+
 In a [private channel](/guides/identity-and-access/#private-channels) only its parties' Boards see anything: `as('ada')` is a party to `dm/ada` where the deployment says so, `as('bob')` and the Board with no profile aren't, and `narrow()` never adds a party. A seat's narrowing has to include its own DM.
 
 `events({ wait })` and `tasks.claim({ channel }, { wait })` hold the call until something comes, woken by the board's Relay, like the HTTP held waits.
@@ -141,7 +146,12 @@ class Tasks extends RpcTarget {
   claim(target: { channel: string; label?: Record<string, string>; from?: string[] },
         opts?: { lease?: number; wait?: number; token?: string }): Promise<Claim | null>  // null when none was ready
   block(id: string, reason: string, kind?: string)                                 // as the task's owner, without a claim
-  unblock(id: string)
+  unblock(id: string, answer?: { decision: 'approved' | 'declined'; note?: string })
+  approve(id: string, note?: string)                                               // unblock with decision: 'approved'
+  decline(id: string, note?: string)                                               // unblock with decision: 'declined'
+  complete(id: string, result?: string)                                            // as its owner, without a claim: ends whoever's
+  fail(id: string, reason: string)                                                 // as its owner, without a claim
+  release(id: string)                                                              // as its owner: takes it back, ready again
   reopen(id: string)
   cancel(id: string, reason: string)
   assign(id: string, to: string | null)                                            // null: anyone may claim it

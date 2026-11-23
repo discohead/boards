@@ -223,3 +223,17 @@ describe('help', () => {
     assert.match((await run(['--help'])).stdout, /^ *doc <subcommand> ... +read, create, edit, history, diff, move, backlinks$/m)
   })
 })
+
+describe('wakes', () => {
+  test('wake set sends its rules by id, the kind when none is given, and its revision as a number', async () => {
+    const made = await wb(['wake', 'set', 'ada', '--sink', 'wake', '--as', 'ada', '--revision', '7', '--rule', 'mention', '--rule', 'ready=work/', '--rule', 'ready=ops', '--rule', 'specs:docs=specs/', '--rule', 'tail=general --label urgent'])
+    assert.equal(made.code, 0, made.stderr)
+    const sent = board.last('POST', '/wakes')
+    assert.deepEqual(sent.body, { key: 'ada', sink: 'wake', revision: 7, rules: { mention: 'mention', ready: { ready: 'work/' }, 'ready-2': { ready: 'ops' }, specs: { docs: 'specs/' }, tail: { tail: 'general --label urgent' } } })
+    assert.equal(sent.headers['x-board-profile'], 'ada')
+    assert.match(made.stdout, /^set ada  workbus:user:tester\+ada -> wake  revision 7\n  mention +mention\n/)
+    const bad = await wb(['wake', 'set', 'ada', '--sink', 'wake', '--rule', 'mention', '--revision', 'seven'])
+    assert.notEqual(bad.code, 0)
+    assert.match(bad.stderr, /--revision takes a whole number/)
+  })
+})

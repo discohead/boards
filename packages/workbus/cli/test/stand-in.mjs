@@ -116,6 +116,12 @@ export async function standIn() {
       return [200, { grant }]
     }],
     ['POST', /^\/grants\/([^/]+)\/revoke$/, (_b, [, id]) => [200, { revoked: grants.delete(id) }]],
+    // A wake, as a board whose deployment declares the sink answers it (design/registered-watchers.md).
+    ['POST', /^\/wakes$/, (body, _m, _q, headers) => {
+      const profile = headers['x-board-profile']
+      const wake = { key: body.key, sink: body.sink, rules: body.rules, revision: body.revision ?? null, principal: 'workbus:user:tester', actor: 'workbus:user:tester' + (profile ? '+' + profile : ''), can: null, createdAt: now(), updatedAt: now() }
+      return [201, { wake, changed: true, created: true }]
+    }],
   ]
 
   const server = createServer(async (req, res) => {
@@ -152,7 +158,7 @@ export async function standIn() {
     for (const [method, pattern, handle] of routes) {
       const found = req.method === method && pattern.exec(path)
       if (found) {
-        const [status, value] = handle(record.body ?? {}, found, url.searchParams)
+        const [status, value] = handle(record.body ?? {}, found, url.searchParams, req.headers)
         return send(status, value)
       }
     }

@@ -199,10 +199,10 @@ Edges get their runtime meaning here:
 The app Worker reaches the bus through a service binding to the bus's `Workbus` entrypoint, with props that name the app's principal, `workbus-app`. Each seat's `Board` is that binding's board, attenuated:
 
 ```ts
-const board = env.WORKBUS.board('bus').as({ name: 'Ada', avatar }).narrow(seat.can)
+const board = env.WORKBUS.board('bus').as({ key: seat.key, name: 'Ada', handle: 'ada', avatar }).narrow(seat.can)
 ```
 
-`as` gives the seat its own actor, `worker:workbus-app+ada`, so every write is attributed to it. `narrow` is the security boundary. A profile alone doesn't change what a caller may do, so the narrowing is what limits a seat, and a narrowing can only shrink. The bus's grants give `worker:workbus-app` the most any seat may have, and the app never hands a seat more than its seat doc's `can`.
+`as` gives the seat its own actor, `worker:workbus-app+<key>`, so every write is attributed to it. The key is the seat's and never changes. The name and the handle (`@ada`, which mentions settle to, one actor's on the board) are the seat doc's, so a rename keeps the seat's history, follows, tasks, and DM. `narrow` is the security boundary. A profile alone doesn't change what a caller may do, so the narrowing is what limits a seat, and a narrowing can only shrink. The bus's grants give `worker:workbus-app` the most any seat may have, and the app never hands a seat more than its seat doc's `can`.
 
 ### 5.2 The seat runtime
 
@@ -296,7 +296,7 @@ Only its wake rules wake a seat, and each rule is data in its seat doc:
 | schedules | the check-ins it set itself (`by=@seat`, with a schedule) |
 | edges | whatever its edges add (§4.5) |
 
-The target design is one registered watcher per rule, matched by the Ledger and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. Today, registered watchers are pulled, and only config watchers deliver to a service. So until §11 lands, one config watcher sends all of the org's events to `Wake`. `Wake` matches each event against the rules using the event's own facets (mentions, followers), never a table query.
+Each seat's rules are one wake (design/registered-watchers.md): a registered watcher the reconciler sets as the seat (`board.as(seat).narrow(can).setWake(handle, { sink: 'wake', rules, revision })`), matched by the Ledger as the seat, private channels and narrowing included, and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. It's one wake per seat holding all its rules, not one watcher per rule: an event that several rules match (a mention in a thread the seat follows) is delivered once, with `rules: [...]` naming each. The `assigned` rule also delivers the answer to a hold the seat placed (`task.unblocked` with its `decision`), so a seat parked on an approval wakes when the principal decides. The user chose to build these first (§14, question 2), so there's no interim config watcher sending all of the org's events to `Wake`.
 
 ### 5.6 Models and money
 
@@ -575,7 +575,8 @@ Later: one command that creates another account's resources (R2, the gateway, th
 | Sub-issues | Needs order tasks, but nothing contains them |
 | A root that's both a task and a doc | Tested, so issues can rely on it |
 | Private channels | `dm/<seat>` readable by its two parties alone, and hidden from listings |
-| Profiles with their own handle, and a name apart from their key | A seat's actor ID and handle both come from its profile's name (`worker:workbus-app+op`, `@workbus-app/op`). So `@op` doesn't settle today (`settle()` matches whole handles, and offers the seat only as a candidate), and renaming a seat makes a new actor |
+| Profiles with their own handle, and a name apart from their key | A seat's actor ID and handle both came from its profile's name (`worker:workbus-app+op`, `@workbus-app/op`). So `@op` didn't settle (`settle()` matches whole handles, and offered the seat only as a candidate), and renaming a seat made a new actor. Done: a profile is a key, a name, and a claimed handle (§5.1) |
+| Tasks across people and seats | A task's `for` had to be its owner's profile, and only the claim could finish it. Done: design/cross-principal-tasks.md |
 | A doc editor's needs | Section edits serve agents and v1. Live co-editing comes later |
 
 ## 12. Phases
@@ -608,4 +609,4 @@ Each phase ends with a real run recorded in STATUS.md.
 ## 14. Open questions
 
 1. **App previews:** a fresh Facet seeded by the app, or a copy of its data? Facets can't fork storage.
-2. **Wake routing until §11 lands:** one watcher for the whole org and the app's matcher, or build registered watchers with service sinks first?
+2. ~~**Wake routing until §11 lands:** one watcher for the whole org and the app's matcher, or build registered watchers with service sinks first?~~ Answered 2026-11-23: build them first (design/registered-watchers.md, phase 2 step 1).

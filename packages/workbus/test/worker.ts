@@ -7,6 +7,8 @@ import './access.ts'
 import type { GatewayEnv } from '../src/gateway/gateway.ts'
 import type { WatchConfig } from '../src/ledger/ledger.ts'
 import { testProvider } from './sync-provider.ts'
+import { wakePrincipals } from './wake.ts'
+export { TestWake } from './wake.ts'
 
 /** Watchers deployed after a board was already in use: a test adds one, then restarts the Ledger. */
 export const lateWatchers: Record<string, WatchConfig> = {}
@@ -28,6 +30,11 @@ export const { Ledger, Relay, Mailbox, Inbox, BoardSession, gateway } = defineWo
     ...lateWatchers,
   },
   sync: { test: provider },
+  // Wakes' sinks (wakes.test.ts): wake lets the app's principal target it, elsewhere no one but a Worker that isn't here.
+  sinks: {
+    wake: { binding: 'WAKE', method: 'wake', principals: wakePrincipals },
+    elsewhere: { binding: 'WAKE', method: 'wake', principals: ['worker:someone-else'] },
+  },
 }))
 
 export default {

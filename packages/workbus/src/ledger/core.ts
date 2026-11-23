@@ -22,7 +22,13 @@ export type Principal = {
   /** Owned code that private channels still keep out: a config watcher that didn't ask for them. */
   outsider?: boolean
 }
-export type Profile = { name: string; avatar: string | null }
+/**
+ * A profile: a stable key (the actor is <principal>+<key>), a display name, and the handle it
+ * claims, when it claims one (a claimed handle has no slash; without one, it's <principal>/<key>).
+ */
+export type Profile = { key: string; name: string; handle?: string | null; avatar: string | null; /** false when the caller gave no name: the one it gave before stays. */ named?: boolean }
+/** A profile's key, for one stored before profiles had keys (a schedule's creator): its name, lowercased. */
+export const keyOf = (profile: Profile): string => profile.key ?? profile.name.toLowerCase()
 export type Caller = { principal: Principal; profile: Profile | null; narrow: Record<string, Grant> | null; via: string }
 export type Author = { actor: string; principal: string; profile: string | null }
 export type ActorRecord = { id: string; kind: string; handle: string; name: string; avatar: string | null; via?: { name: string; environment: string | null }; platform?: string; verified?: boolean }
@@ -30,10 +36,14 @@ export type ActorRecord = { id: string; kind: string; handle: string; name: stri
 export const actorOf = (caller: Caller): ActorRecord => {
   const { principal, profile } = caller
   if (!profile) return { id: principal.id, kind: principal.kind, handle: principal.handle, name: principal.name, avatar: null, verified: true }
-  const lower = profile.name.toLowerCase()
-  return { id: principal.id + '+' + lower, kind: 'agent', handle: principal.handle + '/' + lower, name: profile.name, avatar: profile.avatar, via: { name: principal.handle, environment: null }, verified: true }
+  const key = keyOf(profile)
+  return { id: principal.id + '+' + key, kind: 'agent', handle: profile.handle ?? principal.handle + '/' + key, name: profile.name, avatar: profile.avatar, via: { name: principal.handle, environment: null }, verified: true }
 }
-export const authorOf = (caller: Caller): Author => ({ actor: actorOf(caller).id, principal: caller.principal.id, profile: caller.profile ? caller.profile.name.toLowerCase() : null })
+export const authorOf = (caller: Caller): Author => ({ actor: actorOf(caller).id, principal: caller.principal.id, profile: caller.profile ? keyOf(caller.profile) : null })
+
+/** The handles no profile claims: a filter's own words. */
+export const RESERVED_HANDLES = ['me', 'you']
+const HANDLE_MAX = 32
 
 // ---------------------------------------------------------------------------------------------
 // Grants: who they name, and what they give where.
@@ -261,6 +271,10 @@ export class Board {
   sync = new Map<string, string>()
   /** The deployment's private channels (WorkbusConfig.private). */
   privacy: Privacy | null = null
+  /** The service sinks the deployment declares (WorkbusConfig.sinks): who may target each. */
+  sinks = new Map<string, { binding: string; method?: string; principals: readonly string[] }>()
+  /** Empties a Mailbox, by name, after a write: the Ledger sets it when it has one. */
+  clearMailbox: ((name: string) => Promise<void>) | null = null
   private grantsCache: { version: number; grants: StoredGrant[] } | null = null
   readonly sql: Sql
   constructor(sql: Sql) {
@@ -308,9 +322,30 @@ export class Board {
   /** The caller's actor as the board shows it: a person's own actor takes the name they set (PATCH /me). */
   actorFor(caller: Caller): ActorRecord {
     const record = actorOf(caller)
-    if (caller.profile || caller.principal.kind !== 'person') return record
+    if (caller.profile) return this.claimed(record, caller.profile)
+    if (caller.principal.kind !== 'person') return record
     const named = this.sql.one<{ name: string }>('select name from names where principal = ?', caller.principal.id)
     return named ? { ...record, name: named.name } : record
+  }
+  /**
+   * A profile's actor as its caller gives it now, with the name and handle it gave before where it
+   * leaves them out (a claimed handle sticks until the profile claims another). A handle is one
+   * actor's: a claim on one another actor on the board shows is refused, and says which is free.
+   */
+  private claimed(given: ActorRecord, profile: Profile): ActorRecord {
+    const handle = profile.handle ?? null
+    let record = given
+    if (handle === null || profile.named === false) {
+      const before = this.sql.one<{ handle: string; name: string }>('select handle, name from actors where id = ?', record.id)
+      if (before && handle === null && !before.handle.includes('/')) record = { ...record, handle: before.handle }
+      if (before && profile.named === false) record = { ...record, name: before.name }
+    }
+    if (handle === null) return record
+    const taken = (wanted: string) => this.sql.one<{ id: string; name: string }>("select id, name from actors where handle_lc = ? and id != ? and kind != 'external' limit 1", wanted, record.id)
+    const holder = taken(handle)
+    if (!holder) return record
+    const free = [...(handle.endsWith('s') ? [] : [handle + 's']), ...Array.from({ length: 98 }, (_, i) => handle + (i + 2))].find((option) => option.length <= HANDLE_MAX && !RESERVED_HANDLES.includes(option) && !taken(option))
+    throw new WorkbusError(409, 'handle_taken', '@' + handle + ' is taken by ' + holder.name + '.' + (free ? ' Try @' + free + '.' : ''))
   }
   actor(id: string): ActorRecord | null {
     const row = this.sql.one<{ id: string; kind: string; handle: string; name: string; avatar: string | null; via: string | null; platform: string | null; verified: number }>('select * from actors where id = ?', id)

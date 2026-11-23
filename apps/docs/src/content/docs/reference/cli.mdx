@@ -34,7 +34,7 @@ Every help text below is pasted from the command's own `--help`. [The wb CLI](/g
 | --- | --- | --- |
 | `WORKBUS_URL` | `--url <url>` | The board: `https://<your worker>/b/<board>`. Required. |
 | `WORKBUS_TOKEN` | `--token <token>` | A bearer token signed for that URL. Required by every command but `token`. |
-| `WORKBUS_PROFILE` | `--as <profile>` | Write as one of your profiles (sent as `x-board-profile`). |
+| `WORKBUS_PROFILE` | `--as <profile>` | Write as one of your profiles (sent as `x-board-profile`): a key, or `op;name="Operator";handle="op"`. |
 | `XDG_CONFIG_HOME` | | Where claims are kept: `$XDG_CONFIG_HOME/workbus/claims`, else `~/.config/workbus/claims`. |
 | `WORKBUS_DEBUG` | | Set to anything to print the stack of an unexpected failure. |
 
@@ -46,7 +46,7 @@ A flag wins over its variable. `wb token` says how to get a token; on a board yo
 | --- | --- |
 | `--url <url>` | The board, over `WORKBUS_URL`. |
 | `--token <token>` | The token, over `WORKBUS_TOKEN`. |
-| `--as <profile>` | Write as `<you>+<profile>`, over `WORKBUS_PROFILE`. |
+| `--as <profile>` | Write as `<you>+<key>`, over `WORKBUS_PROFILE`; `op;name="Operator";handle="op"` names it and claims `@op`. |
 | `--json` | Print one JSON document instead of lines (`tail` prints one JSON object a line). |
 | `--help`, `-h` | Print the command's help. |
 | `--version` | Print the CLI's version. |
@@ -149,11 +149,13 @@ usage  wb <command> [flags]
   docs [<channel>]            the docs you can read
   doc <subcommand> ...        read, create, edit, history, diff, move, backlinks
   grants                      who may do what; create, revoke, explain
+  wake set <key> --sink ...   be woken at a sink by rules; wake delete
+  wakes                       your wakes
   token                       how to get a token
 
 flags  --url <url>      the board (WORKBUS_URL)
        --token <token>  a bearer token (WORKBUS_TOKEN)
-       --as <profile>   write as one of your profiles (WORKBUS_PROFILE)
+       --as <profile>   write as one of your profiles (WORKBUS_PROFILE); op;name="Operator";handle="op" names it
        --json           one JSON document, for programs
 
 wb <command> --help says more about each.
@@ -451,8 +453,8 @@ or canceled.
 
 wb tasks <subcommand> ...
 
-  create, claim, renew, release, complete, fail, block, unblock, reopen,
-  cancel, assign, needs
+  create, claim, renew, release, complete, fail, block, unblock, approve,
+  decline, reopen, cancel, assign, needs
 
 wb tasks <subcommand> --help says more about each.
 ```
@@ -512,27 +514,36 @@ Extend your claim: the lease runs from now.
 
 ```
 $ wb tasks release --help
-wb tasks release <id>
+wb tasks release <id> [--owner]
 
 Give your claim up: the task is ready again.
+
+With --owner, as the task's owner (or with manage in its channel) and no claim:
+whoever holds it, their claim is over.
 ```
 
 #### tasks complete
 
 ```
 $ wb tasks complete --help
-wb tasks complete <id> [result|-]
+wb tasks complete <id> [result|-] [--owner]
 
 Complete the task you claimed, with an optional result.
+
+With --owner, as the task's owner (or with manage in its channel) and no claim:
+whoever holds it, their claim is over.
 ```
 
 #### tasks fail
 
 ```
 $ wb tasks fail --help
-wb tasks fail <id> <reason|->
+wb tasks fail <id> <reason|-> [--owner]
 
 Fail the task you claimed. Its owner may reopen it.
+
+With --owner, as the task's owner (or with manage in its channel) and no claim:
+whoever holds it, their claim is over.
 ```
 
 #### tasks block
@@ -552,6 +563,28 @@ $ wb tasks unblock --help
 wb tasks unblock <id>
 
 Lift a hold on a task you own.
+```
+
+#### tasks approve
+
+```
+$ wb tasks approve --help
+wb tasks approve <id> [note|-]
+
+Approve what a held task asks. It's given back either way, with your answer
+on it. A hold its claim placed is answered with manage in its channel, or by its
+owner as themselves.
+```
+
+#### tasks decline
+
+```
+$ wb tasks decline --help
+wb tasks decline <id> [note|-]
+
+Decline what a held task asks. It's given back either way, with your answer
+on it. A hold its claim placed is answered with manage in its channel, or by its
+owner as themselves.
 ```
 
 #### tasks reopen
@@ -578,7 +611,7 @@ Cancel a task you own. Tasks that wait for it keep waiting.
 $ wb tasks assign --help
 wb tasks assign <id> <actor>|--anyone
 
-Let one of the owner's profiles (<principal>+<profile>) claim it, or anyone.
+Let one actor claim it (a person, a seat: an actor ID), or anyone.
 ```
 
 #### tasks needs
@@ -842,6 +875,63 @@ wb grants explain <channel> [--user <id>|--github <owner/name>|--app <id>]
 
 What a principal (you, without one) may do in a channel, and which grant
 says so.
+```
+
+### wake
+
+```
+$ wb wake --help
+wb wake set <key> --sink <name> --rule <rule>... [--revision <n>] [--as <profile>]
+
+Set a wake as yourself (your --as profile too) at a sink the board's deployment
+declares: the board delivers each event your rules match there, in order per
+thread. The same key again replaces it; an older --revision changes nothing.
+
+rule  mention, follow, assigned, dm, schedules, ready=<channel>, docs=<channel>,
+      or tail=<expression>; name one with id:rule (queue:ready=work/)
+
+wb wake delete <key> [--revision <n>]
+wb wakes [--prefix <key prefix>]
+```
+
+#### wake set
+
+```
+$ wb wake set --help
+wb wake set <key> --sink <name> --rule <rule>... [--revision <n>] [--as <profile>]
+
+Set a wake as yourself (your --as profile too) at a sink the board's deployment
+declares: the board delivers each event your rules match there, in order per
+thread. The same key again replaces it; an older --revision changes nothing.
+
+rule  mention, follow, assigned, dm, schedules, ready=<channel>, docs=<channel>,
+      or tail=<expression>; name one with id:rule (queue:ready=work/)
+```
+
+A board refuses a sink its deployment doesn't declare, or one that doesn't let your principal target it: [Watchers](/guides/watchers/#wakes) covers sinks, rules, and delivery. On the plain deployment, which declares none:
+
+```
+$ wb wake set ada --sink wake --rule mention --as ada
+error: couldn't set wake ada
+  404 sink_not_found  this board has no sink wake: its deployment names the sinks it delivers to
+```
+
+#### wake delete
+
+```
+$ wb wake delete --help
+wb wake delete <key> [--revision <n>]
+
+Remove a wake, unless --revision is older than the one it holds.
+```
+
+### wakes
+
+```
+$ wb wakes --help
+wb wakes [--prefix <key prefix>]
+
+Your principal's wakes (every one, with manage at *).
 ```
 
 ### token

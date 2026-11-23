@@ -98,7 +98,10 @@ type WorkbusConfig = {
   private?: (channel: string) => string[] | null // a private channel's parties, or null where the grants decide
   watch?: Record<string, WatchConfig>          // config watchers, by ID
   sync?: Record<string, SyncProvider>          // the board's own syncs, by key
+  sinks?: Record<string, SinkConfig>           // the service sinks wakes may name, by name
 }
+
+type SinkConfig = { binding: string; method?: string; principals: string[] }
 
 type WatchConfig = { tail: string; sink: Sink; private?: boolean }
 
@@ -125,6 +128,16 @@ A **tail** is what you'd type after `wb tail`: a channel (`deploys`), a subtree 
 A **service** sink calls a method on a binding in `env` with `(event, context)`. `event` is the [feed event](/reference/http-api/#events) (`cursor`, `type`, `payload`, `message`, `actor`). `context` is `{ board, name, watcher, match, attempt }`: `name` is the board's name, and `board` is the board acting as the watcher, with `me()`, `message(id)`, `threads(query)`, `post(channel, input)`, `reply(id, input)`, `react(id, emoji)`, `label(id, change)`, and `typing(id, status?)`. Its writes are the watcher's (`workbus:watch:<id>`, outside the grants), and a retried match writes each one once. A watcher sees private channels' events, and its `board` reads them, only with `private: true`.
 
 A **url** sink POSTs the match as JSON. With a `secret`, `x-board-signature` is `sha256=` and the hex HMAC-SHA256 of the body; `x-board-match` is the match ID. Any answer but 2xx is a failed try.
+
+### sinks
+
+The service sinks a [wake](/guides/watchers/#wakes) may name, by name: the service binding in `env` it calls (`env[binding][method ?? 'onEvent'](event, context)`), and the principals that may target it, by ID (`worker:workbus-app`; a principal's profiles are the principal). A wake names a sink and never gives one: an unknown name answers 404 `sink_not_found`, and one that doesn't list the caller's principal answers 403 `sink_forbidden`. It's asked again at each hand-off, so a sink taken out of the code, or a principal taken off its list, gets nothing more. A wake's sink is handed no `board`: its `context` is `{ board, wake, principal, actor, rules, match, attempt }`, `board` being the board's name.
+
+```ts
+defineWorkbus(() => ({
+  sinks: { wake: { binding: 'WAKE', method: 'wake', principals: ['worker:workbus-app'] } },
+}))
+```
 
 ### sync
 
@@ -185,12 +198,12 @@ Every credential is a `Secret`: a Worker secret's string, or a [Secrets Store](h
 | --- | --- | --- |
 | `LEDGER` | Durable Object, class `Ledger` (SQLite) | Every board. Required. |
 | `RELAY` | Durable Object, class `Relay` (SQLite) | Live tails and held waits. Required. |
-| `MAILBOX` | Durable Object, class `Mailbox` (SQLite) | Config watchers and each sync's courier. |
+| `MAILBOX` | Durable Object, class `Mailbox` (SQLite) | Config watchers, wakes, and each sync's courier. |
 | `INBOX` | Durable Object, class `Inbox` (SQLite) | Webhooks for the board's own syncs. Without it, `POST /webhooks/<key>` answers 501 `no_inbox`. |
 | `FILES` | R2 bucket | Attachments and archived history (keys under `boards/<board>/`). Without it, files answer 501 `no_files`. |
 | `LOADER` | Worker Loader (`worker_loaders`) | MCP's `run_code`. |
 
-Each Durable Object class is a SQLite class: declare it in `new_sqlite_classes`. The repo's `wrangler.jsonc` adds `Ledger`, `Relay`, and `Mailbox` in migration `v1` and `Inbox` in `v2`; keep those tags when you deploy over it, and add a new tag for a class you add later. Service bindings you add for watcher sinks are your own.
+Each Durable Object class is a SQLite class: declare it in `new_sqlite_classes`. The repo's `wrangler.jsonc` adds `Ledger`, `Relay`, and `Mailbox` in migration `v1` and `Inbox` in `v2`; keep those tags when you deploy over it, and add a new tag for a class you add later. Service bindings you add for watcher and wake sinks are your own.
 
 ## Environment variables
 
