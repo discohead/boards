@@ -22,10 +22,35 @@ async function routesOf(client) {
   return out
 }
 
+/** A client over a board's HTTP API, for a check that has only its headers: { actor (after whoami), get, post }. */
+export function busClient(board, headers) {
+  const call = async (method, path, body) => {
+    const response = await fetch(board + path, { method, headers: { ...headers, ...(body !== undefined ? { 'content-type': 'application/json' } : {}) }, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
+    const text = await response.text()
+    if (!response.ok) throw new Error(method + ' ' + path + ' answered ' + response.status + ': ' + text.slice(0, 200))
+    return text ? JSON.parse(text) : null
+  }
+  const client = {
+    actor: null,
+    async whoami() {
+      client.actor ??= (await call('GET', '/me')).actor
+      return client.actor
+    },
+    get: (path) => call('GET', path),
+    post: (path, body) => call('POST', path, body ?? {}),
+  }
+  return client
+}
+
+/** The routes whose answer is a thing a check made: what note() keeps. */
+const MAKERS = new Set(['/messages', '/tasks', '/tasks/batch', '/docs'])
+
 const short = (id) => id.replace(/(access:user:)[0-9a-f-]{8,}/, '$1<sub>')
 
-export function cleaner({ owner, others = [], log = (line) => console.log(line) }) {
+export function cleaner({ owner, others = [], log = (line) => console.log(line), started = new Date().toISOString() }) {
   const tracked = new Set()
+  /** Principal messages that start work: seats stamp what they make for it with org.request (seats/request.ts). */
+  const requests = new Set()
   const markers = new Set()
   const channels = new Set()
   const profiles = new Set()
@@ -34,6 +59,13 @@ export function cleaner({ owner, others = [], log = (line) => console.log(line) 
   const clients = [owner, ...others]
   /** The client that wrote a message: its principal's, if the check holds it. */
   const authorOf = (message) => clients.find((client) => client.actor === message.by.principal || client.actor === message.by.actor)
+
+  /** One message by ID: GET /messages/:id answers a reply's whole thread, so a reply is found in it. */
+  async function messageOf(id) {
+    const read = await owner.get('/messages/' + id + '?limit=500').catch(() => null)
+    if (!read) return null
+    return read.message.id === id ? read.message : (read.replies.find((reply) => reply.id === id) ?? null)
+  }
 
   /** Every live thread root that's the check's: tracked, carrying a marker, or new in a check-only channel. */
   async function discover() {
@@ -46,19 +78,34 @@ export function cleaner({ owner, others = [], log = (line) => console.log(line) 
         before = page.older
       }
     }
-    // What seats made in answer carries the run id too, wherever they put it.
-    for (const marker of markers) await pages('text=' + encodeURIComponent(marker), () => true)
+    // What seats made in answer carries the run id, or its request's label, wherever they put it. Only
+    // what's new since the check started: a doc that was there before is never the check's.
+    const fresh = (message) => message.createdAt >= started
+    for (const marker of markers) await pages('text=' + encodeURIComponent(marker), fresh)
+    for (const request of requests) await pages('label=' + encodeURIComponent('org.request=' + request), fresh)
     for (const [path, at] of since) await pages('channel=' + encodeURIComponent(path), (message) => message.createdAt >= at)
     const live = new Set()
     for (const id of found) {
-      const read = await owner.get('/messages/' + id + '?limit=1').catch(() => null)
-      if (read && !read.message.deleted) live.add(id)
+      const one = await messageOf(id)
+      if (one && !one.deleted) live.add(id)
     }
     return live
   }
 
   return {
     track: (id) => tracked.add(String(id)),
+    request: (id) => requests.add(String(id)),
+    /**
+     * Keeps what a write made, from its answer: a post, a reply (the reply alone, never the thread it's
+     * in), a task, a doc, a proposal. A post of the principal's starts a request (request: true).
+     */
+    note(path, answer, { request = false } = {}) {
+      if (!MAKERS.has(path) || !answer) return answer
+      const made = [answer.message, answer.task, answer.proposal, ...(answer.tasks ?? [])].filter(Boolean)
+      for (const one of made) if (one.id) tracked.add(String(one.id))
+      if (request && answer.message && !answer.message.re) requests.add(String(answer.message.id))
+      return answer
+    },
     marker: (text) => markers.add(text),
     channel: (path) => channels.add(path),
     profile: (id) => profiles.add(id),
@@ -75,13 +122,16 @@ export function cleaner({ owner, others = [], log = (line) => console.log(line) 
     /** Deletes, archives, and hides what the check made; returns (and prints) what it couldn't. */
     async finish() {
       const left = []
+      for (const client of clients) await client.whoami?.()
       const threads = await discover()
       let messages = 0
       for (const id of threads) {
         const read = await owner.get('/messages/' + id + '?limit=500').catch(() => null)
         if (!read) continue
-        // Replies first, newest first, then the root: a thread goes away whole.
-        for (const message of [...read.replies].reverse().concat([read.message])) {
+        // A thread goes away whole: replies first, newest first, then the root. A reply the check made
+        // in someone else's thread goes alone.
+        const own = read.message.id === id ? [...read.replies].reverse().concat([read.message]) : read.replies.filter((reply) => reply.id === id)
+        for (const message of own) {
           if (message.deleted) continue
           const by = authorOf(message)
           try {

@@ -4,17 +4,20 @@
 // egress refuses). Each sandbox_exec waits for the principal: this approves the ones ada holds for
 // this run, by their text. Calls Haiku.
 //   ACCESS_TOKEN=$(cloudflared access token -app=https://workbus.dev) node scripts/tiers-live.mjs
+import { busClient, cleaner } from './check/cleanup.mjs'
 const origin = process.argv[2] ?? 'https://workbus.dev'
 // "github" asks for the GitHub step alone.
 const only = process.argv[3]
 const auth = { 'cf-access-token': process.env.ACCESS_TOKEN, 'content-type': 'application/json' }
 const run = Math.random().toString(36).slice(2, 7)
+const clean = cleaner({ owner: busClient(origin + '/b/bus', { 'cf-access-token': process.env.ACCESS_TOKEN }) })
+clean.marker(run)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 async function board(method, path, body) {
   const response = await fetch(origin + '/b/bus' + path, { method, headers: auth, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
-  return answer
+  return method === 'POST' ? clean.note(path, answer, { request: path === '/messages' }) : answer
 }
 let failures = 0
 const check = (ok, what, detail = '') => {
@@ -78,6 +81,8 @@ check(tools.some((t) => t.name === 'sandbox:basic'), "the run records carry the 
 const workspace = only ? { text: 'is-number (skipped)' } : await (await fetch(origin + '/api/seats/ada?file=' + encodeURIComponent('/workspace/egress-check-' + run + '/package.json'), { headers: auth })).json()
 check(!workspace.error && workspace.text.includes('is-number'), "npm install's package.json came back to ada's workspace", workspace.text?.slice(0, 120))
 console.log('     spend: ' + JSON.stringify(status.spend))
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
+if (!process.env.KEEP) await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

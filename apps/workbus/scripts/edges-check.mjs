@@ -9,6 +9,7 @@
 // None of these call a model: the seats they watch are paused first (their wakes queue, and nothing
 // runs), and each check reads what queued. Live, see "live" at the bottom.
 import { boardTools } from '../src/harness/board.ts'
+import { busClient, cleaner } from './check/cleanup.mjs'
 
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'owned,mentions,escalate,review,tools'] = process.argv.slice(2)
 // Locally a board token (TOKEN); live, a person's Access token for workbus.dev (ACCESS_TOKEN), and the Seats read through GET /api/seats/<key>.
@@ -18,6 +19,9 @@ const as = (profile) => ({ authorization: 'Bearer ' + process.env.APP_TOKEN, 'x-
 const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const run = Math.random().toString(36).slice(2, 7)
+// The seats' own writes here are made as the app (APP_TOKEN, a profile each): it deletes them as their author.
+const clean = cleaner({ owner: busClient(bus + '/b/bus', owner), others: process.env.APP_TOKEN ? [busClient(bus + '/b/bus', { authorization: 'Bearer ' + process.env.APP_TOKEN })] : [] })
+clean.marker(run)
 
 let failures = 0
 const check = (ok, what, detail = '') => {
@@ -28,7 +32,7 @@ async function board(method, path, body, headers = owner) {
   const response = await fetch(bus + '/b/bus' + path, { method, headers: { ...headers, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
-  return answer
+  return method === 'POST' ? clean.note(path, answer) : answer
 }
 async function until(fn, ms) {
   const end = Date.now() + ms
@@ -248,6 +252,8 @@ if (pick.has('replies')) {
   }
 }
 
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
+if (!process.env.KEEP) await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

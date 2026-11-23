@@ -9,12 +9,14 @@
 // Only "dm" calls a model (Haiku): a few turns of the advisor's, and the operator's first.
 // Live: ACCESS_TOKEN=<an Access token for workbus.dev> instead of TOKEN, and the live origins, with "seed,dm".
 import { boardTools } from '../src/harness/board.ts'
+import { busClient, cleaner } from './check/cleanup.mjs'
 
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'seed,assigns'] = process.argv.slice(2)
 const token = process.env.TOKEN
 const access = process.env.ACCESS_TOKEN
 const auth = access ? { 'cf-access-token': access } : { authorization: 'Bearer ' + token }
 const live = Boolean(access)
+const clean = cleaner({ owner: busClient(bus + '/b/bus', auth) })
 const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const OP = 'worker:workbus-app+op'
@@ -28,7 +30,7 @@ async function board(method, path, body) {
   const response = await fetch(bus + '/b/bus' + path, { method, headers: { ...auth, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
-  return answer
+  return method === 'POST' ? clean.note(path, answer, { request: path === '/messages' }) : answer
 }
 async function seat(body) {
   const response = await fetch(app + '/dev/seat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
@@ -133,6 +135,8 @@ if (pick.has('dm')) {
   }
 }
 
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
+if (!process.env.KEEP) await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)
