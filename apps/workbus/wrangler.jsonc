@@ -33,8 +33,6 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Seat", "Session", "SeatWorkspace"] }],
-  // Run records (src/telemetry/): the stream runs_v1, into the Iceberg table telemetry.runs_v1 in the
-  // bucket workbus-telemetry (design/workbus.md §8.1). Its schema is src/telemetry/runs_v1.schema.json.
   // The web tier's fallback reader (src/harness/web.ts): Browser Run's markdown, for pages a plain fetch can't read.
   "browser": { "binding": "BROWSER", "remote": true },
   // The "Workbus" GitHub App's id and key, which only the egress reads (src/egress/github.ts).
@@ -42,6 +40,8 @@
     { "binding": "GITHUB_APP_ID", "store_id": "325a978922414509877e38091676ce6c", "secret_name": "WORKBUS_GITHUB_APP_ID" },
     { "binding": "GITHUB_APP_KEY", "store_id": "325a978922414509877e38091676ce6c", "secret_name": "WORKBUS_GITHUB_APP_KEY" }
   ],
+  // Run records (src/telemetry/): the stream runs_v1, into the Iceberg table telemetry.runs_v1 in the
+  // bucket workbus-telemetry (design/workbus.md §8.1). Its schema is src/telemetry/runs_v1.schema.json.
   "pipelines": [{ "stream": "9f6075496bea44d488f44b0ee429d5f0", "binding": "RUNS" }],
   "observability": { "enabled": true },
   "upload_source_maps": true
