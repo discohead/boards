@@ -71,7 +71,7 @@ if (pick.has('unit')) {
 }
 
 const owner = { authorization: 'Bearer ' + process.env.TOKEN, 'content-type': 'application/json' }
-const clean = cleaner({ owner: busClient(bus + '/b/bus', owner) })
+const clean = cleaner({ owner: busClient(bus + '/b/bus', owner) }).guard()
 async function board(method, path, body) {
   const response = await fetch(bus + '/b/bus' + path, { method, headers: owner, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
@@ -154,8 +154,9 @@ if (pick.has('schedule')) {
   check(Boolean(brief?.written) && doc && !doc.labels?.[REQUEST], 'the brief its schedule writes carries no request', { brief, labels: doc?.labels })
 }
 
-// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
-if (!process.env.KEEP) await clean.finish()
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

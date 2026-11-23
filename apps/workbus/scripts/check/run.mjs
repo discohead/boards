@@ -44,9 +44,10 @@ const run = Date.now().toString(36)
 const { instance, page, errors } = await browser({ base, chrome: values.chrome, accessToken })
 const record = recorder(values.out)
 const only = values.only ? values.only.split(',') : AREAS
+if (values.keep) process.env.KEEP = '1'
 // What the run makes goes again at its end: its threads (by the run id in their text, wherever a seat
 // answered), the checks/<area> channels (archived), and the profile the thread area makes (hidden).
-const clean = cleaner({ owner, others: [other] })
+const clean = cleaner({ owner, others: [other] }).guard()
 clean.marker(run)
 for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) clean.channel('checks/' + area), clean.since('checks/' + area)
 if (only.includes('thread')) clean.profile(owner.actor + '+reviewer')
@@ -67,7 +68,7 @@ for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) {
   }
 }
 await instance.close()
-if (!values.keep) await clean.finish()
+await clean.finish()
 
 const failed = record.results.filter((result) => !result.ok)
 if (errors.length) console.log('page errors:\n  ' + [...new Set(errors)].join('\n  '))

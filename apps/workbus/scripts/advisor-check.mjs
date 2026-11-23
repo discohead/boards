@@ -16,7 +16,7 @@ const token = process.env.TOKEN
 const access = process.env.ACCESS_TOKEN
 const auth = access ? { 'cf-access-token': access } : { authorization: 'Bearer ' + token }
 const live = Boolean(access)
-const clean = cleaner({ owner: busClient(bus + '/b/bus', auth) })
+const clean = cleaner({ owner: busClient(bus + '/b/bus', auth) }).guard()
 const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const OP = 'worker:workbus-app+op'
@@ -135,8 +135,9 @@ if (pick.has('dm')) {
   }
 }
 
-// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
-if (!process.env.KEEP) await clean.finish()
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

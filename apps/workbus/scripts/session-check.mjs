@@ -28,7 +28,7 @@ async function session(seat, thread, call, ...args) {
   return body
 }
 
-const clean = cleaner({ owner: busClient(bus + '/b/bus', { authorization: 'Bearer ' + token }) })
+const clean = cleaner({ owner: busClient(bus + '/b/bus', { authorization: 'Bearer ' + token }) }).guard()
 clean.marker(run)
 async function board(path, body) {
   const response = await fetch(bus + '/b/bus' + path, {
@@ -224,8 +224,9 @@ if (!pick || pick.has('deny')) {
   check(/denied/.test(result?.message.text ?? ''), 'the model reads that the principal denied it', result?.message.text)
 }
 
-// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
-if (!process.env.KEEP) await clean.finish()
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

@@ -10,7 +10,7 @@ const origin = process.argv[2] ?? 'https://workbus.dev'
 const only = process.argv[3]
 const auth = { 'cf-access-token': process.env.ACCESS_TOKEN, 'content-type': 'application/json' }
 const run = Math.random().toString(36).slice(2, 7)
-const clean = cleaner({ owner: busClient(origin + '/b/bus', { 'cf-access-token': process.env.ACCESS_TOKEN }) })
+const clean = cleaner({ owner: busClient(origin + '/b/bus', { 'cf-access-token': process.env.ACCESS_TOKEN }) }).guard()
 clean.marker(run)
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 async function board(method, path, body) {
@@ -81,8 +81,9 @@ check(tools.some((t) => t.name === 'sandbox:basic'), "the run records carry the 
 const workspace = only ? { text: 'is-number (skipped)' } : await (await fetch(origin + '/api/seats/ada?file=' + encodeURIComponent('/workspace/egress-check-' + run + '/package.json'), { headers: auth })).json()
 check(!workspace.error && workspace.text.includes('is-number'), "npm install's package.json came back to ada's workspace", workspace.text?.slice(0, 120))
 console.log('     spend: ' + JSON.stringify(status.spend))
-// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
-if (!process.env.KEEP) await clean.finish()
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

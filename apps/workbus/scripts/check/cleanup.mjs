@@ -92,7 +92,8 @@ export function cleaner({ owner, others = [], log = (line) => console.log(line),
     return live
   }
 
-  return {
+  let finishing = null
+  const self = {
     track: (id) => tracked.add(String(id)),
     request: (id) => requests.add(String(id)),
     /**
@@ -119,8 +120,36 @@ export function cleaner({ owner, others = [], log = (line) => console.log(line),
       for (const path of channels) await owner.post(route.route, { path }).catch(() => {})
     },
 
-    /** Deletes, archives, and hides what the check made; returns (and prints) what it couldn't. */
-    async finish() {
+    /**
+     * Runs finish() however the check ends: on Ctrl-C or a kill (then exits 130), and on an uncaught
+     * error or rejection (then exits 1), as well as at its normal end. A failed run is what litters.
+     */
+    guard() {
+      const after = (code, error) => async () => {
+        if (error !== undefined) console.error(error)
+        await self.finish().catch((failure) => console.error('cleanup failed: ' + failure.message))
+        process.exit(code)
+      }
+      process.once('SIGINT', after(130))
+      process.once('SIGTERM', after(143))
+      process.once('uncaughtException', (error) => void after(1, error)())
+      process.once('unhandledRejection', (error) => void after(1, error)())
+      return self
+    },
+
+    /** Deletes, archives, and hides what the check made, once however often it's asked; returns (and prints) what it couldn't. */
+    finish() {
+      if (process.env.KEEP) {
+        log('cleanup skipped (KEEP): what this run made stays')
+        return Promise.resolve({ deleted: 0, messages: 0, archived: 0, hidden: 0, threads: 0, left: [] })
+      }
+      finishing ??= sweep()
+      return finishing
+    },
+  }
+
+  async function sweep() {
+    {
       const left = []
       for (const client of clients) await client.whoami?.()
       const threads = await discover()
@@ -178,6 +207,7 @@ export function cleaner({ owner, others = [], log = (line) => console.log(line),
       log('cleanup: ' + deleted + ' of ' + threads.size + ' threads deleted (' + messages + ' messages), ' + archived + ' of ' + channels.size + ' channels archived, ' + hidden + ' of ' + profiles.size + ' actors hidden' + (left.length ? '; left ' + left.length + ':' : ''))
       for (const item of left) log('  left ' + item.what + ': ' + item.why)
       return { deleted, messages, archived, hidden, threads: threads.size, left }
-    },
+    }
   }
+  return self
 }

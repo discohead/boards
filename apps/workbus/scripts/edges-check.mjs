@@ -20,7 +20,7 @@ const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 const run = Math.random().toString(36).slice(2, 7)
 // The seats' own writes here are made as the app (APP_TOKEN, a profile each): it deletes them as their author.
-const clean = cleaner({ owner: busClient(bus + '/b/bus', owner), others: process.env.APP_TOKEN ? [busClient(bus + '/b/bus', { authorization: 'Bearer ' + process.env.APP_TOKEN })] : [] })
+const clean = cleaner({ owner: busClient(bus + '/b/bus', owner), others: process.env.APP_TOKEN ? [busClient(bus + '/b/bus', { authorization: 'Bearer ' + process.env.APP_TOKEN })] : [] }).guard()
 clean.marker(run)
 
 let failures = 0
@@ -252,8 +252,9 @@ if (pick.has('replies')) {
   }
 }
 
-// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it couldn't.
-if (!process.env.KEEP) await clean.finish()
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { ROUTES } from './check/cleanup.mjs'
 
-const { values } = parseArgs({ options: { plan: { type: 'boolean' }, apply: { type: 'string' }, out: { type: 'string', default: 'board-sweep-plan.json' }, board: { type: 'string', default: 'https://workbus.dev/b/bus' } } })
+const { values } = parseArgs({ options: { plan: { type: 'boolean' }, apply: { type: 'string' }, out: { type: 'string', default: 'board-sweep-plan.json' }, board: { type: 'string', default: 'https://workbus.dev/b/bus' }, app: { type: 'string' }, 'no-pause': { type: 'boolean' }, settle: { type: 'string', default: '20' } } })
 if (!values.plan && !values.apply) throw new Error('usage: board-sweep.mjs --plan [--out plan.json] | --apply plan.json  [--board <board url>]')
 const board = values.board.replace(/\/+$/, '')
 const access = process.env.WORKBUS_ACCESS_TOKEN
@@ -65,7 +65,7 @@ function threadRule(t) {
 function channelRule(c, liveAfter) {
   if (TEST_CHANNEL(c.path)) return ['ARCHIVE', 'made only by checks or test runs']
   if (c.path === 'dm/docs') return ['ARCHIVE', 'Dana (@docs) is let go: her DM']
-  if (c.path === 'docs/notes') return ['REVIEW', 'only a test hire wrote here; archive or keep for future notes?']
+  if (c.path === 'docs/notes') return ['KEEP', 'kept empty: the writer template may post under docs/ (approved)']
   if (SYSTEM_CHANNEL.includes(c.path)) return ['KEEP', liveAfter + ' threads stay; the app or a team uses it']
   return ['REVIEW', 'a channel the rules don\'t name']
 }
@@ -137,39 +137,140 @@ async function plan() {
 }
 
 // -- applying a reviewed plan ------------------------------------------------------------------
+//
+// Safeguards: the sweep must wake no seat and cost nothing, and the watchdog must post nothing.
+// - Each kept seat's Seat is read before (GET <app>/api/seats/<key>: its runs and its wakes, of any
+//   state), after every few actions, and at the end; if either moved, it stops there.
+// - The seats are paused for the sweep (their seat docs' state), so nothing that does wake can run,
+//   and put back as they were only if nothing moved. --no-pause leaves them be.
+// - After a settle (--settle, seconds), the board's events since the start must hold no post by the
+//   app or a seat (a watchdog note, a seat's reply).
+// - Everything done, skipped, or already gone is logged, id by id, to <plan>.applied-<time>.json.
 
 // The routes the clean-up needs, by name in the board's OpenAPI: delete (any message, as the
 // owner, #26), archive a channel (#15), and hide an actor (#16).
 const NEEDS = { delete: 'delete', archive: ROUTES.archive, hide: ROUTES.hide }
+const APP = 'worker:workbus-app'
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+/** A Seat's runs and wakes (all states), through the app. */
+async function seatCount(app, key) {
+  const response = await fetch(app + '/api/seats/' + key, { headers })
+  if (!response.ok) throw new Error('GET /api/seats/' + key + ' answered ' + response.status)
+  const status = await response.json()
+  return { runs: status.spend?.runs ?? 0, wakes: Object.values(status.queue ?? {}).reduce((sum, n) => sum + Number(n), 0), state: status.state ?? null }
+}
+
+/** A seat doc's json#seat block, its state set: the body, or null when it has no such block. */
+function withState(body, state) {
+  const block = /(\x60\x60\x60json#seat@\d+\n)([\s\S]*?)(\n\x60\x60\x60)/.exec(body)
+  if (!block) return null
+  const seat = JSON.parse(block[2])
+  const was = seat.state ?? 'active'
+  seat.state = state
+  return { was, body: body.slice(0, block.index) + block[1] + JSON.stringify(seat, null, 2) + block[3] + body.slice(block.index + block[0].length) }
+}
+
+async function setState(key, state) {
+  const read = await get('/docs?path=' + encodeURIComponent('org/seats/' + key))
+  const next = withState(read.body, state)
+  if (!next) throw new Error('org/seats/' + key + ' has no json#seat block')
+  if (next.was !== state) await call('POST', '/docs/' + read.doc.id + '/edit', { revision: read.doc.revision, body: next.body })
+  return next.was
+}
 
 async function apply(path) {
   const reviewed = JSON.parse(readFileSync(path, 'utf8'))
   if (reviewed.board !== board) throw new Error('the plan is for ' + reviewed.board + ', not ' + board)
+  const app = (values.app ?? new URL(board).origin).replace(/\/+$/, '')
   const spec = await get('/openapi.json')
   const ops = new Map(Object.entries(spec.paths).flatMap(([route, methods]) => Object.values(methods).map((op) => [op.operationId, route])))
   const missing = Object.values(NEEDS).filter((name) => !ops.has(name))
   if (missing.length) throw new Error('the board has no ' + missing.join(', ') + ' yet: apply waits for #26, #15, and #16 to be live')
-  const did = { deleted: 0, archived: 0, hidden: 0, skipped: [] }
-  for (const item of reviewed.items.filter((i) => i.kind === 'thread' && i.action === 'DELETE')) {
-    const now = await get('/messages/' + item.id + '?limit=500').catch(() => null)
-    if (!now || now.message.deleted) continue
-    if (now.message.channel !== item.channel || now.message.version !== item.version || now.replies.length !== item.replies) {
-      did.skipped.push('#' + item.id + ': changed since the plan')
-      continue
+
+  const seats = reviewed.items.filter((i) => i.kind === 'actor' && i.action === 'KEEP' && i.id.startsWith(APP + '+')).map((i) => i.id.slice(APP.length + 1))
+  const log = { plan: path, board, app, started: new Date().toISOString(), seats: { before: {}, after: {} }, paused: {}, deleted: [], archived: [], hidden: [], gone: [], skipped: [], stopped: null, appPosts: [] }
+  const logPath = path.replace(/\.json$/, '') + '.applied-' + log.started.replace(/[:.]/g, '-') + '.json'
+  const save = () => writeFileSync(logPath, JSON.stringify(log, null, 2) + '\n')
+  for (const key of seats) log.seats.before[key] = await seatCount(app, key)
+  const moved = async () => {
+    for (const key of seats) {
+      const now = await seatCount(app, key)
+      const was = log.seats.before[key]
+      if (now.runs !== was.runs || now.wakes !== was.wakes) return key + ': runs ' + was.runs + ' → ' + now.runs + ', wakes ' + was.wakes + ' → ' + now.wakes
     }
-    for (const reply of now.replies.filter((r) => !r.deleted).reverse()) await call('POST', '/messages/' + reply.id + '/delete', {})
-    await call('POST', '/messages/' + item.id + '/delete', {})
-    did.deleted++
+    return null
   }
-  for (const item of reviewed.items.filter((i) => i.kind === 'channel' && i.action === 'ARCHIVE')) {
-    await call('POST', ops.get(NEEDS.archive), { path: item.path })
-    did.archived++
+  const cursor = (await get('/events?last=1')).cursor
+  if (!values['no-pause']) for (const key of seats) log.paused[key] = await setState(key, 'paused')
+  // The pause is itself a doc edit: what it changes in a Seat is the baseline.
+  for (const key of seats) log.seats.before[key] = await seatCount(app, key)
+  save()
+
+  let actions = 0
+  const watch = async () => {
+    if (++actions % 10) return
+    const why = await moved()
+    if (why) throw Object.assign(new Error('a seat moved: ' + why), { stop: true })
   }
-  for (const item of reviewed.items.filter((i) => i.kind === 'actor' && i.action === 'HIDE')) {
-    await call('POST', ops.get(NEEDS.hide), { actor: item.id, hidden: true })
-    did.hidden++
+  try {
+    for (const item of reviewed.items.filter((i) => i.kind === 'thread' && i.action === 'DELETE')) {
+      const now = await get('/messages/' + item.id + '?limit=500').catch(() => null)
+      if (!now || now.message.deleted) {
+        log.gone.push('#' + item.id)
+        continue
+      }
+      if (now.message.channel !== item.channel || now.message.version !== item.version || now.replies.length !== item.replies) {
+        log.skipped.push({ id: '#' + item.id, why: 'changed since the plan' })
+        continue
+      }
+      for (const reply of now.replies.filter((r) => !r.deleted).reverse()) await call('POST', '/messages/' + reply.id + '/delete', {}).catch(() => {})
+      await call('POST', '/messages/' + item.id + '/delete', {})
+      log.deleted.push('#' + item.id)
+      await watch()
+    }
+    const channels = new Set((await get('/channels')).channels.map((c) => c.path))
+    for (const item of reviewed.items.filter((i) => i.kind === 'channel' && i.action === 'ARCHIVE')) {
+      if (!channels.has(item.path)) {
+        log.gone.push(item.path)
+        continue
+      }
+      await call('POST', ops.get(NEEDS.archive), { path: item.path })
+      log.archived.push(item.path)
+      await watch()
+    }
+    const actors = new Set((await get('/actors')).actors.map((a) => a.id))
+    for (const item of reviewed.items.filter((i) => i.kind === 'actor' && i.action === 'HIDE')) {
+      if (!actors.has(item.id)) {
+        log.gone.push(item.id)
+        continue
+      }
+      await call('POST', ops.get(NEEDS.hide), { actor: item.id, hidden: true })
+      log.hidden.push(item.id)
+      await watch()
+    }
+    await sleep(Number(values.settle) * 1000)
+    const why = await moved()
+    if (why) throw Object.assign(new Error('a seat moved: ' + why), { stop: true })
+    // Nothing the app or a seat posted since the start: no watchdog note, no seat's reply.
+    for (let after = cursor; ; ) {
+      const page = await get('/events?after=' + after)
+      for (const event of page.events) if (event.type === 'message.posted' && String(event.message?.by?.actor ?? '').startsWith(APP)) log.appPosts.push({ id: event.message.id, by: event.message.by.actor, text: String(event.message.text).slice(0, 120) })
+      if (!page.events.length || page.cursor === after) break
+      after = page.cursor
+    }
+    if (log.appPosts.length) throw Object.assign(new Error('the app or a seat posted during the sweep: ' + log.appPosts.map((p) => '#' + p.id).join(', ')), { stop: true })
+  } catch (error) {
+    log.stopped = error.message
+  } finally {
+    for (const key of seats) log.seats.after[key] = await seatCount(app, key).catch((error) => ({ error: error.message }))
+    // Put the seats back as they were, only if nothing moved: else they stay paused for a look.
+    if (!log.stopped) for (const [key, was] of Object.entries(log.paused)) if (was !== 'paused') await setState(key, was)
+    log.ended = new Date().toISOString()
+    save()
   }
-  console.log(JSON.stringify(did, null, 2))
+  console.log((log.stopped ? 'STOPPED: ' + log.stopped + ' (the seats stay paused)\n' : '') + 'deleted ' + log.deleted.length + ', archived ' + log.archived.length + ', hidden ' + log.hidden.length + ', already gone ' + log.gone.length + ', skipped ' + log.skipped.length + '\nseats before ' + JSON.stringify(log.seats.before) + '\nseats after  ' + JSON.stringify(log.seats.after) + '\nlog: ' + logPath)
+  if (log.stopped) process.exitCode = 1
 }
 
 if (values.plan) await plan()
