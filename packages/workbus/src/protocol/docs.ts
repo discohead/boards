@@ -15,12 +15,14 @@ const SectionEdit = z.union([
 ])
 
 export const CreateDocBody = z
-  .strictObject({ channel: ChannelPath.optional(), re: Ref.optional(), slug: Slug.optional(), body: Body.optional(), from: Ref.optional(), labels: NewLabels.optional(), id: ClientId.optional(), mirror: z.boolean().optional() })
+  .strictObject({ channel: ChannelPath.optional(), re: Ref.optional(), slug: Slug.optional(), body: Body.optional(), from: Ref.optional(), labels: NewLabels.optional(), id: ClientId.optional(), mirror: z.boolean().optional(), propose: z.boolean().optional(), note: z.string().max(2000).optional() })
   .refine((body) => (body.channel === undefined) !== (body.re === undefined), { message: 'a new doc names its \u0060channel\u0060; a thread that becomes a doc names its root, \u0060re\u0060: pass one' })
   .refine((body) => body.re !== undefined || body.slug !== undefined, { path: ['slug'], message: 'a new doc names its \u0060slug\u0060' })
   .refine((body) => body.re !== undefined || (body.body === undefined) !== (body.from === undefined), { message: 'a doc starts from its body, or from another doc: pass one of \u0060body\u0060 and \u0060from\u0060' })
   .refine((body) => body.re === undefined || (body.body === undefined || body.from === undefined), { message: "a thread becomes a doc with its root's text, a new \u0060body\u0060, or another doc's (\u0060from\u0060): pass one at most" })
   .refine((body) => body.re === undefined || (body.id === undefined && body.mirror === undefined), { message: '\u0060id\u0060 and \u0060mirror\u0060 are for a new doc, not a thread that becomes one' })
+  .refine((body) => !body.propose || (body.re === undefined && body.id === undefined && body.mirror === undefined), { path: ['propose'], message: 'a proposal is for a new doc at \u0060channel\u0060 and \u0060slug\u0060, without \u0060id\u0060 or \u0060mirror\u0060' })
+  .refine((body) => body.note === undefined || body.propose === true, { path: ['note'], message: '\u0060note\u0060 explains a proposal: send it with propose: true' })
 
 export const EditDocBody = z
   .strictObject({

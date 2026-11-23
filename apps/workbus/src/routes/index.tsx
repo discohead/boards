@@ -163,7 +163,8 @@ function dayOf(iso: string) {
 function detail(one: InboxItem, docPath: (id: string) => string, actors: Actors) {
   for (const reason of one.reasons) {
     if (reason.kind === 'held') return '· ' + reason.reason
-    if (reason.kind === 'proposal') return '· proposes a change to ' + docPath(reason.doc)
+    if (reason.kind === 'proposal')
+      return reason.doc.startsWith('new:') ? '· proposes ' + (reason.doc.startsWith('new:org/seats/') ? 'a new seat, ' : 'a new doc, ') + reason.doc.slice(4) : '· proposes a change to ' + docPath(reason.doc)
     if (reason.kind === 'reply' && reason.latest) return '· ' + summaryOf(reason.latest.text, actors) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
   }
   return ''

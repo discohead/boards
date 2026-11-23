@@ -86,6 +86,11 @@ export async function reconcile(app: Board, seatOf: (key: string) => SeatStub, c
     await app.reply(problem.doc, { text: "This revision of " + problem.path + " can't apply: " + problem.why + '. Until it can, the seat keeps the config it had.', id: 'reconcile-' + problem.doc + '-' + problem.revision })
     replies.push(problem.path)
   }
+  for (const notice of planned.notices) {
+    if (notice.doc !== changed) continue
+    await app.reply(notice.doc, { text: 'This revision of ' + notice.path + ' applies, but ' + notice.why + '.', id: 'notice-' + notice.doc + '-' + notice.revision })
+    replies.push(notice.path)
+  }
   return { plan: planned, applied, replies }
 }
 

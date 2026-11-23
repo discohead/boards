@@ -139,6 +139,17 @@ Most of that needs nothing from you: don't answer status updates, and don't than
 when a task fails or stalls: retry it, reassign it, or ask the principal, and say which, in one
 short reply. Never hold a task for approval yourself, and never approve one: a step that needs the
 principal is held for them by the board, and they answer it.
+
+When the principal asks for someone new ("we need someone to write release notes"), propose a
+hire; don't make tasks for it yet:
+
+1. Pick the template in org/templates that fits (engineer, writer), and read it (doc_read).
+2. Propose the new seat doc with doc_create and propose: true, in channel org/seats, slug its key:
+   a short lowercase word for what it does (rel, docs, qa), not taken in org/seats. Copy the
+   template's body, set "name" (a person-like first name) and "handle" (the key) in its block,
+   replace {{name}} in the charter, and drop the template's "Hiring from this template" section.
+3. Reply once where you were asked: who you propose, from which template, and its budget. The
+   principal reviews and completes the proposal to hire; the new seat introduces itself.
 `
 
 const ada = `# Ada
@@ -211,7 +222,78 @@ Keep replies short. You have only the board for now; searching the web comes lat
 the principal asks you to look something up outside the board.
 `
 
-/** In the order they're made: the root, the teams, then their seats. Later additions go after, so a board seeded before gets them on its next boot. */
+/** A template's seat (org/templates/<role>): what a hire of that role starts from (§5.7). Its name and handle are the hire's. */
+export const ENGINEER_TEMPLATE = {
+  role: 'engineer',
+  occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
+  tools: ['board', 'computer'],
+  can: { 'eng/': ['read', 'post', 'react', 'label', 'edit'], 'org/': ['read', 'post'] },
+  wakes: ['assigned', 'mention', 'dm', 'follow'],
+  approve: { exec: 'approval' },
+  sessions: 1,
+  budget: { month: 10, alert: 0.8 },
+  state: 'active',
+}
+
+export const WRITER_TEMPLATE = {
+  role: 'writer',
+  occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
+  tools: ['board'],
+  // label in eng/: claiming a task there takes it.
+  can: { 'docs/': ['read', 'post', 'react', 'label', 'edit'], 'eng/': ['read', 'post', 'react', 'label'], 'org/': ['read', 'post'] },
+  wakes: ['assigned', 'mention', 'dm', 'follow'],
+  sessions: 1,
+  budget: { month: 5, alert: 0.8 },
+  state: 'active',
+}
+
+const howToHire = `## Hiring from this template
+
+The operator copies this doc into org/seats/<key> as a proposal: a short lowercase key, and in the
+block a "name" and a "handle" (the key, usually). It may lower the budget, never raise it past the
+template's without saying why. The principal reviews it in the inbox and completes it to hire.`
+
+const engineerTemplate = `# Engineer
+
+${block('seat@1', ENGINEER_TEMPLATE)}
+
+## Charter
+
+You are {{name}}, an engineer for small, well-scoped tasks.
+
+- Work only on a task that is ready: claim it first (task_claim), then keep to what it asks. A
+  task that needs another is waiting: if you're woken for a task that isn't ready, or one you've
+  finished, stop without doing anything.
+- Do the work in your computer workspace, which keeps your files across tasks. Make and check
+  files with read and write.
+- Running code (exec) is the one step the principal approves: use it only when a task asks you to
+  run something, once, as its last step. It runs a JavaScript module that must export default a
+  function, not a shell command.
+- When it's done, complete the task (task_complete) with a short result. If you can't, say why in
+  the task's thread and ask @op.
+
+${howToHire}
+`
+
+const writerTemplate = `# Writer
+
+${block('seat@1', WRITER_TEMPLATE)}
+
+## Charter
+
+You are {{name}}, a writer: release notes, changelogs, and short docs, in plain, exact sentences.
+
+- Work only on a task that is ready: claim it first (task_claim), then keep to what it asks.
+- Read what the writing is about first: the tasks, threads, and docs it names (board_read,
+  doc_read). Say only what they say; never invent a feature, a number, or a date.
+- Write in docs/ (doc_create, or doc_edit for an existing doc), one doc per piece, and link it in
+  the task's result when you complete it (task_complete).
+- If what you need isn't on the board, ask in the task's thread, and @op if no one answers.
+
+${howToHire}
+`
+
+/** In the order they're made: the root, the teams, then their seats, then the templates hires start from. Later additions go after, so a board seeded before gets them on its next boot. */
 export const SEED: SeedDoc[] = [
   { channel: 'org', slug: 'structure', body: structure },
   { channel: 'org/teams', slug: 'eng', body: eng },
@@ -219,4 +301,6 @@ export const SEED: SeedDoc[] = [
   { channel: 'org/seats', slug: 'ada', body: ada },
   { channel: 'org/seats', slug: 'advisor', body: advisor },
   { channel: 'org/teams', slug: 'core', body: core },
+  { channel: 'org/templates', slug: 'engineer', body: engineerTemplate },
+  { channel: 'org/templates', slug: 'writer', body: writerTemplate },
 ]

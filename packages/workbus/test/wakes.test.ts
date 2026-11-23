@@ -101,8 +101,15 @@ describe('wakes', () => {
     await post(name, who.owner, { channel: 'dm/ada', text: 'a word in private' })
     await until(() => woke('dm').length === 1, 'the dm')
 
-    expect((await api(name, 'POST', '/docs', { channel: 'specs', slug: 'api', body: '# API\n\nThe spec.\n' }, who.owner)).status).toBe(201)
+    const spec = await api(name, 'POST', '/docs', { channel: 'specs', slug: 'api', body: '# API\n\nThe spec.\n' }, who.owner)
+    expect(spec.status).toBe(201)
     await until(() => woke('specs').some((entry) => entry.event.type === 'doc.created'), 'the doc')
+    // A doc deleted is a doc event too (a seat doc removed lets its seat go); a deleted message that isn't a doc's root isn't.
+    const note = await post(name, who.owner, { channel: 'specs', text: 'a note beside the spec' })
+    expect((await api(name, 'POST', '/messages/' + note + '/delete', {}, who.owner)).status).toBe(200)
+    expect((await api(name, 'POST', '/messages/' + spec.body.message.id + '/delete', {}, who.owner)).status).toBe(200)
+    await until(() => woke('specs').some((entry) => entry.event.type === 'message.deleted'), 'the doc deleted')
+    expect(woke('specs').filter((entry) => entry.event.type === 'message.deleted').length).toBe(1)
 
     await post(name, who.owner, { channel: 'general', text: 'on fire', labels: { urgent: 'yes' } })
     await until(() => woke('urgent').length === 1, 'the tail')

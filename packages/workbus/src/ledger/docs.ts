@@ -50,6 +50,8 @@ DDL.push(
   // A proposed edit, waiting on its task (§3.6 of the design): completing the task applies it.
   'create table if not exists doc_proposals (task integer primary key, doc integer not null, edit text not null, revision integer, base text, by text not null, at integer not null) strict',
   'create index if not exists doc_proposals_doc on doc_proposals (doc)',
+  // A proposed new doc, waiting on its task: completing the task creates it, as proposed.
+  'create table if not exists doc_new_proposals (task integer primary key, channel text not null, slug text not null, body text not null, labels text not null, by text not null, at integer not null) strict',
 )
 
 type DocRow = { root: number; channel: string; slug: string; title: string; size: number; sections: string; snapshot: number; since: number; facet_text: string; facet_terms: string; source: string | null; from_doc: number | null; created: number }
@@ -152,7 +154,7 @@ export function bodyAt(ctx: Ctx, row: MessageRow, rev: number): string {
 
 // -- writes ------------------------------------------------------------------------------------
 
-type CreateDoc = { channel?: string; re?: string; slug?: string; body?: string; from?: string; labels?: Record<string, string>; id?: string; mirror?: boolean }
+type CreateDoc = { channel?: string; re?: string; slug?: string; body?: string; from?: string; labels?: Record<string, string>; id?: string; mirror?: boolean; propose?: boolean; note?: string }
 
 function fill(text: string, values: { title: string; author: string; date: string }) {
   return text.replaceAll('{{title}}', values.title).replaceAll('{{author}}', values.author).replaceAll('{{date}}', values.date)
@@ -223,6 +225,12 @@ function threadBecomesDoc(ctx: Ctx, body: CreateDoc) {
 
 op('createDoc', (ctx, body: CreateDoc) => {
   if (body.re !== undefined) return threadBecomesDoc(ctx, body)
+  if (body.propose) return proposeNew(ctx, body)
+  return createNew(ctx, body)
+})
+
+/** A new doc at channel/slug, written as the caller: with proposedBy, it's a proposal's, applied by its completer. */
+function createNew(ctx: Ctx, body: CreateDoc, proposedBy?: string) {
   const channel = body.channel!
   const slug = body.slug!
   authorize(ctx.access, 'post', channel)
@@ -259,13 +267,45 @@ op('createDoc', (ctx, body: CreateDoc) => {
   // The post's own event keeps the doc's facet, not its body twice.
   ctx.sql.run('update events set facets = ? where seq = ?', JSON.stringify({ before: null, after: ctx.board.facet(row.id) }), row.id)
   const before = ctx.board.facet(row.id)
-  ctx.board.append('doc.created', { id: row.id, thread: row.thread_key, path, title, ...(from !== null ? { template: ref(from) } : {}), by: ctx.author, ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before })
+  ctx.board.append('doc.created', { id: row.id, thread: row.thread_key, path, title, ...(from !== null ? { template: ref(from) } : {}), by: ctx.author, ...(proposedBy ? { proposedBy } : {}), ...fromOf(ctx) }, { at: ctx.now, message: row.id, thread: row.id, before })
   ctx.sql.run("insert into doc_versions (root, seq, kind, rev) values (?, ?, 'edit', ?)", row.id, row.id, row.id)
   snapshot(ctx, row.id, row.id, row.text)
   ctx.sql.run('update docs set facet_text = ?, facet_terms = ? where root = ?', title, '[]', row.id)
   attachSyncs(ctx, ctx.board.message(row.id)!, path)
   return { message: ctx.board.view(ctx.board.message(row.id)!, viewOptions(ctx)), ...(mentions ? { mentions } : {}) }
-})
+}
+
+/**
+ * A new doc asked for, by someone who may post in its channel (§3.6, for a doc that isn't there yet):
+ * a task in the channel, labeled board.doc.proposal=new:<path>, that shows the body it would have.
+ * Completing the task creates the doc as proposed (by its completer, who needs edit there); failing
+ * or canceling it drops it. Its blocks are checked now, as a create's would be.
+ */
+function proposeNew(ctx: Ctx, body: CreateDoc) {
+  const channel = body.channel!
+  const slug = body.slug!
+  authorize(ctx.access, 'post', channel)
+  if (body.mirror) throw badRequest("mirror: a sync makes a mirror itself; it isn't proposed", 'invalid_request')
+  if (!SLUG.test(slug)) throw badRequest('slug: a doc\'s slug is lowercase letters, numbers, _, and -, up to 128, starting with a letter or number', 'invalid_slug')
+  if ((body.body === undefined) === (body.from === undefined)) throw badRequest('a doc starts from its body, or from another doc: pass one of body and from')
+  if (ctx.sql.one('select 1 as there from docs where channel = ? and slug = ?', channel, slug)) throw conflict('slug_taken', channel + '/' + slug + ' is a doc already')
+  let labels: Record<string, string> = {}
+  const start = startingBody(ctx, body, slug, labels)
+  const text = start.text ?? ''
+  labels = { ...labels, ...(start.from !== null ? { 'board.doc.from': ref(start.from) } : {}), ...(body.labels ?? {}) }
+  if (text.trim() === '') throw badRequest('body: a doc has a body')
+  if (bytes(text) > DOC_BODY_MAX) throw tooLarge(bytes(text))
+  hooks.checkBlocks(ctx, text)
+  const path = channel + '/' + slug
+  const shown = 'Proposed new doc [[' + path + ']]: ' + titleOf(parseDoc(text), slug) + '.' + (body.note ? '\n\n' + body.note.trim() : '') + '\n\nComplete this task to create it; fail or cancel it to drop it.'
+  // The body it would have, when it fits beside the proposal in one message.
+  const withBody = shown + '\n\n---\n\n' + text
+  const made = OPS.createTask!(ctx, { channel, text: [...withBody].length <= 10_000 ? withBody : shown + '\n\n(The body is ' + Math.ceil(bytes(text) / 1024) + ' KiB: too long to show here.)' }) as { task: { id: string } }
+  const task = Number(made.task.id)
+  labelMessage(ctx, ctx.board.message(task)!, { set: { 'board.doc.proposal': 'new:' + path } }, ctx.author)
+  ctx.sql.run('insert into doc_new_proposals (task, channel, slug, body, labels, by, at) values (?, ?, ?, ?, ?, ?, ?)', task, channel, slug, text, JSON.stringify(labels), ctx.actor.id, ctx.now)
+  return { proposal: ctx.board.view(ctx.board.message(task)!, viewOptions(ctx)) }
+}
 
 /** Writes a doc's new body: the root's text, its sections' revisions, one doc.edited event. */
 function commit(ctx: Ctx, row: MessageRow, doc: DocRow, next: Section[], extra: { base: string | null; by: By; proposedBy?: string }): number {
@@ -400,6 +440,12 @@ function propose(ctx: Ctx, row: MessageRow, doc: DocRow, body: EditDoc) {
 }
 
 hooks.taskCompleting = (ctx, root) => {
+  const asked = ctx.sql.one<{ channel: string; slug: string; body: string; labels: string; by: string }>('select channel, slug, body, labels, by from doc_new_proposals where task = ?', root)
+  if (asked) {
+    // Created as proposed, by whoever completes it; a slug taken since is refused, and the task stays open.
+    createNew(ctx, { channel: asked.channel, slug: asked.slug, body: asked.body, labels: json<Record<string, string>>(asked.labels, {}) }, asked.by)
+    return
+  }
   const proposal = ctx.sql.one<{ doc: number; edit: string; revision: number | null; base: string | null; by: string }>('select doc, edit, revision, base, by from doc_proposals where task = ?', root)
   if (!proposal) return
   const { row, doc } = docOf(ctx, ref(proposal.doc))

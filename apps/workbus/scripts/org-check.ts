@@ -3,6 +3,7 @@
 //   node scripts/org-check.ts
 import assert from 'node:assert/strict'
 import { APP_CAN } from '../src/org/grant.ts'
+import { backstopNeeded } from '../src/org/gateway.ts'
 import { plan, prose, type OrgDoc, type Permission } from '../src/org/rules.ts'
 import { SEED } from '../src/org/seed.ts'
 
@@ -143,6 +144,17 @@ check('the config revision is the newest of the seat, its team, and the root', (
   const ada = plan(docs, holds).seats.find((seat) => seat.key === 'ada')!
   assert.equal(ada.configRevision, 999)
   assert.ok(ada.revision < 999)
+})
+
+check("a budget the gateway's backstop doesn't cover is a notice, not a problem", () => {
+  assert.deepEqual(plan(seed(), holds).notices, [])
+  const docs = replace(seed(), 'org/seats/ada', (data) => (data.budget = { month: 30, alert: 0.8 }))
+  const planned = plan(docs, holds)
+  assert.ok(planned.seats.some((seat) => seat.key === 'ada'), 'it still applies')
+  assert.equal(planned.problems.length, 0)
+  assert.match(planned.notices[0]!.why, /needs a gateway backstop of \$38, more than the \$25 its rule seat-ada allows/)
+  assert.match(backstopNeeded('rel', 21)!, /more than the \$25 its shared rule, seat-any, allows/)
+  assert.equal(backstopNeeded('rel', 20), null)
 })
 
 console.log(checks + ' checks passed')

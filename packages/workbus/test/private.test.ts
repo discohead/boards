@@ -359,3 +359,27 @@ describe('private channels', () => {
     expectSees(await reads(name, s, s.who.owner), PARTY_PATHS)
   })
 })
+
+describe('a proposed new doc in a private channel', () => {
+  it('is seen by its parties alone, and so is the doc it creates', async () => {
+    const name = freshBoard('private-propose')
+    const who = await callers(name)
+    // ada may post in her DM but not edit there (a Worker's grant), so she proposes.
+    const proposed = await api(name, 'POST', '/docs', { channel: 'dm/ada', slug: 'zebra-notes', body: '# Zebra notes\n\nzebra\n', propose: true }, who.ada)
+    expect(proposed.status, JSON.stringify(proposed.body)).toBe(201)
+    const task = proposed.body.proposal
+    expect(task.labels['board.doc.proposal']).toBe('new:dm/ada/zebra-notes')
+    for (const party of [who.owner, who.ada]) expect((await api(name, 'GET', '/messages/' + task.id, undefined, party)).status).toBe(200)
+    for (const other of [who.member, who.bob, who.app]) {
+      expect((await api(name, 'GET', '/messages/' + task.id, undefined, other)).status).toBe(404)
+      const listed = (await api(name, 'GET', '/tasks?state=all&limit=100', undefined, other)).body.tasks ?? []
+      expect(JSON.stringify(listed)).not.toContain('zebra')
+    }
+    // A non-party can't propose one there.
+    expect((await api(name, 'POST', '/docs', { channel: 'dm/ada', slug: 'other', body: '# Other\n', propose: true }, who.bob)).status).toBeGreaterThanOrEqual(403)
+    // The owner applies it; the doc it makes is the DM's too.
+    expect((await api(name, 'POST', '/tasks/' + task.id + '/complete', {}, who.owner)).status).toBe(200)
+    for (const party of [who.owner, who.ada]) expect((await api(name, 'GET', '/docs?path=dm/ada/zebra-notes', undefined, party)).status).toBe(200)
+    for (const other of [who.member, who.bob, who.app]) expect((await api(name, 'GET', '/docs?path=dm/ada/zebra-notes', undefined, other)).status).toBe(404)
+  })
+})

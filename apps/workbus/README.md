@@ -63,9 +63,12 @@ seat's `budget.month`, `window` 2678400 (31 days, sliding), and `metadata: { sea
 'filter', values: ['<key>'] } }` (every call carries the seat in its metadata). op and ada have
 $25 each (budgets of $20). A new seat gets one when it's hired: read the gateway
 (`GET /accounts/<account>/ai-gateway/gateways/workbus`), add its rule to `spend_limits.rules`, and
-`PUT` the gateway back with every other field as it was (the PUT replaces the whole config). A
-gateway takes 20 rules: past 19 seats, one rule with `metadata: { seat: { mode: 'partition' } }`
-covers the rest with one limit each.
+`PUT` the gateway back with every other field as it was (the PUT replaces the whole config). The
+gateway also has `seat-any`: \$25 over a sliding 31 days with `metadata: { seat: { mode: 'partition'
+} }`, so every seat, a new hire included, has its own backstop with no step at hire time. A
+seat whose budget needs more (above \$20 a month) gets a named rule: the reconciler says so in its
+doc's thread, and the limits it checks against are in `src/org/gateway.ts`. A gateway takes 20
+rules.
 
 ## Deploy
 

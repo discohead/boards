@@ -50,6 +50,19 @@ export function answerOf(event: Delivered): { task: string; approved: boolean; n
   return { task: String(task), approved: decision === 'approved', ...(typeof event.payload?.note === 'string' ? { note: event.payload.note } : {}) }
 }
 
+/** Where a new seat introduces itself: its team's channel (the team's key), or the org's. */
+export const introChannel = (runtime: Pick<SeatRuntime, 'team'>) => runtime.team ?? 'org'
+
+/** The turn a new seat's first session reads: say who it is, where it's heard, and stop. */
+export function introduction(runtime: SeatRuntime): Turn {
+  const text = [
+    'You were just hired: you are ' + runtime.name + ' (@' + runtime.handle + ')' + (runtime.role ? ', a ' + runtime.role : '') + (runtime.team ? ', on the team ' + runtime.team : '') + '.',
+    'Introduce yourself, in two short sentences at most: who you are and what to ask you for, from your charter.',
+    'Post it once in the channel ' + introChannel(runtime) + ' (board_post), and once in your DM, dm/' + runtime.key + '. Then stop: nothing else needs doing now.',
+  ].join('\n')
+  return { type: 'turn', parts: [{ type: 'text', text }] }
+}
+
 /** The seam's view of a seat (harness/types.ts), from the reconciler's runtime. */
 export function seatRef(runtime: SeatRuntime): SeatRef {
   return {
@@ -99,6 +112,11 @@ export class Seat extends DurableObject<Env> {
     const held = this.ctx.storage.kv.get<number>('revision') ?? -1
     if (runtime !== null && revision < held) return { applied: false, revision: held, state: this.state() }
     const same = runtime === null ? this.runtime === null : revision === held && JSON.stringify(runtime) === JSON.stringify(this.runtime)
+    // A seat provisioned for the first time (a hire, §5.7) introduces itself: one turn, queued like any wake-up.
+    if (runtime !== null && this.runtime === null && !this.ctx.storage.kv.get('introduced')) {
+      this.ctx.storage.kv.put('introduced', new Date().toISOString())
+      this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at) values ('intro', ?, null, ?, 'queued', ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now())
+    }
     if (!same) {
       if (runtime === null) this.ctx.storage.kv.delete('runtime')
       else {

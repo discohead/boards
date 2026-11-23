@@ -4,7 +4,7 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget]
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire]
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
@@ -77,7 +77,7 @@ async function editBlock(path, change) {
 if (pick.has('boot')) {
   const first = await seat({ call: 'boot' })
   const second = await seat({ call: 'boot' })
-  check(second.seeded.length === 0 && second.found.length === 6, 'a second boot seeds nothing and finds the six docs', second.found)
+  check(second.seeded.length === 0 && second.found.length === first.seeded.length + first.found.length, 'a second boot seeds nothing and finds every seed doc', second.found)
   check(second.reconciler === 'same', "the reconciler's wake is the same", second.reconciler)
   check(second.pass.applied.every((applied) => applied.wake === 'same' && applied.config.applied === false), "every seat's wake and config are the same", second.pass.applied.map((a) => a.seat + ' ' + a.wake + ' ' + a.config.applied))
   const threads = (await board('GET', '/threads?channel=org/&limit=50')).threads.filter((thread) => thread.message.doc)
@@ -318,6 +318,52 @@ if (pick.has('budget')) {
   const reply = (await board('GET', '/messages/' + dm)).replies.find((message) => message.by.actor === 'worker:workbus-app+ada')
   check(Boolean(reply), 'ada answered the DM that waited', reply?.text)
   void n
+}
+
+// Hiring from a template (design/workbus.md §5.7): the principal asks the operator for someone; the
+// operator proposes a seat doc from org/templates as a new-doc proposal; the principal completes it;
+// the reconciler provisions the seat, which introduces itself in its team's channel (or org) and its
+// DM, and then does a small task. Calls Haiku: the operator's turn, the new seat's introduction,
+// and its task.
+if (pick.has('hire')) {
+  const asked = await board('POST', '/messages', { channel: 'dm/op', text: 'We need someone to write release notes.' })
+  const since = Date.parse(asked.message.createdAt)
+  const proposal = await until(async () => {
+    const { tasks } = await board('GET', '/tasks?channel=org/seats&state=all&limit=50')
+    return tasks.map((entry) => entry.message).find((message) => (message.labels['board.doc.proposal'] ?? '').startsWith('new:org/seats/') && Date.parse(message.createdAt) >= since) ?? null
+  }, 120000)
+  const path = proposal?.labels['board.doc.proposal'].slice(4)
+  const key = path?.split('/').pop()
+  const block = proposal?.blocks?.find((one) => one.schema === 'seat')?.data
+  check(Boolean(proposal && block && block.role === 'writer' && block.name && (block.handle ?? key)), 'op proposes a writer seat, from the template, as a new-doc proposal in org/seats', proposal && { id: proposal.id, path, name: block?.name, handle: block?.handle, budget: block?.budget, by: proposal.by.actor })
+  check(Boolean(proposal && !/\{\{name\}\}|Hiring from this template/.test(proposal.text)), "the proposed charter is filled in, without the template's hiring notes", proposal?.text.slice(0, 400))
+  const reply = await until(async () => (await board('GET', '/messages/' + asked.message.id)).replies.find((message) => message.by.actor === 'worker:workbus-app+op'), 30000)
+  check(Boolean(reply), 'op replies in its DM', reply?.text)
+  if (!proposal) throw new Error('no proposal to complete')
+  // The principal completes it, as from the inbox: the doc is created, by the principal, as proposed.
+  const done = await board('POST', '/tasks/' + proposal.id + '/complete', {})
+  const state = (await board('GET', '/messages/' + proposal.id)).message.task.state
+  check(state === 'completed', 'completing the proposal hires: the task completes', { state, answer: Object.keys(done) })
+  const doc = await until(async () => (await board('GET', '/docs?path=' + path).catch(() => null)), 15000)
+  check(Boolean(doc), 'and ' + path + ' exists', doc?.doc?.revision)
+  const runtime = await until(async () => (await status(key).catch(() => null))?.runtime ?? null, 30000)
+  check(Boolean(runtime && runtime.role === 'writer'), 'the reconciler provisions it: its Seat holds its config', runtime && { key: runtime.key, name: runtime.name, tools: runtime.tools, budget: runtime.budget })
+  const wake = (await board('GET', '/wakes')).wakes.find((one) => one.key === 'seat.' + key)
+  check(Boolean(wake && wake.actor === 'worker:workbus-app+' + key && wake.can.includes('dm/' + key + '/')), 'and its wake, as the seat, narrowed, with its DM', wake && { actor: wake.actor, can: wake.can })
+  const actor = 'worker:workbus-app+' + key
+  const intro = await until(async () => {
+    const where = runtime?.team ?? 'org'
+    const team = (await board('GET', '/messages?channel=' + where + '&limit=100')).messages?.find((message) => message.by.actor === actor) ?? null
+    const dm = (await board('GET', '/messages?channel=dm/' + key + '&limit=50')).messages?.find((message) => message.by.actor === actor) ?? null
+    return team && dm ? { team, dm } : null
+  }, 120000)
+  check(Boolean(intro), 'it introduces itself in ' + (runtime?.team ?? 'org') + ' and in dm/' + key, intro && { team: intro.team.text, dm: intro.dm.text })
+  // A small task: release notes for something on the board.
+  const task = (await board('POST', '/tasks', { channel: 'eng/queue', text: 'Write a two-line release note for "budgets and pauses": seats now hold a task for the principal at their budget alert and limit, and can be paused and resumed from their page. Put it in a doc in docs/notes, then complete this task with its path.', for: actor })).task
+  const finished = await until(async () => { const one = (await board('GET', '/messages/' + task.id)).message.task; return one.state === 'completed' ? one : null }, 180000, 2000)
+  check(Boolean(finished), 'it takes a small task and completes it', finished?.result)
+  const notes = (await board('GET', '/threads?channel=docs/notes&limit=20')).threads.map((one) => one.message).filter((message) => message.doc && message.by.actor === actor)
+  check(notes.length >= 1, 'its release note is a doc in docs/notes, by it', notes.map((message) => message.doc.path))
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')

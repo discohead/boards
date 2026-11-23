@@ -174,8 +174,8 @@ export function boardTools(board: () => SeatBoard, claimToken: () => string, ass
     },
     {
       name: 'doc_create',
-      description: 'Make a doc at channel/slug from its markdown body.',
-      input: z.object({ channel: Channel, slug: z.string(), body: z.string() }),
+      description: 'Make a doc at channel/slug from its markdown body. propose: true asks for it instead: a proposal task someone with edit there completes to create it (the only way to add a doc where you may post but not edit, as in org/).',
+      input: z.object({ channel: Channel, slug: z.string(), body: z.string(), propose: z.boolean().optional(), note: z.string().optional() }),
       replay: 'unsafe',
       approval: 'never',
       run: (input) => answer(() => board().docs.create(input)),

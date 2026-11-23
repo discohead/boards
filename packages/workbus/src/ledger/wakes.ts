@@ -124,7 +124,10 @@ function matcherOf(ctx: Ctx, rule: Rule): Matcher {
   }
   if (typeof rule === 'object' && 'docs' in rule) {
     const channel = rule.docs
-    return (row, facets) => DOCS.has(row.type) && [facets.before, facets.after].some((facet) => Boolean(facet && within(channel, facet.channel)))
+    // A doc made, edited, or moved there, or a doc's root deleted there.
+    return (row, facets) =>
+      (DOCS.has(row.type) || (row.type === 'message.deleted' && facets.before?.re === null && Boolean(facets.before.labels['board.doc']))) &&
+      [facets.before, facets.after].some((facet) => Boolean(facet && within(channel, facet.channel)))
   }
   if (typeof rule === 'object' && 'tail' in rule) {
     const { compiled, all } = tailOf(ctx, rule.tail)

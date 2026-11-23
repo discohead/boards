@@ -109,7 +109,7 @@ left it (`task_views` at the event's position):
 | `'assigned'` | any event on a task that's its (assigned to it, or claimed by it), or in its thread; one that takes the task from it (assigned away, released, expired); and the answer to a hold it placed | the task's `for` and `claim`, as of the event (and just before); `task.unblocked`'s `holder` |
 | `{ ready: <channel> }` | a task in the channel (or subtree, `work/`) that just became ready, unassigned or assigned to it | `board.task=ready` after, not before |
 | `'dm'` (or `{ dm: true }`) | everything in `dm/<profile>` and its subtree | the channel; needs a profile |
-| `{ docs: <channel> }` | a doc made, edited, or moved in the channel (or subtree) | `doc.*` events there |
+| `{ docs: <channel> }` | a doc made, edited, moved, or deleted in the channel (or subtree) | `doc.*` events there, and a doc root's `message.deleted` |
 | `'schedules'` | a message its own schedule posted | `--by` itself, with a schedule |
 | `{ tail: <expr> }` | what a tail matches, `me` being the wake's caller | the protocol's watcher filters |
 
