@@ -84,6 +84,8 @@ https://factory.workbus.dev (the factory template, its board at `/b/factory`).
 
 ## Open
 
+- The operator wakes on every reply in the tasks it made, because its "its tasks" wake is the `follow` rule. Its charter keeps it from answering, but each reply still costs it a turn. The fix is a narrower rule: state changes of the tasks it owns.
+- Team edges (`delegates_to`, `escalates_to`, `reviews`, `consults`) are checked by the reconciler but have no runtime meaning yet (phase 3). Budgets stop new runs at the limit, but no alert task is held yet.
 - A claimed handle can still meet a person's: a person's handle comes from their token, so someone who signs in later can have a handle a profile claimed (the board can't refuse the sign-in). A mention of it then offers both as candidates. A claimed handle is freed only by claiming another (design/cross-principal-tasks.md).
 - An Access owner's display name is their email: Access gives no name, so the principal needs a way to set one. (Their handle is the email's local part, which the board makes; a mention that read `@<sub>` was an inbox rendering bug, now fixed.)
 - The app's channels: thread summaries (GET /threads) don't carry repliers, so a root shows those it has seen (always its last replier; all of them once its thread is open). Messages use the design system's Message (its time and cursor widened to take elements, so Clock fits), Avatar, Kbd, NewEventsPill, and the pane's add tabs; a message grouped under the one before it keeps the app's compact row, which Message lacks.

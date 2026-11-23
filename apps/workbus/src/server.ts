@@ -37,9 +37,27 @@ export default {
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/session') return devSession(request, env)
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/seat') return devSeat(request, env)
     ctx.waitUntil(bootOnce(env))
+    const seat = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})$/.exec(new URL(request.url).pathname)?.[1]
+    if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
     return handler.fetch(request)
   },
 } satisfies ExportedHandler<Env>
+
+/**
+ * GET /api/seats/<key>, behind Access: the Seat's status (its state, queue, holds, spend, and last
+ * runs), for the app's views and the live checks. ?file=<path> reads a file in its workspace.
+ */
+async function seatStatus(env: Env, key: string, path: string | null): Promise<Response> {
+  if (path !== null) {
+    if (!/^\/workspace\/[^\0]{1,512}$/.test(path) || path.includes('..')) return Response.json({ error: 'file is a path under /workspace' }, { status: 400 })
+    const space = env.WORKSPACE.getByName(key) as unknown as { execute(call: { id: string; name: string; arguments: unknown }): Promise<{ content: { type: string; text?: string }[]; isError?: boolean }> }
+    const read = await space.execute({ id: 'status-read-' + crypto.randomUUID(), name: 'read', arguments: { path } })
+    return Response.json({ path, text: read.content.map((part) => part.text ?? '').join(''), error: read.isError === true })
+  }
+  const status = (await (env.SEAT.getByName(key) as unknown as { status(): Promise<{ runtime: unknown }> }).status())
+  if (!status.runtime) return Response.json({ error: 'no seat ' + key }, { status: 404 })
+  return Response.json(status)
+}
 
 /** vite dev only: a Seat's methods, a boot, or a reconcile pass, for checks. POST { seat, call: 'status', args }, or { call: 'boot' | 'reconcile' }. */
 async function devSeat(request: Request, env: Env): Promise<Response> {

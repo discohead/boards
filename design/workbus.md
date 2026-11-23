@@ -430,6 +430,8 @@ An app may declare a route under `/apps/<name>/hooks/`. The route sits outside A
 
 K2 is in public beta (10 GB per account) and has no Basin sink, so a consumer Worker copies across whatever Basin keeps. AI Gateway logs and traces reach Basin through OTel or Logpush.
 
+Basin SQL has no Worker binding: it's a REST call that needs an R2 admin token, which no Worker of the org holds. So the app's views read a seat's cost from its own `Seat`: each run record is kept in the Seat's SQLite (its totals) before it's sent to Basin, and Basin is the outside check that the two agree.
+
 ### 8.2 The run record
 
 The `Seat` writes one record per harness operation, when the operation ends:

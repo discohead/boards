@@ -8,8 +8,14 @@
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
+// Auth: TOKEN, a board token (bearer); or ACCESS_TOKEN, a person's Access token for workbus.dev
+// (cloudflared access token -app=https://workbus.dev), sent as cf-access-token through Access.
+// With ACCESS_TOKEN the seats are read through the app's GET /api/seats/<key> (live), not /dev/seat.
 const token = process.env.TOKEN
-if (!token) throw new Error('set TOKEN: an owner token for the bus')
+const access = process.env.ACCESS_TOKEN
+if (!token && !access) throw new Error('set TOKEN (a board token) or ACCESS_TOKEN (an Access token for the app)')
+const auth = access ? { 'cf-access-token': access } : { authorization: 'Bearer ' + token }
+const live = Boolean(access)
 const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -20,12 +26,29 @@ const check = (ok, what, detail = '') => {
 }
 
 async function board(method, path, body) {
-  const response = await fetch(bus + '/b/bus' + path, { method, headers: { authorization: 'Bearer ' + token, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+  const response = await fetch(bus + '/b/bus' + path, { method, headers: { ...auth, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
   return answer
 }
+/** A seat's status: live through the app's API, in dev through its door. */
+async function status(key) {
+  if (!live) return seat({ seat: key, call: 'status' })
+  const response = await fetch(app + '/api/seats/' + key, { headers: auth })
+  if (!response.ok) throw new Error('GET /api/seats/' + key + ': ' + response.status)
+  return response.json()
+}
+/** A file in a seat's workspace, as text. */
+async function readFile(key, path) {
+  if (live) return (await (await fetch(app + '/api/seats/' + key + '?file=' + encodeURIComponent(path), { headers: auth })).json()).text
+  const read = await seat({ via: 'session', seat: key, call: 'workspace.execute', args: [{ id: 'check-read', name: 'read', arguments: { path } }] })
+  return (read?.content ?? []).map((part) => part.text ?? '').join('')
+}
 async function seat(body) {
+  if (body.via === 'session') {
+    const response = await fetch(app + '/dev/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: body.seat, thread: 'x', call: body.call, args: body.args }) })
+    return response.json()
+  }
   const response = await fetch(app + '/dev/seat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
   const answer = await response.json()
   if (!response.ok) throw new Error('dev/seat ' + body.call + ': ' + (answer?.error ?? response.status))
@@ -168,7 +191,7 @@ if (pick.has('run')) {
     return tasks.map((entry) => entry.message).find((message) => message.task.blocked?.kind === 'approval' && message.by.actor === 'worker:workbus-app+ada' && Date.parse(message.createdAt) >= since) ?? null
   }, 180000)
   check(Boolean(hold), 'a step waits for the principal: a task held for approval, by ada', hold && { id: hold.id, reason: hold.task.blocked.reason })
-  const waiting = await seat({ seat: 'ada', call: 'status' })
+  const waiting = await status('ada')
   check(waiting.holds.some((held) => held.task === hold?.id && held.state === 'held'), "ada's Seat knows the hold and which thread it parks", waiting.holds)
   // The principal approves from the inbox: this hold, and any other step ada asks for on the way.
   const approved = new Set()
@@ -187,15 +210,18 @@ if (pick.has('run')) {
     return both.length === 2 && both.every((message) => message.task.state === 'completed') ? both : null
   }, 180000)
   check(Boolean(done), 'ada completed both tasks', { approved: [...approved], results: done?.map((message) => ({ id: message.id, result: message.task.result })) })
+  check(approved.size === 1, 'the principal was asked once: one held task in the inbox', [...approved])
+  console.log('     the DM: #' + posted.message.id + ' (cursor ' + posted.cursor + '); tasks #' + first?.id + ' and #' + second?.id + '; the hold #' + hold?.id)
   // The answer's own operation ends when the one it resumed does.
-  const answered = await until(async () => (await seat({ seat: 'ada', call: 'status' })).holds.find((held) => held.task === hold?.id && held.state === 'answered'))
+  const answered = await until(async () => (await status('ada')).holds.find((held) => held.task === hold?.id && held.state === 'answered'))
   check(Boolean(answered), "the approval reached ada's parked session through its Seat", answered)
-  const notes = await fetch(app + '/dev/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: 'ada', thread: 'x', call: 'workspace.execute', args: [{ id: 'check-read', name: 'read', arguments: { path: '/workspace/' + file } }] }) }).then((response) => response.json())
-  const text = (notes?.content ?? []).map((part) => part.text ?? '').join('')
+  const text = await readFile('ada', '/workspace/' + file)
   check(/hello[\s\S]*world/.test(text), "the file is in ada's workspace, both lines", text)
   for (const key of ['op', 'ada']) {
-    const { spend, runs } = await seat({ seat: key, call: 'status' })
+    const { spend, runs } = await status(key)
     check(spend.cost > 0 && spend.runs > 0 && runs.every((run) => run.seat === key), 'the cost shows on ' + key, spend)
+    // The evidence: each run's operation (the wake's cursor), cost, and gateway log IDs.
+    console.log('     ' + key + ' runs: ' + JSON.stringify(runs.map((run) => ({ operation: run.operation, thread: run.thread, task: run.task, cost: run.cost, logIds: run.logIds }))))
   }
 }
 

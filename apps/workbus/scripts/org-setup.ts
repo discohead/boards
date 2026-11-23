@@ -5,12 +5,15 @@
 // grant is updated in place.
 //
 //   node scripts/org-setup.ts <board url> <owner token>      e.g. http://127.0.0.1:8972/b/bus
+//   ACCESS_TOKEN=$(cloudflared access token -app=https://workbus.dev) node scripts/org-setup.ts https://workbus.dev/b/bus
+//     the owner through Access, sent as cf-access-token (the token is never printed)
 import { ORG_SCHEMAS } from '../src/org/schemas.ts'
 import { APP_CAN } from '../src/org/grant.ts'
 
 const [url, token] = process.argv.slice(2)
-if (!url || !token) throw new Error('usage: node scripts/org-setup.ts <board url> <owner token>')
-const headers = { authorization: 'Bearer ' + token, 'content-type': 'application/json' }
+const access = process.env.ACCESS_TOKEN
+if (!url || (!token && !access)) throw new Error('usage: node scripts/org-setup.ts <board url> <owner token>, or ACCESS_TOKEN=… node scripts/org-setup.ts <board url>')
+const headers = { ...(access ? { 'cf-access-token': access } : { authorization: 'Bearer ' + token }), 'content-type': 'application/json' }
 async function call(method: string, path: string, body?: unknown) {
   const response = await fetch(url!.replace(/\/+$/, '') + path, { method, headers, ...(body !== undefined ? { body: JSON.stringify(body) } : {}) })
   const answer = (await response.json()) as any
