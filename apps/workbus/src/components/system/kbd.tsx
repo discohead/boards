@@ -10,7 +10,7 @@ export function Kbd({ children, className, ...props }: KbdProps & Omit<Component
   return (
     <kbd
       data-slot="kbd"
-      className={cn('rounded-xs border border-line px-1 font-mono text-mono-label whitespace-nowrap text-muted-foreground', className)}
+      className={cn('rounded-xs border border-line-strong px-1 font-mono text-mono-label whitespace-nowrap text-muted-foreground', className)}
       {...props}
     >
       {children}
