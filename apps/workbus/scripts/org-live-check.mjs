@@ -144,6 +144,10 @@ if (pick.has('dedupe')) {
   check(status.state === 'paused', 'a paused seat starts nothing', status.state)
   const older = await seat({ seat: key, call: 'configure', args: [{ ...paused, sessions: 9 }, 0] })
   check(older.applied === false && (await seat({ seat: key, call: 'status' })).runtime.sessions === paused.sessions, 'an older revision changes nothing', older)
+  // A task one of its sessions holds is the principal's: its other events (its ready, in a queue the seat serves) start nothing.
+  await seat({ seat: key, call: 'held', args: [{ approvalId: '500', thread: '77', operationId: null }] })
+  const ready = await seat({ seat: key, call: 'wake', args: [{ cursor: '424243', type: 'task.ready', message: { id: '500', re: null, channel: 'eng/queue', text: 'asks to run exec', task: { state: 'ready' } } }, context] })
+  check(ready.queued === false, "a held task's own events don't wake the seat", ready)
   await seat({ seat: key, call: 'configure', args: [null, 0] })
   check((await seat({ seat: key, call: 'status' })).state === 'retired', 'no config retires it')
 }
@@ -213,8 +217,17 @@ if (pick.has('run')) {
   check(approved.size === 1, 'the principal was asked once: one held task in the inbox', [...approved])
   console.log('     the DM: #' + posted.message.id + ' (cursor ' + posted.cursor + '); tasks #' + first?.id + ' and #' + second?.id + '; the hold #' + hold?.id)
   // The answer's own operation ends when the one it resumed does.
-  const answered = await until(async () => (await status('ada')).holds.find((held) => held.task === hold?.id && held.state === 'answered'))
+  const answered = await until(async () => (await status('ada')).holds.find((held) => held.task === hold?.id && ['answered', 'closed'].includes(held.state)))
   check(Boolean(answered), "the approval reached ada's parked session through its Seat", answered)
+  // The answered hold ends: completed with the decision, never claimed, and nothing of it left ready.
+  const ended = await until(async () => {
+    const view = (await board('GET', '/messages/' + hold?.id)).message
+    return view.task.state === 'completed' ? view.task : null
+  })
+  check(Boolean(ended && /^Approved by the principal: go ahead/.test(ended.result ?? '') && ended.epoch === 0 && ended.claim === null), 'the approval task ends completed with the decision, and no one ever claimed it', ended && { state: ended.state, result: ended.result, epoch: ended.epoch, answer: ended.answer })
+  const { tasks: ready } = await board('GET', '/tasks?state=ready&limit=100')
+  const left = ready.map((entry) => entry.message).filter((message) => message.by.actor === 'worker:workbus-app+ada' && Date.parse(message.createdAt) >= since)
+  check(left.length === 0, 'nothing ada held stays ready', left.map((message) => message.id))
   const text = await readFile('ada', '/workspace/' + file)
   check(/hello[\s\S]*world/.test(text), "the file is in ada's workspace, both lines", text)
   for (const key of ['op', 'ada']) {

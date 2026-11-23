@@ -12,6 +12,8 @@ import { PiHarnessAdapter } from '../harness/pi.ts'
 import type { Outcome, SeatRef, ToolAnswer, ToolTier, Turn } from '../harness/types.ts'
 import type { SeatRuntime } from '../org/rules.ts'
 import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
+import { bus } from '../bus.ts'
+import { seatBoard } from '../org/reconcile.ts'
 import { render } from './turn.ts'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
@@ -121,6 +123,9 @@ export class Seat extends DurableObject<Env> {
         console.warn('seat: an event with no thread', event.type, event.cursor)
         return { queued: false, thread }
       }
+      // A task one of its sessions holds for the principal is theirs to answer, never work for this
+      // seat: nothing about it but the answer starts a turn (its ready event in a queue the seat serves included).
+      if (this.#one('select 1 as there from holds where task = ?', thread)) return { queued: false, thread }
       input = { type: 'turn', parts: [{ type: 'text', text: render(event, context.rules, thread) }] }
     }
     // The task it's about, for its run record: a task's own thread, or the held task an answer is for.
@@ -145,7 +150,7 @@ export class Seat extends DurableObject<Env> {
     const runtime = this.runtime
     this.sql.exec('update wakes set state = ?, ended = ?, error = ? where id = ?', outcome === null ? 'failed' : 'done', now, error ?? outcome?.reason ?? null, row.id)
     const input = JSON.parse(row.input) as Input
-    if (input.type === 'approval') this.sql.exec("update holds set state = 'answered' where task = ?", input.approvalId)
+    if (input.type === 'approval') this.sql.exec("update holds set state = 'answered' where task = ? and state = 'held'", input.approvalId)
     // A start or a wait that failed outright ran nothing the Seat can measure: a failed run, with its error.
     const ended = outcome ?? {
       operationId,
@@ -252,6 +257,7 @@ export class Seat extends DurableObject<Env> {
         // The held operation goes on: it's running again until it ends.
         const hold = this.#one<{ operation: string | null }>('select operation from holds where task = ?', input.approvalId)
         if (hold?.operation) this.sql.exec("update wakes set state = 'running' where id = ? and state = 'held'", hold.operation)
+        await this.#close(runtime, input)
       }
       this.ctx.waitUntil(this.#follow(runtime, row.id, row.thread))
     } catch (error) {
@@ -259,6 +265,23 @@ export class Seat extends DurableObject<Env> {
       console.error('seat ' + runtime.key + ': starting ' + row.id + ' failed (try ' + tries + ')', error)
       this.sql.exec('update wakes set state = ?, error = ?, at = ? where id = ?', tries >= TRIES ? 'failed' : 'queued', String(error), Date.now(), row.id)
       if (tries < TRIES) await this.ctx.storage.setAlarm(Date.now() + RETRY_MS * 2 ** (tries - 1))
+    }
+  }
+
+  /**
+   * Ends an answered hold's task once its session has the answer, so it never stays open work in a
+   * queue: completed with the decision when approved, canceled with it when declined. The seat ends
+   * it as the task's owner. A task already ended (a redelivery) is left as it is.
+   */
+  async #close(runtime: SeatRuntime, answer: ToolAnswer): Promise<void> {
+    const note = answer.reason ? ': ' + answer.reason : ''
+    try {
+      const tasks = seatBoard(bus(), runtime).tasks
+      if (answer.approved) await tasks.complete(answer.approvalId, 'Approved by the principal' + note)
+      else await tasks.cancel(answer.approvalId, 'Declined by the principal' + note)
+      this.sql.exec("update holds set state = 'closed' where task = ?", answer.approvalId)
+    } catch (error) {
+      console.error('seat ' + runtime.key + ': ending the answered hold #' + answer.approvalId + ' failed', error)
     }
   }
 

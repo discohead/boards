@@ -26,6 +26,8 @@ export type Board = {
   }
   tasks: {
     list(query?: Record<string, unknown>): Answer
+    complete(id: string, result?: string): Answer
+    cancel(id: string, reason: string): Answer
   }
 }
 
