@@ -80,6 +80,8 @@ export function gate(tools: () => Map<string, Tool<unknown>>, seat: () => SeatRe
 
 /** What the meter writes: one row per response, one per tool call that ran. */
 export type Meter = {
+  /** Before each model request: the session sets what that request's metadata says. */
+  request(): Promise<void> | void
   response(message: { model?: string; usage?: any; diagnostics?: readonly { type: string; details?: any }[] }): Promise<void> | void
   tool(call: string, name: string, phase: 'start' | 'end', ok?: boolean): Promise<void> | void
 }
@@ -102,6 +104,10 @@ export function gatewayLog(message: { diagnostics?: readonly { type: string; det
 export function meter(meter: Meter): HookRegistration[] {
   return [
     hook(GenerationTask, {
+      async beforeRequest() {
+        await meter.request()
+        return undefined
+      },
       async afterResponse(message) {
         await meter.response(message as any)
       },

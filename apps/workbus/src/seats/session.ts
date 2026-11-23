@@ -39,19 +39,37 @@ export class Session extends Agent<Env> {
     harness: async ({ storage, context, onWake }) => {
       this.#install()
       this.#models.setProvider(this.#ai(this.#configured()).provider)
-      return Harness.open(storage, { models: this.#models, registry: this.registry, onWake, onReport: (report) => console.warn('pi report', JSON.stringify(report)) }, context)
+      const session = this
+      return Harness.open(
+        storage,
+        {
+          models: this.#models,
+          registry: this.registry,
+          onWake,
+          // Read at every request: the running operation's task joins { seat, team, thread } in the gateway's metadata.
+          settings: {
+            get stream() {
+              return session.#task ? { metadata: { task: session.#task } } : {}
+            },
+          } as any,
+          onReport: (report) => console.warn('pi report', JSON.stringify(report)),
+        },
+        context,
+      )
     },
     // pi stores only the model's provider and id with the session; the factory's Models resolve it.
     defaults: { model: createAI({ binding: this.env.AI }).model(MODEL), maxTurns: MAX_TURNS },
   })
   #listeners = new Set<(event: SessionEvent) => void>()
   #models = createModels()
+  /** The board task of the operation whose request is being built (set in beforeRequest). */
+  #task: string | null = null
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     this.lifecycle.use(this.harness)
     this.sql`CREATE TABLE IF NOT EXISTS wb_seat (k TEXT PRIMARY KEY, seat TEXT NOT NULL)`
-    this.sql`CREATE TABLE IF NOT EXISTS wb_ops (id TEXT PRIMARY KEY, kind TEXT NOT NULL, resumes TEXT, started INTEGER NOT NULL, ended INTEGER)`
+    this.sql`CREATE TABLE IF NOT EXISTS wb_ops (id TEXT PRIMARY KEY, kind TEXT NOT NULL, resumes TEXT, task TEXT, started INTEGER NOT NULL, ended INTEGER)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_responses (id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, model TEXT, input INTEGER, output INTEGER, cache_read INTEGER, cache_write INTEGER, cost REAL, log TEXT, at INTEGER NOT NULL)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_tools (call TEXT PRIMARY KEY, op TEXT, name TEXT NOT NULL, started INTEGER, ended INTEGER, ok INTEGER)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_approvals (id TEXT PRIMARY KEY, call TEXT NOT NULL UNIQUE, pi_task TEXT NOT NULL, op TEXT, tool TEXT NOT NULL, kind TEXT NOT NULL, args TEXT NOT NULL, state TEXT NOT NULL, at INTEGER NOT NULL)`
@@ -76,7 +94,7 @@ export class Session extends Agent<Env> {
   /** The gateway's metadata on every call (§5.6): the seat, its team, and this thread. */
   #ai(seat: SeatRef | null) {
     const key = this.name.slice(0, this.name.indexOf(':'))
-    return createAI({ binding: this.env.AI, gateway: GATEWAY, byokAlias: BYOK_ALIAS, metadata: { seat: seat?.key ?? key, team: seat?.team ?? null, thread: this.thread } })
+    return createAI({ binding: this.env.AI, gateway: GATEWAY, byokAlias: BYOK_ALIAS, collectLog: true, metadata: { seat: seat?.key ?? key, team: seat?.team ?? null, thread: this.thread } })
   }
 
   #claimToken(): string {
@@ -111,6 +129,10 @@ export class Session extends Agent<Env> {
       hooks: [
         gate(() => this.#byName, () => this.#seat(), this.#hold),
         ...meter({
+          request: async () => {
+            const op = await this.#running()
+            this.#task = op ? (this.sql<{ task: string | null }>`SELECT task FROM wb_ops WHERE id = ${op}`[0]?.task ?? null) : null
+          },
           response: async (message) => {
             const u = message.usage ?? {}
             const op = await this.#running()
@@ -149,6 +171,9 @@ export class Session extends Agent<Env> {
     const op = await this.#running()
     this.sql`INSERT OR IGNORE INTO wb_approvals (id, call, pi_task, op, tool, kind, args, state, at) VALUES (${made.task.id}, ${call.id}, ${piTask}, ${op}, ${call.name}, ${kind}, ${args}, 'held', ${Date.now()})`
     this.#emit({ type: 'approval', approvalId: made.task.id, tool: call.name, state: 'held' })
+    // The hold is the seat's own write, so its subscription never delivers it: tell the Seat which thread waits on it.
+    const seats = (this.env as unknown as { SEAT?: DurableObjectNamespace }).SEAT
+    if (seats) await (seats.getByName(seat.key) as unknown as { held(input: { approvalId: string; thread: string; operationId: string | null }): Promise<void> }).held({ approvalId: made.task.id, thread: this.thread, operationId: op })
   }
 
   #emit(event: SessionEvent) {
@@ -172,7 +197,7 @@ export class Session extends Agent<Env> {
     const text = input.parts.map((part) => part.text).join('\n')
     const receipt = await this.harness.submit(text, { operationId: options.operationId, whenBusy: options.whenBusy ?? 'followUp', onAbort: 'keep' })
     if (receipt.accepted) {
-      this.sql`INSERT OR IGNORE INTO wb_ops (id, kind, started) VALUES (${options.operationId}, 'turn', ${Date.now()})`
+      this.sql`INSERT OR IGNORE INTO wb_ops (id, kind, task, started) VALUES (${options.operationId}, 'turn', ${options.task ?? null}, ${Date.now()})`
       this.#emit({ type: 'operation', status: { operationId: options.operationId, status: 'queued' } })
       this.ctx.waitUntil(this.wait(options.operationId).catch(() => undefined))
     }

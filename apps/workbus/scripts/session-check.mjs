@@ -70,7 +70,7 @@ async function heldIn(thread) {
 if (!pick || pick.has('turn')) {
   const t = 'turn-' + run
   await session('ada', t, 'configure', ada([]))
-  const first = await session('ada', t, 'submit', turn('Say hi in three words.'), { operationId: 'cursor-1' })
+  const first = await session('ada', t, 'submit', turn('Say hi in three words.'), { operationId: 'cursor-1', task: 'check-' + run })
   const answered = await session('ada', t, 'wait', 'cursor-1', 60000)
   check(first.accepted && answered.status === 'done' && answered.text?.length > 0, 'a turn is answered by Haiku', answered.text ?? answered.reason)
   const u = answered.usage

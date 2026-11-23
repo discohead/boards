@@ -43,6 +43,8 @@ export type SubmitOptions = {
   /** The wake-up's event cursor: submitting it twice returns the same receipt and runs once. */
   operationId: string
   whenBusy?: 'followUp' | 'steer'
+  /** The board task this wake-up is about, if any: the gateway's task metadata on each of its calls. */
+  task?: string
 }
 
 export type Receipt = { operationId: string; session: string; accepted: boolean }
