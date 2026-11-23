@@ -4,13 +4,19 @@ import { useEffect, useState } from 'react'
 
 const format = (date: Date, seconds: boolean, timeZone?: string) => date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', ...(seconds ? { second: '2-digit' } : {}), hour12: false, ...(timeZone ? { timeZone } : {}) })
 
-export function Clock({ at, seconds = false }: { at: string; seconds?: boolean }) {
-  const date = new Date(at)
+/** The clock text for a time, for components that take a string: UTC until hydrated, then local. */
+export function useClockText(at: string, seconds = false): string {
   const [local, setLocal] = useState(false)
   useEffect(() => setLocal(true), [])
+  const date = new Date(at)
+  return local ? format(date, seconds) : format(date, seconds, 'UTC')
+}
+
+export function Clock({ at, seconds = false }: { at: string; seconds?: boolean }) {
+  const text = useClockText(at, seconds)
   return (
-    <time dateTime={at} title={date.toISOString()}>
-      {local ? format(date, seconds) : format(date, seconds, 'UTC')}
+    <time dateTime={at} title={new Date(at).toISOString()}>
+      {text}
     </time>
   )
 }
