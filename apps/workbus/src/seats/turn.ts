@@ -23,7 +23,8 @@ export function render(event: Delivered, rules: string[], thread: string): strin
       lines.push(parts.join(', ') + '.')
     }
   } else if (event.payload) lines.push('What happened: ' + cut(JSON.stringify(event.payload)))
-  if (event.actor && !message) lines.push('By ' + event.actor + '.')
+  const actor = typeof event.actor === 'string' ? event.actor : (event.actor as { id?: string } | undefined)?.id
+  if (actor && !message) lines.push('By ' + actor + '.')
   lines.push('Answer in thread #' + thread + ' if an answer is needed; if nothing is, stop.')
   return lines.join('\n')
 }

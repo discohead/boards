@@ -15,6 +15,7 @@ export { Seat } from './seats/seat.ts'
 export { Session } from './seats/session.ts'
 export { SeatWorkspace } from './seats/workspace.ts'
 export { Wake } from './seats/wake.ts'
+export { Watch } from './seats/watch.ts'
 
 /** Once per isolate: the org seeded, the reconciler's wake set, and a first pass (org/boot.ts). */
 let booting: Promise<unknown> | null = null
@@ -79,6 +80,7 @@ async function devSeat(request: Request, env: Env): Promise<Response> {
   try {
     if (call === 'reconcile') return Response.json(await reconcile(bus(), seatOf(env), args[0] as string | undefined))
     if (call === 'boot') return Response.json(await boot(bus(), seatOf(env)))
+    if (call.startsWith('watch.')) return Response.json((await (env.WATCH.getByName('bus') as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[call.slice('watch.'.length)]!(...args)) ?? null)
     const stub = env.SEAT.getByName(seat!) as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>
     return Response.json((await stub[call]!(...args)) ?? null)
   } catch (error) {

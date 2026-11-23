@@ -4,7 +4,7 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire]
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire,watchdog]
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
@@ -202,6 +202,8 @@ if (pick.has('run')) {
     return tasks.map((entry) => entry.message).find((message) => message.task.blocked?.kind === 'approval' && message.by.actor === 'worker:workbus-app+ada' && Date.parse(message.createdAt) >= since) ?? null
   }, 180000)
   check(Boolean(hold), 'a step waits for the principal: a task held for approval, by ada', hold && { id: hold.id, reason: hold.task.blocked.reason })
+  // Held in ada's own DM, never in the queue it serves (#19).
+  check(hold?.channel === 'dm/ada', "the approval task is held in ada's DM, not in eng/queue", hold?.channel)
   const waiting = await status('ada')
   check(waiting.holds.some((held) => held.task === hold?.id && held.state === 'held'), "ada's Seat knows the hold and which thread it parks", waiting.holds)
   // The principal approves from the inbox: this hold, and any other step ada asks for on the way.
@@ -366,6 +368,62 @@ if (pick.has('hire')) {
   check(Boolean(finished), 'it takes a small task and completes it', finished?.result)
   const notes = (await board('GET', '/threads?channel=docs/notes&limit=20')).threads.map((one) => one.message).filter((message) => message.doc && message.by.actor === actor)
   check(notes.length >= 1, 'its release note is a doc in docs/notes, by it', notes.map((message) => message.doc.path))
+}
+
+// The watchdog and the brief (design/workbus.md §8.6, §5.8), on the dev stack with WATCHDOG_STALL_MS
+// small (8000) in the app's .dev.vars: a claim whose lease runs out, and a failed task, reach the
+// operator once each as a notice with the facts; a seat's run past its limit is stopped, said in its
+// thread, and raised; and the brief, written from the watchdog's facts, has the right numbers.
+// Calls Haiku: ada's long run, and the operator's turns on the notices.
+if (pick.has('watchdog')) {
+  const wakes = (await board('GET', '/wakes')).wakes
+  check(wakes.some((wake) => wake.key === 'watchdog' && wake.actor === 'worker:workbus-app') && wakes.some((wake) => wake.key === 'schedules.op' && wake.actor === 'worker:workbus-app+op'), "boot sets the app's watchdog wake and the operator's schedules wake", wakes.map((wake) => wake.key))
+  const briefs = (await board('GET', '/schedules?channel=ops/briefs&all=true')).schedules
+  check(briefs.length === 1 && (briefs[0].every === 86400000 || briefs[0].every === '1d'), 'the operator keeps one daily brief schedule in ops/briefs', briefs)
+  const opNotices = async () => (await status('op')).wakes.filter((wake) => wake.id.startsWith('notice:'))
+  // A claim whose lease runs out.
+  const expiring = (await board('POST', '/tasks', { channel: 'ops/checks', text: 'Watchdog check: a claim left to run out.' })).task
+  await board('POST', '/tasks/' + expiring.id + '/claim', { lease: 30 })
+  const expired = await until(async () => (await opNotices()).find((wake) => wake.id.startsWith('notice:expired:') && wake.thread === expiring.id), 120000, 2000)
+  check(Boolean(expired), 'a claim run out reaches the operator as a notice in the task thread', expired)
+  // A failed task.
+  const failing = (await board('POST', '/tasks', { channel: 'ops/checks', text: 'Watchdog check: a task that fails.' })).task
+  const claim = (await board('POST', '/tasks/' + failing.id + '/claim', {})).claim
+  await board('POST', '/tasks/' + failing.id + '/fail', { epoch: claim.epoch, token: claim.token, reason: 'the check fails it on purpose' })
+  const failed = await until(async () => (await opNotices()).find((wake) => wake.id.startsWith('notice:failed:') && wake.thread === failing.id), 60000)
+  check(Boolean(failed), 'a failed task reaches the operator as a notice', failed)
+  // Once: the same events again change nothing (the watchdog dedupes; the operator's follow doesn't repeat them).
+  await sleep(5000)
+  const notices = await opNotices()
+  check(notices.filter((wake) => wake.thread === expiring.id).length === 1 && notices.filter((wake) => wake.thread === failing.id).length === 1, 'each reaches it once', notices.map((wake) => wake.id))
+  // A run past its limit: a long task for ada.
+  const long = (await board('POST', '/tasks', { channel: 'eng/queue', text: 'Write a 400-word story about a lighthouse keeper into story.txt in your workspace, in four separate writes of about 100 words each (write, then read, then write again), then complete this task.', for: 'worker:workbus-app+ada' })).task
+  const stopped = await until(async () => (await status('ada')).wakes.find((wake) => wake.thread === long.id && wake.state === 'failed' && /stalled/.test(wake.error ?? '')), 120000, 1000)
+  check(Boolean(stopped), "ada's run past its limit is stopped", stopped)
+  const said = await until(async () => (await board('GET', '/messages/' + long.id)).replies.find((message) => message.by.actor === 'worker:workbus-app+ada' && /I stopped this run/.test(message.text)), 30000)
+  check(Boolean(said), 'and it says so in the thread', said?.text)
+  const raisedStall = await until(async () => (await opNotices()).find((wake) => wake.id.startsWith('notice:stalled:') && wake.thread === long.id), 30000)
+  check(Boolean(raisedStall), 'and the operator hears of it', raisedStall)
+  const run = (await status('ada')).runs.find((one) => one.thread === long.id)
+  check(Boolean(run && (run.outcome === 'failed' || run.outcome === 'aborted') && /stalled/.test(run.error ?? '')), 'its run record says it was stopped', run && { outcome: run.outcome, error: run.error })
+  // The brief: from the watchdog's facts, as the operator's schedule fires (a fake of its event, through the dev door).
+  // Quiet first: nothing of op's or ada's running or queued, so the numbers hold still.
+  const quiet = async () => { for (const key of ['op', 'ada']) { const queue = (await status(key)).queue; if ((queue.running ?? 0) + (queue.queued ?? 0) + (queue.held ?? 0) > 0) return false } return true }
+  await until(async () => (await quiet()) && (await sleep(3000), await quiet()), 120000, 2000)
+  const at = new Date().toISOString()
+  const date = at.slice(0, 10)
+  const fire = { cursor: '990' + Date.now(), type: 'message.posted', createdAt: at, message: { id: '0', re: null, channel: 'ops/briefs', text: 'The daily brief.', schedule: { id: 's1', n: 1 } } }
+  await seat({ seat: 'op', call: 'wake', args: [fire, { board: 'bus', wake: 'schedules.op', principal: 'worker:workbus-app', actor: 'worker:workbus-app+op', rules: ['schedules'], match: 'm', attempt: 1 }] })
+  const brief = await until(async () => (await board('GET', '/docs?path=ops/briefs/' + date).catch(() => null)), 30000)
+  check(Boolean(brief && brief.body.startsWith('# Brief, ' + date)), 'the brief is written as ops/briefs/' + date + ', by the operator', brief && (await board('GET', '/messages/' + brief.doc.id)).message.by.actor)
+  const text = brief?.body ?? ''
+  check(text.includes('#' + failing.id + ' in ops/checks') && /## Failed\n\n- #/.test(text), 'it lists the failed task', text.slice(text.indexOf('## Failed'), text.indexOf('## Seats')))
+  check(text.includes('expired, #' + expiring.id) && text.includes('failed, #' + failing.id) && text.includes('stalled, #' + long.id), 'and what the watchdog raised', text.slice(text.indexOf('## Raised')))
+  const statuses = { op: await status('op'), ada: await status('ada') }
+  for (const key of ['op', 'ada']) {
+    const row = text.split('\n').find((line) => line.startsWith('| ' + key + ' |'))
+    check(Boolean(row && row.includes('$' + statuses[key].spend.cost.toFixed(4))), 'its seats table has ' + key + "'s spend this month, as its Seat has it", { row, seat: statuses[key].spend.cost })
+  }
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')
