@@ -21,7 +21,7 @@ import { actor, browser, recorder, Stop } from './lib.mjs'
 
 const AREAS = ['signin', 'channels', 'thread', 'tasks', 'docs', 'inbox', 'palette', 'seats', 'org']
 // Areas that call a model, run only when --only names them.
-const ASKED = ['seats-run', 'seats-live', 'hiring', 'requests', 'requests-run']
+const ASKED = ['seats-run', 'seats-live', 'hiring', 'requests', 'requests-run', 'proposal-card']
 
 const { values } = parseArgs({ options: { base: { type: 'string' }, api: { type: 'string' }, out: { type: 'string', default: 'check-shots' }, only: { type: 'string' }, chrome: { type: 'string' }, board: { type: 'string', default: 'bus' } } })
 if (!values.base) throw new Error('usage: run.mjs --base <app url> [--api <bus host for the other actor>] [--out <dir>] [--only area,...]')
