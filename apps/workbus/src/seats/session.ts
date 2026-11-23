@@ -195,6 +195,8 @@ export class Session extends Agent<Env> {
   async submit(input: Turn | ToolAnswer, options: SubmitOptions): Promise<Receipt> {
     if (input.type === 'approval') return this.#answer(input, options)
     const text = input.parts.map((part) => part.text).join('\n')
+    // pi reads its settings (the gateway's task metadata) before the beforeRequest hook runs, so set it here for the first request too.
+    if (options.task && (await this.harness.pending()).length === 0) this.#task = options.task
     const receipt = await this.harness.submit(text, { operationId: options.operationId, whenBusy: options.whenBusy ?? 'followUp', onAbort: 'keep' })
     if (receipt.accepted) {
       this.sql`INSERT OR IGNORE INTO wb_ops (id, kind, task, started) VALUES (${options.operationId}, 'turn', ${options.task ?? null}, ${Date.now()})`
