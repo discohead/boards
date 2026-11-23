@@ -254,7 +254,8 @@ function History({ items, hasOlder, loading, onOlder, render, opened, selectedIn
   return (
     <div className="relative min-h-0 flex-1">
       <div ref={scroller} className={'h-full overflow-y-auto' + (mounted ? '' : ' flex flex-col-reverse')} data-testid="history" data-opened={opened ?? undefined}>
-        <div>
+        {/* A channel shorter than the view sits at its bottom too, before and after the swap. */}
+        <div className="flex min-h-full shrink-0 flex-col justify-end">
         {hasOlder || loading ? <div className="py-2 text-center text-xs text-muted-foreground">{loading ? 'Loading older threads…' : ' '}</div> : <ChannelStart empty={items.length === 0} />}
         {mounted ? (
           <ul style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
