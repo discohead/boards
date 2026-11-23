@@ -31,6 +31,8 @@ pnpm dev                                            # the app on 127.0.0.1:8831;
 (cd ../../packages/workbus && node scripts/issuer.mjs token jared https://workbus.dev/b/bus)   # a token
 pnpm typecheck && pnpm build
 TOKEN=<that token> node scripts/session-check.mjs   # a seat's Session end to end, with real Haiku (a few cents' worth)
+WORKBUS_OWNER_TOKEN=<that token> WORKBUS_OTHER_TOKEN=<a member's> node scripts/check/run.mjs --base http://127.0.0.1:8831   # the browser suite
+#   --only seats: the seat views; --only seats-run: a seat's approval end to end, with Haiku (under a cent)
 ```
 
 Both dev scripts set `CLOUDFLARE_DEV_REGISTRY_PATH=.wrangler/registry`: Wrangler and the Vite

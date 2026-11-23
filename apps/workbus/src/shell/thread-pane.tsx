@@ -12,6 +12,7 @@ const ICONS = { conversation: MessageSquare, task: FileCheck, doc: FileText }
 import { Button } from '@/components/ui/button'
 import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
+import { Approval } from '@/thread/approval'
 import { Body } from '@/thread/body'
 import { ThreadShortcuts } from '@/command/ThreadShortcuts'
 import { useAddFaces } from '@/thread/add-faces'
@@ -70,6 +71,7 @@ function Pane({ id }: { id: string }) {
       </header>
       <ThreadShortcuts threadId={id} />
       <div className="flex min-h-0 flex-1 flex-col">
+        {root && open !== 'doc' ? <Approval root={root} /> : null}
         {open === 'task' && root?.task ? <Status root={root} /> : null}
         {open === 'doc' && root?.doc ? <Body root={root} /> : null}
         {open === 'conversation' ? <Conversation id={id} /> : null}

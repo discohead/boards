@@ -165,9 +165,15 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     },
   })
 
-  const unblock = action<{ id: string }>(db, {
-    onMutate: ({ id }) => patch(id, (task) => void ((task.state = task.needs.length > 0 ? 'waiting' : 'ready'), (task.blocked = null))),
-    mutationFn: async ({ id }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/unblock'))),
+  /** Lift a hold; with a decision, it's an answer (approved or declined, with a note) the one who held it reads on the task. */
+  const unblock = action<{ id: string; decision?: 'approved' | 'declined'; note?: string }>(db, {
+    onMutate: ({ id, decision, note }) =>
+      patch(id, (task) => {
+        task.state = task.needs.length > 0 ? 'waiting' : 'ready'
+        task.blocked = null
+        if (decision) task.answer = { decision, note: note ?? null, by: me() }
+      }),
+    mutationFn: async ({ id, decision, note }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/unblock', decision ? { decision, ...(note ? { note } : {}) } : undefined))),
   })
 
   const reopen = action<{ id: string }>(db, {
@@ -175,7 +181,7 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     mutationFn: async ({ id }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/reopen'))),
   })
 
-  /** Let one of its owner's profiles (<owner>+<profile>) claim it, or anyone (null). */
+  /** Let one actor claim it (a person, a profile, a seat: worker:workbus-app+<key>), or anyone (null). */
   const assign = action<{ id: string; for: string | null }>(db, {
     onMutate: ({ id, for: assignee }) => patch(id, (task) => void (task.for = assignee)),
     mutationFn: async ({ id, for: assignee }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/assign', { for: assignee }))),

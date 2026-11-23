@@ -62,7 +62,7 @@ function Inbox() {
   const approve = (one: InboxItem) => {
     const task = one.task
     if (!task) return
-    if (one.reasons.some((reason) => reason.kind === 'held')) bus.actions.task.unblock({ id: task.id })
+    if (one.reasons.some((reason) => reason.kind === 'held')) bus.actions.task.unblock({ id: task.id, ...(one.reasons.some((reason) => reason.kind === 'held' && reason.hold === 'approval') ? { decision: 'approved' as const } : {}) })
     else if (one.reasons.some((reason) => reason.kind === 'proposal')) bus.actions.task.complete({ id: task.id })
   }
   useHotkey('J', () => move(1), { meta: { name: 'Next item', group: 'Inbox' } })

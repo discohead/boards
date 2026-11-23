@@ -11,6 +11,8 @@ export type TaskFacet = {
   epoch: number
   claim: { actor: string; until: string } | null
   blocked: unknown
+  /** How its last hold was answered (design/cross-principal-tasks.md). */
+  answer?: { decision: 'approved' | 'declined'; note: string | null; by: string } | null
   result: unknown
   reason: string | null
 }

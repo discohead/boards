@@ -17,6 +17,7 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as CSplatRouteImport } from './routes/c.$'
 import { Route as DevSystemRouteImport } from './routes/dev.system'
 import { Route as DocsIdRouteImport } from './routes/docs.$id'
+import { Route as SeatsKeyRouteImport } from './routes/seats.$key'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -58,6 +59,11 @@ const DocsIdRoute = DocsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => DocsRoute,
 } as any)
+const SeatsKeyRoute = SeatsKeyRouteImport.update({
+  id: '/seats/$key',
+  path: '/seats/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -68,6 +74,7 @@ export interface FileRoutesByFullPath {
   '/c/$': typeof CSplatRoute
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
+  '/seats/$key': typeof SeatsKeyRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -78,6 +85,7 @@ export interface FileRoutesByTo {
   '/c/$': typeof CSplatRoute
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
+  '/seats/$key': typeof SeatsKeyRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -89,6 +97,7 @@ export interface FileRoutesById {
   '/c/$': typeof CSplatRoute
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
+  '/seats/$key': typeof SeatsKeyRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -101,6 +110,7 @@ export interface FileRouteTypes {
     | '/c/$'
     | '/dev/system'
     | '/docs/$id'
+    | '/seats/$key'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -111,6 +121,7 @@ export interface FileRouteTypes {
     | '/c/$'
     | '/dev/system'
     | '/docs/$id'
+    | '/seats/$key'
   id:
     | '__root__'
     | '/'
@@ -121,6 +132,7 @@ export interface FileRouteTypes {
     | '/c/$'
     | '/dev/system'
     | '/docs/$id'
+    | '/seats/$key'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -131,6 +143,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   CSplatRoute: typeof CSplatRoute
   DevSystemRoute: typeof DevSystemRoute
+  SeatsKeyRoute: typeof SeatsKeyRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -191,6 +204,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsIdRouteImport
       parentRoute: typeof DocsRoute
     }
+    '/seats/$key': {
+      id: '/seats/$key'
+      path: '/seats/$key'
+      fullPath: '/seats/$key'
+      preLoaderRoute: typeof SeatsKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -212,6 +232,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   CSplatRoute: CSplatRoute,
   DevSystemRoute: DevSystemRoute,
+  SeatsKeyRoute: SeatsKeyRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

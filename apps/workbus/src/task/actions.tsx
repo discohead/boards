@@ -1,15 +1,14 @@
 // A task's actions, as buttons: the ones that apply to it now, for me (model.ts actionsFor), each a
 // write from bus.actions.task. The thread pane's Task face, the inbox, and the lists all use this.
 // Holding asks for a reason and a kind; canceling and failing ask for a reason; assigning picks one
-// of the owner's profiles (the board takes only those) or anyone.
-import { useMemo, useState } from 'react'
-import { useLiveQuery } from '@tanstack/react-db'
+// of the seats, the principal, or the owner's profiles (task/assignable.ts), or anyone.
+import { useState } from 'react'
 import { useBus } from '@/data'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ACTION_LABEL, actionsFor, can, proposalOf, type Task, type TaskAction } from './model.ts'
-import { useActorNames } from './actors.ts'
 import { useMe } from './me.ts'
+import { useAssignable } from './assignable.ts'
 
 const KINDS = ['decision', 'approval', 'review', 'budget'] as const
 
@@ -19,13 +18,11 @@ const PROPOSAL_LABEL: Partial<Record<TaskAction, string>> = { complete: 'Apply',
 export function TaskActionBar({ task, onDone }: { task: Task; onDone?: (action: TaskAction) => void }) {
   const bus = useBus()
   const me = useMe()
-  const name = useActorNames()
   const [asking, setAsking] = useState<null | 'block' | 'cancel' | 'fail'>(null)
   const [reason, setReason] = useState('')
   const [kind, setKind] = useState<string>('decision')
   const [error, setError] = useState<string | null>(null)
-  const { data: actors } = useLiveQuery({ query: (q) => q.from({ actor: bus.actors }) })
-  const profiles = useMemo(() => actors.filter((actor) => task.task.owner && actor.id.startsWith(task.task.owner + '+')).map((actor) => actor.id), [actors, task.task.owner])
+  const assignable = useAssignable(task.task.owner, me?.actor)
   if (!me) return null
   const proposal = proposalOf(task) !== null
   const actions = actionsFor(task, me.actor, can(me.can, 'manage', task.channel)).filter((action) => !(proposal && (action === 'claim' || action === 'block' || action === 'assign')))
@@ -72,10 +69,10 @@ export function TaskActionBar({ task, onDone }: { task: Task; onDone?: (action: 
               <DropdownMenuContent align="start">
                 <DropdownMenuLabel className="text-xs text-muted-foreground">Who may claim it</DropdownMenuLabel>
                 <DropdownMenuItem onSelect={() => run('assign', w.assign({ id: task.id, for: null }))}>Anyone</DropdownMenuItem>
-                {profiles.length ? <DropdownMenuSeparator /> : null}
-                {profiles.map((profile) => (
-                  <DropdownMenuItem key={profile} onSelect={() => run('assign', w.assign({ id: task.id, for: profile }))}>
-                    <span className="font-mono text-xs">@{name(profile)}</span>
+                {assignable.length ? <DropdownMenuSeparator /> : null}
+                {assignable.map((one) => (
+                  <DropdownMenuItem key={one.id} data-assignee={one.id} onSelect={() => run('assign', w.assign({ id: task.id, for: one.id }))}>
+                    {one.name} <span className="ml-auto font-mono text-xs text-muted-foreground">@{one.handle}</span>
                   </DropdownMenuItem>
                 ))}
               </DropdownMenuContent>
