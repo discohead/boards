@@ -5,7 +5,6 @@
 // the selection moves on.
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
-import { useLiveQuery } from '@tanstack/react-db'
 import { useHotkey } from '@tanstack/react-hotkeys'
 import { MessageSquareIcon } from 'lucide-react'
 import { Kbd, Kind, type KindName } from '@/components/system'
@@ -20,6 +19,13 @@ import type { InboxItem, Reason } from '@/inbox/items'
 import { useInbox } from '@/inbox/use-inbox'
 import { DateBar, ListPane } from '@/shell/list-pane'
 import { Clock } from '@/shell/clock'
+import { wordsOf } from '@/inbox/words'
+import { RequestLink } from '@/requests/timeline'
+import { useSeats } from '@/seats/use-seats'
+import { typedText } from '@/data/text'
+
+/** Plain words with mentions as @handles. */
+const textOf = (text: string, actors: Parameters<typeof typedText>[1]) => typedText(text, actors)
 
 export const Route = createFileRoute('/')({ component: Inbox })
 
@@ -33,11 +39,10 @@ function Inbox() {
   // What reached me (each item's newest reply): one read, here, not for the sidebar.
   useEffect(() => void bus.openInbox().catch(() => {}), [bus])
   const name = useActorNames()
+  const { seats } = useSeats()
   const [chip, setChip] = useState<Chip>('all')
   const items = useMemo(() => all.filter((one) => chip === 'all' || one.reasons.some((reason) => CHIPS[chip].includes(reason.kind))), [all, chip])
   const { thread: openId, open } = useOpenThread()
-  const { data: docs } = useLiveQuery({ query: (q) => q.from({ doc: bus.docs }) })
-  const docPath = (id: string) => docs.find((doc) => doc.id === id)?.path ?? 'doc #' + id
 
   // By day, newest first; the selected item keeps its day and its place in it while the list changes.
   const [selected, setSelected] = useState<string | null>(null)
@@ -63,7 +68,7 @@ function Inbox() {
     const task = one.task
     if (!task) return
     if (one.reasons.some((reason) => reason.kind === 'held')) bus.actions.task.unblock({ id: task.id, ...(one.reasons.some((reason) => reason.kind === 'held' && reason.hold === 'approval') ? { decision: 'approved' as const } : {}) })
-    else if (one.reasons.some((reason) => reason.kind === 'proposal')) bus.actions.task.complete({ id: task.id })
+    else if (one.reasons.some((reason) => reason.kind === 'proposal')) bus.actions.task.apply({ id: task.id })
   }
   useHotkey('J', () => move(1), { meta: { name: 'Next item', group: 'Inbox' } })
   useHotkey('K', () => move(-1), { meta: { name: 'Previous item', group: 'Inbox' } })
@@ -110,12 +115,22 @@ function Inbox() {
                   <Clock at={whenOf(one)} />
                 </span>
               </div>
-              <div className={cn('truncate', live.has(key) && 'font-medium')}>{title(one, named(name))}</div>
-              <div className="flex items-center gap-2">
-                <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                  @{name(whoOf(one))} · {one.channel}
-                  <span className="font-sans"> {detail(one, docPath, named(name))}</span>
-                </span>
+              {(() => {
+                const words = wordsOf(one, name, (handle) => seats.find((seat) => seat.handle === handle)?.name ?? null)
+                return (
+                  <>
+                    <div data-testid="inbox-what" className={cn('truncate', live.has(key) && 'font-medium')}>{textOf(words.what, named(name))}</div>
+                    <div className="truncate text-xs text-muted-foreground">{title(one, named(name))}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                        @{name(words.who ?? whoOf(one))} · {one.channel}
+                        {words.request ? (
+                          <span onClick={(event) => event.stopPropagation()}>
+                            {' · '}
+                            <RequestLink id={words.request} />
+                          </span>
+                        ) : null}
+                      </span>
                 {one.reasons.some((reason) => reason.kind === 'reply') && live.has(key) ? (
                   <Button
                     size="xs"
@@ -129,7 +144,10 @@ function Inbox() {
                     Done
                   </Button>
                 ) : null}
-              </div>
+                    </div>
+                  </>
+                )
+              })()}
             </div>
           </Fragment>
         ))}
@@ -159,16 +177,6 @@ function dayOf(iso: string) {
   return days === 0 ? 'Today' : days === 1 ? 'Yesterday' : date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
 }
 
-/** What it asks of me, after who and where. */
-function detail(one: InboxItem, docPath: (id: string) => string, actors: Actors) {
-  for (const reason of one.reasons) {
-    if (reason.kind === 'held') return '· ' + reason.reason
-    if (reason.kind === 'proposal')
-      return reason.doc.startsWith('new:') ? '· proposes ' + (reason.doc.startsWith('new:org/seats/') ? 'a new seat, ' : 'a new doc, ') + reason.doc.slice(4) : '· proposes a change to ' + docPath(reason.doc)
-    if (reason.kind === 'reply' && reason.latest) return '· ' + summaryOf(reason.latest.text, actors) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
-  }
-  return ''
-}
 
 /** The kind of an item, as the prototype's inbox row draws it: the system's Kind, plain (its icon and word). A plain reply has no system kind. */
 function ItemKind({ reason }: { reason: Reason }) {

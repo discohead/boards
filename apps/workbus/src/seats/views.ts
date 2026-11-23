@@ -108,3 +108,21 @@ export const seatViews = createServerFn().handler(async (): Promise<{ seats: Sea
   seats.sort((a, b) => (a.role === 'operator' ? -1 : b.role === 'operator' ? 1 : a.name.localeCompare(b.name)))
   return { seats, at: new Date().toISOString() }
 })
+
+/**
+ * The runs every seat made in some threads (a request's), with their cost: read from each Seat's
+ * own records, not its last 20, so a request's cost is whole.
+ */
+export const requestRuns = createServerFn()
+  .validator((input: { threads: string[] }) => ({ threads: Array.isArray(input?.threads) ? input.threads.filter((one) => typeof one === 'string' && /^\d{1,16}$/.test(one)).slice(0, 200) : [] }))
+  .handler(async ({ data }): Promise<{ runs: (SeatRun & { seat: string })[] }> => {
+    if (data.threads.length === 0) return { runs: [] }
+    const docs = await seatDocs()
+    const each = await Promise.all(
+      [...docs.keys()].map(async (key) => {
+        const runs = (await (env.SEAT.getByName(key) as unknown as { runsIn(threads: string[]): Promise<Run[]> }).runsIn(data.threads)) as Run[]
+        return runs.map((run) => ({ seat: key, id: run.id, operation: run.operation, outcome: run.outcome, cost: run.cost, started: run.started, ended: run.ended, thread: run.thread, task: run.task, steps: run.steps, error: run.error }))
+      }),
+    )
+    return { runs: each.flat().sort((a, b) => a.ended.localeCompare(b.ended)) }
+  })

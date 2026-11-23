@@ -391,6 +391,16 @@ export class Seat extends DurableObject<Env> {
     return { runs: row?.runs ?? 0, cost: row?.cost ?? 0 }
   }
 
+  /** Its runs in some threads, oldest first: what a request cost (the app's request timeline). */
+  async runsIn(threads: string[]): Promise<Run[]> {
+    const wanted = [...new Set(threads)].slice(0, 200)
+    if (wanted.length === 0) return []
+    return this.sql
+      .exec<{ record: string }>("select record from telemetry_runs where json_extract(record, '$.thread') in (" + wanted.map(() => '?').join(', ') + ') order by rowid', ...wanted)
+      .toArray()
+      .map((row) => JSON.parse(row.record) as Run)
+  }
+
   /** This month's spend, in USD, from its runs. */
   spend(): number {
     const key = this.runtime?.key
