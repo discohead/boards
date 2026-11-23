@@ -63,6 +63,13 @@ The places that didn't decide by channel now do:
   its earlier events were seen where it was, and a move would show its later text there.
 - `GET /grants/explain` for a private channel says what privacy leaves: nothing, for a
   non-party.
+- A client ID written in a private channel is the writer's own: the board keeps it as the ID and the
+  writer's actor. So the same ID written anywhere else is a fresh write, not a 409 `duplicate_id`
+  that would tell a non-party it's taken. The writer's retries, `GET /posts/:id`, and
+  `GET /tasks/batch/:id` find it as before, and its event's `clientId` is the ID as written.
+- A task can wait for a task in a private channel only if it's in a channel with the same parties
+  (400 `invalid_needs` otherwise): a public task's `needs` would show the private task's ID, and its
+  state would follow the private task's. A private task may wait for a public one.
 
 A non-party's writes there are refused like any channel it has no grant in (403, naming only the
 channel it named), and its reads answer as if the channel were empty or the message weren't there

@@ -54,7 +54,7 @@ async function setup(name: string, options: { watchers?: boolean } = {}) {
   const upload = await raw(name, 'POST', '/attachments', { ...who.owner, 'content-type': 'text/plain', 'x-board-filename': 'zebra.txt' }, 'zebra file')
   expect(upload.status).toBe(201)
   const file = JSON.parse(upload.text).attachment.id as string
-  const dm = (await api(name, 'POST', '/messages', { channel: 'dm/ada', text: 'zebra plan for @[workbus:user:mallory]', attachments: [file] }, who.owner)).body.message
+  const dm = (await api(name, 'POST', '/messages', { channel: 'dm/ada', text: 'zebra plan for @[workbus:user:mallory]', attachments: [file], id: 'zebra-client-id' }, who.owner)).body.message
   const reply = await api(name, 'POST', '/messages', { re: dm.id, text: 'ada answers zebra, cc @[workbus:user:mallory]' }, who.ada)
   expect(reply.status).toBe(201)
   const task = (await api(name, 'POST', '/tasks', { channel: 'dm/ada', text: 'a zebra task' }, who.owner)).body
@@ -132,6 +132,8 @@ describe('private channels', () => {
     expect((owner.channels as { channels: { path: string; private?: boolean }[] }).channels.find((channel) => channel.path === 'dm/ada')).toMatchObject({ private: true })
     expect(owner.explain).toContain('read')
     expect(owner.actors).toEqual(['worker:workbus-app+ada'])
+    // The client ID a DM was written with comes back on its event, to its parties.
+    expect(JSON.stringify(owner.feed)).toContain('"clientId":"zebra-client-id"')
     expect(JSON.stringify(owner.feed)).toMatch(/"type":"channel.created","createdAt":"[^"]+","payload":\{"channel":"dm\/ada\/notes"/)
     expect(JSON.stringify(owner.feed)).toContain('"type":"doc.snapshot"')
     const ada = await reads(name, s, s.who.ada)
@@ -167,6 +169,42 @@ describe('private channels', () => {
     // A party writes there as its grants allow: ada claims the task, the owner and ada reply.
     const claimed = await api(name, 'POST', '/tasks/claim', { channel: 'dm/ada', from: ['workbus:user:jared'] }, s.who.ada)
     expect(claimed.body.task?.text).toBe('a zebra task')
+  })
+
+  it("a client ID taken in a DM tells a non-party nothing, and still replays for its writer", async () => {
+    const name = freshBoard('dm-client-ids')
+    const { owner, member } = await callers(name)
+    const first = await api(name, 'POST', '/messages', { channel: 'dm/ada', text: 'zebra', id: 'secret-id' }, owner)
+    expect(first.status).toBe(201)
+    expect((await api(name, 'POST', '/tasks/batch', { channel: 'dm/ada', id: 'secret-batch', tasks: [{ text: 'zebra a' }] }, owner)).status).toBe(201)
+    expect((await api(name, 'POST', '/tasks', { channel: 'dm/ada', text: 'zebra task', id: 'secret-task' }, owner)).status).toBe(201)
+    expect((await api(name, 'POST', '/docs', { channel: 'dm/ada', slug: 'plan', body: '# Zebra\n', id: 'secret-doc' }, owner)).status).toBe(201)
+    // Probing with the DM's IDs answers as an unused ID does: a fresh write.
+    for (const [path, body] of [['/messages', { channel: 'general', text: 'probe', id: 'secret-id' }], ['/tasks', { channel: 'general', text: 'probe', id: 'secret-task' }], ['/docs', { channel: 'general', slug: 'probe', body: '# Probe\n', id: 'secret-doc' }], ['/tasks/batch', { channel: 'general', id: 'secret-batch', tasks: [{ text: 'probe' }] }]] as const) {
+      const probe = await api(name, 'POST', path, body, member)
+      expect({ path, status: probe.status, text: JSON.stringify(probe.body).includes('zebra') }).toEqual({ path, status: 201, text: false })
+    }
+    expect((await api(name, 'GET', '/posts/secret-id', undefined, member)).body.message.text).toBe('probe')
+    // The writer's retry in the DM is the same write, and its own lookups find it.
+    const again = await api(name, 'POST', '/messages', { channel: 'dm/ada', text: 'zebra', id: 'secret-id' }, owner)
+    expect(again.body.message.id).toBe(first.body.message.id)
+    expect((await api(name, 'GET', '/posts/secret-id', undefined, owner)).body.message.id).toBe(first.body.message.id)
+    expect((await api(name, 'GET', '/tasks/batch/secret-batch', undefined, owner)).body.tasks[0].text).toBe('zebra a')
+    expect(JSON.stringify((await api(name, 'GET', '/events?after=0', undefined, owner)).body)).toContain('"clientId":"secret-id"')
+  })
+
+  it("a task outside a DM can't wait for a task in it; one in the DM may wait for a public one", async () => {
+    const name = freshBoard('dm-needs')
+    const { owner, member } = await callers(name)
+    const secret = (await api(name, 'POST', '/tasks', { channel: 'dm/ada', text: 'zebra task' }, owner)).body.task.id
+    const open = await api(name, 'POST', '/tasks', { channel: 'general', text: 'public', needs: [secret] }, owner)
+    expect([open.status, open.body.error?.code]).toEqual([400, 'invalid_needs'])
+    const plain = (await api(name, 'POST', '/tasks', { channel: 'general', text: 'public' }, owner)).body.task.id
+    expect((await api(name, 'POST', '/tasks/' + plain + '/needs', { needs: [secret] }, owner)).status).toBe(400)
+    expect((await api(name, 'POST', '/tasks/batch', { channel: 'general', tasks: [{ text: 'batched', needs: [secret] }] }, owner)).status).toBe(400)
+    expect(JSON.stringify((await api(name, 'GET', '/messages/' + plain, undefined, member)).body)).not.toContain('"' + secret + '"')
+    const inside = await api(name, 'POST', '/tasks', { channel: 'dm/ada', text: 'zebra after the public one', needs: [plain] }, owner)
+    expect(inside.status).toBe(201)
   })
 
   it("a doc can't move into or out of a private channel", async () => {

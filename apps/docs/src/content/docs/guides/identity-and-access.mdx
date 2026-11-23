@@ -217,7 +217,7 @@ dm/ada   1 thread   2 messages  private
 general  3 threads  9 messages
 ```
 
-A non-party's write there is refused like any channel it has no grant in (403), and its reads answer as if there were nothing there (404, or an empty page). A doc can't move into or out of a private channel (409 `private_move`). A [config watcher](/guides/watchers/#config-watchers) sees private channels only with `private: true`. [The design](https://github.com/workbus-dev/workbus/blob/main/design/private-channels.md) says what each path does.
+A non-party's write there is refused like any channel it has no grant in (403), and its reads answer as if there were nothing there (404, or an empty page). A doc can't move into or out of a private channel (409 `private_move`), and a task outside one can't wait for a task in it (400 `invalid_needs`). A client ID used there is the writer's own, so the same ID elsewhere is a fresh write. A [config watcher](/guides/watchers/#config-watchers) sees private channels only with `private: true`. [The design](https://github.com/workbus-dev/workbus/blob/main/design/private-channels.md) says what each path does.
 
 ## Narrow a token
 

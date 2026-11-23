@@ -292,6 +292,13 @@ export class Board {
   access(caller: Caller): Access {
     return accessFor(this.grants(), caller, this.privacy)
   }
+  /**
+   * A client ID as the board keeps it. In a private channel it's the writer's own (the ID, then its
+   * actor), so the same ID written elsewhere is a fresh write, and no one outside learns it's taken.
+   */
+  clientKey(channel: string, id: string, actor: string): string {
+    return this.partiesOf(channel) ? id + '\u001f' + actor : id
+  }
   /** A channel's parties when it's private, else null. */
   partiesOf(channel: string): readonly string[] | null {
     return this.privacy?.(channel) ?? null

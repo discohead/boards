@@ -233,7 +233,7 @@ op('createDoc', (ctx, body: CreateDoc) => {
   if (!SLUG.test(slug)) throw badRequest('slug: a doc\'s slug is lowercase letters, numbers, _, and -, up to 128, starting with a letter or number', 'invalid_slug')
   if ((body.body === undefined) === (body.from === undefined)) throw badRequest('a doc starts from its body, or from another doc: pass one of body and from')
   if (body.id !== undefined) {
-    const landed = ctx.sql.one<{ id: number }>('select id from messages where client_key = ?', body.id)
+    const landed = ctx.sql.one<{ id: number }>('select id from messages where client_key = ?', ctx.board.clientKey(channel, body.id, ctx.author.actor))
     const doc = landed ? ctx.sql.one<DocRow>('select * from docs where root = ?', landed.id) : null
     if (doc && doc.channel === channel && doc.slug === slug) return { message: ctx.board.view(ctx.board.message(doc.root)!, viewOptions(ctx)) }
   }

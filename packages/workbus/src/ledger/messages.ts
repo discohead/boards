@@ -191,7 +191,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   authorize(ctx.access, permission, channel)
   if (Object.keys(body.labels ?? {}).length && !imported.from) authorize(ctx.access, 'label', channel)
   if (body.sync?.length) authorize(ctx.access, 'sync', channel)
-  const key = imported.clientKey ?? body.id
+  const key = imported.clientKey ?? (body.id !== undefined ? ctx.board.clientKey(channel, body.id, author.actor) : undefined)
   if (key !== undefined) {
     const found = replay(ctx, key, channel, root?.id ?? null, replyTo, author)
     if (found) return { row: found, replayed: true }
@@ -219,7 +219,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   const at = ctx.now
   ctx.board.seen(imported.author ?? ctx.actor, at)
   const seq = ctx.board.reserve()
-  const threadKey = root ? root.thread_key : (key ?? crypto.randomUUID())
+  const threadKey = root ? root.thread_key : (imported.clientKey ?? body.id ?? crypto.randomUUID())
   const thread = root ? root.id : seq
   ctx.sql.run(
     'insert into messages (id, thread, thread_key, channel, re, reply_to, actor, principal, profile, from_key, origin, text, text_lower, labels, attachments, links, schedule, no_sync, blind, imported_by, version, revision, client_key, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -240,7 +240,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   if (blind) payload.blind = true
   if (imported.importedBy) payload.importedBy = imported.importedBy
   // The client ID it was written with, so a client settles its optimistic write when this event comes back.
-  if (key !== undefined) payload.clientId = key
+  if (imported.clientKey ?? body.id) payload.clientId = imported.clientKey ?? body.id
   if (imported.event) Object.assign(payload, imported.event)
   ctx.board.append('message.posted', payload, { at, message: seq, thread, before: null, seq })
   if (!root && body.sync?.length) hooks.syncTargets(ctx, seq, threadKey, body.sync.map((entry) => (typeof entry === 'string' ? { target: entry } : entry)))
@@ -255,8 +255,11 @@ op('post', (ctx, body: Posting) => {
 })
 
 op('posted', (ctx, { id }: { id: string }) => {
+  // Its own key in a private channel (Board.clientKey), or the ID as written anywhere else.
+  const own = id + '\u001f' + ctx.author.actor
+  hooks.keyed(ctx, own)
   hooks.keyed(ctx, id)
-  const row = ctx.sql.one<MessageRow>('select * from messages where client_key = ?', id)
+  const row = ctx.sql.one<MessageRow>('select * from messages where client_key = ?', own) ?? ctx.sql.one<MessageRow>('select * from messages where client_key = ?', id)
   if (!row || row.actor !== ctx.author.actor || row.principal !== ctx.author.principal || (row.profile ?? null) !== ctx.author.profile || !(ctx.access.readable(row.channel) || row.blind))
     throw notFound('no post of yours has id ' + id, 'post_not_found')
   return { message: postedView(ctx, row) }
