@@ -30,6 +30,7 @@ pnpm dev:bus                                        # the bus on 127.0.0.1:8832
 pnpm dev                                            # the app on 127.0.0.1:8831; /b/* goes to the bus
 (cd ../../packages/workbus && node scripts/issuer.mjs token jared https://workbus.dev/b/bus)   # a token
 pnpm typecheck && pnpm build
+TOKEN=<that token> node scripts/session-check.mjs   # a seat's Session end to end, with real Haiku (a few cents' worth)
 ```
 
 Both dev scripts set `CLOUDFLARE_DEV_REGISTRY_PATH=.wrangler/registry`: Wrangler and the Vite
