@@ -22,6 +22,11 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await step('a mention from someone else shows live', await until(async () => (await item(mention.id).count()) === 1, 8_000))
   await step('marked as a mention, with who and where', /mention/i.test(await item(mention.id).innerText()) && (await item(mention.id).innerText()).includes('@' + other.handle) && (await item(mention.id).innerText()).includes(channel), await item(mention.id).innerText().catch(() => ''))
   const before = await count()
+  // The board stores the mention as @[actor id]; the row shows the handle (live, the ID's tail is an Access sub).
+  const tail = owner.actor.replace(/^.*[:+]/, '')
+  const asHandle = (text) => text.includes('@' + owner.handle + ' can you check') && !text.includes('@[') && (tail === owner.handle || !text.includes('@' + tail))
+  let seen = ''
+  await step("its row shows the mention as the owner's @handle", await until(async () => asHandle((seen = await item(mention.id).innerText())), 5_000), seen.replace(/\n+/g, ' | '))
   await item(mention.id).click()
   await step('it opens in the thread pane', await until(async () => page.url().includes('thread=' + mention.id) && (await page.getByTestId('thread-pane').isVisible())), page.url())
   await page.locator('[data-testid=inbox]').click({ position: { x: 1, y: 1 } }).catch(() => {})

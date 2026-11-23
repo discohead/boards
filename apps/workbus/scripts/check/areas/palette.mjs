@@ -11,7 +11,9 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await page.getByTestId('sidebar').waitFor({ timeout: 30_000 })
   // The system's CommandPalette: a dialog with cmdk's list and its input, labelled Command.
   const palette = page.locator('[cmdk-list]')
-  // ⌘K, again until it opens: the shortcut is registered once the page has hydrated.
+  // ⌘K, again until it opens: the shortcut is registered once the page has hydrated. Then wait for its
+  // open animation to finish, so what follows (and its screenshot) sees the settled dialog.
+  const surface = page.locator('[data-slot=dialog-content]')
   const open = async () => {
     await palette.waitFor({ state: 'hidden' }).catch(() => {})
     await until(async () => {
@@ -19,7 +21,24 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
       await page.keyboard.press('Meta+K')
       return page.getByLabel('Command').waitFor({ timeout: 700 }).then(() => true, () => false)
     }, 15_000, 0)
+    await until(() => surface.evaluate((el) => el.getAnimations().length === 0), 3_000, 50)
   }
+  /** The dialog and its selected row, as painted: each layer's opacity and background alpha. */
+  const painted = () =>
+    page.evaluate(() => {
+      // Any CSS color's alpha: "transparent", rgba(r, g, b, a), or the modern "… / a" forms (oklab, rgb).
+      const alpha = (color) => {
+        if (color === 'transparent') return 0
+        const slash = /\/\s*([\d.]+)(%?)\s*\)$/.exec(color)
+        if (slash) return Number(slash[1]) / (slash[2] ? 100 : 1)
+        const rgba = /^rgba\(([^)]+)\)$/.exec(color)
+        return rgba ? Number(rgba[1].split(',')[3] ?? 1) : 1
+      }
+      const dialog = document.querySelector('[data-slot=dialog-content]')
+      const row = dialog?.querySelector('[cmdk-item][data-selected=true]')
+      const layer = (el) => el && { opacity: Number(getComputedStyle(el).opacity), alpha: alpha(getComputedStyle(el).backgroundColor), bg: getComputedStyle(el).backgroundColor }
+      return { dialog: layer(dialog), row: layer(row) }
+    })
 
   // The sidebar's "Search or ask" opens it too.
   await until(async () => {
@@ -34,6 +53,8 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   if (await field.count()) await field.focus()
   await open()
   await must('⌘K opens the palette, even from a text field', await palette.isVisible())
+  const paint = await painted()
+  await step('the palette is opaque: its surface and its selected row are solid', paint.dialog?.opacity === 1 && paint.dialog.alpha === 1 && (!paint.row || (paint.row.opacity === 1 && paint.row.alpha === 1)), paint)
 
   await page.keyboard.type('Palette ' + id)
   const docItem = page.locator('[cmdk-item]', { hasText: 'checks/docs/palette-' + id }).first()
@@ -48,6 +69,16 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await step('text that is no command searches threads and docs', await until(async () => (await results.innerText()).includes(id), 8_000))
   await page.keyboard.press('Enter')
   await step('Enter opens the top result in the thread pane', await until(() => page.url().includes('thread=' + found.id), 5_000), page.url())
+
+  // A thread that mentions the owner: its result reads @handle, as typed, not the board's @[actor id].
+  await other.post('/messages', { channel, text: '@' + owner.handle + ' palette mention ' + id })
+  await open()
+  await page.keyboard.type('palette mention ' + id)
+  const mentioned = page.locator('[cmdk-item]', { hasText: 'palette mention ' + id }).first()
+  await until(() => mentioned.isVisible(), 8_000)
+  const label = await mentioned.innerText().catch(() => '')
+  await step("a result that mentions someone shows their @handle", label.includes('@' + owner.handle + ' palette mention') && !label.includes('@['), label)
+  await page.keyboard.press('Escape')
 
   await open()
   await page.keyboard.type('new post')
