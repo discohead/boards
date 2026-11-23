@@ -92,7 +92,10 @@ export function Composer({ place, label, placeholder, onSend, onEditLast, autoFo
         return
       }
     }
-    if (event.key === 'Enter' && !event.shiftKey) {
+    if (event.key === 'Escape') {
+      // Leave the box, so J/K and the other single keys work.
+      event.currentTarget.blur()
+    } else if (event.key === 'Enter' && !event.shiftKey) {
       event.preventDefault()
       send()
     } else if (event.key === 'ArrowUp' && !text && onEditLast) {
