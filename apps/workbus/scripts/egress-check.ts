@@ -1,6 +1,7 @@
 // The egress policy (src/egress/policy.ts), in node: what a seat's request may do before it leaves.
 //   node scripts/egress-check.ts
-import { decide, githubRepo, type EgressProps } from '../src/egress/policy.ts'
+import { decide, githubRepo, githubWrite, pullHeadAllowed, pushAllowed, receivePackCommands, type EgressProps } from '../src/egress/policy.ts'
+import { readCommands } from '../src/egress/push.ts'
 import { authorization, installationToken } from '../src/egress/github.ts'
 import { generateKeyPairSync, createPublicKey, verify } from 'node:crypto'
 
@@ -44,6 +45,73 @@ check(githubRepo(new URL('https://api.github.com/user')) === null, 'an API path 
 check(JSON.stringify(githubRepo(new URL('https://codeload.github.com/o/r/tar.gz/main'))) === '{"owner":"o","name":"r"}', 'codeload names its repository')
 check(authorization('github.com', 't') === 'Basic ' + btoa('x-access-token:t'), 'git takes the token as Basic x-access-token')
 check(authorization('api.github.com', 't') === 'Bearer t', 'the API takes it as a bearer')
+
+// GitHub writes: push a branch, open a pull request, comment, edit its own pull request. Nothing else.
+const W = (method: string, href: string) => githubWrite(method, new URL(href))
+const kind = (w: ReturnType<typeof githubWrite>) => (w.ok ? w.kind : 'refused: ' + w.reason)
+check(kind(W('POST', 'https://github.com/o/r.git/git-upload-pack')) === 'upload-pack', 'a fetch (git-upload-pack) is a read it may make')
+check(kind(W('POST', 'https://github.com/o/r.git/git-receive-pack')) === 'receive-pack', 'a push is a write it may make, its refs checked next')
+check(kind(W('POST', 'https://api.github.com/repos/o/r/pulls')) === 'pull-create', 'opening a pull request')
+check(kind(W('POST', 'https://api.github.com/repos/o/r/issues/12/comments')) === 'comment', 'commenting on an issue or pull request')
+check(kind(W('POST', 'https://api.github.com/repos/o/r/pulls/12/comments')) === 'comment', 'commenting on a pull request’s diff')
+check(kind(W('PATCH', 'https://api.github.com/repos/o/r/pulls/12')) === 'pull-edit', 'editing a pull request (its author and fields checked next)')
+const merge = W('PUT', 'https://api.github.com/repos/o/r/pulls/12/merge')
+check(!merge.ok && /merging/.test(merge.reason), 'a merge is refused', kind(merge))
+check(!decide('PUT', 'https://api.github.com/repos/o/r/pulls/12/merge', box).ok, 'and the egress refuses it', decide('PUT', 'https://api.github.com/repos/o/r/pulls/12/merge', box))
+for (const [method, href, what] of [
+  ['PUT', 'https://api.github.com/repos/o/r/contents/README.md', 'writing contents'],
+  ['DELETE', 'https://api.github.com/repos/o/r/contents/README.md', 'deleting contents'],
+  ['PATCH', 'https://api.github.com/repos/o/r/git/refs/heads/main', 'moving a ref through the API'],
+  ['POST', 'https://api.github.com/repos/o/r/git/refs', 'making a ref through the API'],
+  ['DELETE', 'https://api.github.com/repos/o/r/git/refs/heads/feature', 'deleting a ref through the API'],
+  ['POST', 'https://api.github.com/repos/o/r/pulls/12/reviews', 'approving a pull request'],
+  ['PATCH', 'https://api.github.com/repos/o/r', 'changing the repository’s settings'],
+  ['POST', 'https://api.github.com/repos/o/r/issues', 'opening an issue'],
+  ['POST', 'https://github.com/o/r/settings', 'a form post on github.com'],
+] as const) check(!W(method, href).ok && status(decide(method, href, box)) === 403, 'refuses ' + what, kind(W(method, href)))
+
+// A push's ref updates, read from its pkt-lines. A seat pushes (and deletes) only its own branches,
+// refs/heads/seat/<its key>/<topic>; another seat's, a teammate's, and main are refused.
+const pkt = (line: string) => (line.length + 4).toString(16).padStart(4, '0') + line
+const zero = '0'.repeat(40), a = 'a'.repeat(40), b = 'b'.repeat(40)
+const pushBody = (...refs: string[]) => new TextEncoder().encode(refs.map((ref, i) => pkt(zero + ' ' + b + ' ' + ref + (i === 0 ? '\0report-status side-band-64k agent=git/2.47\n' : '\n'))).join('') + '0000' + 'PACK\u0000\u0000\u0000\u0002')
+const deleteBody = (ref: string) => new TextEncoder().encode(pkt(a + ' ' + zero + ' ' + ref + '\0report-status\n') + '0000')
+const updates = (bytes: Uint8Array) => receivePackCommands(bytes)!.updates
+const parsed = receivePackCommands(pushBody('refs/heads/seat/ada/egress-check'))
+check(parsed?.updates.length === 1 && parsed.updates[0]!.ref === 'refs/heads/seat/ada/egress-check' && parsed.updates[0]!.new === b, 'reads the ref update and its capabilities line', parsed)
+check(pushAllowed(parsed!.updates, 'ada').ok, 'a seat pushes to its own branch, seat/ada/<topic>')
+check(pushAllowed(updates(pushBody('refs/heads/seat/ada/one', 'refs/heads/seat/ada/two/deeper')), 'ada').ok, 'several of its own branches at once')
+const toMain = pushAllowed(updates(pushBody('refs/heads/main')), 'ada')
+check(!toMain.ok && /refs\/heads\/main/.test(toMain.reason) && /seat\/ada\//.test(toMain.reason), 'a push to main is refused, saying where it may push', toMain)
+check(!pushAllowed(updates(pushBody('refs/heads/seat/op/topic')), 'ada').ok, 'a push to another seat’s namespace is refused')
+check(!pushAllowed(updates(pushBody('refs/heads/app/egress')), 'ada').ok, 'a push to a teammate’s branch is refused')
+check(!pushAllowed(updates(pushBody('refs/heads/seat/adam/topic')), 'ada').ok, 'a namespace that only starts like its key is not its own')
+check(!pushAllowed(updates(pushBody('refs/heads/seat/ada/')), 'ada').ok, 'the namespace itself, with no topic, is refused')
+check(!pushAllowed(updates(pushBody('refs/tags/v1')), 'ada').ok, 'tags are refused')
+check(!pushAllowed(updates(pushBody('refs/heads/seat/ada/x', 'refs/heads/main')), 'ada').ok, 'one update outside the namespace refuses the whole push')
+check(pushAllowed(updates(deleteBody('refs/heads/seat/ada/egress-check')), 'ada').ok, 'a seat deletes its own branch')
+check(!pushAllowed(updates(deleteBody('refs/heads/app/tiers')), 'ada').ok, 'deleting a teammate’s branch is refused')
+check(!pushAllowed(updates(deleteBody('refs/heads/main')), 'ada').ok, 'deleting main is refused')
+check(receivePackCommands(pushBody('refs/heads/x').subarray(0, 30)) === null, 'a body cut before the flush is not read yet')
+let threwBad = false
+try { receivePackCommands(new TextEncoder().encode('zzzz')) } catch { threwBad = true }
+check(threwBad, 'a body that is not pkt-lines is refused')
+
+// A pull request opens only from the seat's own branch, in this repository.
+check(pullHeadAllowed('seat/ada/egress-check', 'workbus-dev', 'ada').ok, 'a pull request from its own branch')
+check(pullHeadAllowed('workbus-dev:seat/ada/egress-check', 'workbus-dev', 'ada').ok, 'its own branch named with the owner')
+check(!pullHeadAllowed('app/egress', 'workbus-dev', 'ada').ok, 'a pull request from a teammate’s branch is refused')
+check(!pullHeadAllowed('seat/op/x', 'workbus-dev', 'ada').ok, 'a pull request from another seat’s branch is refused')
+check(!pullHeadAllowed('someone:seat/ada/x', 'workbus-dev', 'ada').ok, 'a pull request from a fork is refused')
+check(!pullHeadAllowed(undefined, 'workbus-dev', 'ada').ok, 'a pull request with no head is refused')
+
+// The body handed on is every byte, read in chunks that split the commands.
+const whole = pushBody('refs/heads/feature')
+const chunks = [whole.subarray(0, 7), whole.subarray(7, 50), whole.subarray(50)]
+const stream = new ReadableStream<Uint8Array>({ start(c) { for (const chunk of chunks) c.enqueue(chunk); c.close() } })
+const read = await readCommands(stream)
+const passed = new Uint8Array(await new Response(read!.body).arrayBuffer())
+check(read?.updates[0]?.ref === 'refs/heads/feature' && passed.length === whole.length && passed.every((byte, i) => byte === whole[i]), 'reads updates split across chunks, and passes every byte on', { updates: read?.updates.length, bytes: passed.length, of: whole.length })
 
 // Minting: an app JWT signed with the key from Secrets Store (here, a string with \\n for newlines, as the user stores it),
 // then one installation token per owner, cached; the app not installed is null, not an error.
