@@ -20,7 +20,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'watchdog-2026-11-23.2'
+export const SEAT_CODE = 'watchdog-2026-11-23.3'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -265,7 +265,8 @@ export class Seat extends DurableObject<Env> {
     try {
       const body = await (this.env.WATCH.getByName('bus') as unknown as { brief(until: number, date: string): Promise<string> }).brief(now, date)
       const board = seatBoard(bus(), runtime)
-      await board.docs.create({ channel: BRIEFS, slug: date, body, id: 'brief-' + date })
+      // One brief a date: the slug keeps it so (a second write is refused, slug_taken). No client ID, so a brief deleted can be written again.
+      await board.docs.create({ channel: BRIEFS, slug: date, body })
       if (event.message) await board.reply(String(event.message.re ?? event.message.id), { text: 'Today\'s brief: [[' + BRIEFS + '/' + date + ']]', id: 'brief-reply-' + date })
     } catch (error) {
       console.error('seat ' + runtime.key + ': the brief for ' + date + ' failed', error)
