@@ -75,7 +75,7 @@ const DOMAINS = [
 ]
 
 const DOMAIN = {
-  discovery: 'board', openapi: 'board', avatar: 'board', me: 'board', actors: 'board',
+  discovery: 'board', openapi: 'board', avatar: 'board', me: 'board', setName: 'board', actors: 'board',
   channels: 'channels', createChannel: 'channels',
   channelMessages: 'messages', post: 'messages', posted: 'messages', edit: 'messages', delete: 'messages', react: 'messages', label: 'messages', typing: 'messages',
   message: 'threads', threads: 'threads',
@@ -102,6 +102,7 @@ const SUMMARY = {
   openapi: "The board's own list of routes, by path, with no schemas. It misses routes that share a path: see the end of this page.",
   avatar: 'A mark for a name with no picture of its own: its initial on a color from the name, as SVG. No token; cached a day. A name is lowercase letters, digits, and hyphens, up to 32.',
   me: 'Who the token is, and what it may do in each channel it can reach.',
+  setName: 'Set the display name the board shows for you (a person, without a profile).',
   actors: 'Everyone who has written on the board: people, Workers, profiles, and platform users.',
   channels: 'The channels this caller can read, a page at a time.',
   createChannel: 'Makes an empty channel. 201 when it is new, 200 when it was there.',
@@ -319,6 +320,7 @@ if (theirs.length && !force) {
 
 const me = await call('me')
 await call('avatar', { params: { name: me.handle }, open: true })
+await call('setName', { body: { name: 'Jared' } })
 
 // Watchers first: a registration sees what comes after it.
 await call('register', { body: { watch: { deploys: { tail: 'deploys' } }, sync: [{ key: 'tracker', platform: 'tracker' }] } })

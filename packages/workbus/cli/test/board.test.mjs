@@ -28,6 +28,16 @@ describe('who and where', () => {
     assert.match(stdout, /^can {6}\* {2}everything$/m)
   })
 
+  test('name sets the name the board shows for you, and whoami --json reads it back', async () => {
+    const set = await wb(['name', 'Test', 'Er'])
+    assert.equal(set.code, 0, set.stderr)
+    assert.match(set.stdout, /^name {3}Test Er$/m)
+    const { me } = JSON.parse((await wb(['whoami', '--json'])).stdout)
+    assert.equal(me.name, 'Test Er')
+    const empty = await wb(['name'])
+    assert.notEqual(empty.code, 0)
+  })
+
   test('--as writes as a profile, and --json is one document', async () => {
     const { code, stdout } = await wb(['whoami', '--as', 'Claude', '--json'])
     assert.equal(code, 0)

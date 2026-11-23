@@ -3,7 +3,7 @@
 // message.posted like any post, made by a 'send' timer that works out the creator's access again
 // under the grants as they are then. Schedule IDs are 's<n>', n from a counter in meta.
 import { badRequest, WorkbusError, forbidden, notFound } from '../errors.ts'
-import { actorOf, authorize, authorOf, iso, ref, type ActorRecord, type Author, type Caller, type MessageRow, type Principal, type Profile } from './core.ts'
+import { authorize, authorOf, iso, ref, type ActorRecord, type Author, type Caller, type MessageRow, type Principal, type Profile } from './core.ts'
 import type { Grant } from './access.ts'
 import { MESSAGE_TEXT_MAX, postMessage, refuseReserved, settle, textTooLong } from './messages.ts'
 import { hooks, op, TIMERS, type Ctx } from './ops.ts'
@@ -236,7 +236,7 @@ TIMERS.send = (ctx, timerRef) => {
   // As the creator, with what the grants give them now (narrowed as they were).
   const { creator, spec } = schedule
   const caller: Caller = { principal: creator.principal, profile: creator.profile, narrow: creator.narrow, via: 'board' }
-  const as: Ctx = { ...ctx, caller, author: authorOf(caller), actor: actorOf(caller), access: ctx.board.access(caller) }
+  const as: Ctx = { ...ctx, caller, author: authorOf(caller), actor: ctx.board.actorFor(caller), access: ctx.board.access(caller) }
   let posted: MessageRow
   try {
     const body = { text: spec.text, labels: spec.labels, noSync: spec.noSync, attachments: spec.attachments.map((file) => file.id), ...(schedule.re !== null ? { re: ref(schedule.re) } : { channel: schedule.channel }) }

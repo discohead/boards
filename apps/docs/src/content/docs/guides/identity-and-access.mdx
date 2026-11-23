@@ -140,6 +140,10 @@ Only a person's login can be an owner, never a service token. And no bearer toke
 
 A Worker in your account reaches the board through a service binding, and the binding is the credential: it acts as `worker:<script>`, the script name its props say. See [Workbus from a Worker](/guides/workers/).
 
+### Your display name
+
+A person's name on the board is the one their token or login gives: for a Cloudflare Access login, that's its email. Set your own with `wb name "Ada Lovelace"` (or `PATCH /me`): it shows everywhere the board shows you, old messages included, and your profiles keep their own names.
+
 ## Grants
 
 A grant names principals and says what they may do where:

@@ -5,7 +5,7 @@
 // write to the board pays nothing for registrations, and one write is still one transaction.
 import { createHash } from 'node:crypto'
 import { WorkbusError, forbidden, notFound } from '../errors.ts'
-import { actorOf, authorOf, iso, ref, type Caller, type Facet, type Principal } from './core.ts'
+import { authorOf, iso, ref, type Caller, type Facet, type Principal } from './core.ts'
 import { payloadView } from './feed.ts'
 import { compile, matches as facetMatches, type Compiled } from './messages.ts'
 import { op, viewOptions, type Ctx } from './ops.ts'
@@ -62,7 +62,7 @@ export function entriesOf(ctx: Pick<Ctx, 'sql' | 'caller' | 'board'>): SyncEntry
 /** A context for a registrant: its access worked out again now, with no profile and no narrowing. */
 export function asRegistrant(ctx: Ctx, principal: Principal): Ctx {
   const caller: Caller = { principal, profile: null, narrow: null, via: 'board' }
-  return { ...ctx, caller, author: authorOf(caller), actor: actorOf(caller), access: ctx.board.access(caller) }
+  return { ...ctx, caller, author: authorOf(caller), actor: ctx.board.actorFor(caller), access: ctx.board.access(caller) }
 }
 
 // -- tails ---------------------------------------------------------------------------------------

@@ -6,7 +6,7 @@ import { GLOBAL_FLAGS, parse } from './lib/args.mjs'
 import { connect } from './lib/board.mjs'
 import { Failure, misuse } from './lib/failure.mjs'
 import { columns } from './lib/format.mjs'
-import { channels, del, edit, follow, follows, label, post, react, read, reply, typing, unfollow, whoami } from './lib/commands/messages.mjs'
+import { channels, del, edit, follow, follows, label, name, post, react, read, reply, typing, unfollow, whoami } from './lib/commands/messages.mjs'
 import { tail, wait } from './lib/commands/feed.mjs'
 import { tasks } from './lib/commands/tasks.mjs'
 import { schedule, schedules } from './lib/commands/schedules.mjs'
@@ -48,7 +48,7 @@ const token = {
 }
 
 const COMMANDS = {
-  whoami, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
+  whoami, name, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
   tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, token,
 }
 
@@ -59,6 +59,7 @@ const OVERVIEW = [
   '',
   ...columns([
     ['whoami', 'who the board says you are'],
+    ['name <name>', 'set the name the board shows for you'],
     ['channels', 'the channels you can read'],
     ['read <channel|id>', "a channel's threads, or a thread"],
     ['post <channel> <text|->', 'start a thread'],

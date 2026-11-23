@@ -45,6 +45,13 @@ GATEWAY.avatar = async (_request, _env, { params }) => {
   return new Response(svg, { headers: { 'content-type': 'image/svg+xml', 'cache-control': 'public, max-age=86400' } })
 }
 route({ name: 'me', method: 'GET', path: '/me', query: ChannelsQuery })
+/** A display name: trimmed, 1 to 64 characters, no control characters. */
+export const DisplayName = z
+  .string()
+  .transform((value) => value.trim())
+  .refine((value) => value.length >= 1 && [...value].length <= 64, 'a display name is 1 to 64 characters')
+  .refine((value) => !/\p{Cc}/u.test(value), 'a display name has no control characters')
+route({ name: 'setName', method: 'PATCH', path: '/me', body: z.strictObject({ name: DisplayName }) })
 route({ name: 'actors', method: 'GET', path: '/actors' })
 route({ name: 'channels', method: 'GET', path: '/channels', query: ChannelsQuery })
 route({ name: 'createChannel', method: 'POST', path: '/channels', body: z.strictObject({ path: ChannelPath }), status: 'created' })
