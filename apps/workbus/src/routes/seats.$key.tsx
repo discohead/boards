@@ -14,6 +14,9 @@ import type { SeatRun, SeatView } from '@/seats/views'
 import { setSeatState } from '@/seats/pause'
 import { useBus } from '@/data'
 import { useState } from 'react'
+import { named, typedText } from '@/data/text'
+import { useActorNames } from '@/task/actors'
+import { SeatConfig } from '@/seats/seat-form'
 import { Button } from '@/components/system'
 
 export const Route = createFileRoute('/seats/$key')({ component: SeatPage })
@@ -60,6 +63,8 @@ function PauseButton({ seat }: { seat: SeatView }) {
 }
 
 function SeatDetail({ seat }: { seat: SeatView }) {
+  const [configuring, setConfiguring] = useState(false)
+  const name = useActorNames()
   const { open } = useOpenThread()
   const tasks = useTasks().filter((task) => isOpen(task) && assigneeOf(task) === seat.actor)
   const budget = seat.spend.budget
@@ -78,11 +83,22 @@ function SeatDetail({ seat }: { seat: SeatView }) {
           </div>
           {seat.state === 'retired' ? <SeatState state="paused" label="not running" /> : <SeatState state={seat.state} />}
           {seat.doc && seat.state !== 'retired' ? <PauseButton seat={seat} /> : null}
+          {seat.doc ? (
+            <Button variant="outline" size="sm" data-testid="configure" onClick={() => setConfiguring((now) => !now)}>
+              {configuring ? 'Close config' : 'Configure'}
+            </Button>
+          ) : null}
         </header>
+
+        {configuring ? (
+          <Section title="Config">
+            <SeatConfig seat={seat} onClose={() => setConfiguring(false)} />
+          </Section>
+        ) : null}
 
         <Section title="Charter" aside={seat.doc ? <button type="button" className="font-mono text-mono-label text-muted-foreground hover:text-text" onClick={() => open(seat.doc!)}>org/seats/{seat.key}</button> : null}>
           <div data-testid="charter" className="text-[13px] leading-[1.6] text-body">
-            {seat.charter ? <Markdown compact>{seat.charter.replace(/^# .*\n+/, '').replace(/^#+ Charter\s*\n+/i, '')}</Markdown> : <p className="text-muted-foreground">Its seat doc has no charter yet.</p>}
+            {seat.charter ? <Markdown compact>{typedText(seat.charter, named(name)).replace(/^# .*\n+/, '').replace(/^#+ Charter\s*\n+/i, '')}</Markdown> : <p className="text-muted-foreground">Its seat doc has no charter yet.</p>}
           </div>
         </Section>
 
