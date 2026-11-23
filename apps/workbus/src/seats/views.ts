@@ -121,7 +121,8 @@ export const requestRuns = createServerFn()
     const each = await Promise.all(
       [...docs.keys()].map(async (key) => {
         const runs = (await (env.SEAT.getByName(key) as unknown as { runsIn(threads: string[]): Promise<Run[]> }).runsIn(data.threads)) as Run[]
-        return runs.map((run) => ({ seat: key, id: run.id, operation: run.operation, outcome: run.outcome, cost: run.cost, started: run.started, ended: run.ended, thread: run.thread, task: run.task, steps: run.steps, error: run.error }))
+        // A run that ran nothing (model 'none': a start that failed, or a cleared wake) cost nothing and did nothing.
+        return runs.filter((run) => run.model !== 'none').map((run) => ({ seat: key, id: run.id, operation: run.operation, outcome: run.outcome, cost: run.cost, started: run.started, ended: run.ended, thread: run.thread, task: run.task, steps: run.steps, error: run.error }))
       }),
     )
     return { runs: each.flat().sort((a, b) => a.ended.localeCompare(b.ended)) }

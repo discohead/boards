@@ -550,6 +550,47 @@ op('docAt', (ctx, query: { path: string; section?: string; revision?: string; de
   return read(ctx, row, doc, query)
 }, { read: true })
 
+/**
+ * A proposal's change, as it would land, read: a new doc's path and body, or a change's doc, its body
+ * now, and the body it would have once applied (its section edits run over the body now, a whole
+ * body as given, a merge merged), with nothing written. stale: a whole-body change made against an
+ * older revision, which applying would refuse. Reading it needs read where the proposal is.
+ */
+op('docProposal', (ctx, query: { id: string }) => {
+  const row = ctx.board.readable(query.id, ctx.access)
+  const asked = ctx.sql.one<{ channel: string; slug: string; body: string; by: string; at: number }>('select channel, slug, body, by, at from doc_new_proposals where task = ?', row.id)
+  if (asked) return { task: ref(row.id), kind: 'new' as const, path: asked.channel + '/' + asked.slug, proposed: asked.body, by: asked.by, at: iso(asked.at) }
+  const proposal = ctx.sql.one<{ doc: number; edit: string; revision: number | null; base: string | null; by: string; at: number }>('select doc, edit, revision, base, by, at from doc_proposals where task = ?', row.id)
+  if (!proposal) throw notFound('#' + row.id + " isn't a proposal", 'not_a_proposal')
+  const { row: docRow, doc } = docOf(ctx, ref(proposal.doc))
+  const edit = JSON.parse(proposal.edit) as EditDoc
+  const current = docRow.text
+  let proposed = current
+  let stale = false
+  if (edit.edits !== undefined) {
+    let sections = parseDoc(current)
+    for (const one of edit.edits)
+      try {
+        sections = applyEdit(sections, one)
+      } catch (error) {
+        if (!(error instanceof EditError)) throw error
+        stale = true
+      }
+    proposed = bodyOf(sections)
+  } else if (edit.body !== undefined) {
+    if (!edit.merge) {
+      proposed = edit.body
+      stale = proposal.revision !== null && proposal.revision !== docRow.revision
+    } else {
+      const base = proposal.base ?? (proposal.revision !== null ? bodyAt(ctx, docRow, proposal.revision) : current)
+      const merged = merge(base, edit.body, current)
+      if ('conflicts' in merged) stale = true
+      else proposed = merged.body
+    }
+  }
+  return { task: ref(row.id), kind: 'edit' as const, path: pathOf(doc), doc: ref(docRow.id), revision: ref(docRow.revision), ...(proposal.revision !== null ? { proposedAt: ref(proposal.revision) } : {}), stale, current, proposed, by: proposal.by, at: iso(proposal.at) }
+}, { read: true })
+
 op('docHistory', (ctx, query: { id: string; after?: string; limit?: number }) => {
   const { row } = docOf(ctx, query.id)
   const after = query.after !== undefined ? revisionOf(query.after, 'after') : 0

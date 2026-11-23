@@ -14,18 +14,39 @@ import { refreshSeats } from '@/seats/use-seats'
 
 const EYEBROW: Record<Proposal['kind'], string> = { hire: 'A hire to apply', team: 'A change to the org', seat: 'A change to a seat', org: 'A change to the org', doc: 'A proposed doc change' }
 
+/** The board's reads of proposals, by task: a proposal doesn't change, but whether it's stale can, so a read is kept a little while. */
+const previews = new Map<string, { at: number; preview: Preview | null; pending?: Promise<Preview | null> }>()
+const KEEP_MS = 10_000
+
 /** The board's view of a change to an existing doc: the body it would have. Null until it answers, or when it can't. */
 export function usePreview(task: Message | null): Preview | null {
+  return usePreviews(task ? [task] : []).get(task?.id ?? '') ?? null
+}
+
+/** Previews for several proposals at once (the inbox's rows). */
+export function usePreviews(tasks: Message[]): Map<string, Preview | null> {
   const bus = useBus()
-  const [preview, setPreview] = useState<Preview | null>(null)
-  const label = task ? proposalOf(task) : null
+  const ids = tasks.filter((task) => proposalOf(task) && !proposalOf(task)!.startsWith('new:')).map((task) => task.id)
+  const key = ids.join(',')
+  const [, setTick] = useState(0)
   useEffect(() => {
-    if (!task || !label || label.startsWith('new:')) return
     let live = true
-    bus.runtime.client.get<Preview>('/docs/proposals/' + task.id).then((answer) => live && setPreview(answer), () => {})
+    for (const id of ids) {
+      const had = previews.get(id)
+      if (had && (had.pending || Date.now() - had.at < KEEP_MS)) {
+        had.pending?.then(() => live && setTick((n) => n + 1))
+        continue
+      }
+      const pending = bus.runtime.client.get<Preview>('/docs/proposals/' + id).catch(() => null)
+      previews.set(id, { at: Date.now(), preview: had?.preview ?? null, pending })
+      void pending.then((preview) => {
+        previews.set(id, { at: Date.now(), preview })
+        if (live) setTick((n) => n + 1)
+      })
+    }
     return () => void (live = false)
-  }, [bus, task?.id, label])
-  return preview
+  }, [bus, key])
+  return new Map(ids.map((id) => [id, previews.get(id)?.preview ?? null]))
 }
 
 /** Apply and Decline, as the inbox, the pane, and the task face all use them. */
@@ -96,7 +117,12 @@ export function ProposalCard({ root }: { root: Message }) {
       </div>
     )
   return (
-    <div data-testid="proposal" data-kind={proposal.kind} data-task={root.id} className="px-6 pb-3">
+    <div data-testid="proposal" data-kind={proposal.kind} data-task={root.id} data-stale={preview?.stale ? 'yes' : undefined} className="px-6 pb-3">
+      {preview?.stale ? (
+        <p data-testid="proposal-stale" role="alert" className="mb-2 text-[13px] text-danger">
+          {proposal.path} changed after this was proposed, so applying it will be refused. Decline it, and ask its proposer to propose it again from the doc as it is now.
+        </p>
+      ) : null}
       <ApprovalCard
         eyebrow={EYEBROW[proposal.kind]}
         title={proposal.title + '.'}

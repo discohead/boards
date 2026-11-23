@@ -20,6 +20,7 @@ import { useInbox } from '@/inbox/use-inbox'
 import { DateBar, ListPane } from '@/shell/list-pane'
 import { Clock } from '@/shell/clock'
 import { wordsOf } from '@/inbox/words'
+import { usePreviews } from '@/thread/proposal'
 import { RequestLink } from '@/requests/timeline'
 import { useSeats } from '@/seats/use-seats'
 import { typedText } from '@/data/text'
@@ -40,6 +41,7 @@ function Inbox() {
   useEffect(() => void bus.openInbox().catch(() => {}), [bus])
   const name = useActorNames()
   const { seats } = useSeats()
+  const previewOf = usePreviews(all.flatMap((one) => (one.task ? [one.task] : [])))
   const [chip, setChip] = useState<Chip>('all')
   const items = useMemo(() => all.filter((one) => chip === 'all' || one.reasons.some((reason) => CHIPS[chip].includes(reason.kind))), [all, chip])
   const { thread: openId, open } = useOpenThread()
@@ -116,7 +118,7 @@ function Inbox() {
                 </span>
               </div>
               {(() => {
-                const words = wordsOf(one, name, (handle) => seats.find((seat) => seat.handle === handle)?.name ?? null)
+                const words = wordsOf(one, name, (handle) => seats.find((seat) => seat.handle === handle)?.name ?? null, one.task ? previewOf.get(one.task.id) : null)
                 return (
                   <>
                     <div data-testid="inbox-what" className={cn('truncate', live.has(key) && 'font-medium')}>{textOf(words.what, named(name))}</div>
@@ -158,7 +160,7 @@ function Inbox() {
 
 /** Its thread's first line: the root's, or, when the root isn't in memory, the newest reply's (opening it reads the thread). */
 type Actors = ReturnType<typeof named>
-const title = (one: InboxItem, actors: Actors) => summaryOf(one.root?.text ?? latestOf(one)?.text ?? '', actors) || 'Thread #' + one.thread
+const title = (one: InboxItem, actors: Actors) => summaryOf(one.root?.text ?? latestOf(one)?.text ?? '', actors).replace(/\[\[([^\]]+)\]\]/g, '$1') || 'Thread #' + one.thread
 
 /** The message that put it here: the newest reply or mention, else its root. */
 const latestOf = (one: InboxItem) => {

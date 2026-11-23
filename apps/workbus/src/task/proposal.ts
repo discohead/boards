@@ -22,7 +22,8 @@ export type Proposal = {
   link: { to: 'seat'; key: string } | { to: 'doc'; path: string }
 }
 
-export type Preview = { kind: 'new' | 'edit'; path: string; current?: string | null; proposed: string }
+/** The board's read of a proposal (GET /docs/proposals/:id): stale when applying it would be refused. */
+export type Preview = { kind: 'new' | 'edit'; path: string; current?: string | null; proposed: string; stale?: boolean }
 
 const BLOCK = (schema: string) => new RegExp('```json#' + schema + '@\\d+[^\\n]*\\n([\\s\\S]*?)\\n```')
 export function blockData(body: string | null | undefined, schema: string): Record<string, any> | null {

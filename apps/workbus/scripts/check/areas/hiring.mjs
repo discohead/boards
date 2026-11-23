@@ -22,11 +22,11 @@ export async function run({ page, base, owner, run: id, must, step }) {
   const row = page.locator('[data-testid=inbox] [data-item="' + proposal.id + '"]')
   await must('the inbox lists it', await until(async () => (await row.count()) === 1, 20_000))
   const text = (await row.innerText()).replace(/\n+/g, ' | ')
-  await step('as a proposal of a new seat, with its path', /proposal/i.test(text) && text.includes('proposes a new seat, org/seats/' + key), text)
+  await step('as a hire to apply, in plain words, with its seat', /A hire to apply: /.test(text) && text.includes('(@' + key + ')'), text)
   await row.click()
   const pane = page.getByTestId('thread-pane')
   await step('its thread shows the seat doc it would create: the block and the charter', await until(async () => { const shown = await pane.innerText().catch(() => ''); return shown.includes('"handle": "' + key + '"') && shown.includes('You are Hal') }, 15_000), (await pane.innerText().catch(() => '')).slice(0, 300))
-  // The thread pane's Task face has the task's actions; on a proposal, Complete reads Apply.
+  // The thread pane's proposal card has Apply (and Decline); never Claim.
   await pane.getByRole('tab', { name: /^Task/ }).or(pane.getByText(/^Task$/)).first().click()
   const apply = pane.getByRole('button', { name: /^Apply/ }).first()
   await must('it has Apply', await until(() => apply.isVisible(), 10_000))

@@ -12,7 +12,7 @@ export const requestOf = (message: Pick<Message, 'labels'> | null | undefined) =
 
 export type BoardEvent = { cursor: string; type: string; createdAt: string; payload: Record<string, any>; message?: Message & { doc?: { path: string; title?: string } }; actor?: { id: string; handle: string; name: string; kind: string } }
 
-export type EntryKind = 'asked' | 'reply' | 'task' | 'proposal' | 'doc' | 'claimed' | 'completed' | 'failed' | 'held' | 'answered' | 'canceled' | 'lapsed' | 'assigned' | 'applied'
+export type EntryKind = 'asked' | 'post' | 'reply' | 'task' | 'proposal' | 'doc' | 'claimed' | 'completed' | 'failed' | 'held' | 'answered' | 'canceled' | 'lapsed' | 'assigned' | 'applied'
 export type Entry = { cursor: string; at: string; kind: EntryKind; actor: string | null; text: string; thread: string; channel: string }
 
 const firstLine = (text: string) => (text.split('\n').find((line) => line.trim()) ?? '').replace(/^#+\s*/, '').trim()
@@ -31,16 +31,24 @@ export function entryOf(event: BoardEvent, name: (actor: string) => string): Ent
   switch (event.type) {
     case 'message.posted': {
       if (!message) return null
-      // A task's or a doc's root says itself through task.created and doc.created.
-      if (message.re === null && (message.task || message.doc || event.payload?.task)) return null
-      if (message.re === null) return { ...at, kind: 'reply', text: whoName + ' posted in ' + channel + ': ' + short(firstLine(message.text)) }
+      // A task's or a doc's root says itself through task.created and doc.created (the timeline drops this then).
+      if (message.re === null) return { ...at, kind: 'post', text: whoName + ' posted in ' + channel + ': ' + short(firstLine(message.text)) }
       return { ...at, kind: 'reply', text: whoName + ' replied in ' + channel + ': ' + short(firstLine(message.text)) }
+    }
+    case 'labels.changed': {
+      // Stamped after it was made (a proposal's task is made, then labeled): say it was made, here.
+      if (!message || event.payload?.set?.[REQUEST_LABEL] === undefined || message.re !== null) return null
+      if (message.task && proposalOf(message)) return { ...at, kind: 'proposal', text: name(message.by.actor) + ' proposed: ' + (describe(message)?.title ?? firstLine(message.text)) }
+      if (message.task) return { ...at, kind: 'task', text: name(message.by.actor) + ' made a task in ' + channel + (message.task.for ? ' for ' + name(message.task.for) : '') + ': ' + short(firstLine(message.text)) }
+      return null
     }
     case 'task.created': {
       if (message && proposalOf(message)) {
         const proposal = describe(message)
         return { ...at, kind: 'proposal', text: whoName + ' proposed: ' + (proposal?.title ?? firstLine(message.text)) }
       }
+      const asks = /asks to run (\S+) in #(\d+)/.exec(message?.text ?? '')
+      if (asks) return { ...at, kind: 'task', text: whoName + ' asked to run ' + asks[1] + ' (for #' + asks[2] + '), which waits for your approval' }
       const assignee = event.payload?.for ? ' for ' + name(String(event.payload.for)) : ''
       return { ...at, kind: 'task', text: whoName + ' made a task in ' + channel + assignee + ': ' + short(firstLine(message?.text ?? '')) }
     }
@@ -52,7 +60,7 @@ export function entryOf(event: BoardEvent, name: (actor: string) => string): Ent
     case 'task.failed':
       return { ...at, kind: 'failed', text: whoName + ' failed ' + ref + (event.payload?.reason ? ': ' + short(String(event.payload.reason)) : '') }
     case 'task.blocked':
-      return { ...at, kind: 'held', text: ref + ' held for you (' + holdLabel(event.payload?.kind ?? null).toLowerCase() + '): ' + short(String(event.payload?.reason ?? '')) }
+      return { ...at, kind: 'held', text: 'Held for you (' + holdLabel(event.payload?.kind ?? null).toLowerCase() + ') ' + ref + ': ' + short(String(event.payload?.reason ?? '')) }
     case 'task.unblocked':
       return { ...at, kind: 'answered', text: whoName + ' ' + (event.payload?.decision ?? 'unblocked') + ' ' + ref + (event.payload?.note ? ': ' + short(String(event.payload.note)) : '') }
     case 'task.canceled':

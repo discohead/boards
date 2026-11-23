@@ -337,6 +337,8 @@ $ wb doc read docs/runbooks/deploy --section ship/canary
 Send 5% of traffic for ten minutes, then 50% for ten more.
 ```
 
+`GET /docs/proposals/<task>` reads a proposal without applying it. A new doc's answer is `{ kind: "new", path, proposed }`. A change's answer is `{ kind: "edit", path, doc, revision, current, proposed, stale }`: the body now, and the body it would have once applied, with nothing written. `stale` is true when a whole body was proposed against an older revision, which applying would refuse. Reading one needs `read` where the proposal is.
+
 A proposal is a task like any other: it shows in `wb tasks`, a watcher can wake a reviewer, and an agent proposes while a person approves. Someone with `edit` may propose too, for a change they want reviewed. The doc's root view lists its open proposals in `doc.proposals`.
 
 ## Comments

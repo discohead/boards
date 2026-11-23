@@ -10,6 +10,8 @@ import { useOpenThread } from '@/shell/open-thread'
 import { initialsFor } from '@/seats/initials'
 import { usd } from '@/routes/seats.$key'
 import { entryOf, summaryOf, type Entry } from './model.ts'
+import { describe } from '@/task/proposal'
+import { usePreviews } from '@/thread/proposal'
 import type { RequestRecord } from './use-request.ts'
 
 const time = (iso: string) => new Date(iso).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
@@ -25,7 +27,18 @@ export function useEntries(record: RequestRecord | null): Entry[] {
     const entry = entryOf(event, at)
     if (entry) out.push({ ...entry, text: textSummary(entry.text, named(name)) || entry.text })
   }
-  return out.sort((a, b) => Number(a.cursor) - Number(b.cursor))
+  out.sort((a, b) => Number(a.cursor) - Number(b.cursor))
+  // A root that became a task, a proposal, or a doc says so itself: its plain post drops.
+  const became = new Set(out.filter((entry) => entry.kind === 'task' || entry.kind === 'proposal' || entry.kind === 'doc').map((entry) => entry.thread))
+  // A task or proposal is made once: a later stamp (labels.changed) of one already shown says nothing new.
+  const made = new Set<string>()
+  return out.filter((entry) => {
+    if (entry.kind === 'post') return !became.has(entry.thread)
+    if (entry.kind !== 'task' && entry.kind !== 'proposal') return true
+    if (made.has(entry.thread)) return false
+    made.add(entry.thread)
+    return true
+  })
 }
 
 /** What the request came to, in one line of facts. */
@@ -53,7 +66,13 @@ export function RequestFacts({ record }: { record: RequestRecord }) {
 
 /** Every step, in time order. */
 export function RequestTimeline({ record, limit }: { record: RequestRecord; limit?: number }) {
-  const entries = useEntries(record)
+  const previews = usePreviews(record.threads)
+  const entries = useEntries(record).map((entry) => {
+    // A proposed change says what it changes, from the board's read of it.
+    const thread = entry.kind === 'proposal' ? record.threads.find((one) => one.id === entry.thread) : undefined
+    const proposal = thread ? describe(thread, previews.get(thread.id)) : null
+    return proposal ? { ...entry, text: entry.text.replace(/proposed: .*$/, 'proposed: ' + proposal.title) } : entry
+  })
   const name = useActorNames()
   const { open } = useOpenThread()
   const states = new Map<string, Message>(record.threads.map((one) => [one.id, one]))
