@@ -25,6 +25,8 @@ export interface CommandPaletteProps {
   /** With open and onOpenChange, ⌘K draws as a dialog; without, in place. */
   open?: boolean
   onOpenChange?: (open: boolean) => void
+  /** Whether asking @op works: the footer's "⇧↵ ask @op" hint shows only then. Defaults to true. */
+  ask?: boolean
   className?: string
 }
 
@@ -34,7 +36,7 @@ const key = (group: string, item: CommandPaletteItem) => group + '\u0000' + item
  * ⌘K: seats, threads, docs, commands, then ask. The consumer provides the query and the groups,
  * already searched (cmdk's own filter is off). The active row has a 2px held inset bar.
  */
-export function CommandPalette({ query, groups, onQueryChange, open, onOpenChange, className }: CommandPaletteProps) {
+export function CommandPalette({ query, groups, onQueryChange, open, onOpenChange, ask = true, className }: CommandPaletteProps) {
   const [own, setOwn] = useState(query ?? '')
   const q = onQueryChange ? (query ?? '') : own
   const first = groups.flatMap((g) => g.items.filter((it) => it.active).map((it) => key(g.name, it)))[0]
@@ -44,7 +46,7 @@ export function CommandPalette({ query, groups, onQueryChange, open, onOpenChang
       <CommandInput
         value={q}
         onValueChange={(v) => (onQueryChange ? onQueryChange(v) : setOwn(v))}
-        placeholder="Type a command, search, or ask @op…"
+        placeholder={ask ? 'Type a command, search, or ask @op…' : 'Type a command or search…'}
         aria-label="Command"
       />
       <CommandList>
@@ -67,14 +69,14 @@ export function CommandPalette({ query, groups, onQueryChange, open, onOpenChang
       <CommandFooter>
         <span>↑↓ move</span>
         <span>↵ open</span>
-        <span>⇧↵ ask @op</span>
+        {ask ? <span>⇧↵ ask @op</span> : null}
         <span className="ml-auto">esc</span>
       </CommandFooter>
     </>
   )
   if (onOpenChange)
     return (
-      <CommandDialog open={open} onOpenChange={onOpenChange} className={className}>
+      <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false} className={className}>
         {body}
       </CommandDialog>
     )

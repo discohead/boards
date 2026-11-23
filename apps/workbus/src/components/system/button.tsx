@@ -2,6 +2,7 @@ import type { ReactNode } from 'react'
 import { Button as UIButton } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { Icon, type IconProp } from './icon'
+import { Kbd } from './kbd'
 
 export interface ButtonProps {
   /** primary: the one main action in a view (vermilion). danger: destructive, crimson outline. */
@@ -27,7 +28,7 @@ export function Button({ variant = 'secondary', size = 'md', kbd, icon, type = '
     <UIButton variant={VARIANT[variant]} size={SIZE[size]} type={type} className={className} {...props}>
       {icon ? <Icon name={icon} size={14} /> : null}
       {children}
-      {kbd ? <kbd className={cn('font-mono text-mono-label opacity-72')}>{kbd}</kbd> : null}
+      {kbd ? <Kbd className={cn(variant === 'primary' && 'border-current/35 text-inherit')}>{kbd}</Kbd> : null}
     </UIButton>
   )
 }

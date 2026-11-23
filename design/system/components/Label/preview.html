@@ -1,0 +1,12 @@
+<!-- @dsCard group="Status" height=48 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Label</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-row'},h(W.Label,{name:'project',value:'launch'}),h(W.Label,{name:'priority',value:'high'}),h(W.Label,{name:'cycle',value:'2026-w47'}),h(W.Label,{name:'board.doc.proposal'})));
+</script>
+</body>
+</html>

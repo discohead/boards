@@ -48,7 +48,6 @@ function DialogContent({ className, children, ...props }: React.ComponentProps<t
   )
 }
 
-/** A dialog's title and description, stacked (shadcn's DialogHeader, for the views that use it). */
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
   return <div data-slot="dialog-header" className={cn('flex flex-col gap-1', className)} {...props} />
 }

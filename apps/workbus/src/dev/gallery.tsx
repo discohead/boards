@@ -35,6 +35,8 @@ import {
   type TaskStateName,
 } from '@/components/system'
 
+import { ShellReference } from './shell-reference'
+
 const route = getRouteApi('/dev/system')
 
 const row = 'flex flex-wrap items-center gap-2'
@@ -243,6 +245,35 @@ export const SECTIONS: Record<string, () => ReactNode> = {
       run="18 steps · 41s · $0.42"
     />
   ),
+  // The prototype's forms: rows with icons, the group label, the plain kind, the facts row's pill,
+  // the faces with icons, and the approval card with its eyebrow.
+  Prototype: () => (
+    <div className={stack}>
+      <div className="flex w-sidebar flex-col bg-sidebar p-2">
+        <SidebarItem icon={Inbox} active count={5}>Inbox</SidebarItem>
+        <SidebarGroup>Direct messages</SidebarGroup>
+        <SidebarItem avatar={{ kind: 'agent', initials: 'OP', name: 'Operator' }} meta="@op">Operator</SidebarItem>
+        <SidebarItem icon={Hash} child unread>releases</SidebarItem>
+      </div>
+      <div className={row}>
+        {(['approval', 'decision', 'budget', 'review', 'proposal', 'mention', 'done', 'failed'] as KindName[]).map((k) => (
+          <Kind key={k} kind={k} plain />
+        ))}
+      </div>
+      <div className={row}>
+        <HeldPill>Held for you</HeldPill>
+        <Button variant="outline" kbd="⌘↵">Send</Button>
+      </div>
+      <Tabs
+        tabs={[
+          { id: 'conversation', label: 'Conversation', count: 3, icon: 'message' },
+          { id: 'task', label: 'Task', icon: 'task' },
+          { id: 'doc', label: 'Document', icon: 'doc' },
+        ]}
+      />
+      <ApprovalCard eyebrow="Deployment approval" title="Ada wants to deploy v42 to production." reason="Staging checks passed. Approving resumes the paused release." onReply={() => {}} />
+    </div>
+  ),
   Logo: () => (
     <div className={row} style={{ gap: 24 }}>
       <Lockup />
@@ -261,7 +292,7 @@ function Live() {
   const items = [
     { label: 'Inbox', icon: Inbox, kbd: 'G I' },
     { label: 'general', icon: Hash, path: 'general' },
-  ].filter((it) => it.label.includes(q.toLowerCase()))
+  ].filter((it) => it.label.toLowerCase().includes(q.toLowerCase()))
   return (
     <div className={row}>
       <Menu
@@ -333,6 +364,13 @@ const PANES = [
 
 export default function Gallery() {
   const { only, theme, density } = route.useSearch()
+  // The prototype's first screen, drawn with the system's components.
+  if (only === 'Shell')
+    return (
+      <div data-theme={theme ?? 'light'} data-density={density ?? 'compact'}>
+        <ShellReference />
+      </div>
+    )
   // One component alone, for a screenshot beside its preview.html: 16px padding, as bundle.css.
   if (only && SECTIONS[only])
     return (

@@ -14,6 +14,14 @@ The Workbus app at https://workbus.dev (design/workbus.md §9, §10). Two Worker
 workbus.dev is behind Access (the Cloudflare identity provider, the account's members); the
 webhooks at `/b/*/webhooks/*` bypass it. api.workbus.dev is outside Access.
 
+## The design system
+
+The Workbus design system (`design/system/`) is the app's look: its tokens are in `src/styles.css`
+(Tailwind v4 and shadcn/ui's variables), its components in `src/components/system`, imported from
+`@/components/system`. The theme is `data-theme` on `<html>` (light or dark, from a setting that
+defaults to the system's) and density is `data-density` (compact by default). `/dev/system` shows
+every component in both themes and both densities, in `pnpm dev` only.
+
 ## Run it
 
 ```bash
