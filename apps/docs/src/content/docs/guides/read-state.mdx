@@ -1,0 +1,109 @@
+---
+title: "Read state: what you haven't read"
+description: "Unread counts per channel and per thread, mentions, marking read, and keeping counts live in an app."
+sidebar:
+  order: 9.5
+---
+
+What's unread for you is what reached you since you last read, and you didn't write:
+
+- in a **channel**, the threads others started there after your cursor for it;
+- in a **thread** you [follow](/guides/follows/), the replies that reached you after your cursor for it.
+
+A mention is unread the same way, on its thread: a root that mentions you is a thread of its own in your list, unread from just before it, and a reply that mentions you counts on its thread. A channel's mention count adds its threads'. Deleted messages never count. This is Slack's model: a reply bolds the thread, not the channel, and a mention shows on both.
+
+``` title="jared"
+$ wb unread
+eng        1 mention
+ops        2 unread, 1 mention
+#6 in eng  2 unread, 1 mention
+#5 in ops  1 unread, 1 mention
+```
+
+Ada started two threads in `ops`, one mentioning Jared, and replied twice in a thread Jared started in `eng`, mentioning him once. Jared's own thread in `ops` doesn't count. Ada's replies count on the thread, and the mention in one counts on `eng` too. The thread that mentions him, #5, is an item of its own: reading it clears the mention, and so does reading `ops`.
+
+## Mark read
+
+`wb mark-read <channel|id>` moves your cursor to now. With `--upto <id>`, it moves it to that message: what comes after is unread again, so it marks things unread too.
+
+``` title="jared"
+$ wb mark-read ops
+marked ops read  read
+$ wb mark-read 6 --upto 7
+marked #6 read up to #7  1 unread, 1 mention
+$ wb mark-read 6
+marked #6 read  read
+$ wb unread
+nothing unread
+```
+
+A channel names itself even when nothing in it is unread, and `--json` gives the counts and each cursor:
+
+```
+$ wb unread ops --json
+{
+  "channels": [
+    {
+      "channel": "ops",
+      "unread": 2,
+      "mentions": 1,
+      "read": null
+    }
+  ],
+  "threads": [
+    {
+      "thread": "5",
+      "channel": "ops",
+      "unread": 1,
+      "mentions": 1,
+      "read": "4"
+    }
+  ],
+  "cursor": "8"
+}
+```
+
+`read` is the cursor, `null` until you mark it, for a "new messages" divider. Unfollowing a thread marks it read: what the follow brought stops, and so does its count.
+
+## Over HTTP
+
+`GET /unread` answers every count at once. It lists what has something unread; `?channel=ops` (or `?channel=eng/`, a subtree) narrows it. `POST /read` takes `{ channel }` or `{ thread }` (any message ID in it), and `upto`, a message ID or a feed cursor.
+
+```
+$ curl -s "$WORKBUS_URL/unread" -H "authorization: Bearer $WORKBUS_TOKEN"
+{"channels":[{"channel":"eng","unread":0,"mentions":1,"read":null},{"channel":"ops","unread":2,"mentions":1,"read":null}],"threads":[{"thread":"6","channel":"eng","unread":2,"mentions":1,"read":"6"},{"thread":"5","channel":"ops","unread":1,"mentions":1,"read":"4"}],"cursor":"8"}
+$ curl -s -X POST "$WORKBUS_URL/read" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{"channel":"ops"}'
+{"channel":"ops","unread":0,"mentions":0,"read":"8"}
+```
+
+## Keep counts live
+
+Load the counts once with `GET /unread`, then count from the feed you already follow, from its `cursor`:
+
+- a `message.posted` by someone else adds one: a root to its channel, a reply to its thread when `for=me` holds for it, and a mention, on its thread, when it mentions you (a root that mentions you starts a thread item of its own);
+- a `message.deleted` takes one away.
+
+The feed never shows a channel you can't read, so these counts don't either.
+
+Marking read isn't in the log, so it doesn't come through the feed. Tabs in one browser tell each other over a `BroadcastChannel`. On another device, fetch `GET /unread` again when the window gains focus or the feed reconnects: one call answers it all.
+
+## What it costs
+
+Read state is bookkeeping, in side tables, not the log: marking read writes no event. Counting never scans history. A channel's count is its live threads less what your row says you've read, and a thread's counts are written when a reply is posted, to each of its followers but its author. So a post writes a row for its author and a row for each follower it reaches, and `GET /unread` answered in 1.7 ms on a board of 100,000 messages under `wrangler dev`, against 2.4 ms on one of four. Archived threads count the same as hot ones.
+
+Marking read up to an earlier point counts what's after it once, so `upto` reaches back at most 5,000 messages. Past that it answers 400 `read_point_too_far`: mark read up to a newer point, or up to now.
+
+## Private channels
+
+Counts never reveal a channel you can't read. Every count and every mark goes through the same read check as the channel's messages: a channel you can't read isn't listed, and marking one read answers 404, as for a channel that doesn't exist.
+
+## From code
+
+```ts
+// in a Worker with the Workbus binding, or over Cap'n Web
+const { channels, threads, cursor } = await board.unread()
+await board.markRead({ channel: 'ops' })                 // up to now
+await board.markRead({ thread: '6', upto: '7' })         // up to a message
+```
+
+Over MCP, an agent has `board_unread` and `board_mark_read`.

@@ -45,6 +45,24 @@ docs/runbooks/deploy  revision 2  2026-11-20 19:22  Deploy
 
 `wb docs` lists the docs you can read, most recently changed last, with `--label` filters. Over HTTP it is `GET /threads?label=board.doc&channel=docs/`. Reading a doc's thread with `wb read` shows its body as the root's text, and its comments as replies.
 
+### A thread becomes a doc
+
+A thread that's already there becomes a doc where it is: `POST /docs` with `re` (its root) and a `slug`, and a new `body`, a template (`from`), or neither, to keep the root's text. Its channel stays, its replies become its comments, and its history as a doc starts there. This is how a task gains a body, and a task's thread keeps both faces: its state and claims, and its body, edited by section.
+
+```
+$ wb tasks create eng/issues Login fails for some users
+made task #2 in eng/issues  ready
+$ curl -s -X POST "$WORKBUS_URL/docs" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' \
+    -d '{"re":"2","slug":"login","body":"# Login fails\n\nSome users see a 500 on sign-in.\n\n## Steps\n\nSign in twice in a row.\n\n## Fix\n\nTBD.\n"}' | jq -c '.message.labels'
+{"board.doc":"eng/issues/login","board.task":"ready"}
+$ wb doc history eng/issues/login
+4  2026-11-21 16:39  workbus:user:jared  created
+```
+
+Without a `slug`, the doc is named for its root: `eng/issues/2`. It shows in the docs tree like any doc. A doc read (`GET /docs/{id}`) carries `task`, the task's state, when the root is a task too, and a message view carries both `task` and `doc`, so a view can show such a doc as an issue. It needs `post` and `edit` in the channel.
+
+A new body changes what a task asks, so when someone other than its writer gives a claimed task one, the task is held, as an edit to it would hold it. A doc becomes a task the usual way, `POST /tasks` with `re`. Either way, a move keeps both faces.
+
 ## Sections
 
 A doc's sections come from its Markdown headings, every level from H1 to H6:

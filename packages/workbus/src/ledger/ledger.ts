@@ -3,7 +3,7 @@
 // output gate holds its answer, and every ring and delivery it starts, until the write is durable.
 import { DurableObject } from 'cloudflare:workers'
 import { WorkbusError, failureOf, type Failure } from '../errors.ts'
-import { Board, type Caller, type Principal } from './core.ts'
+import { Board, type Caller, type Principal, type Privacy } from './core.ts'
 import { DDL } from './schema.ts'
 import { Sql } from './sql.ts'
 import { ASYNC_TIMERS, OPS, READS, TIMERS, contextFor, type Ctx, type Mount, type Runtime } from './ops.ts'
@@ -26,8 +26,17 @@ export type Answer = { ok: true; value: unknown } | { ok: false; failure: Failur
 /** Timers by kind: what the alarm runs when one is due. Each part registers its own. */
 export { TIMERS }
 
-export type WatchConfig = { tail: string; sink: Sink }
+/** A watcher sees private channels' events only when it says so (private), and its sink's calls back hold to the same. */
+export type WatchConfig = { tail: string; sink: Sink; private?: boolean }
 export type WorkbusConfig = {
+  /**
+   * Who is the board's owner when they sign in through Cloudflare Access: an email (matched to the
+   * Access token's email, any case) or an Access sub. ACCESS_OWNERS in the Worker's env adds more,
+   * comma-separated, so they needn't be in code.
+   */
+  owners?: string | readonly string[]
+  /** The deployment's private channels: a channel's parties, or null where the grants decide (design/private-channels.md). */
+  private?: Privacy
   watch?: Record<string, WatchConfig>
   /** The board's own syncs, by key: an Inbox takes each one's webhooks (/webhooks/<key>), and a courier copies what's written on the board back. */
   sync?: Record<string, SyncProvider>
@@ -36,8 +45,8 @@ export type WorkbusConfig = {
 export { courierId }
 
 /** The board's own code, as a caller: everything, outside the grants. */
-export const selfCaller = (id = 'workbus:self', name = 'workbus'): Caller => ({
-  principal: { id, kind: 'deployment', handle: name, name, facts: null, expiresAt: null, own: true } satisfies Principal,
+export const selfCaller = (id = 'workbus:self', name = 'workbus', outsider = false): Caller => ({
+  principal: { id, kind: 'deployment', handle: name, name, facts: null, expiresAt: null, own: true, ...(outsider ? { outsider } : {}) } satisfies Principal,
   profile: null,
   narrow: null,
   via: 'board',
@@ -48,7 +57,7 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
     board: Board
     sql: Sql
     private config: WorkbusConfig
-    private watchers: { id: string; tail: Compiled | null; spec: ReturnType<typeof parseTail>; sink: Sink }[] | null = null
+    private watchers: { id: string; tail: Compiled | null; spec: ReturnType<typeof parseTail>; sink: Sink; private: boolean }[] | null = null
 
     constructor(ctx: DurableObjectState, env: E) {
       super(ctx, env)
@@ -59,6 +68,7 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
       for (const statement of DDL) ctx.storage.sql.exec(statement)
       this.board = new Board(this.sql)
       this.config = configure(env)
+      this.board.privacy = this.config.private ?? null
       for (const [key, provider] of Object.entries(this.config.sync ?? {})) {
         this.board.sync.set(key, provider.platform)
         if (provider.docTarget) this.board.docTargets.push((path) => provider.docTarget!(path, key))
@@ -265,7 +275,7 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
       this.watchersActors = actors
       this.watchers = Object.entries(this.config.watch ?? {}).map(([id, watch]) => {
         const spec = parseTail(watch.tail)
-        return { id, spec, tail: compile(ctx, spec), sink: watch.sink }
+        return { id, spec, tail: compile(ctx, spec), sink: watch.sink, private: Boolean(watch.private) }
       })
       return this.watchers
     }
@@ -281,6 +291,8 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
           if (!mount || !this.env.MAILBOX || (!this.config.watch && !this.config.sync)) return
           for (;;) {
             const ctx = contextFor(this.board, selfCaller(), mount, Date.now(), [], this.timers())
+            // A watcher that didn't ask for private channels sees the board as an outsider to them.
+            const outside = contextFor(this.board, selfCaller('workbus:self', 'workbus', true), mount, ctx.now, [], this.timers())
             const watchers = this.compiledWatchers(ctx)
             let moved = false
             // Each sync's courier: its matches, to its Mailbox, in order, once each.
@@ -310,7 +322,7 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
               const matches: { id: string; watcher: string; thread: string; event: unknown }[] = []
               for (const row of rows) {
                 const by = (JSON.parse(row.payload) as { by?: { actor?: string } }).by?.actor
-                const view = eventView(ctx, row, watcher.tail!, Boolean(watcher.spec.all), true)
+                const view = eventView(watcher.private ? ctx : outside, row, watcher.tail!, Boolean(watcher.spec.all), true)
                 if (!view) continue
                 const message = view.message as { schedule?: unknown; re: string | null; id: string } | undefined
                 if (by === own && !(row.type === 'message.posted' && message?.schedule)) continue
@@ -338,7 +350,7 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
 
     /** A watcher's write or read, from its Mailbox: as the watcher, IDs derived from the match. */
     async act(watcher: string, match: string, method: string, args: unknown[], seq?: number): Promise<unknown> {
-      const caller = selfCaller('workbus:watch:' + watcher, watcher)
+      const caller = selfCaller('workbus:watch:' + watcher, watcher, !this.config.watch?.[watcher]?.private)
       // A write's ID comes from its place in its delivery attempt, so a retried delivery's writes replay instead of repeating.
       const writes = seq && seq > 0 ? seq : (this.writes.get(match) ?? 0) + 1
       if (!seq) this.writes.set(match, writes)

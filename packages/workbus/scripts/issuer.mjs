@@ -2,6 +2,7 @@
 // Worker holds the same key as the BOARD_ISSUER_KEY secret.
 //   node scripts/issuer.mjs key                  make .issuer.json (and .dev.vars) if there's none
 //   node scripts/issuer.mjs token <sub> <url>    a token for <sub> on the board at <url>, 12 hours
+//     ROLE=member (or viewer) for a person who isn't an owner; KIND=workload for a Worker, worker:<sub>
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { exportJWK, generateKeyPair, importJWK, SignJWT } from 'jose'
 
@@ -23,7 +24,7 @@ if (command === 'key') {
   if (!sub || !url) throw new Error('usage: issuer.mjs token <sub> <board url>')
   const jwk = await key()
   const origin = new URL(url).origin
-  const token = await new SignJWT({ role: process.env.ROLE ?? 'owner' })
+  const token = await new SignJWT({ role: process.env.ROLE ?? 'owner', ...(process.env.KIND ? { kind: process.env.KIND } : {}) })
     .setProtectedHeader({ alg: 'ES256', kid: jwk.kid })
     .setIssuer(origin + '/issuer')
     .setSubject(sub)

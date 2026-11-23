@@ -47,7 +47,7 @@ export const channels = {
     if (ctx.json) return ctx.emit({ channels: found, next: after ?? null })
     if (!found.length) return ctx.print(['no channels'])
     const plural = (n, one) => n + ' ' + one + (n === 1 ? '' : 's')
-    ctx.print(columns(found.map((channel) => [channel.path, channel.threads === undefined ? '' : plural(channel.threads, 'thread'), channel.messages === undefined ? '' : plural(channel.messages, 'message')])))
+    ctx.print(columns(found.map((channel) => [channel.path, channel.threads === undefined ? '' : plural(channel.threads, 'thread'), channel.messages === undefined ? '' : plural(channel.messages, 'message'), ...(channel.private ? ['private'] : [])])))
   },
 }
 

@@ -193,7 +193,8 @@ const pending = (ctx: Reader, needs: number[]) => {
 const refs = (ids: number[]) => ids.map((id) => '#' + id).join(', ')
 
 /** Prerequisites as given, resolved against what the caller can see: each an open, failed, or completed task. */
-function resolveNeeds(ctx: Ctx, given: readonly string[], self: number | null): number[] {
+function resolveNeeds(ctx: Ctx, given: readonly string[], self: number | null, channel: string): number[] {
+  const parties = JSON.stringify(ctx.board.partiesOf(channel))
   const out: number[] = []
   for (const value of distinct(given)) {
     const invalid = (message: string) => new WorkbusError(400, 'invalid_needs', 'needs: ' + message)
@@ -204,6 +205,8 @@ function resolveNeeds(ctx: Ctx, given: readonly string[], self: number | null): 
     const task = row && row.re === null ? ctx.sql.one<{ state: TaskState }>('select state from tasks where root = ?', id) : null
     if (!row || !task || !ctx.access.readable(row.channel)) throw invalid('#' + value + " isn't a task")
     if (task.state === 'canceled') throw invalid('#' + value + ' was canceled: it can never complete')
+    // A task outside a private channel would show the private task's ID, and follow its state, to those who can't read it.
+    if (ctx.board.partiesOf(row.channel) && JSON.stringify(ctx.board.partiesOf(row.channel)) !== parties) throw invalid('#' + value + " is in a private channel: only a task with the same parties may wait for it")
     if (!out.includes(id)) out.push(id)
   }
   return out
@@ -360,7 +363,7 @@ op('createTask', (ctx, body: CreateTask) => {
     if (target.re !== null) throw badRequest('#' + target.id + ' is a reply: a task is a thread, so name its root, #' + target.re)
     if (target.deleted) throw badRequest('message was deleted', 'message_deleted')
     if (load(ctx, target.id)) throw conflict('already_a_task', '#' + target.id + ' is a task already')
-    const needs = resolveNeeds(ctx, body.needs ?? [], target.id)
+    const needs = resolveNeeds(ctx, body.needs ?? [], target.id, target.channel)
     if (body.claim) {
       const waits = pending(ctx, needs)
       if (waits.length) throw conflict('task_waiting', '#' + target.id + ' would wait for ' + refs(waits) + ": it wasn't made a task")
@@ -387,7 +390,7 @@ op('createTask', (ctx, body: CreateTask) => {
     const again = body.claim && body.token !== undefined && live(task, ctx.now) && sameHash(task.claim!.hash, sha256(body.token))
     return { ...answer(ctx, task), ...(again ? { claim: { epoch: task.epoch, token: body.token!, until: iso(task.claim!.until) } } : {}) }
   }
-  const needs = resolveNeeds(ctx, body.needs ?? [], null)
+  const needs = resolveNeeds(ctx, body.needs ?? [], null, channel)
   if (body.claim) {
     const waits = pending(ctx, needs)
     if (waits.length) throw conflict('task_waiting', 'the task would wait for ' + refs(waits) + ': nothing was made')
@@ -478,13 +481,13 @@ op('createTasks', (ctx, body: CreateTasks) => {
   const mates = batchPlan(body.tasks)
   const request = body.request ?? batchRequest(body)
   if (body.id !== undefined) {
-    const landed = storedBatch(ctx, body.id)
+    const landed = storedBatch(ctx, ctx.board.clientKey(channel, body.id, ctx.author.actor))
     if (landed) {
       if (!batchMine(ctx, landed.batch) || (landed.digest !== null && landed.digest !== request)) throw conflict('duplicate_id', 'that id was already used for a different write')
       return { tasks: batchViews(ctx, landed.batch) }
     }
   }
-  const outside = body.tasks.map((task) => resolveNeeds(ctx, (task.needs ?? []).filter((need): need is string => typeof need === 'string'), null))
+  const outside = body.tasks.map((task) => resolveNeeds(ctx, (task.needs ?? []).filter((need): need is string => typeof need === 'string'), null, channel))
   const readies = body.tasks.map((_, i) => mates[i]!.length === 0 && outside[i]!.length > 0 && pending(ctx, outside[i]!).length === 0)
   // Each task's events are its post, task.created, and task.ready when it's ready at once: so each
   // root's ID, a batch-mate's after it included, is known before anything is written.
@@ -499,7 +502,8 @@ op('createTasks', (ctx, body: CreateTasks) => {
   const written = new Set<string>()
   let blind = false
   body.tasks.forEach((spec, i) => {
-    const posted = postMessage(ctx, { channel, text: spec.text, ...(spec.labels ? { labels: spec.labels } : {}), ...(spec.noSync ? { noSync: true } : {}), ...(spec.attachments ? { attachments: spec.attachments } : {}) })
+    const batch = body.id !== undefined ? { event: { batch: { id: body.id, index: i, key: spec.key ?? null } } } : {}
+    const posted = postMessage(ctx, { channel, text: spec.text, ...(spec.labels ? { labels: spec.labels } : {}), ...(spec.noSync ? { noSync: true } : {}), ...(spec.attachments ? { attachments: spec.attachments } : {}) }, batch)
     if (posted.row.id !== roots[i]) throw new WorkbusError(500, 'internal', 'a batch root landed at #' + posted.row.id + ', not #' + roots[i])
     if (posted.row.blind) blind = true
     for (const mention of posted.mentions ?? []) if (!written.has(mention.written)) written.add(mention.written), mentions.push(mention)
@@ -509,13 +513,13 @@ op('createTasks', (ctx, body: CreateTasks) => {
   })
   if (body.id !== undefined) {
     const stored: StoredBatch = { roots, actor: ctx.author.actor, principal: ctx.author.principal, profile: ctx.author.profile, channel, blind }
-    ctx.sql.run('insert into idempotency (key, result, digest, at) values (?, ?, ?, ?)', 'batch:' + body.id, JSON.stringify(stored), request, ctx.now)
+    ctx.sql.run('insert into idempotency (key, result, digest, at) values (?, ?, ?, ?)', 'batch:' + ctx.board.clientKey(channel, body.id, ctx.author.actor), JSON.stringify(stored), request, ctx.now)
   }
   return { tasks: roots.map((root) => viewOf(ctx, root)!), ...(mentions.length ? { mentions } : {}) }
 })
 
 op('createdTasks', (ctx, query: { id: string; request?: string }) => {
-  const landed = storedBatch(ctx, query.id)
+  const landed = storedBatch(ctx, query.id + '\u001f' + ctx.author.actor) ?? storedBatch(ctx, query.id)
   if (!landed || !batchMine(ctx, landed.batch) || !(ctx.access.readable(landed.batch.channel) || landed.batch.blind)) throw notFound('no batch of yours has id ' + query.id, 'batch_not_found')
   if (query.request !== undefined && landed.digest !== null && landed.digest !== query.request) throw conflict('duplicate_id', 'that id was already used for a different write')
   return { tasks: batchViews(ctx, landed.batch) }
@@ -775,7 +779,7 @@ op('setTaskNeeds', (ctx, body: { id: string; needs: string[] }) => {
   owns(ctx, task)
   if (FINISHED.includes(task.state)) throw conflict('task_finished', '#' + task.root + ' is ' + task.state)
   if (live(task, ctx.now)) throw conflict('task_claimed', '#' + task.root + ' is claimed until ' + iso(task.claim!.until) + ': what it needs changes once no one holds it')
-  const needs = resolveNeeds(ctx, body.needs, task.root)
+  const needs = resolveNeeds(ctx, body.needs, task.root, task.channel)
   const same = needs.length === task.needs.length && needs.every((need) => task.needs.includes(need))
   if (same) return answer(ctx, task)
   checkCycle(ctx, task.root, needs.filter((need) => !task.needs.includes(need)))
