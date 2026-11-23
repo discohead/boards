@@ -21,15 +21,31 @@ export async function run({ page, base, owner, step, must }) {
     return (await owner.post('/docs/' + doc.id + '/edit', { revision: doc.revision, body: next })).doc.revision
   }
 
+  // The org-chart profile is opt-in (org/structure's json#org@1). Start without it, as the seed does.
+  const ORG_BLOCK = /\n*```json#org@1\n[\s\S]*?\n```\n?/
+  const structure = await docAt('org/structure')
+  const setStructure = async (body) => {
+    const { doc } = await docAt('org/structure')
+    if ((await docAt('org/structure')).body !== body) await owner.post('/docs/' + doc.id + '/edit', { revision: doc.revision, body })
+  }
+  const without = structure.body.replace(ORG_BLOCK, '\n')
+  await setStructure(without)
+
   await page.goto(base + '/')
   await hydrated(page)
   await page.getByRole('navigation').getByRole('link', { name: 'Org & seats' }).click()
   const org = page.getByTestId('org')
   await must("the sidebar's Org & seats opens /org", await until(async () => page.url().endsWith('/org') && (await org.isVisible()), 15_000), page.url())
 
-  // The chart: the seeded org has the profile (advisor delegates to op, op to ada).
+  // Not opted in: no chart, and how to opt in.
+  const noChart = page.getByTestId('no-chart')
+  await step("an org that doesn't opt in: no chart, and how to opt in", await until(async () => (await noChart.getAttribute('data-why')) === 'not-opted-in' && (await noChart.innerText()).includes('json#org@1'), 15_000), await noChart.innerText().catch(() => ''))
+
+  // Opted in (org/structure gets the block, appended): the seeded delegations hold, advisor to op to ada.
+  await owner.post('/schemas', { name: 'org', version: 1, description: "The org's settings (design/workbus.md §4.3).", schema: { type: 'object', additionalProperties: false, properties: { profile: { enum: ['org-chart'] } } } }).catch(() => {})
+  await setStructure(without.trimEnd() + '\n\n```json#org@1\n{ "profile": "org-chart" }\n```\n')
   const chart = page.getByTestId('org-chart')
-  await must('the org chart shows, the profile holding', await until(() => chart.isVisible(), 10_000))
+  await must('opted in, the org chart shows, the profile holding', await until(() => chart.isVisible(), 20_000))
   const order = await chart.locator('[data-chart-seat]').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-chart-seat')))
   await step('advisor at its root, op under it, ada under op', order.join(' ') === 'advisor op ada', order)
   const opCard = chart.locator('[data-chart-seat=op]')
@@ -68,7 +84,7 @@ export async function run({ page, base, owner, step, must }) {
   // The profile broken: advisor delegates to ada too, so ada has two delegators. The page says why.
   await editBlock('org/teams/core', (data) => ({ ...data, edges: [...data.edges, { from: 'advisor', kind: 'delegates_to', to: 'ada' }] }))
   await page.goto(base + '/org')
-  await step('two delegators to one seat: no chart, and why', await until(async () => (await page.getByTestId('no-chart').isVisible()) && (await page.getByTestId('no-chart').innerText()).includes('@ada has two seats delegating to it'), 20_000), await page.getByTestId('no-chart').innerText().catch(() => ''))
+  await step('two delegators to one seat: no chart, and why', await until(async () => (await noChart.getAttribute('data-why')) === 'broken' && (await noChart.innerText()).includes('@ada has two seats delegating to it'), 20_000), await noChart.innerText().catch(() => ''))
   await editBlock('org/teams/core', (data) => ({ ...data, edges: data.edges.filter((edge) => !(edge.from === 'advisor' && edge.to === 'ada' && edge.kind === 'delegates_to')) }))
   await step('the profile whole again: the chart is back', await until(() => page.getByTestId('org-chart').isVisible(), 20_000))
 
@@ -120,9 +136,9 @@ export async function run({ page, base, owner, step, must }) {
   const written = JSON.parse(FENCE.exec(after.body)[3])
   await step("the doc's block has sessions 3, and nothing else of it changed", written.sessions === 3 && JSON.stringify({ ...written, sessions: had.sessions }) === JSON.stringify(had), written)
   await step('the charter is as it was', after.body.slice(after.body.indexOf('## Charter')) === charter)
-  const history = await owner.get('/docs/' + after.doc.id + '/history?limit=50')
-  const last = (history.edits ?? history.history ?? history.revisions ?? []).at(-1)
-  await step('written as the principal', JSON.stringify(last ?? history).includes(owner.actor), last ?? Object.keys(history))
+  const history = await owner.get('/docs/' + after.doc.id + '/history?after=' + beforeSave.doc.revision)
+  const edit = (history.edits ?? history.history ?? history.revisions ?? []).find((one) => String(one.revision) === String(after.doc.revision))
+  await step('written as the principal', edit?.by?.actor === owner.actor, edit ?? Object.keys(history))
   await step('the reconciler applies it: her Seat runs with 3 sessions, and the form says so', await until(async () => (await saved.getAttribute('data-state')) === 'applied' && (await status('ada')).runtime.sessions === 3, 30_000), { form: await saved.innerText(), seat: (await status('ada')).runtime?.sessions })
 
   // A change the schema takes but the reconciler can't apply: manage at org/, more than the app holds.
@@ -138,5 +154,6 @@ export async function run({ page, base, owner, step, must }) {
 
   // Back as it was.
   await editBlock('org/seats/ada', () => block)
+  await setStructure(structure.body)
   await until(async () => (await status('ada')).runtime.sessions === block.sessions, 30_000)
 }

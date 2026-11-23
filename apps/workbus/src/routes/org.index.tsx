@@ -1,6 +1,7 @@
-// The org (design/workbus.md §4.3, §9.3): its chart when the delegates_to graph has the org-chart
-// profile (one root, one delegator per seat, no cycles), every edge between seats as the prototype
-// draws them, its teams, and the seat directory with each seat's live state.
+// The org (design/workbus.md §4.3, §9.3): its chart when it opts into the org-chart profile
+// (org/structure's json#org@1 { profile: 'org-chart' }) and its delegates_to graph holds to it (one
+// root, one delegator per seat, no cycles), every edge between seats as the prototype draws them,
+// its teams, and the seat directory with each seat's live state.
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { ListPane } from '@/shell/list-pane'
 import { useSeats } from '@/seats/use-seats'
@@ -24,7 +25,11 @@ function OrgPage() {
   return (
     <ListPane title="Org & seats" foot={false}>
       <div data-testid="org" className="mx-auto max-w-[860px] px-6 py-6">
-        {chart.holds ? (
+        {org.profile !== 'org-chart' ? (
+          <p data-testid="no-chart" data-why="not-opted-in" className="mb-4 text-[13px] text-muted-foreground">
+            This org doesn't hold to the org-chart profile, so there's no chart: the relationships below are the whole graph. org/structure opts in with a <span className="font-mono">json#org@1</span> block, {'{ "profile": "org-chart" }'}.
+          </p>
+        ) : chart.holds ? (
           <OrgBox title="Org chart" testid="org-chart">
             <div className="overflow-x-auto py-2">
               <div className="flex justify-center">
@@ -33,8 +38,8 @@ function OrgPage() {
             </div>
           </OrgBox>
         ) : (
-          <p data-testid="no-chart" className="mb-4 text-[13px] text-muted-foreground">
-            Not an org chart: {chart.why}. The relationships below are the whole graph.
+          <p data-testid="no-chart" data-why="broken" className="mb-4 text-[13px] text-danger">
+            The org holds to the org-chart profile, but its delegations don't: {chart.why}. Until they do, the reconciler holds their edges back; the relationships below are the whole graph.
           </p>
         )}
         <OrgBox title="Seat relationships" testid="edges">
