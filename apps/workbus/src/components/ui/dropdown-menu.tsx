@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
+import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 // shadcn/ui's DropdownMenu, restyled: a surface with a hairline and shadow-float, 28px items with
@@ -62,6 +63,20 @@ function DropdownMenuSeparator({ className, ...props }: React.ComponentProps<typ
   return <DropdownMenuPrimitive.Separator data-slot="dropdown-menu-separator" className={cn('-mx-1 my-1 h-px bg-line', className)} {...props} />
 }
 
+/** A menu item with a check mark (work's task list filters). */
+function DropdownMenuCheckboxItem({ className, children, checked, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.CheckboxItem>) {
+  return (
+    <DropdownMenuPrimitive.CheckboxItem data-slot="dropdown-menu-checkbox-item" className={cn(itemBase, 'relative pl-8', className)} checked={checked} {...props}>
+      <span className="pointer-events-none absolute left-2 flex size-3.5 items-center justify-center">
+        <DropdownMenuPrimitive.ItemIndicator>
+          <Check size={14} strokeWidth={1.5} aria-hidden />
+        </DropdownMenuPrimitive.ItemIndicator>
+      </span>
+      {children}
+    </DropdownMenuPrimitive.CheckboxItem>
+  )
+}
+
 function DropdownMenuShortcut({ className, ...props }: React.ComponentProps<'span'>) {
   return <span data-slot="dropdown-menu-shortcut" className={cn('ml-auto font-mono text-mono-label text-muted-foreground', className)} {...props} />
 }
@@ -72,6 +87,7 @@ export {
   DropdownMenuGroup,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuCheckboxItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuShortcut,
