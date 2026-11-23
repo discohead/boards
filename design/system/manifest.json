@@ -1,0 +1,227 @@
+{
+  "manifestVersion": 3,
+  "name": "Workbus",
+  "namespace": "Workbus",
+  "files": [
+    "assets/Logos/README.md",
+    "components/ApprovalCard/README.md",
+    "components/Avatar/README.md",
+    "components/BoardCard/README.md",
+    "components/Button/README.md",
+    "components/CommandPalette/README.md",
+    "components/HeldPill/README.md",
+    "components/Input/README.md",
+    "components/IssueRow/README.md",
+    "components/Kbd/README.md",
+    "components/Kind/README.md",
+    "components/Label/README.md",
+    "components/Menu/README.md",
+    "components/Message/README.md",
+    "components/NewEventsPill/README.md",
+    "components/SeatState/README.md",
+    "components/SidebarItem/README.md",
+    "components/Tabs/README.md",
+    "components/TaskState/README.md",
+    "components/Toast/README.md",
+    "components/ToolCall/README.md",
+    "components/bundle.css",
+    "components/bundle.js",
+    "components/index.d.ts",
+    "tokens.css"
+  ],
+  "libraries": [
+    {
+      "name": "react",
+      "version": "18",
+      "global": "React"
+    },
+    {
+      "name": "react-dom",
+      "version": "18",
+      "global": "ReactDOM"
+    }
+  ],
+  "components": [
+    {
+      "name": "Button",
+      "group": "Actions",
+      "summary": "Buttons run one action."
+    },
+    {
+      "name": "Kbd",
+      "group": "Actions",
+      "summary": "A keyboard shortcut, set in mono."
+    },
+    {
+      "name": "Input",
+      "group": "Forms",
+      "summary": "A single-line text field."
+    },
+    {
+      "name": "Avatar",
+      "group": "Identity",
+      "summary": "The only shape rule in Workbus: people are round, agents are square."
+    },
+    {
+      "name": "SeatState",
+      "group": "Identity",
+      "summary": "A seat's live state: a small mark and its name in mono."
+    },
+    {
+      "name": "Kind",
+      "group": "Status",
+      "summary": "The kind of an inbox item or held task, set in mono on a tint."
+    },
+    {
+      "name": "Label",
+      "group": "Status",
+      "summary": "A typed label from the board (project=launch, priority=high), set in mono with a hairline border."
+    },
+    {
+      "name": "HeldPill",
+      "group": "Status",
+      "summary": "The status pill for a thread or task held for you, shown in the thread pane's facts row."
+    },
+    {
+      "name": "TaskState",
+      "group": "Status",
+      "summary": "The task state glyph, 14px, at the start of every task row and on board cards: ready (a ring), claimed (a half-filled agent ring), held (a vermilion ring with…"
+    },
+    {
+      "name": "Tabs",
+      "group": "Navigation",
+      "summary": "The faces of a thread (Conversation, Task, Doc) and the sections of a seat doc."
+    },
+    {
+      "name": "SidebarItem",
+      "group": "Navigation",
+      "summary": "A row in the sidebar: Inbox, My work, agents with their state, teams and channels."
+    },
+    {
+      "name": "Menu",
+      "group": "Overlays",
+      "summary": "A context or overflow menu."
+    },
+    {
+      "name": "CommandPalette",
+      "group": "Overlays",
+      "summary": "⌘K runs commands, searches seats, threads and docs, and sends anything that isn't a command to the operator (§9.3)."
+    },
+    {
+      "name": "Toast",
+      "group": "Feedback",
+      "summary": "A short confirmation of what you just did, with its log position and, where it can be reversed, Undo."
+    },
+    {
+      "name": "NewEventsPill",
+      "group": "Feedback",
+      "summary": "Live updates never move what you're reading."
+    },
+    {
+      "name": "IssueRow",
+      "group": "Lists",
+      "summary": "A row in an issue list, a queue or a saved view: cursor, state, title, kinds and labels, assignee, updated."
+    },
+    {
+      "name": "BoardCard",
+      "group": "Lists",
+      "summary": "A task on a board grouped by state."
+    },
+    {
+      "name": "Message",
+      "group": "Conversation",
+      "summary": "One event in a thread: avatar, name, mono handle, and time at the right."
+    },
+    {
+      "name": "ToolCall",
+      "group": "Conversation",
+      "summary": "A tool call an agent made, inside its message: the tool's name, its status, and its input as compact JSON in mono on raised."
+    },
+    {
+      "name": "ApprovalCard",
+      "group": "Conversation",
+      "summary": "The answer to a held task, inline in the thread under the message that asked."
+    }
+  ],
+  "assetGroups": [
+    {
+      "name": "Logos",
+      "tile": "l",
+      "order": [
+        "workbus-lockup.svg",
+        "workbus-lockup-dark.svg",
+        "workbus-mark.svg",
+        "workbus-mark-dark.svg",
+        "workbus-app-icon.svg",
+        "workbus-wordmark.svg"
+      ],
+      "files": [
+        {
+          "path": "assets/Logos/workbus-lockup.svg",
+          "id": "b89797695b7e98074e18506e76305992"
+        },
+        {
+          "path": "assets/Logos/workbus-lockup-dark.svg",
+          "id": "82d229038b43941f162257350423f87c"
+        },
+        {
+          "path": "assets/Logos/workbus-mark.svg",
+          "id": "bbbca3e14301e74268b85a01270fd83d"
+        },
+        {
+          "path": "assets/Logos/workbus-mark-dark.svg",
+          "id": "b9cae9fe9bfcdc3e8edf0ccbc6dca194"
+        },
+        {
+          "path": "assets/Logos/workbus-app-icon.svg",
+          "id": "f1790d1050a6d2c76c20725d99796c3e"
+        },
+        {
+          "path": "assets/Logos/workbus-wordmark.svg",
+          "id": "75554c81b7029221672f4bb0c5b5960e"
+        }
+      ]
+    }
+  ],
+  "storage": {
+    "files": {
+      "assets/Logos/workbus-app-icon.svg": {
+        "store": "blob",
+        "id": "f1790d1050a6d2c76c20725d99796c3e",
+        "bytes": 484,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/workbus-lockup-dark.svg": {
+        "store": "blob",
+        "id": "82d229038b43941f162257350423f87c",
+        "bytes": 4640,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/workbus-lockup.svg": {
+        "store": "blob",
+        "id": "b89797695b7e98074e18506e76305992",
+        "bytes": 4640,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/workbus-mark-dark.svg": {
+        "store": "blob",
+        "id": "b9cae9fe9bfcdc3e8edf0ccbc6dca194",
+        "bytes": 422,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/workbus-mark.svg": {
+        "store": "blob",
+        "id": "bbbca3e14301e74268b85a01270fd83d",
+        "bytes": 422,
+        "type": "image/svg+xml"
+      },
+      "assets/Logos/workbus-wordmark.svg": {
+        "store": "blob",
+        "id": "75554c81b7029221672f4bb0c5b5960e",
+        "bytes": 4232,
+        "type": "image/svg+xml"
+      }
+    },
+    "blobBytesUsed": 14840
+  }
+}

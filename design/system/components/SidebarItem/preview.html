@@ -1,0 +1,17 @@
+<!-- @dsCard group="Navigation" height=300 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>SidebarItem</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-side'},
+  h(W.SidebarItem,{active:true,count:4},'Inbox'),h(W.SidebarItem,{meta:2},'My work'),
+  h('div',{className:'wb-side__group'},'agents'),
+  h(W.SidebarItem,{avatar:{kind:'agent',initials:'Op',name:'Operator'},state:'working'},'Operator'),h(W.SidebarItem,{avatar:{kind:'agent',initials:'A',name:'Ada'},state:'waiting'},'Ada'),h(W.SidebarItem,{avatar:{kind:'agent',initials:'R',name:'Rhea'},state:'over_budget'},'Rhea'),
+  h('div',{className:'wb-side__group'},'teams'),
+  h(W.SidebarItem,null,'eng/'),h(W.SidebarItem,{child:true,unread:true},'# backend'),h(W.SidebarItem,{child:true,meta:7},'# queue')));
+</script>
+</body>
+</html>

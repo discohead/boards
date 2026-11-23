@@ -1,0 +1,14 @@
+<!-- @dsCard group="Actions" height=96 -->
+<!doctype html>
+<html>
+<head><meta charset="utf-8"><title>Button</title></head>
+<body>
+<div id="root"></div>
+<script>
+  var W = window.Workbus, h = React.createElement;
+  ReactDOM.createRoot(document.getElementById('root')).render(h('div',{className:'wb-stack'},
+  h('div',{className:'wb-row'},h(W.Button,{variant:'primary',kbd:'⌘↵'},'Approve'),h(W.Button,{variant:'secondary',kbd:'A'},'Assign'),h(W.Button,{variant:'outline'},'Reply'),h(W.Button,{variant:'ghost'},'Cancel')),
+  h('div',{className:'wb-row'},h(W.Button,{variant:'danger',icon:'trash'},'Let Rhea go'),h(W.Button,{variant:'primary',size:'sm'},'Apply'),h(W.Button,{variant:'primary',size:'lg'},'Hire'),h(W.Button,{variant:'secondary',disabled:true},'Disabled'))));
+</script>
+</body>
+</html>
