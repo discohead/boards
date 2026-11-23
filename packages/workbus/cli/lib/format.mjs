@@ -135,6 +135,8 @@ function eventDetail(event) {
       return oneLine(p.reason ?? '')
     case 'task.assigned':
       return p.for ?? 'anyone'
+    case 'task.unblocked':
+      return p.decision ? p.decision + (p.note ? ': ' + oneLine(p.note) : '') : ''
     case 'task.needs_changed':
       return p.needs?.length ? p.needs.map(ref).join(', ') : 'nothing'
     default:

@@ -89,7 +89,7 @@ const OVERVIEW = [
   ...columns([
     ['flags', '--url <url>', 'the board (WORKBUS_URL)'],
     ['', '--token <token>', 'a bearer token (WORKBUS_TOKEN)'],
-    ['', '--as <profile>', 'write as one of your profiles (WORKBUS_PROFILE)'],
+    ['', '--as <profile>', 'write as one of your profiles (WORKBUS_PROFILE); op;name="Operator";handle="op" names it'],
     ['', '--json', 'one JSON document, for programs'],
   ]),
   '',

@@ -70,7 +70,7 @@ A narrowed request can't register watchers, pull matches, or write sync records:
 
 ## Profiles with x-board-profile
 
-`x-board-profile` writes as one of your profiles: the actor becomes `<principal>+<profile>`, with its own handle and avatar, and what it may do doesn't change. The header is an RFC 8941 item: a name of up to 32 letters, digits, and hyphens, starting with a letter, and an optional `avatar` (an https URL, or http on localhost).
+`x-board-profile` writes as one of your profiles: the actor becomes `<principal>+<profile>`, with its own handle and avatar, and what it may do doesn't change. The header is an RFC 8941 item: a key of up to 32 letters, digits, and hyphens, starting with a letter, and optional `name` (a display name apart from the key), `handle` (a handle of its own, like `op`, one actor's on the board: 409 `handle_taken` otherwise), and `avatar` (an https URL, or http on localhost) parameters. See [Profiles](/guides/identity-and-access/#profiles).
 
 ```
 $ curl -s "$WORKBUS_URL/messages" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'x-board-profile: checker;avatar="https://example.com/checker.png"' -H 'content-type: application/json' -d '{"channel":"deploys","text":"canary is green"}' | jq '.message.by, .message.author'

@@ -13,6 +13,8 @@ import { DDL } from './schema.ts'
 import { json } from './sql.ts'
 
 // The task's view after each of its events: what a feed shows, and the stored order of its needs.
+// Who held a task (its claim, or someone without it) and how the hold was answered: what the tasks table doesn't keep.
+DDL.push('create table if not exists task_holds (root integer primary key, by text not null, claim integer not null, answer text) strict')
 DDL.push('create table if not exists task_views (root integer not null, seq integer not null, view text not null, primary key (root, seq)) strict, without rowid')
 
 export const LEASE_DEFAULT_S = 900
@@ -43,14 +45,19 @@ type Task = {
   epoch: number
   claim: { actor: string; until: number; hash: string } | null
   blocked: { kind: string | null; reason: string } | null
+  /** Who placed the hold, and whether through the task's claim (a hold for someone else to answer). */
+  held: { by: string; claim: boolean } | null
+  /** How the last hold was answered: approved or declined, with a note, by whom. */
+  answer: Answer | null
   result: string | null
   reason: string | null
   created: number
 }
+export type Answer = { decision: 'approved' | 'declined'; note: string | null; by: string }
 
 type TaskRow = { root: number; channel: string; state: TaskState; owner: string; by_actor: string; for_actor: string | null; epoch: number; claim_actor: string | null; claim_until: number | null; claim_hash: string | null; hold_kind: string | null; hold_reason: string | null; result: string | null; reason: string | null; created: number }
 
-export type TaskView = { state: TaskState; owner: string; by: string; for: string | null; needs: string[]; epoch: number; claim: { actor: string; until: string } | null; blocked: { kind: string | null; reason: string } | null; result: string | null; reason: string | null }
+export type TaskView = { state: TaskState; owner: string; by: string; for: string | null; needs: string[]; epoch: number; claim: { actor: string; until: string } | null; blocked: { kind: string | null; reason: string } | null; answer: Answer | null; result: string | null; reason: string | null }
 
 const viewOfTask = (task: Task): TaskView => ({
   state: task.state,
@@ -61,6 +68,7 @@ const viewOfTask = (task: Task): TaskView => ({
   epoch: task.epoch,
   claim: task.claim ? { actor: task.claim.actor, until: iso(task.claim.until) } : null,
   blocked: task.blocked ? { kind: task.blocked.kind, reason: task.blocked.reason } : null,
+  answer: task.answer,
   result: task.result,
   reason: task.reason,
 })
@@ -75,6 +83,7 @@ function load(ctx: Reader, root: number): Task | null {
   const thread = ctx.sql.one<{ thread_key: string }>('select thread_key from messages where id = ?', root)?.thread_key ?? ref(root)
   const latest = ctx.sql.one<{ view: string }>('select view from task_views where root = ? order by seq desc limit 1', root)
   const needs = latest ? (JSON.parse(latest.view) as TaskView).needs.map(Number) : ctx.sql.all<{ needs: number }>('select needs from task_needs where task = ? order by needs', root).map((entry) => entry.needs)
+  const hold = ctx.sql.one<{ by: string; claim: number; answer: string | null }>('select by, claim, answer from task_holds where root = ?', root)
   return {
     root: row.root,
     channel: row.channel,
@@ -87,6 +96,8 @@ function load(ctx: Reader, root: number): Task | null {
     epoch: row.epoch,
     claim: row.claim_actor !== null && row.claim_until !== null && row.claim_hash !== null ? { actor: row.claim_actor, until: row.claim_until, hash: row.claim_hash } : null,
     blocked: row.state === 'blocked' ? { kind: row.hold_kind, reason: row.hold_reason ?? '' } : null,
+    held: row.state === 'blocked' && hold ? { by: hold.by, claim: Boolean(hold.claim) } : null,
+    answer: hold?.answer ? (JSON.parse(hold.answer) as Answer) : null,
     result: row.result,
     reason: row.reason,
     created: row.created,
@@ -98,6 +109,8 @@ function persist(ctx: Reader, task: Task, needsChanged: boolean) {
     'insert into tasks (root, channel, state, owner, by_actor, for_actor, epoch, claim_actor, claim_until, claim_hash, hold_kind, hold_reason, result, reason, created) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict (root) do update set state = excluded.state, for_actor = excluded.for_actor, epoch = excluded.epoch, claim_actor = excluded.claim_actor, claim_until = excluded.claim_until, claim_hash = excluded.claim_hash, hold_kind = excluded.hold_kind, hold_reason = excluded.hold_reason, result = excluded.result, reason = excluded.reason',
     task.root, task.channel, task.state, task.owner, task.by, task.for, task.epoch, task.claim?.actor ?? null, task.claim?.until ?? null, task.claim?.hash ?? null, task.blocked?.kind ?? null, task.blocked?.reason ?? null, task.result, task.reason, task.created,
   )
+  if (task.held) ctx.sql.run('insert into task_holds (root, by, claim, answer) values (?, ?, ?, ?) on conflict (root) do update set by = excluded.by, claim = excluded.claim, answer = excluded.answer', task.root, task.held.by, task.held.claim ? 1 : 0, task.answer ? JSON.stringify(task.answer) : null)
+  else if (task.answer) ctx.sql.run('update task_holds set answer = ? where root = ?', JSON.stringify(task.answer), task.root)
   if (!needsChanged) return
   ctx.sql.run('delete from task_needs where task = ?', task.root)
   for (const need of task.needs) ctx.sql.run('insert or ignore into task_needs (task, needs) values (?, ?)', task.root, need)
@@ -158,9 +171,20 @@ function checkNote(field: 'result' | 'reason', note: string | undefined) {
 }
 
 const escapeRe = (value: string) => value.replace(/[.*+?^\${}()|[\]\\]/g, '\\$&')
-function checkFor(owner: string, value: string | null | undefined) {
+/**
+ * Whom a task may be for: one of its owner's profiles (seen yet or not), anyone else the board
+ * knows (a person, another principal's profile), or a profile of a principal it knows; not a
+ * platform user an import speaks for.
+ * Being assigned gives nothing: the assignee claims it only where its own grants let it label.
+ */
+function checkFor(ctx: Ctx, owner: string, value: string | null | undefined) {
   if (value === undefined || value === null) return
-  if (!new RegExp('^' + escapeRe(owner) + '\\+[a-z][a-z0-9-]{0,31}$').test(value)) throw badRequest("for: a task is assigned to one of its owner's profiles, " + owner + '+<profile>, got ' + value)
+  if (new RegExp('^' + escapeRe(owner) + '\\+[a-z][a-z0-9-]{0,31}$').test(value)) return
+  // A profile of a principal the board knows: a seat that hasn't written yet, of an app that has.
+  const profile = /^([^\s+]+)\+[a-z][a-z0-9-]{0,31}$/.exec(value)
+  if (profile && ctx.sql.one("select 1 as known from actors where principal = ? and kind != 'external' limit 1", profile[1]!)) return
+  const actor = ctx.board.actor(value)
+  if (!actor || actor.kind === 'external') throw badRequest("for: a task is assigned to someone on the board: one of its owner's profiles, " + owner + '+<profile>, or an actor the board knows, got ' + value)
 }
 
 const distinct = <T,>(values: readonly T[]) => [...new Set(values)]
@@ -231,7 +255,7 @@ function checkCycle(ctx: Ctx, task: number, added: number[]) {
 // -- the events, as the fold applies them ----------------------------------------------------------
 
 function create(ctx: Ctx, root: MessageRow, needs: number[], assignee: string | null): Task {
-  const task: Task = { root: root.id, channel: root.channel, thread: root.thread_key, state: 'waiting', owner: ctx.caller.principal.id, by: ctx.author.actor, for: assignee, needs: [], epoch: 0, claim: null, blocked: null, result: null, reason: null, created: ctx.now }
+  const task: Task = { root: root.id, channel: root.channel, thread: root.thread_key, state: 'waiting', owner: ctx.caller.principal.id, by: ctx.author.actor, for: assignee, needs: [], epoch: 0, claim: null, blocked: null, held: null, answer: null, result: null, reason: null, created: ctx.now }
   apply(ctx, task, 'task.created', { needs, for: assignee, by: ctx.author }, (t) => {
     t.needs = needs
     t.state = needs.length > 0 ? 'waiting' : 'ready'
@@ -279,7 +303,7 @@ function unclaimable(ctx: Ctx, task: Task): WorkbusError | null {
   if (state === 'waiting') return conflict('task_waiting', '#' + task.root + ' waits for ' + refs(pending(ctx, task.needs)))
   if (state === 'blocked') return conflict('task_blocked', '#' + task.root + ' is held for a person: ' + (task.blocked?.reason ?? ''))
   if (FINISHED.includes(state)) return conflict('task_finished', '#' + task.root + ' is ' + state)
-  if (task.for !== null && !(task.for === ctx.actor.id && task.owner === ctx.caller.principal.id)) return conflict('task_assigned', '#' + task.root + ' is assigned to ' + task.for)
+  if (task.for !== null && task.for !== ctx.actor.id) return conflict('task_assigned', '#' + task.root + ' is assigned to ' + task.for)
   if (state === 'claimed') return conflict('task_claimed', '#' + task.root + ' is claimed until ' + iso(task.claim!.until))
   return null
 }
@@ -318,6 +342,8 @@ hooks.rootEdited = (ctx, root) => {
       t.state = 'blocked'
       t.claim = null
       t.blocked = { kind: EDITED_HOLD, reason: EDITED_REASON }
+      t.held = { by: payload.by.actor, claim: false }
+      t.answer = null
     })
     ctx.clearTimer('lease', String(root))
   } else indexRoot(ctx, root, task.state)
@@ -359,7 +385,7 @@ op('createTask', (ctx, body: CreateTask) => {
   if (body.re !== undefined) {
     const target = ctx.board.readable(body.re, ctx.access)
     authorize(ctx.access, 'label', target.channel)
-    checkFor(ctx.caller.principal.id, assignee)
+    checkFor(ctx, ctx.caller.principal.id, assignee)
     if (target.re !== null) throw badRequest('#' + target.id + ' is a reply: a task is a thread, so name its root, #' + target.re)
     if (target.deleted) throw badRequest('message was deleted', 'message_deleted')
     if (load(ctx, target.id)) throw conflict('already_a_task', '#' + target.id + ' is a task already')
@@ -380,7 +406,7 @@ op('createTask', (ctx, body: CreateTask) => {
   authorize(ctx.access, 'post', channel)
   if (Object.keys(body.labels ?? {}).length) authorize(ctx.access, 'label', channel)
   if (body.id !== undefined) checkClientId(ctx, body.id)
-  checkFor(ctx.caller.principal.id, assignee)
+  checkFor(ctx, ctx.caller.principal.id, assignee)
   if (body.claim) authorize(ctx.access, 'label', channel)
   const posted = postMessage(ctx, { channel, text: body.text ?? '', ...(body.labels ? { labels: body.labels } : {}), ...(body.noSync ? { noSync: true } : {}), ...(body.attachments ? { attachments: body.attachments } : {}), ...(body.id !== undefined ? { id: body.id } : {}) })
   if (posted.replayed) {
@@ -477,7 +503,7 @@ op('createTasks', (ctx, body: CreateTasks) => {
   authorize(ctx.access, 'post', channel)
   if (body.tasks.some((task) => Object.keys(task.labels ?? {}).length)) authorize(ctx.access, 'label', channel)
   if (body.id !== undefined) checkClientId(ctx, body.id)
-  for (const task of body.tasks) checkFor(ctx.caller.principal.id, task.for)
+  for (const task of body.tasks) checkFor(ctx, ctx.caller.principal.id, task.for)
   const mates = batchPlan(body.tasks)
   const request = body.request ?? batchRequest(body)
   if (body.id !== undefined) {
@@ -642,7 +668,7 @@ op('claimReadyTask', (ctx, body: ClaimReady) => {
       after = rows.at(-1)!.root
     }
   }
-  const task = first('t.for_actor = ? and t.owner = ?', [ctx.actor.id, ctx.caller.principal.id]) ?? first('t.for_actor is null and t.owner in (select value from json_each(?))', [ctx.sql.list(owners)])
+  const task = first('t.for_actor = ?', [ctx.actor.id]) ?? first('t.for_actor is null and t.owner in (select value from json_each(?))', [ctx.sql.list(owners)])
   if (!task) return { task: null }
   ctx.board.seen(ctx.actor, ctx.now)
   const made = claim(ctx, task, lease, body.token)
@@ -650,6 +676,22 @@ op('claimReadyTask', (ctx, body: ClaimReady) => {
 })
 
 type Proof = { id: string; epoch: number; token: string }
+/** A claim's proof, or none: an owner ending a claim it doesn't hold, or a task no one holds. */
+type MaybeProof = { id: string; epoch?: number; token?: string }
+
+/**
+ * A claim's own write is fenced by its proof. Without one, it's the owner's (owns: manage in the
+ * channel, or its owner as it made it): it ends whatever claim holds the task, whoever holds it.
+ * A waiting task isn't ready to finish, and a held one is answered (unblock) or canceled.
+ */
+function proven(ctx: Ctx, task: Task, body: MaybeProof): void {
+  if (body.epoch !== undefined && body.token !== undefined) return fence(ctx, task, { epoch: body.epoch, token: body.token })
+  owns(ctx, task)
+  const state = stateNow(task, ctx.now)
+  if (state === 'waiting') throw conflict('task_waiting', '#' + task.root + ' waits for ' + refs(pending(ctx, task.needs)))
+  if (state === 'blocked') throw conflict('task_blocked', '#' + task.root + ' is held for a person: answer it (unblock) or cancel it')
+  if (FINISHED.includes(state)) throw conflict('task_finished', '#' + task.root + ' is ' + state)
+}
 
 op('renewTask', (ctx, body: Proof & { lease?: number }) => {
   const lease = leaseMs(body.lease)
@@ -662,9 +704,10 @@ op('renewTask', (ctx, body: Proof & { lease?: number }) => {
   return { ...answer(ctx, task), until: iso(until) }
 })
 
-op('releaseTask', (ctx, body: Proof) => {
+op('releaseTask', (ctx, body: MaybeProof) => {
   const { task } = taskOf(ctx, body.id)
-  fence(ctx, task, body)
+  proven(ctx, task, body)
+  if (task.state !== 'claimed') return answer(ctx, task)
   ctx.board.seen(ctx.actor, ctx.now)
   apply(ctx, task, 'task.released', { epoch: task.epoch, by: ctx.author }, (t) => {
     t.state = 'ready'
@@ -674,10 +717,10 @@ op('releaseTask', (ctx, body: Proof) => {
   return answer(ctx, task)
 })
 
-op('completeTask', (ctx, body: Proof & { result?: string }) => {
+op('completeTask', (ctx, body: MaybeProof & { result?: string }) => {
   checkNote('result', body.result)
   const { task } = taskOf(ctx, body.id)
-  fence(ctx, task, body)
+  proven(ctx, task, body)
   // A part whose task this is (a doc's proposal) does its work first, or refuses the completion.
   hooks.taskCompleting(ctx, task.root)
   ctx.board.seen(ctx.actor, ctx.now)
@@ -697,10 +740,10 @@ op('completeTask', (ctx, body: Proof & { result?: string }) => {
   return answer(ctx, task)
 })
 
-op('failTask', (ctx, body: Proof & { reason: string }) => {
+op('failTask', (ctx, body: MaybeProof & { reason: string }) => {
   checkNote('reason', body.reason)
   const { task } = taskOf(ctx, body.id)
-  fence(ctx, task, body)
+  proven(ctx, task, body)
   ctx.board.seen(ctx.actor, ctx.now)
   apply(ctx, task, 'task.failed', { epoch: task.epoch, reason: body.reason, by: ctx.author }, (t) => {
     t.state = 'failed'
@@ -717,7 +760,8 @@ op('blockTask', (ctx, body: { id: string; reason: string; kind?: string; epoch?:
   checkNote('reason', body.reason)
   if (body.kind !== undefined && !/^[a-z0-9][a-z0-9_.-]{0,63}$/.test(body.kind)) throw badRequest('kind: a kind is up to 64 lowercase letters, numbers, and _.-')
   const { task } = taskOf(ctx, body.id)
-  if (body.epoch !== undefined && body.token !== undefined) fence(ctx, task, { epoch: body.epoch, token: body.token })
+  const byClaim = body.epoch !== undefined && body.token !== undefined
+  if (byClaim) fence(ctx, task, { epoch: body.epoch!, token: body.token! })
   else {
     owns(ctx, task)
     if (live(task, ctx.now)) throw conflict('task_claimed', '#' + task.root + ' is claimed until ' + iso(task.claim!.until) + ': only its claim holds it')
@@ -730,20 +774,41 @@ op('blockTask', (ctx, body: { id: string; reason: string; kind?: string; epoch?:
     t.state = 'blocked'
     t.claim = null
     t.blocked = { kind, reason: body.reason }
+    t.held = { by: ctx.author.actor, claim: byClaim }
+    t.answer = null
   })
   ctx.clearTimer('lease', String(task.root))
   return answer(ctx, task)
 })
 
-op('unblockTask', (ctx, body: { id: string }) => {
+/**
+ * Who answers a hold. One its claim placed is the holder asking someone else (an approval, a
+ * decision): manage in the channel answers it, or the task's owner when that's a person writing as
+ * themselves. An agent that only made the task doesn't, so an operator can't approve the side
+ * effects of the seats it gives work to. A hold placed without the claim is the owner's own (owns).
+ */
+function answers(ctx: Ctx, task: Task) {
+  if (!task.held?.claim) return owns(ctx, task)
+  if (ctx.access.can('manage', task.channel)) return
+  const asThemselves = ctx.caller.principal.kind === 'person' && ctx.author.actor === ctx.caller.principal.id && task.owner === ctx.caller.principal.id
+  if (asThemselves && (ctx.access.can('post', task.channel) || ctx.access.can('label', task.channel))) return
+  throw forbidden('#' + task.root + ' is held by its claim for a person: manage in ' + task.channel + ', or its owner as themselves, answers it', 'task_not_owned')
+}
+
+op('unblockTask', (ctx, body: { id: string; decision?: 'approved' | 'declined'; note?: string }) => {
+  if (body.note !== undefined && body.decision === undefined) throw badRequest('note: a note goes with a decision, approved or declined')
+  checkNote('reason', body.note)
   const { task } = taskOf(ctx, body.id)
-  owns(ctx, task)
+  answers(ctx, task)
   if (FINISHED.includes(task.state)) throw conflict('task_finished', '#' + task.root + ' is ' + task.state)
   if (task.state !== 'blocked') return answer(ctx, task)
   ctx.board.seen(ctx.actor, ctx.now)
-  apply(ctx, task, 'task.unblocked', { by: ctx.author }, (t) => {
+  const given: Answer | null = body.decision ? { decision: body.decision, note: body.note ?? null, by: ctx.author.actor } : null
+  apply(ctx, task, 'task.unblocked', { by: ctx.author, ...(given ? { decision: given.decision, note: given.note } : {}) }, (t) => {
     t.state = t.needs.length > 0 ? 'waiting' : 'ready'
     t.blocked = null
+    t.held = null
+    if (given) t.answer = given
   })
   readyIfDone(ctx, task)
   return answer(ctx, task)
@@ -765,7 +830,7 @@ op('reopenTask', (ctx, body: { id: string }) => {
 op('assignTask', (ctx, body: { id: string; for: string | null }) => {
   const { task } = taskOf(ctx, body.id)
   owns(ctx, task)
-  checkFor(task.owner, body.for)
+  checkFor(ctx, task.owner, body.for)
   if (FINISHED.includes(task.state)) throw conflict('task_finished', '#' + task.root + ' is ' + task.state)
   if (task.for === body.for) return answer(ctx, task)
   ctx.board.seen(ctx.actor, ctx.now)

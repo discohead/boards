@@ -277,6 +277,61 @@ describe('misuse and failure', () => {
   })
 })
 
+describe('profiles and tasks across people', () => {
+  // A board of its own: what reaches the tester here would answer the follows checks' waits.
+  let own
+  before(async () => {
+    own = await freshBoard()
+  })
+  const wb = (args, options = {}) => run(args, { ...options, env: { WORKBUS_URL: own.url, WORKBUS_TOKEN: own.token, XDG_CONFIG_HOME: tester, ...options.env } })
+  const tester = configHome()
+  // ada on her own machine: her claims are kept apart from the tester's.
+  const adaOf = () => ({ WORKBUS_TOKEN: mint('ada', own.url), XDG_CONFIG_HOME: configHome() })
+
+  test('--as names a profile and claims its handle: @op settles to it, and a rename keeps the actor', async () => {
+    const op = ['--as', 'op;name="Operator";handle="op"']
+    const posted = await wb(['post', 'ops', 'the operator is here', ...op])
+    assert.equal(posted.code, 0, posted.stderr)
+    const { me } = JSON.parse((await wb(['whoami', '--json', ...op])).stdout)
+    assert.equal(me.actor, 'workbus:user:tester+op')
+    assert.equal(me.handle, 'op')
+    assert.equal(me.name, 'Operator')
+    const ada = adaOf()
+    const asked = await wb(['post', 'ops', '@op hello', '--json'], { env: ada })
+    assert.equal(JSON.parse(asked.stdout).message.text, '@[workbus:user:tester+op] hello')
+    const renamed = JSON.parse((await wb(['whoami', '--json', '--as', 'op;name="Ops Lead";handle="ops"'])).stdout).me
+    assert.equal(renamed.actor, 'workbus:user:tester+op')
+    assert.equal(renamed.handle, 'ops')
+    const taken = await wb(['post', 'ops', 'mine', '--as', 'eng;handle="ada"'], { env: {} })
+    assert.notEqual(taken.code, 0)
+    assert.match(taken.stderr, /409 handle_taken {2}@ada is taken by ada\. Try @adas\./)
+  })
+
+  test("a task for another person: they claim it and hold it, the owner approves, then finishes it with --owner", async () => {
+    const ada = adaOf()
+    // ada is on the board once she has written.
+    await wb(['post', 'work', 'ada is here'], { env: ada })
+    const made = await wb(['tasks', 'create', 'work', 'ship', 'it', '--for', 'workbus:user:ada'])
+    assert.equal(made.code, 0, made.stderr)
+    const id = madeId(made.stdout)
+    assert.equal((await wb(['tasks', 'claim', id], { env: ada })).code, 0)
+    const blocked = await wb(['tasks', 'block', id, 'may', 'I', 'deploy?', '--kind', 'approval'], { env: ada })
+    assert.equal(blocked.code, 0, blocked.stderr)
+    const approved = await wb(['tasks', 'approve', id, 'go', 'ahead'])
+    assert.equal(approved.code, 0, approved.stderr)
+    assert.equal(approved.stdout, 'approved #' + id + '  ready\n')
+    const shown = JSON.parse((await wb(['tasks', 'claim', id, '--json'], { env: ada })).stdout)
+    assert.deepEqual(shown.task.task.answer, { decision: 'approved', note: 'go ahead', by: 'workbus:user:tester' })
+    // Finished by its owner, without the claim: ada's claim is over.
+    const done = await wb(['tasks', 'complete', id, 'shipped', 'by', 'hand', '--owner'])
+    assert.equal(done.code, 0, done.stderr)
+    assert.equal(done.stdout, 'completed #' + id + '\n')
+    const late = await wb(['tasks', 'complete', id], { env: ada })
+    assert.notEqual(late.code, 0)
+    assert.match(late.stderr, /the claim is over/)
+  })
+})
+
 describe('follows', () => {
   test('a reply in your thread reaches you, wait --for me finds it, and follows lists the thread', async () => {
     const started = await wb(['post', 'general', 'Who reviews #4?'])

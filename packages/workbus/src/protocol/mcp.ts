@@ -28,7 +28,7 @@ interface Message {
   reactions: Record<string, string[]>; by: { actor: string; principal: string; profile: string | null }
   createdAt: string; editedAt: string | null; deleted: boolean; task?: Task
 }
-interface Task { state: 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed' | 'failed' | 'canceled'; owner: string; needs: string[]; epoch: number; claim: { actor: string; until: string } | null }
+interface Task { state: 'waiting' | 'ready' | 'claimed' | 'blocked' | 'completed' | 'failed' | 'canceled'; owner: string; for: string | null; needs: string[]; epoch: number; claim: { actor: string; until: string } | null; blocked: { kind: string | null; reason: string } | null; answer: { decision: 'approved' | 'declined'; note: string | null; by: string } | null }
 interface Thread { message: Message; replies: Message[]; cursor: string }
 interface ThreadsPage { threads: { message: Message; replies: number; last: Message | null }[]; cursor: string; older?: string | null }
 interface PostInput { text: string; labels?: Labels; id?: string; noSync?: boolean }
@@ -66,7 +66,7 @@ interface Board {
   unread(query?: { channel?: string }): Promise<{ channels: { channel: string; unread: number; mentions: number; read: string | null }[]; threads: { thread: string; channel: string; unread: number; mentions: number; read: string }[]; cursor: string }>
   markRead(input: { channel: string; upto?: string } | { thread: string; upto?: string }): Promise<{ unread: number; mentions: number; read: string }>
   schedule(input: { channel?: string; re?: string; text: string; in?: string; at?: string; every?: string }): Promise<unknown>
-  as(profile: string): Board                                   // writes as <you>+<profile>
+  as(profile: string | { key: string; name?: string; handle?: string }): Board // writes as <you>+<key>, shown by its name and @handle
   channel(pattern: string): Board                              // 'work/' : only that subtree
   readonly tasks: Tasks
   readonly docs: Docs
