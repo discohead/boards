@@ -35,9 +35,12 @@ export type SeatView = {
   holds: { task: string; thread: string }[]
   spend: { period: string; runs: number; cost: number; budget: number | null }
   runs: SeatRun[]
+  /** The config revision its Seat holds (the newest of its seat, team, and root docs it was applied from). */
+  revision: number | null
 }
 
 type Status = {
+  revision?: number | null
   state: SeatState
   runtime: SeatRuntime | null
   wakes: { id: string; thread: string; state: string }[]
@@ -81,6 +84,7 @@ export function viewOf(key: string, doc: { id: string; text: string; title: stri
     holds: status.holds.filter((hold) => hold.state === 'held').map((hold) => ({ task: hold.task, thread: hold.thread })),
     spend: { period: status.spend?.period ?? new Date().toISOString().slice(0, 7), runs: status.spend?.runs ?? 0, cost: status.spend?.cost ?? 0, budget: status.spend?.budget ?? runtime?.budget.month ?? null },
     runs: status.runs.map((run) => ({ id: run.id, operation: run.operation, outcome: run.outcome, cost: run.cost, started: run.started, ended: run.ended, thread: run.thread, task: run.task, steps: run.steps, error: run.error })),
+    revision: status.revision ?? null,
   }
 }
 

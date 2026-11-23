@@ -76,7 +76,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
       </li>
     )
   }
-  const place = (to: '/' | '/my-work' | '/docs' | '/tasks' | '/settings', label: string, Icon: LucideIcon, count?: number) => (
+  const place = (to: '/' | '/my-work' | '/docs' | '/tasks' | '/settings' | '/org', label: string, Icon: LucideIcon, count?: number) => (
     <SidebarItem asChild icon={Icon} active={to === '/' ? at('/') : pathname.startsWith(to)} {...(count ? { count } : {})}>
       <Link to={to}>{label}</Link>
     </SidebarItem>
@@ -145,7 +145,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
           </>
         ) : null}
         <SidebarGroup>Workspace</SidebarGroup>
-        {inert('Org & seats', Network)}
+        {place('/org', 'Org & seats', Network)}
         {place('/docs', 'Docs', FileText)}
         <div className="pl-5">
           <DocsTree />

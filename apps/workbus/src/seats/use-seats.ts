@@ -67,5 +67,21 @@ export function refreshSeats() {
   void poll()
 }
 
-/** Initials for a seat's square avatar, from its handle, as the prototype draws them: OP, AD. */
-export const seatInitials = (seat: Pick<SeatView, 'name' | 'handle'>) => seat.handle.slice(0, 2).toUpperCase()
+/**
+ * Initials for a seat's square avatar, from its handle, as the prototype draws them (OP, AD, AV): its
+ * first two letters, or, where another seat's handle sorts before it with the same two, its first
+ * letter and the next letter of its handle that makes them unlike (Ada AD, Advisor AV).
+ */
+export function initialsAmong(handle: string, handles: readonly string[]): string {
+  const taken = new Set<string>()
+  for (const other of [...new Set([...handles, handle])].sort()) {
+    const letters = other.replace(/[^a-z0-9]/gi, '').toUpperCase()
+    let pick = letters.slice(0, 2)
+    for (let i = 1; taken.has(pick) && i < letters.length; i++) pick = letters[0]! + letters[i]!
+    taken.add(pick)
+    if (other === handle) return pick || '?'
+  }
+  return handle.slice(0, 2).toUpperCase()
+}
+
+export const seatInitials = (seat: Pick<SeatView, 'name' | 'handle'>) => initialsAmong(seat.handle, snapshot.seats.map((one) => one.handle))
