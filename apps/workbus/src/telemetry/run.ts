@@ -33,7 +33,7 @@ export const Run = z.object({
 export type Run = z.infer<typeof Run>
 export type Outcome = Run['outcome']
 
-/** The row the stream runs_v1 takes (basin/runs_v1.schema.json): flat, snake_case, no nulls. */
+/** The row the stream runs_v1 takes (src/telemetry/runs_v1.schema.json): flat, snake_case, no nulls. */
 export type RunRow = ReturnType<typeof toRow>
 
 export function toRow(run: Run) {

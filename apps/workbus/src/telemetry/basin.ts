@@ -1,6 +1,8 @@
 // Reading run records back from Basin (warehouse <account>_workbus-telemetry, table telemetry.runs_v1).
-// The app shows each seat's cost from its own Totals; this is the outside check that Basin agrees.
-// Basin SQL has no Worker binding: it's a fetch with a token, which the app Worker does not hold.
+// The app shows each seat's cost from its own Totals (a Basin SQL query takes about 2 s); Basin is for
+// analysis, the Ops views, and the outside check that the two agree. Basin SQL has no Worker binding:
+// it's a fetch with a read-only, account-scoped token (Basin SQL Read, Basin Catalog Read, R2 Storage
+// Read), which the app Worker does not hold.
 
 export const TABLE = 'telemetry.runs_v1'
 
