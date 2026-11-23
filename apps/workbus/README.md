@@ -28,3 +28,18 @@ Both dev scripts set `CLOUDFLARE_DEV_REGISTRY_PATH=.wrangler/registry`: Wrangler
 plugin ship different Miniflare betas that look for each other in different places by default, and
 without it the binding answers "Worker workbus-bus not found". A token's audience is
 `https://workbus.dev/b/bus` locally too, since the bus's origin is pinned.
+
+## Deploy
+
+The Access applications exist first, so nothing at workbus.dev is ever public. Then:
+
+```bash
+# the bus, with its issuer key as a secret in the same upload (the key: apps/workbus/bus/.issuer.prod.json
+# in the main checkout, gitignored; the secrets file is temporary, mode 600, and deleted after)
+npx wrangler deploy -c bus/wrangler.jsonc --secrets-file <file with {"BOARD_ISSUER_KEY": "<the key's JSON>"}>
+npx wrangler secret put ACCESS_OWNERS -c bus/wrangler.jsonc     # the owner's Access sub, never in code
+pnpm deploy                                                     # the app
+```
+
+A token for the CLI at api.workbus.dev: from packages/workbus,
+`node scripts/issuer.mjs token <sub> https://workbus.dev/b/bus <path to .issuer.prod.json>`.
