@@ -33,13 +33,13 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await reply.click()
   await page.keyboard.type('Can A cat count? ca')
   await page.waitForTimeout(600)
-  await step('typing C and A in the reply makes no task', (await taskOf()) === null && (await pane.locator('button[data-face=task]').count()) === 0 && (await reply.inputValue()).endsWith('ca'))
+  await step('typing C and A in the reply makes no task', (await taskOf()) === null && (await pane.getByRole('tab', { name: 'Task' }).count()) === 0 && (await reply.inputValue()).endsWith('ca'))
   await reply.fill('')
 
   // C, with focus out of the reply: the Task face at once, then the board's task.
   await pane.getByTestId('thread-title').click()
   await page.keyboard.press('c')
-  await step('C makes it a task at once: the Task face appears', await until(() => pane.locator('button[data-face=task]').isVisible(), 2_000, 30))
+  await step('C makes it a task at once: the Task face appears', await until(() => pane.getByRole('tab', { name: 'Task' }).isVisible(), 2_000, 30))
   await step('and the board has the task', await until(async () => (await taskOf())?.state === 'ready'), await taskOf())
 
   // A: assign to the owner's profile.
