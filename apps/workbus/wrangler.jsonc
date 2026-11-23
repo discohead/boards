@@ -19,6 +19,9 @@
     // The bus's HTTP face, for reads as the person: a route loader forwards their Access assertion.
     { "binding": "BUS", "service": "workbus-bus" }
   ],
+  // Run records (src/telemetry/): the stream runs_v1, into the Iceberg table telemetry.runs_v1 in the
+  // bucket workbus-telemetry (design/workbus.md §8.1). Its schema is src/telemetry/runs_v1.schema.json.
+  "pipelines": [{ "stream": "9f6075496bea44d488f44b0ee429d5f0", "binding": "RUNS" }],
   "observability": { "enabled": true },
   "upload_source_maps": true
 }

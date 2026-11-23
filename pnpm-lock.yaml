@@ -101,6 +101,9 @@ importers:
       workbus:
         specifier: workspace:*
         version: link:../../packages/workbus
+      zod:
+        specifier: ^4.6.7
+        version: 4.6.7
     devDependencies:
       '@cloudflare/vite-plugin':
         specifier: ^1.70.1
