@@ -73,8 +73,8 @@ export type Problem = { doc: string; path: string; revision: number; why: string
 export type Plan = { seats: SeatRuntime[]; problems: Problem[]; notices: Problem[] }
 
 /** The tools a seat doc may name today (§5.4), and those the design names that aren't built yet. */
-export const TOOLS = ['board', 'computer', 'sandbox']
-const LATER = ['code', 'browser', 'web']
+export const TOOLS = ['board', 'computer', 'sandbox', 'web']
+const LATER = ['code', 'browser']
 const DEFAULT_MODEL = 'anthropic/claude-haiku-5-5'
 /** The principal, as an edge names it. No seat may take the key. */
 export const PRINCIPAL = 'principal'

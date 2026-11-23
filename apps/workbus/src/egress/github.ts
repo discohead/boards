@@ -1,0 +1,52 @@
+// The "Workbus" GitHub App (design/workbus.md §5.4): an app JWT signed with its key, and an
+// installation token per repository owner, minted on demand and cached until five minutes before it
+// expires. Its id and key are in Secrets Store; only the egress reads them, and no seat sees a token.
+import { importPKCS8, SignJWT } from 'jose'
+import { readSecret } from 'workbus/sync/secrets.ts'
+
+export type GitHubAppEnv = {
+  GITHUB_APP_ID: SecretsStoreSecret | string
+  GITHUB_APP_KEY: SecretsStoreSecret | string
+}
+
+const API = 'https://api.github.com'
+const headers = (token: string) => ({ authorization: 'Bearer ' + token, accept: 'application/vnd.github+json', 'user-agent': 'workbus-egress', 'x-github-api-version': '2022-11-28' })
+
+let app: Promise<{ id: string; key: CryptoKey }> | null = null
+
+async function appJwt(env: GitHubAppEnv): Promise<string> {
+  app ??= (async () => {
+    const [id, pem] = await Promise.all([readSecret(env.GITHUB_APP_ID, 'the GitHub App id'), readSecret(env.GITHUB_APP_KEY, "the GitHub App's key")])
+    return { id: id.trim(), key: await importPKCS8(pem.replace(/\\n/g, '\n'), 'RS256') }
+  })().catch((error) => {
+    app = null
+    throw error
+  })
+  const { id, key } = await app
+  const now = Math.floor(Date.now() / 1000)
+  return new SignJWT({}).setProtectedHeader({ alg: 'RS256' }).setIssuer(id).setIssuedAt(now - 30).setExpirationTime(now + 540).sign(key)
+}
+
+const tokens = new Map<string, { token: string; until: number }>()
+
+/** An installation token for the installation that covers owner/name, or null when the app isn't installed there. */
+export async function installationToken(env: GitHubAppEnv, owner: string, name: string, fetcher: typeof fetch = fetch): Promise<string | null> {
+  const key = owner.toLowerCase()
+  const cached = tokens.get(key)
+  if (cached && cached.until > Date.now() + 5 * 60 * 1000) return cached.token
+  const jwt = await appJwt(env)
+  const found = await fetcher(API + '/repos/' + owner + '/' + name + '/installation', { headers: headers(jwt) })
+  if (found.status === 404) return null
+  if (!found.ok) throw new Error('GitHub App installation lookup for ' + owner + '/' + name + ': ' + found.status)
+  const { id } = (await found.json()) as { id: number }
+  const minted = await fetcher(API + '/app/installations/' + id + '/access_tokens', { method: 'POST', headers: headers(jwt) })
+  if (!minted.ok) throw new Error('GitHub installation token for ' + owner + ': ' + minted.status + ' ' + (await minted.text()).slice(0, 200))
+  const body = (await minted.json()) as { token: string; expires_at: string }
+  tokens.set(key, { token: body.token, until: Date.parse(body.expires_at) })
+  return body.token
+}
+
+/** The header the token goes in: git's smart HTTP takes Basic, the REST API takes a bearer. */
+export function authorization(host: string, token: string): string {
+  return host === 'api.github.com' || host === 'uploads.github.com' ? 'Bearer ' + token : 'Basic ' + btoa('x-access-token:' + token)
+}

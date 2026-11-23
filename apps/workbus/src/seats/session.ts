@@ -16,6 +16,7 @@ import type { PiTool } from '@cloudflare/computer/tools/pi-ai'
 
 import { computerTools, type WorkspaceStub } from '../harness/computer.ts'
 import { INSTANCE, SessionSandbox, sandboxTools, type Listed, type WorkspaceSync } from '../harness/sandbox.ts'
+import { webTools } from '../harness/web.ts'
 import { Approval, compile, gate, gatewayLog, meter, systemPrompt, type Hold } from '../harness/pi.ts'
 import type { Outcome, Receipt, SeatRef, SessionEvent, SubmitOptions, Tool, ToolAnswer, TranscriptMessage, Turn, Usage } from '../harness/types.ts'
 
@@ -137,6 +138,7 @@ export class Session extends Agent<Env> {
           return result
         }),
       )
+    if (seat.tools.includes('web')) tools.push(...webTools({ seat: seat.key, egress: this.ctx.exports.Egress({ props: { seat: seat.key, mode: 'web' } }), ai: this.env.AI, browser: this.env.BROWSER as never, gateway: GATEWAY }))
     return tools
   }
 
@@ -171,7 +173,7 @@ export class Session extends Agent<Env> {
     this.#box = new SessionSandbox(
       container,
       // Every request it makes is the egress's to decide, and to log, as this seat and thread.
-      () => exports[EGRESS]!({ props: { seat: seat.key, thread: this.thread } }),
+      () => exports[EGRESS]!({ props: { seat: seat.key, mode: 'sandbox', thread: this.thread } }),
       () => this.env.WORKSPACE.getByName(seat.key) as unknown as WorkspaceSync,
       manifest,
       { seat: seat.key, thread: this.thread },
