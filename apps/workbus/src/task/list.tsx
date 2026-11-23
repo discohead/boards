@@ -33,6 +33,7 @@ import { holdSelected } from './hold.ts'
 import { taskState, type ShownState } from '@/data'
 import { assigneeOf, holdOf, shownLabels, SHOWN, SHOWN_LABEL, stateOf, type Task, type TaskState } from './model.ts'
 import { useActorNames } from './actors.ts'
+import { named, summaryOf } from '@/data/text'
 import { BoardCard, IssueRow, Kind, Label, TaskState as TaskGlyph, type KindName } from '@/components/system'
 import { useActorKinds } from './actors.ts'
 
@@ -116,7 +117,7 @@ export function useTaskRows(tasks: Task[]): TaskRow[] {
         const assignee = assigneeOf(task) ?? ''
         return {
           id: task.id,
-          title: (task.text.split('\n')[0] ?? '').replace(/^#+\s*/, '') || '(no text)',
+          title: summaryOf(task.text, named(name)) || '(no text)',
           state: stateOf(task),
           shown: taskState(task.task).state,
           word: taskState(task.task).waitsOn?.length ? 'waits on ' + taskState(task.task).waitsOn!.map((id) => '#' + id).join(' ') : taskState(task.task).word,

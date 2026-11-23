@@ -9,6 +9,8 @@ import { CheckSquare, FileText, Hash, Inbox, Keyboard, LayoutGrid, MessageSquare
 import { CommandPalette, type CommandPaletteItem, type TaskStateName } from '@/components/system'
 import type { Message } from '@/data/types'
 import { useDocsBus } from '@/docs/bus'
+import { named, summaryOf } from '@/data/text'
+import { useActorNames } from '@/task/actors'
 import { isIssue } from '@/docs/tree'
 import { Composer, type ComposerKind } from './Composer'
 import { usePlaces } from './places'
@@ -20,13 +22,15 @@ const SCREENS = [
   { to: '/docs', label: 'Docs', icon: FileText },
 ]
 
-const firstLine = (text: string) => text.split('\n').find((line) => line.trim())?.replace(/^#+\s*/, '').slice(0, 120) ?? ''
 
 /** The board's task states, as the design names them (blocked is held). */
 const stateOf = (state: string | undefined): TaskStateName => (state === 'blocked' ? 'held' : state === 'claimed' || state === 'done' || state === 'failed' ? state : 'ready')
 
 export function Palette({ onCheatSheet }: { onCheatSheet?: () => void }) {
   const bus = useDocsBus()
+  const name = useActorNames()
+  /** A result's label: its one-line summary, mentions as @handle (src/data/text.ts). */
+  const firstLine = (text: string) => summaryOf(text, named(name)).slice(0, 120)
   const places = usePlaces()
   const router = useRouter()
   const [open, setOpen] = useState(false)

@@ -5,6 +5,9 @@ import { Link } from '@tanstack/react-router'
 import type { InlineComponentNode, MarkdownExtension } from '@tanstack/markdown'
 import { useBus } from '@/data'
 import { cn } from '@/lib/utils'
+import { handleOf } from '@/data/text'
+
+export { handleOf, typedText, summaryOf } from '@/data/text'
 
 const MENTION = /^@\[([^\]\s]{1,256})\]/
 
@@ -22,8 +25,6 @@ export const mentionExtension: MarkdownExtension = {
   },
 }
 
-/** An actor's handle, from what the app knows of it, or the last part of its ID. */
-export const handleOf = (actors: { get: (id: string) => { handle: string } | undefined }, id: string) => actors.get(id)?.handle ?? id.replace(/^.*[:+]/, '')
 
 export function Mention({ actor }: { actor: string; children?: ReactNode }) {
   const bus = useBus()
@@ -45,5 +46,3 @@ export function Mention({ actor }: { actor: string; children?: ReactNode }) {
   )
 }
 
-/** Text as it was typed, with mentions as @handle: what an edit starts from. */
-export const typedText = (text: string, actors: { get: (id: string) => { handle: string } | undefined }) => text.replace(/@\[([^\]\s]{1,256})\]/g, (_all, id: string) => '@' + handleOf(actors, id))
