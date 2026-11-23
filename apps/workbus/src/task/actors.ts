@@ -22,3 +22,14 @@ export function useActorNames() {
 
 /** workbus:user:jared → jared: the last part of an ID the actors collection doesn't know yet. */
 const tail = (id: string) => id.slice(id.lastIndexOf(':') + 1)
+
+/** Whether an ID is a person (round) or an agent (square), for the system's Avatar: a Worker, or a profile of one, is an agent. */
+export function useActorKinds() {
+  const bus = useBus()
+  const { data: actors } = useLiveQuery({ query: (q) => q.from({ actor: bus.actors }) })
+  return useMemo(() => {
+    const kinds = new Map(actors.map((actor) => [actor.id, actor.kind]))
+    // A profile (<actor>+<profile>) is a seat, an agent; so is a Worker. A person is round.
+    return (id: string): 'person' | 'agent' => (!id.includes('+') && kinds.get(id) === 'person' ? 'person' : id.includes('+') || id.startsWith('worker:') ? 'agent' : 'person')
+  }, [actors])
+}

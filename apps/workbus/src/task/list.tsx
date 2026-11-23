@@ -24,7 +24,6 @@ import { useHotkey } from '@tanstack/react-hotkeys'
 import { ChevronDownIcon, ArrowDownIcon, ArrowUpIcon, LayoutGridIcon, ListIcon } from 'lucide-react'
 import type { Chip } from '@/shell/list-pane'
 import { NewTask } from './new-task.tsx'
-import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as Tr } from '@/components/ui/table'
@@ -34,7 +33,8 @@ import { holdSelected } from './hold.ts'
 import { taskState, type ShownState } from '@/data'
 import { assigneeOf, holdOf, shownLabels, SHOWN, SHOWN_LABEL, stateOf, type Task, type TaskState } from './model.ts'
 import { useActorNames } from './actors.ts'
-import { StateIcon } from './state-icon.tsx'
+import { BoardCard, IssueRow, Kind, Label, TaskState as TaskGlyph, type KindName } from '@/components/system'
+import { useActorKinds } from './actors.ts'
 
 /** A row as the table reads it: plain values per column, so sorting and filtering compare them. */
 export type TaskRow = {
@@ -257,35 +257,51 @@ export function TaskList({ rows, view, onView, empty, label }: { rows: TaskRow[]
   )
 }
 
-/** One task on one line, for a narrow list: its cursor, state, title, and when. */
+const KINDS: readonly string[] = ['approval', 'decision', 'budget', 'review', 'proposal', 'mention']
+/** A held task's kind as the system draws it, when it's one the system knows. */
+const kindsOf = (row: TaskRow): KindName[] => (row.hold && KINDS.includes(row.hold) ? [row.hold as KindName] : row.task.labels['board.doc.proposal'] ? ['proposal'] : [])
+const labelPairs = (row: TaskRow) => row.labels.map((label) => [label.slice(0, label.indexOf('=')), label.slice(label.indexOf('=') + 1)] as [string, string])
+/** The state's glyph, with its word when the word says more than the state (waits on #12, canceled). */
+function StateMark({ row }: { row: TaskRow }) {
+  return <TaskGlyph state={row.shown} {...(row.word !== row.shown ? { label: row.word } : {})} muted={row.state === 'canceled'} />
+}
+
+/** One task on one line, for a narrow list: the system's IssueRow. */
 function Compact({ item, header, count, selected, opened, gone, onPick }: { item: Item; header: string | null; count: number; selected: boolean; opened: boolean; gone: boolean; onPick: (id: string) => void }) {
   const row = item.row
+  const avatar = useAssignee(row)
   return (
     <>
       {header !== null ? (
-        <li data-group={header} className="flex items-center gap-2 border-b bg-muted/40 px-4 py-1.5 text-xs font-medium">
-          <StateIcon state={header as ShownState} />
+        <div role="rowgroup" data-group={header} className="flex items-center gap-2 border-b bg-sidebar px-3 py-1 font-mono text-mono-label text-muted-foreground">
+          <TaskGlyph state={header as ShownState} />
           {SHOWN_LABEL[header as ShownState]}
-          <span className="text-muted-foreground">{count}</span>
-        </li>
+          <span className="ml-auto">{count}</span>
+        </div>
       ) : null}
-      <li
+      <IssueRow
         data-row={row.id}
-        aria-selected={selected}
         data-pending={row.pending ? 'yes' : undefined}
+        cursor={row.pending ? 'sending…' : '#' + row.id}
+        state={row.shown}
+        title={row.title}
+        kinds={kindsOf(row)}
+        labels={labelPairs(row)}
+        {...(avatar ? { assignee: avatar } : {})}
+        updated={row.pending ? '' : '#' + row.updated}
+        selected={selected}
         onClick={() => onPick(row.id)}
-        className={cn('flex cursor-default items-center gap-2 border-b px-4 py-1.5 text-sm hover:bg-muted/50', selected && 'bg-muted', opened && 'bg-accent', (gone || row.pending) && 'opacity-60')}
-      >
-        <span className="w-12 shrink-0 font-mono text-xs text-muted-foreground tabular-nums">{row.pending ? 'sending…' : '#' + row.id}</span>
-        <StateIcon state={row.shown} />
-        <span className="min-w-0 flex-1 truncate">{row.title}</span>
-        {row.hold ? <span className="shrink-0 font-mono text-xs text-primary">{row.hold}</span> : null}
-        <span className="shrink-0 font-mono text-xs text-muted-foreground tabular-nums" title="The cursor of its last change">
-          {row.pending ? '' : '#' + row.updated}
-        </span>
-      </li>
+        className={cn(opened && !selected && 'bg-raised', (gone || row.pending) && 'opacity-60')}
+      />
     </>
   )
+}
+
+/** The assignee as the system's Avatar: round for a person, square for an agent. */
+function useAssignee(row: TaskRow) {
+  const kindOf = useActorKinds()
+  if (!row.assignee) return null
+  return { kind: kindOf(row.assignee), initials: row.assigneeName.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '?', name: row.assigneeName }
 }
 
 // Beside an open thread the list is narrow: it keeps the cursor, title, state, and when; the rest
@@ -300,7 +316,7 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
         <Tr data-group={header} className="bg-muted/40 hover:bg-muted/40">
           <TableCell colSpan={8} className="py-1.5 text-xs font-medium">
             <span className="inline-flex items-center gap-2">
-              <StateIcon state={header as ShownState} />
+              <TaskGlyph state={header as ShownState} />
               {SHOWN_LABEL[header as ShownState]}
               <span className="text-muted-foreground">{count}</span>
             </span>
@@ -318,10 +334,12 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
         <TableCell className="font-mono text-xs text-muted-foreground tabular-nums">{row.pending ? 'sending…' : '#' + row.id}</TableCell>
         <TableCell className="truncate">{row.title}</TableCell>
         <TableCell>
-          <span className="inline-flex items-center gap-1.5 text-xs">
-            <StateIcon state={row.shown} />
-            {row.word}
-            {row.hold ? <span className="font-mono text-held">{row.hold}</span> : null}
+          <span className="inline-flex items-center gap-1.5">
+            <StateMark row={row} />
+            {row.word === row.shown ? <span className="font-mono text-mono-ui text-muted-foreground">{row.word}</span> : null}
+            {kindsOf(row).map((kind) => (
+              <Kind key={kind} kind={kind} />
+            ))}
           </span>
         </TableCell>
         <TableCell className={cn('truncate font-mono text-xs', WIDTH.assignee)}>{row.assigneeName ? '@' + row.assigneeName : <span className="text-muted-foreground">—</span>}</TableCell>
@@ -329,10 +347,8 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
         <TableCell className={cn('truncate font-mono text-xs text-muted-foreground', WIDTH.channel)}>{row.channel}</TableCell>
         <TableCell className={cn('truncate', WIDTH.labels)}>
           <span className="inline-flex gap-1">
-            {row.labels.map((label) => (
-              <Badge key={label} variant="outline" className="font-mono font-normal">
-                {label}
-              </Badge>
+            {labelPairs(row).map(([name, value]) => (
+              <Label key={name} name={name} value={value} />
             ))}
           </span>
         </TableCell>
@@ -344,49 +360,52 @@ function Line({ item, header, count, selected, opened, gone, onPick }: { item: I
   )
 }
 
-/** The board by state: a column per state, as the prototype lays them out, the same rows and selection as the list. */
+/** The board by state: a column per state, as the prototype lays them out, of the system's BoardCards. */
 function Board({ items, selected, openId, gone, onPick }: { items: Item[]; selected: string | null; openId: string | null; gone: Set<string>; onPick: (id: string) => void }) {
-  const groups = SHOWN.filter((state) => state !== 'failed' || items.some((item) => item.group === state))
+  // The work's pipeline always; Done and Failed when they hold something (not under the Open filter).
+  const groups = SHOWN.filter((state) => (state !== 'done' && state !== 'failed') || items.some((item) => item.group === state))
   return (
     <div className="flex h-full gap-3 p-3" data-testid="task-board">
       {groups.map((state) => (
-        <section key={state} data-group={state} aria-label={SHOWN_LABEL[state]} className="flex w-72 shrink-0 flex-col rounded-md bg-muted/40">
-          <header className="flex items-center gap-2 px-3 py-2 text-xs font-medium">
-            <StateIcon state={state} />
+        <section key={state} data-group={state} aria-label={SHOWN_LABEL[state]} className="flex w-[302px] shrink-0 flex-col rounded-md bg-sidebar">
+          <header className="flex items-center gap-2 px-3 py-2 font-mono text-mono-label text-muted-foreground">
+            <TaskGlyph state={state} />
             {SHOWN_LABEL[state]}
-            <span className="ml-auto font-mono text-muted-foreground">{items.filter((item) => item.group === state).length}</span>
+            <span className="ml-auto">{items.filter((item) => item.group === state).length}</span>
           </header>
           <ul className="flex min-h-0 flex-col gap-2 overflow-y-auto px-2 pb-2">
             {items
               .filter((item) => item.group === state)
               .map(({ row }) => (
                 <li key={row.id}>
-                  <button
-                    data-row={row.id}
-                    aria-selected={selected === row.id}
-                    onClick={() => onPick(row.id)}
-                    className={cn('w-full rounded-md border bg-background p-2 text-left text-sm', selected === row.id && 'ring-2 ring-ring', openId === row.id && 'bg-accent', gone.has(row.id) && 'opacity-50')}
-                  >
-                    <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
-                      <span>{row.pending ? 'sending…' : '#' + row.id}</span>
-                      {row.hold ? <span className="text-primary">{row.hold}</span> : <span>{row.channel}</span>}
-                    </div>
-                    <div className="mt-0.5 line-clamp-2 font-medium">{row.title}</div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1 font-mono text-xs text-muted-foreground">
-                      {row.assigneeName ? <span>@{row.assigneeName}</span> : <span>@{row.ownerName}</span>}
-                      {row.labels.map((label) => (
-                        <Badge key={label} variant="outline" className="font-mono font-normal">
-                          {label}
-                        </Badge>
-                      ))}
-                    </div>
-                  </button>
+                  <Card row={row} selected={selected === row.id} opened={openId === row.id} gone={gone.has(row.id)} onPick={onPick} />
                 </li>
               ))}
           </ul>
         </section>
       ))}
     </div>
+  )
+}
+
+function Card({ row, selected, opened, gone, onPick }: { row: TaskRow; selected: boolean; opened: boolean; gone: boolean; onPick: (id: string) => void }) {
+  const avatar = useAssignee(row)
+  return (
+    <BoardCard
+      data-row={row.id}
+      aria-selected={selected}
+      role="button"
+      tabIndex={0}
+      onClick={() => onPick(row.id)}
+      cursor={row.pending ? 'sending…' : '#' + row.id}
+      channel={row.channel}
+      state={row.shown}
+      title={row.title}
+      kinds={kindsOf(row)}
+      labels={labelPairs(row)}
+      {...(avatar ? { assignee: avatar } : {})}
+      className={cn('cursor-pointer', selected && 'outline-2 outline-ring', opened && 'bg-raised', gone && 'opacity-50')}
+    />
   )
 }
 
