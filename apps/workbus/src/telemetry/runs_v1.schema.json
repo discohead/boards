@@ -1,0 +1,137 @@
+{
+  "fields": [
+    {
+      "name": "id",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "seat",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "team",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "thread",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "task",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "operation",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "harness",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "model",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "charter",
+      "type": "string",
+      "required": false
+    },
+    {
+      "name": "started",
+      "type": "timestamp",
+      "required": true
+    },
+    {
+      "name": "ended",
+      "type": "timestamp",
+      "required": true
+    },
+    {
+      "name": "outcome",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "steps",
+      "type": "int32",
+      "required": true
+    },
+    {
+      "name": "tools",
+      "type": "list",
+      "required": false,
+      "items": {
+        "type": "struct",
+        "fields": [
+          {
+            "name": "name",
+            "type": "string",
+            "required": true
+          },
+          {
+            "name": "ms",
+            "type": "int64",
+            "required": true
+          },
+          {
+            "name": "ok",
+            "type": "bool",
+            "required": true
+          }
+        ]
+      }
+    },
+    {
+      "name": "input_tokens",
+      "type": "int64",
+      "required": true
+    },
+    {
+      "name": "output_tokens",
+      "type": "int64",
+      "required": true
+    },
+    {
+      "name": "cache_read_tokens",
+      "type": "int64",
+      "required": true
+    },
+    {
+      "name": "cache_write_tokens",
+      "type": "int64",
+      "required": true
+    },
+    {
+      "name": "cost",
+      "type": "float64",
+      "required": true
+    },
+    {
+      "name": "cost_source",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "log_ids",
+      "type": "list",
+      "required": false,
+      "items": {
+        "type": "string"
+      }
+    },
+    {
+      "name": "error",
+      "type": "string",
+      "required": false
+    }
+  ]
+}
