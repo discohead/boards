@@ -30,6 +30,7 @@ pnpm dev:bus                                        # the bus on 127.0.0.1:8832
 pnpm dev                                            # the app on 127.0.0.1:8831; /b/* goes to the bus
 (cd ../../packages/workbus && node scripts/issuer.mjs token jared https://workbus.dev/b/bus)   # a token
 pnpm typecheck && pnpm build
+node scripts/sandbox-check.mjs              # the sandbox tier, with Docker running (GITHUB_REPO=owner/name for the private clone)
 TOKEN=<that token> node scripts/session-check.mjs   # a seat's Session end to end, with real Haiku (a few cents' worth)
 WORKBUS_OWNER_TOKEN=<that token> WORKBUS_OTHER_TOKEN=<a member's> node scripts/check/run.mjs --base http://127.0.0.1:8831   # the browser suite
 #   --only seats: the seat views; --only org: the org views and the seat config form; --only seats-run: a seat's approval end to end, with Haiku (under a cent)
@@ -39,6 +40,29 @@ Both dev scripts set `CLOUDFLARE_DEV_REGISTRY_PATH=.wrangler/registry`: Wrangler
 plugin ship different Miniflare betas that look for each other in different places by default, and
 without it the binding answers "Worker workbus-bus not found". A token's audience is
 `https://workbus.dev/b/bus` locally too, since the bus's origin is pinned.
+
+### Containers in development
+
+The sandbox tier runs a Docker container per session under `pnpm dev` (workerd builds
+`sandbox/Dockerfile`), and beside each a `cloudflare/proxy-everything` sidecar that carries its
+HTTP and HTTPS to the egress. workerd publishes the sidecar's port with no host address, so Docker
+binds it on every interface, IPv4 and IPv6: the container is on the local network while it runs.
+workerd, Miniflare, wrangler, and the Vite plugin have no setting for the host address. So every
+local check that starts containers runs through `scripts/with-containers.mjs`: it starts the dev
+servers itself, gives them a Docker socket of its own (`WRANGLER_DOCKER_HOST`, which wrangler and
+the Vite plugin both read) that binds published ports to 127.0.0.1, and on success, failure, or
+Ctrl-C stops the servers and removes exactly the containers and volumes they created. Don't have
+the dev servers running when you start it.
+
+```bash
+pnpm check:sandbox                       # the sandbox tier, no model (GITHUB_REPO=owner/name for a private clone)
+TOKEN=<a board token> pnpm check:session # the Session, with Haiku (its sandbox part: ... sandbox)
+```
+
+(`--server "<command>" <ready-url>` runs other servers, such as the same two on other ports.) The
+checks also tear down the containers they start, as a second layer. Docker's `"ip": "127.0.0.1"`
+daemon setting is the other fix, the machine owner's to choose. Don't leave `pnpm dev` running with
+containers: Ctrl-C removes them; `docker ps --filter label=dev.workerd.session` lists any left.
 
 ## The org
 

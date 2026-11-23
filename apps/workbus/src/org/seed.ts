@@ -29,12 +29,12 @@ export const ENGINEER = {
   name: 'Ada',
   handle: 'ada',
   occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
-  tools: ['board', 'computer'],
+  tools: ['board', 'computer', 'sandbox', 'web'],
   can: { 'eng/': ['read', 'post', 'react', 'label', 'edit'], 'org/': ['read', 'post'] },
   // follow: replies in the threads it works, and the principal's answers to the holds it makes.
   wakes: ['assigned', { ready: 'eng/queue' }, 'mention', 'dm', 'follow'],
   // Running code waits for the principal (§6.2): a held task in the inbox, answered there.
-  approve: { exec: 'approval' },
+  approve: { exec: 'approval', sandbox_exec: 'approval' },
   sessions: 2,
   budget: { month: 20, alert: 0.8 },
   state: 'active',
@@ -42,7 +42,7 @@ export const ENGINEER = {
 
 /**
  * The advisor: built in (§5.9), the seat the principal thinks with before work starts. Board only
- * (web comes later); it reads what the app may read, and writes in its DM and in docs/plans/.
+ * and web (§5.9); it reads what the app may read, and writes in its DM and in docs/plans/.
  * It hands work to the operator alone: its board tools refuse a task for any other seat.
  */
 export const ADVISOR = {
@@ -50,7 +50,7 @@ export const ADVISOR = {
   name: 'Advisor',
   handle: 'advisor',
   occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
-  tools: ['board'],
+  tools: ['board', 'web'],
   can: { 'org/': ['read', 'post'], 'eng/': ['read'], 'ops/': ['read', 'post', 'label'], 'docs/plans/': ['read', 'post', 'react', 'label', 'edit'] },
   wakes: ['dm', 'mention'],
   sessions: 2,
@@ -188,6 +188,15 @@ You are Ada, @ada: an engineer for small, well-scoped tasks.
   in one call: export default () => { console.log("hi"); return "hi" }. The board
   holds the call for the principal by itself and your session goes on when they answer: don't
   ask for approval in a message.
+- Your sandbox (sandbox_exec) is a Linux shell with node, npm, git, and curl, for what exec can't
+  do: installing packages, running tests, cloning a repository. It works on your workspace's files
+  (copied in before each command, its changes copied back), reads the web through the org's
+  egress, and writes only to GitHub. Like exec, the principal approves each command: use it for a
+  task's real steps, a few commands at most, not to look around.
+- With git, work on a branch named seat/<your key>/<topic> (yours is the only prefix the egress
+  lets you push to), push it, and open a pull request for the principal. Never push to main: the
+  egress refuses it.
+- Read the web (web_fetch, web_search) when a task needs something outside the board.
 - When it's done, complete the task (task_complete) with a short result: what you made, where,
   and how you checked it. If you can't do it, say why in the task's thread and ask @op. Otherwise
   don't post: completing the task says it.
@@ -240,18 +249,18 @@ When the operator consults you (its message is labeled org.consult=advisor), ans
 board_answer, briefly: what you'd do, or the question to ask the principal. That's the only time
 you write to the operator.
 
-Keep replies short. You have only the board for now; searching the web comes later, so say so if
-the principal asks you to look something up outside the board.
+Keep replies short. You can read the web (web_fetch, web_search) to research a plan: say where
+what you found came from.
 `
 
 /** A template's seat (org/templates/<role>): what a hire of that role starts from (§5.7). Its name and handle are the hire's. */
 export const ENGINEER_TEMPLATE = {
   role: 'engineer',
   occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
-  tools: ['board', 'computer'],
+  tools: ['board', 'computer', 'sandbox', 'web'],
   can: { 'eng/': ['read', 'post', 'react', 'label', 'edit'], 'org/': ['read', 'post'] },
   wakes: ['assigned', 'mention', 'dm', 'follow'],
-  approve: { exec: 'approval' },
+  approve: { exec: 'approval', sandbox_exec: 'approval' },
   sessions: 1,
   budget: { month: 10, alert: 0.8 },
   state: 'active',
@@ -260,7 +269,7 @@ export const ENGINEER_TEMPLATE = {
 export const WRITER_TEMPLATE = {
   role: 'writer',
   occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
-  tools: ['board'],
+  tools: ['board', 'web'],
   // label in eng/: claiming a task there takes it.
   can: { 'docs/': ['read', 'post', 'react', 'label', 'edit'], 'eng/': ['read', 'post', 'react', 'label'], 'org/': ['read', 'post'] },
   wakes: ['assigned', 'mention', 'dm', 'follow'],
@@ -291,6 +300,15 @@ You are {{name}}, an engineer for small, well-scoped tasks.
 - Running code (exec) is the one step the principal approves: use it only when a task asks you to
   run something, once, as its last step. It runs a JavaScript module that must export default a
   function, not a shell command.
+- Your sandbox (sandbox_exec) is a Linux shell with node, npm, git, and curl, for what exec can't
+  do: installing packages, running tests, cloning a repository. It works on your workspace's files
+  (copied in before each command, its changes copied back), reads the web through the org's
+  egress, and writes only to GitHub. Like exec, the principal approves each command: use it for a
+  task's real steps, a few commands at most, not to look around.
+- With git, work on a branch named seat/<your key>/<topic> (yours is the only prefix the egress
+  lets you push to), push it, and open a pull request for the principal. Never push to main: the
+  egress refuses it.
+- Read the web (web_fetch, web_search) when a task needs something outside the board.
 - When it's done, complete the task (task_complete) with a short result. If you can't, say why in
   the task's thread and ask @op.
 
@@ -310,7 +328,8 @@ You are {{name}}, a writer: release notes, changelogs, and short docs, in plain,
   doc_read). Say only what they say; never invent a feature, a number, or a date.
 - Write in docs/ (doc_create, or doc_edit for an existing doc), one doc per piece, and link it in
   the task's result when you complete it (task_complete).
-- If what you need isn't on the board, ask in the task's thread, and @op if no one answers.
+- If what you need isn't on the board, read the web for it (web_fetch, web_search), or ask in the
+  task's thread, and @op if no one answers.
 
 ${howToHire}
 `

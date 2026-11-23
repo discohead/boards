@@ -1,9 +1,11 @@
 // A Session, end to end: real Haiku through the gateway, the board and computer tools, an approval
 // parked and resumed (and one denied), and a wake-up delivered twice that runs once. It drives the
 // app's /dev/session door (vite dev only) as a Seat would, and reads the bus to see what landed.
-//   pnpm dev:bus & pnpm dev        (or the same on other ports)
 //   TOKEN=$(cd ../../packages/workbus && node scripts/issuer.mjs token jared https://workbus.dev/b/bus | tail -1)
-//   node scripts/session-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [turn,board,tasks,computer,shared,approve,deny]
+//   TOKEN=… pnpm check:session [turn,board,tasks,computer,shared,approve,deny,sandbox]
+// which starts the dev servers through scripts/with-containers.mjs (the sandbox part runs a container:
+// ports on 127.0.0.1 only, removed after); or, with the servers running already,
+//   node scripts/session-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [parts]
 // Each check makes one to three tiny model calls.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only] = process.argv.slice(2)
 const token = process.env.TOKEN
@@ -180,6 +182,29 @@ if (!pick || pick.has('approve')) {
     for (const a of more) await session('ada', t, 'submit', { type: 'approval', approvalId: a.id, approved: true }, { operationId: 'cursor-more-' + a.id })
   }
   check(answered?.status === 'done' && answered.usage.tools.some((tool) => tool.name === 'exec' && tool.ok), 'approved, exec runs and the run answers', { text: answered?.text, tools: answered?.usage.tools })
+}
+
+// The sandbox tier with Haiku: sandbox_exec waits for the principal like exec; approved, it runs in
+// the session's container, and the run's usage carries the container's time as sandbox:basic.
+if (pick?.has('sandbox')) {
+  const t = await thread('sandbox check ' + run)
+  await session('ada', t, 'configure', ada(['board', 'sandbox'], { approve: { sandbox_exec: 'approval' } }))
+  await session('ada', t, 'submit', turn('Use sandbox_exec once with command: node -e "console.log(6*7)". Answer with only its output.'), { operationId: 'cursor-1' })
+  const held = await heldIn(t)
+  check(held?.tool === 'sandbox_exec', 'sandbox_exec parks for an approval', held)
+  if (held) await session('ada', t, 'submit', { type: 'approval', approvalId: held.id, approved: true }, { operationId: 'cursor-2' })
+  let answered = null
+  for (let i = 0; i < 8 && !answered; i++) {
+    answered = await session('ada', t, 'wait', 'cursor-1', 30000).catch(() => null)
+    if (answered) break
+    for (const a of (await session('ada', t, 'inspect')).approvals.filter((one) => one.state === 'held')) await session('ada', t, 'submit', { type: 'approval', approvalId: a.id, approved: true }, { operationId: 'cursor-more-' + a.id })
+  }
+  const ran = answered?.usage.tools.find((tool) => tool.name === 'sandbox_exec' && tool.ok)
+  check(Boolean(ran) && answered.text?.includes('42'), 'approved, it runs in the container and the run answers 42', { text: answered?.text, tools: answered?.usage.tools })
+  const box = answered?.usage.tools.find((tool) => tool.name === 'sandbox:basic')
+  check(Boolean(box) && box.ms >= 5 * 60_000, "the run's tools carry the container's time (with the sleep tail of the container it started)", box)
+  // Its container doesn't outlive the check (local containers publish their ports on every interface).
+  await session('ada', t, 'sandboxReset')
 }
 
 if (!pick || pick.has('deny')) {

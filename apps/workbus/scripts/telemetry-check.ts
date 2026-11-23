@@ -67,9 +67,15 @@ check(november.runs === 2 && Math.abs(november.cost - 0.00144015) < 1e-12, "ada'
 check(november.tokens.input === 14 && november.tokens.cacheRead === 3502, "ada's November tokens", november.tokens)
 check(totals.spend('ada', '2026-12').cost === 0.5, 'a run that ended in December counts in December')
 check(totals.periods('ada').map((p) => p.period).join() === '2026-12,2026-11', 'periods, newest first')
+// Container time rides in tools[] as sandbox:<instance>, apart from the model's cost.
+totals.add(run({ id: 'run-6', cost: 0, tools: [{ name: 'sandbox_exec', ms: 900, ok: true }, { name: 'sandbox:basic', ms: 301_000, ok: true }] }))
+totals.add(run({ id: 'run-7', cost: 0, tools: [{ name: 'sandbox:basic', ms: 2_000, ok: true }] }))
+const boxed = totals.spend('ada', '2026-11')
+check(boxed.sandbox.ms === 303_000 && Math.abs(boxed.cost - 0.00144015) < 1e-12, "the sandbox's container time sums apart from the model's cost", boxed.sandbox)
+check(totals.spend('op', '2026-11').sandbox.ms === 0, 'and only the seat that ran it')
 let threw = false
 try { totals.add(run({ id: 'run-5', cost: -2 })) } catch { threw = true }
-check(threw && totals.spend('ada', '2026-11').runs === 2, 'an invalid run is refused and not counted')
+check(threw && totals.spend('ada', '2026-11').runs === 4, 'an invalid run is refused and not counted')
 
 // Delivery: a failed send leaves runs unsent; the next record sends them all, once.
 const delivery = new Totals(sqlite())

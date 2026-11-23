@@ -73,8 +73,8 @@ export type Problem = { doc: string; path: string; revision: number; why: string
 export type Plan = { seats: SeatRuntime[]; problems: Problem[]; notices: Problem[] }
 
 /** The tools a seat doc may name today (§5.4), and those the design names that aren't built yet. */
-export const TOOLS = ['board', 'computer']
-const LATER = ['code', 'sandbox', 'browser', 'web']
+export const TOOLS = ['board', 'computer', 'sandbox', 'web']
+const LATER = ['code', 'browser']
 const DEFAULT_MODEL = 'anthropic/claude-haiku-5-5'
 /** The principal, as an edge names it. No seat may take the key. */
 export const PRINCIPAL = 'principal'
@@ -332,7 +332,7 @@ function checkSeat(doc: OrgDoc, block: SeatBlock, holds: Record<string, Permissi
     if (!TOOLS.includes(tool)) return tool + " isn't a tool: a seat's tools are " + list(TOOLS)
   }
   if (block.role === 'operator' && block.tools.some((tool) => tool !== 'board')) return 'the operator only orchestrates: its only tool is board (§5.8)'
-  if (block.role === 'advisor' && block.tools.some((tool) => tool !== 'board')) return "the advisor thinks with the principal and doesn't do the work: its only tool is board (web comes later) (§5.9)"
+  if (block.role === 'advisor' && block.tools.some((tool) => tool !== 'board' && tool !== 'web')) return "the advisor thinks with the principal and doesn't do the work: its tools are board and web (§5.9)"
   for (const [pattern, grant] of Object.entries(block.can)) {
     if (!validPattern(pattern)) return 'its can names ' + pattern + ', which is neither *, a channel, nor a channel and its subtree (eng/)'
     const has = atPattern(holds, pattern)

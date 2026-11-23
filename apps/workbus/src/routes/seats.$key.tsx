@@ -125,6 +125,11 @@ function SeatDetail({ seat }: { seat: SeatView }) {
                 {seat.spend.runs} {seat.spend.runs === 1 ? 'run' : 'runs'}
               </span>
             </div>
+            {seat.spend.sandbox.ms > 0 ? (
+              <span data-testid="sandbox-spend" data-ms={seat.spend.sandbox.ms} className="font-mono text-mono-ui text-muted-foreground tabular-nums">
+                + {usd(seat.spend.sandbox.cost)} sandbox, est. ({Math.round(seat.spend.sandbox.ms / 60000)} min of a basic container)
+              </span>
+            ) : null}
             {budget !== null ? (
               <div className="h-1 overflow-hidden rounded-full bg-raised" role="meter" aria-label="Budget used" aria-valuemin={0} aria-valuemax={budget} aria-valuenow={seat.spend.cost}>
                 <div className={share >= 1 ? 'h-full bg-danger' : 'h-full bg-agent'} style={{ width: Math.max(share * 100, seat.spend.cost > 0 ? 1 : 0) + '%' }} />

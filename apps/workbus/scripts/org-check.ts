@@ -48,8 +48,9 @@ check('the seed plans three seats, with no problems', () => {
   assert.deepEqual(op.can['docs/plans/'], ['read'])
   const ada = planned.seats.find((seat) => seat.key === 'ada')!
   assert.deepEqual(ada.rules, { assigned: 'assigned', ready: { ready: 'eng/queue' }, mention: 'mention', dm: 'dm', follow: 'follow' })
-  assert.deepEqual(ada.tools, ['board', 'computer'])
-  assert.deepEqual(ada.approve, { exec: 'approval' })
+  assert.deepEqual(ada.tools, ['board', 'computer', 'sandbox', 'web'])
+  // Both ways of running code wait for the principal.
+  assert.deepEqual(ada.approve, { exec: 'approval', sandbox_exec: 'approval' })
   assert.ok(ada.charter.startsWith('# Ada') && ada.charter.includes('## Charter') && !ada.charter.includes('json#seat'))
   assert.ok(ada.teamDoc?.includes('eng/queue'))
   assert.ok(ada.structure?.startsWith('# The org'))
@@ -69,7 +70,7 @@ check('edit in org/ is refused: a seat proposes', () => {
 })
 
 check('a tool not built, or not a tool, is refused; the operator keeps to board', () => {
-  assert.match(why(replace(seed(), 'org/seats/ada', (data) => data.tools.push('sandbox')))[0]!, /the sandbox tool isn't built yet/)
+  assert.match(why(replace(seed(), 'org/seats/ada', (data) => data.tools.push('browser')))[0]!, /the browser tool isn't built yet/)
   assert.match(why(replace(seed(), 'org/seats/ada', (data) => data.tools.push('hammer')))[0]!, /hammer isn't a tool/)
   assert.match(why(replace(seed(), 'org/seats/ada', (data) => (data.tools = ['computer'])))[0]!, /every seat has the board tool/)
   assert.match(why(replace(seed(), 'org/seats/op', (data) => data.tools.push('computer')))[0]!, /the operator only orchestrates/)
@@ -114,7 +115,7 @@ check('the advisor: board only, its DM and dm wakes, in Core with its edges, and
   assert.equal(advisor.handle, 'advisor')
   assert.equal(advisor.role, 'advisor')
   assert.equal(advisor.team, 'core')
-  assert.deepEqual(advisor.tools, ['board'])
+  assert.deepEqual(advisor.tools, ['board', 'web'])
   // consulted: op consults it, by a consult only.
   assert.deepEqual(advisor.rules, { dm: 'dm', mention: 'mention', consulted: { tail: '--mentions=worker:workbus-app+advisor --by worker:workbus-app+op --label org.consult=advisor' } })
   assert.deepEqual(advisor.can['dm/advisor/'], ['read', 'post', 'react', 'label', 'edit'])
@@ -130,7 +131,7 @@ check('the advisor: board only, its DM and dm wakes, in Core with its edges, and
   assert.deepEqual(renamed.assigns, ['worker:workbus-app+op'])
 })
 
-check("the advisor doesn't do the work: a tool beyond board is refused", () => {
+check("the advisor doesn't do the work: a tool beyond board and web is refused", () => {
   assert.match(why(replace(seed(), 'org/seats/advisor', (data) => data.tools.push('computer')))[0]!, /^org\/seats\/advisor: the advisor thinks with the principal/)
 })
 

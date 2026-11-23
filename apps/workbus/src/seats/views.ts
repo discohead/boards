@@ -4,6 +4,7 @@
 // request reaching it has passed the app's Access check (server.ts), and the org is visible to
 // everyone in it.
 import { createServerFn } from '@tanstack/react-start'
+import { BASIC_USD_PER_SECOND } from '../harness/sandbox-rate.ts'
 import { env } from 'cloudflare:workers'
 
 import { bus } from '../bus.ts'
@@ -33,7 +34,8 @@ export type SeatView = {
   /** What it's on now: the threads its sessions run or are parked in, and the tasks they hold for the principal. */
   open: { thread: string; state: 'running' | 'held' | 'queued' }[]
   holds: { task: string; thread: string }[]
-  spend: { period: string; runs: number; cost: number; budget: number | null }
+  /** The model's cost this period, and the sandbox's container time and its estimated cost (harness/sandbox.ts), beside it. */
+  spend: { period: string; runs: number; cost: number; budget: number | null; sandbox: { ms: number; cost: number } }
   runs: SeatRun[]
   /** The config revision its Seat holds (the newest of its seat, team, and root docs it was applied from). */
   revision: number | null
@@ -82,7 +84,13 @@ export function viewOf(key: string, doc: { id: string; text: string; title: stri
     charter: doc ? prose(doc.text) : (runtime?.charter ?? ''),
     open: [...open].map(([thread, state]) => ({ thread, state })),
     holds: status.holds.filter((hold) => hold.state === 'held').map((hold) => ({ task: hold.task, thread: hold.thread })),
-    spend: { period: status.spend?.period ?? new Date().toISOString().slice(0, 7), runs: status.spend?.runs ?? 0, cost: status.spend?.cost ?? 0, budget: status.spend?.budget ?? runtime?.budget.month ?? null },
+    spend: {
+      period: status.spend?.period ?? new Date().toISOString().slice(0, 7),
+      runs: status.spend?.runs ?? 0,
+      cost: status.spend?.cost ?? 0,
+      budget: status.spend?.budget ?? runtime?.budget.month ?? null,
+      sandbox: { ms: status.spend?.sandbox?.ms ?? 0, cost: ((status.spend?.sandbox?.ms ?? 0) / 1000) * BASIC_USD_PER_SECOND },
+    },
     runs: status.runs.map((run) => ({ id: run.id, operation: run.operation, outcome: run.outcome, cost: run.cost, started: run.started, ended: run.ended, thread: run.thread, task: run.task, steps: run.steps, error: run.error })),
     revision: status.revision ?? null,
   }
