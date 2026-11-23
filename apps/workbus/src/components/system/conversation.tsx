@@ -8,8 +8,9 @@ import { Button } from './button'
 
 export interface MessageProps {
   author: { name: string; handle?: string; initials: string; kind?: 'person' | 'agent' }
-  time?: string
-  cursor?: string
+  /** A clock time: text, or an element (the app's Clock renders UTC on the server, local in the browser). */
+  time?: ReactNode
+  cursor?: ReactNode
   /** Your own write before its event comes back. */
   pending?: boolean
   /** A new event from someone else: a brief agent tint. */
@@ -32,7 +33,15 @@ export function Message({ author, time, cursor, pending, arrive, children, class
           <span className="font-semibold text-text">{author.name}</span>
           {author.handle ? <span className="font-mono text-mono-ui text-muted-foreground">{author.handle}</span> : null}
           <span className="ml-auto font-mono text-mono-ui text-muted-foreground tabular-nums">
-            {pending ? 'sending…' : [time, cursor].filter(Boolean).join(' · ')}
+            {pending ? (
+              'sending…'
+            ) : (
+              <>
+                {time}
+                {time && cursor ? ' · ' : null}
+                {cursor}
+              </>
+            )}
           </span>
         </div>
         <div className={cn('mt-[3px] text-doc [overflow-wrap:anywhere] [&_code]:font-mono [&_code]:text-[0.9em] [&_code]:text-text', pending ? 'text-muted-foreground' : 'text-body')}>{children}</div>
