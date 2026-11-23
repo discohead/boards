@@ -5,8 +5,8 @@
 import { hydrated, until, watchPending } from '../lib.mjs'
 
 export async function run({ page, base, owner, other, run: id, channel, must, step }) {
-  // Enough history to scroll, and a starting post so the channel is there.
-  for (let n = 1; n <= 24; n++) await other.post('/messages', { channel, text: 'History ' + n + ' for the scroll, run ' + id })
+  // Enough history to scroll well past the end, even on a fresh board where grouped rows are short.
+  for (let n = 1; n <= 60; n++) await other.post('/messages', { channel, text: 'History ' + n + ' for the scroll, run ' + id })
   await page.goto(base + '/c/' + channel)
   await hydrated(page)
   const rows = page.getByTestId('threads').locator('[data-id]')
@@ -46,8 +46,20 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
 
   // Scrolled up: new posts gather behind the pill, and the pill takes you to them.
   await hydrated(page)
-  await page.getByTestId('history').evaluate((el) => el.scrollTo(0, 0))
-  await page.waitForTimeout(400)
+  // Scroll to the top and wait until the view has settled well away from the end (a cold page can
+  // still be measuring rows, or reading the page before, when the scroll happens).
+  const history = page.getByTestId('history')
+  const away = () => history.evaluate((el) => Math.round(el.scrollHeight - el.clientHeight - el.scrollTop))
+  let last = -1
+  const steadied = await until(async () => {
+    await history.evaluate((el) => el.scrollTo(0, 0))
+    await page.waitForTimeout(250)
+    const now = await away()
+    const steady = now > 300 && now === last
+    last = now
+    return steady
+  }, 10_000, 0)
+  await must('scrolled up, the view settles away from the end', steadied, { away: await away() })
   await other.post('/messages', { channel, text: 'Below you one, run ' + id })
   await other.post('/messages', { channel, text: 'Below you two, run ' + id })
   const pill = page.getByTestId('new-below')
