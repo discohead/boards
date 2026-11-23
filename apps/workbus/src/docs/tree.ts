@@ -14,7 +14,7 @@ export type TreeNode = {
 }
 
 /** A doc whose root is also a task. */
-export const isIssue = (doc: Doc) => doc.labels?.['board.task'] !== undefined
+export const isIssue = (doc: Doc & { task?: unknown }) => doc.task !== undefined || doc.labels?.['board.task'] !== undefined
 
 export function buildTree(docs: Iterable<Doc>): TreeNode[] {
   const root: TreeNode = { path: '', name: '', doc: null, children: [] }
