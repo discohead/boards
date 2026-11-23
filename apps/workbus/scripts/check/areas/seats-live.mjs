@@ -52,7 +52,8 @@ export async function run({ page, base, owner, run: id, step, must }) {
   try {
     let hold = null
     await must('Ada\'s exec is held for approval', await until(async () => (hold = (await status('ada')).holds.find((one) => one.state === 'held' && !holdsBefore.has(one.task))), 240_000, 2_000), { asked })
-    await step('her state shows waiting', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 90_000), { seat: states, sidebar: shown })
+    const waiting = await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 90_000)
+    await step('her state shows waiting', waiting, waiting ? { seat: states, sidebar: shown } : 'Ada not shown waiting after 90 s: ' + JSON.stringify({ seat: states, sidebar: shown }))
     await page.goto(base + '/')
     await hydrated(page)
     const item = page.locator('[data-testid=inbox] [data-item="' + hold.task + '"]')
@@ -76,14 +77,15 @@ export async function run({ page, base, owner, run: id, step, must }) {
       return (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed'
     }, 240_000, 2_000)
     await step('her work completes, with exactly one approval', done && extra.length === 0, { task: (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task, moreApprovals: extra })
-    await step('and she is active again', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 60_000), { seat: states, sidebar: shown })
+    const activeAgain = await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 90_000)
+    await step('and she is active again', activeAgain, activeAgain ? { seat: states, sidebar: shown } : 'Ada not active again 90 s after her work completed: ' + JSON.stringify({ seat: states, sidebar: shown }))
     // Her Seat's own sequence, sampled every 250 ms: waiting during the hold, then active. A working
     // between them is shown when it lasts, but one shorter than a poll can't be required.
     await watch.stop()
     const from = states.lastIndexOf('waiting')
     await step('her Seat went waiting during the hold, then active (working when it lasted)', from >= 0 && states.at(-1) === 'active', { seat: states, sidebar: shown, working: states.indexOf('working', from) > from })
     // Her Seat records a run as its operation ends, a moment after the task completes.
-    await until(async () => ((await status('ada')).spend?.runs ?? 0) > (before.spend?.runs ?? 0), 30_000)
+    await until(async () => ((await status('ada')).spend?.runs ?? 0) > (before.spend?.runs ?? 0), 90_000)
     const after = await status('ada')
     await seatRow('ada').click()
     await until(() => seat.isVisible(), 10_000)

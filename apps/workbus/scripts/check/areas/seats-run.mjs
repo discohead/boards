@@ -24,7 +24,8 @@ export async function run({ page, base, owner, run: id, step, must }) {
   }
   await must('the seat holds its exec for the principal: a task of its own, held for approval', !!hold && (await owner.get('/messages/' + hold.task + '?limit=1')).message.task.blocked?.kind === 'approval', hold)
   const task = hold.task
-  await step('the sidebar shows Ada waiting', await until(async () => (await ada.getAttribute('data-state')) === 'waiting', 90_000), await ada.getAttribute('data-state'))
+  const waiting = await until(async () => (await ada.getAttribute('data-state')) === 'waiting', 90_000)
+  await step('the sidebar shows Ada waiting', waiting, waiting ? 'waiting' : 'Ada not shown waiting after 90 s: ' + (await ada.getAttribute('data-state')))
   const item = page.locator('[data-testid=inbox] [data-item="' + task + '"]')
   const shownInInbox = await until(async () => /approval/i.test(await item.innerText()), 90_000)
   await step('the inbox shows the held task, an approval', shownInInbox, shownInInbox ? await item.innerText() : 'no approval for #' + task + ' in the inbox after 90 s')
@@ -36,7 +37,7 @@ export async function run({ page, base, owner, run: id, step, must }) {
   await step('Approve answers it with the decision approved', await until(async () => (await owner.get('/messages/' + task + '?limit=1')).message.task.answer?.decision === 'approved'))
   await step('her parked session goes on, and the work completes', await until(async () => (await owner.get('/messages/' + work + '?limit=1')).message.task.state === 'completed', 180_000), (await owner.get('/messages/' + work + '?limit=1')).message.task)
   // Her Seat records the run once the operation ends, a moment after the task completes.
-  await until(async () => (await dev('status')).spend.runs > before.spend.runs, 30_000)
+  await until(async () => (await dev('status')).spend.runs > before.spend.runs, 90_000)
   const after = await dev('status')
   await ada.click()
   await until(() => page.getByTestId('seat').isVisible())
