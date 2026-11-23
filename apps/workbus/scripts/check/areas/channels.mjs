@@ -41,6 +41,8 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await step('a post by someone else makes it unread in the sidebar', await until(async () => (await link.getAttribute('data-unread')) === 'yes'), await link.getAttribute('class').catch(() => ''))
   await link.click()
   await step('opening the channel clears it', await until(async () => (await link.getAttribute('data-unread')) === null))
+  const listed = async () => (await owner.get('/unread')).channels.some((row) => row.channel === channel && row.unread + row.mentions > 0)
+  await step('and the board has it read: GET /unread lists it no more', await until(async () => !(await listed())))
 
   // Scrolled up: new posts gather behind the pill, and the pill takes you to them.
   await hydrated(page)
