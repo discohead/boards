@@ -29,10 +29,8 @@ const CHIP_LABEL: Record<Chip, string> = { all: 'All', held: 'Held', unread: 'Un
 function Inbox() {
   const bus = useBus()
   const { items: all, ready, markRead } = useInbox()
-  // What reached me (each item's newest reply, and its thread's root): read here, not for the sidebar.
+  // What reached me (each item's newest reply): one read, here, not for the sidebar.
   useEffect(() => void bus.openInbox().catch(() => {}), [bus])
-  const missing = all.filter((one) => !one.root).map((one) => one.thread).join()
-  useEffect(() => void (missing && bus.ensureRoots(missing.split(',')).catch(() => {})), [bus, missing])
   const name = useActorNames()
   const [chip, setChip] = useState<Chip>('all')
   const items = useMemo(() => all.filter((one) => chip === 'all' || one.reasons.some((reason) => CHIPS[chip].includes(reason.kind))), [all, chip])
@@ -139,7 +137,11 @@ function Inbox() {
   )
 }
 
-const title = (one: InboxItem) => ((one.root?.text ?? '').split('\n')[0] ?? '').replace(/^#+\s*/, '').replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1') || '#' + one.thread
+/** Its thread's first line: the root's, or, when the root isn't in memory, the newest reply's (opening it reads the thread). */
+const title = (one: InboxItem) => {
+  const text = one.root?.text ?? latestOf(one)?.text ?? ''
+  return (text.split('\n')[0] ?? '').replace(/^#+\s*/, '').replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1') || 'Thread #' + one.thread
+}
 
 /** The message that put it here: the newest reply or mention, else its root. */
 const latestOf = (one: InboxItem) => {
