@@ -149,6 +149,8 @@ usage  wb <command> [flags]
   docs [<channel>]            the docs you can read
   doc <subcommand> ...        read, create, edit, history, diff, move, backlinks
   grants                      who may do what; create, revoke, explain
+  subscribe <key> --sink ...  be woken at a sink by rules; unsubscribe
+  subscriptions               your subscriptions
   token                       how to get a token
 
 flags  --url <url>      the board (WORKBUS_URL)
@@ -842,6 +844,46 @@ wb grants explain <channel> [--user <id>|--github <owner/name>|--app <id>]
 
 What a principal (you, without one) may do in a channel, and which grant
 says so.
+```
+
+### subscribe
+
+```
+$ wb subscribe --help
+wb subscribe <key> --sink <name> --rule <rule>... [--revision <n>] [--as <profile>]
+
+Subscribe as yourself (your --as profile too) to a sink the board's
+deployment declares: the board delivers each event your rules match there, in order
+per thread. The same key again replaces it; an older --revision changes nothing.
+
+rule  mention, follow, assigned, dm, schedules, ready=<channel>, docs=<channel>,
+      or tail=<expression>; name one with id:rule (queue:ready=work/)
+```
+
+A board refuses a sink its deployment doesn't declare, or one that doesn't let your principal target it: [Watchers](/guides/watchers/#subscriptions) covers sinks, rules, and delivery. On the plain deployment, which declares none:
+
+```
+$ wb subscribe ada --sink wake --rule mention --as ada
+error: couldn't subscribe ada
+  404 sink_not_found  this board has no sink wake: its deployment names the sinks it delivers to
+```
+
+### subscriptions
+
+```
+$ wb subscriptions --help
+wb subscriptions [--prefix <key prefix>]
+
+Your principal's subscriptions (every one, with manage at *).
+```
+
+### unsubscribe
+
+```
+$ wb unsubscribe --help
+wb unsubscribe <key> [--revision <n>]
+
+Remove a subscription, unless --revision is older than the one it holds.
 ```
 
 ### token

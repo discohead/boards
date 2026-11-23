@@ -261,6 +261,10 @@ export class Board {
   sync = new Map<string, string>()
   /** The deployment's private channels (WorkbusConfig.private). */
   privacy: Privacy | null = null
+  /** The service sinks the deployment declares (WorkbusConfig.sinks): who may target each. */
+  sinks = new Map<string, { binding: string; method?: string; principals: readonly string[] }>()
+  /** Empties a Mailbox, by name, after a write: the Ledger sets it when it has one. */
+  clearMailbox: ((name: string) => Promise<void>) | null = null
   private grantsCache: { version: number; grants: StoredGrant[] } | null = null
   readonly sql: Sql
   constructor(sql: Sql) {

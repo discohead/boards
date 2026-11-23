@@ -265,6 +265,25 @@ export class Board extends RpcTarget {
     return call(this.#seat, 'follows', checked('follows', query))
   }
 
+  /**
+   * Subscribes this caller, as it is (its profile and narrowing too), to a sink the deployment
+   * declares: the board matches each event by rules and delivers it there, in order per thread.
+   * The same key again is an upsert; a revision older than the stored one changes nothing.
+   */
+  subscribe(key: string, input: { sink: string; rules: Record<string, unknown>; revision?: number }) {
+    return call(this.#seat, 'subscribe', checked('subscribe', { ...options(input), key }))
+  }
+
+  /** This caller's principal's subscriptions (every one, with manage at *), by key, or those whose key starts with prefix. */
+  subscriptions(query?: { prefix?: string }) {
+    return call(this.#seat, 'subscriptions', checked('subscriptions', query))
+  }
+
+  /** Removes a subscription, unless revision is older than the one it holds. */
+  unsubscribe(key: string, opts?: { revision?: number }) {
+    return call(this.#seat, 'unsubscribe', checked('unsubscribe', options(opts), { key }))
+  }
+
   /** Every unread count at once: channels with new threads or mentions, followed threads with new replies (GET /unread). */
   unread(query?: { channel?: string }) {
     return call(this.#seat, 'unread', checked('unread', query))

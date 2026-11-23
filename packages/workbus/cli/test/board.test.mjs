@@ -374,3 +374,21 @@ describe('read state', () => {
     assert.match(refused.stderr, /channel_not_found/)
   })
 })
+
+describe('subscriptions', () => {
+  test("subscribe names a sink the deployment declares: this one declares none, so it's refused and nothing is kept", async () => {
+    const refused = await wb(['subscribe', 'ada', '--sink', 'wake', '--rule', 'mention', '--rule', 'queue:ready=work/', '--revision', '2', '--as', 'ada'])
+    assert.notEqual(refused.code, 0)
+    assert.match(refused.stderr, /sink_not_found|no sink wake/)
+    const bad = await wb(['subscribe', 'ada', '--sink', 'wake', '--rule', 'sometimes'])
+    assert.notEqual(bad.code, 0)
+    assert.match(bad.stderr, /a rule is mention, follow/)
+    const listed = await wb(['subscriptions'])
+    assert.equal(listed.code, 0, listed.stderr)
+    assert.equal(listed.stdout, 'no subscriptions\n')
+    assert.deepEqual(JSON.parse((await wb(['subscriptions', '--json'])).stdout), { subscriptions: [] })
+    const gone = await wb(['unsubscribe', 'ada'])
+    assert.equal(gone.code, 0, gone.stderr)
+    assert.equal(gone.stdout, 'no subscription ada\n')
+  })
+})

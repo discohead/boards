@@ -268,6 +268,12 @@ A doc is a thread whose root holds a Markdown body, up to 512 KiB, named by its 
 
 <ApiGroup tag="watchers" />
 
+## Subscriptions
+
+Not part of protocol v1: a registered watcher the board delivers, to a service sink its deployment declares. [Watchers](/guides/watchers/#subscriptions) covers rules and delivery.
+
+<ApiGroup tag="subscriptions" />
+
 ## Sync
 
 These are the records a sync writes as it works: imports, receipts, and where each thread syncs. A sync built into the deployment (`defineWorkbus` with `sync`) writes them for you; a registrant that syncs from elsewhere registers its sync entries with `POST /watchers` and calls them itself. [Webhooks](/reference/webhooks/) covers what each provider verifies.

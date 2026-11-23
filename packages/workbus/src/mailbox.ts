@@ -12,8 +12,11 @@ type Env = { LEDGER: Namespace; MAILBOX: Namespace }
 
 /** Where a Mailbox delivers. */
 export type Sink =
-  /** A Worker entrypoint, by its binding's name in env: the Mailbox calls binding[method](event, context). */
-  | { kind: 'service'; binding: string; method?: string }
+  /**
+   * A Worker entrypoint, by its binding's name in env: the Mailbox calls binding[method](event, context).
+   * A subscription's (design/registered-watchers.md) is handed no board: its subscriber isn't the board's own code.
+   */
+  | { kind: 'service'; binding: string; method?: string; subscription?: { key: string; principal: string; actor: string } }
   /** A URL, POSTed the match as JSON, signed with an HMAC of the body when there's a secret. */
   | { kind: 'url'; url: string; secret?: string }
   /** A sync's courier: the provider of the board's own sync under this key posts, edits, deletes, and reacts. */
@@ -23,6 +26,8 @@ export type Match = { id: string; watcher: string; thread: string; event: BoardE
 export type Delivered = { board: string; watcher: string; match: string; attempt: number }
 /** What a service sink is handed beside the event: the board as the watcher, and the board's name. */
 export type DeliveredContext = Omit<Delivered, 'board'> & { board: WatcherBoard; name: string }
+/** What a subscription's sink is handed beside the event: which subscription, and which of its rules matched. Dedupe on (subscription, event.cursor). */
+export type SubscriptionContext = { board: string; subscription: string; principal: string; actor: string; rules: string[]; match: string; attempt: number }
 
 const TRIES = 5
 const LEASE_MS = 5 * 60 * 1000
@@ -92,6 +97,11 @@ export class Mailbox extends DurableObject<Env> {
     await this.arm(now)
   }
 
+  /** Forgets everything queued: its subscription was removed. */
+  async clear(): Promise<void> {
+    this.ctx.storage.sql.exec('delete from queue')
+  }
+
   /** What's queued, delivering, and failed: for vb and tests. */
   async status(): Promise<{ pending: number; failed: { id: string; error: string | null }[] }> {
     const pending = (this.ctx.storage.sql.exec("select count(*) as n from queue where state = 'pending'").one() as { n: number }).n
@@ -154,6 +164,12 @@ export class Mailbox extends DurableObject<Env> {
     if (sink.kind === 'service') {
       const target = (this.env as unknown as Record<string, Record<string, (...args: unknown[]) => Promise<unknown>>>)[sink.binding]
       if (!target) throw new Error('no binding ' + sink.binding)
+      if (sink.subscription) {
+        const held = event as unknown as { event: BoardEventView; rules: string[] }
+        const context: SubscriptionContext = { board: row.board, subscription: sink.subscription.key, principal: sink.subscription.principal, actor: sink.subscription.actor, rules: held.rules, match: row.id, attempt }
+        await target[sink.method ?? 'onEvent']!(held.event, context)
+        return
+      }
       // An RPC stub: its methods are called on it, never through Function.prototype.call.
       await target[sink.method ?? 'onEvent']!(event, { ...context, name: row.board, board: new WatcherBoard(this.env, row.board, row.watcher, row.id) } satisfies DeliveredContext)
       return

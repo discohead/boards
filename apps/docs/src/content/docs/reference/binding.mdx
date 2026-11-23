@@ -109,6 +109,9 @@ class Board extends RpcTarget {
   follows(query?: { limit?: number })                                             // GET /follows
   unread(query?: { channel?: string })                                            // GET /unread: every unread count at once
   markRead(input: { channel?: string; thread?: string; upto?: string })           // POST /read: up to now, or up to a message
+  subscribe(key: string, input: { sink: string; rules: Record<string, Rule>; revision?: number }) // POST /subscriptions: as this caller, profile and narrowing too
+  subscriptions(query?: { prefix?: string })                                      // GET /subscriptions
+  unsubscribe(key: string, opts?: { revision?: number })                          // POST /subscriptions/{key}/delete
   label(id: string, change: { set?: Record<string, string>; unset?: string[]; if?: Record<string, string | null> })
 
   // the feed

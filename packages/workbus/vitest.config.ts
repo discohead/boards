@@ -13,7 +13,7 @@ export default defineConfig(async () => {
       cloudflareTest({
         main: './test/worker.ts',
         wrangler: { configPath: './wrangler.jsonc' },
-        miniflare: { bindings: { ARCHIVE: 'off', BOARD_ISSUER_KEY: JSON.stringify(issuerKey), ACCESS_TEAM: 'workbus-test', ACCESS_AUD: 'workbus-test-aud', ACCESS_OWNERS: 'Owner@Example.test, ' } },
+        miniflare: { serviceBindings: { WAKE: { name: 'workbus', entrypoint: 'TestWake' } }, bindings: { ARCHIVE: 'off', BOARD_ISSUER_KEY: JSON.stringify(issuerKey), ACCESS_TEAM: 'workbus-test', ACCESS_AUD: 'workbus-test-aud', ACCESS_OWNERS: 'Owner@Example.test, ' } },
       }),
     ],
     test: { include: ['test/**/*.test.ts'], testTimeout: 30_000 },

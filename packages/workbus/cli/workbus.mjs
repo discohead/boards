@@ -14,6 +14,7 @@ import { download, upload } from './lib/commands/files.mjs'
 import { grants } from './lib/commands/grants.mjs'
 import { doc, docs } from './lib/commands/docs.mjs'
 import { markRead, unread } from './lib/commands/reads.mjs'
+import { subscribe, subscriptions, unsubscribe } from './lib/commands/subscriptions.mjs'
 
 const VERSION = (() => {
   try {
@@ -49,7 +50,7 @@ const token = {
 
 const COMMANDS = {
   whoami, name, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
-  tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, token,
+  tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, subscribe, subscriptions, unsubscribe, token,
 }
 
 const OVERVIEW = [
@@ -83,6 +84,8 @@ const OVERVIEW = [
     ['docs [<channel>]', 'the docs you can read'],
     ['doc <subcommand> ...', 'read, create, edit, history, diff, move, backlinks'],
     ['grants', 'who may do what; create, revoke, explain'],
+    ['subscribe <key> --sink ...', 'be woken at a sink by rules; unsubscribe'],
+    ['subscriptions', 'your subscriptions'],
     ['token', 'how to get a token'],
   ], '  '),
   '',

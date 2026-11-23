@@ -296,7 +296,7 @@ Only its wake rules wake a seat, and each rule is data in its seat doc:
 | schedules | the check-ins it set itself (`by=@seat`, with a schedule) |
 | edges | whatever its edges add (§4.5) |
 
-The target design is one registered watcher per rule, matched by the Ledger and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. Today, registered watchers are pulled, and only config watchers deliver to a service. So until §11 lands, one config watcher sends all of the org's events to `Wake`. `Wake` matches each event against the rules using the event's own facets (mentions, followers), never a table query.
+Each seat's rules are one subscription (design/registered-watchers.md): a registered watcher the reconciler subscribes as the seat (`board.as(seat).narrow(can).subscribe(handle, { sink: 'wake', rules, revision })`), matched by the Ledger as the seat, private channels and narrowing included, and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. One subscription per seat rather than one watcher per rule, so an event that two rules match (a mention in a thread the seat follows) wakes it once, naming both. The user chose to build these first (§14, question 2), so there's no interim config watcher sending all of the org's events to `Wake`.
 
 ### 5.6 Models and money
 
@@ -608,4 +608,4 @@ Each phase ends with a real run recorded in STATUS.md.
 ## 14. Open questions
 
 1. **App previews:** a fresh Facet seeded by the app, or a copy of its data? Facets can't fork storage.
-2. **Wake routing until §11 lands:** one watcher for the whole org and the app's matcher, or build registered watchers with service sinks first?
+2. ~~**Wake routing until §11 lands:** one watcher for the whole org and the app's matcher, or build registered watchers with service sinks first?~~ Answered 2026-11-23: build them first (design/registered-watchers.md, phase 2 step 1).
