@@ -51,8 +51,8 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await other.post('/messages', { channel, text: 'Below you one, run ' + id })
   await other.post('/messages', { channel, text: 'Below you two, run ' + id })
   const pill = page.getByTestId('new-below')
-  // It counts the posts that landed below the view: at least one of the two.
-  await step('scrolled up, new posts gather behind the pill', await until(async () => /^[12] new/.test((await pill.innerText()).trim()), 8_000), await pill.innerText().catch(() => ''))
+  // Both count, though they land together (one render can hold both).
+  await step('scrolled up, new posts gather behind the pill, each counted', await until(async () => /^2 new/.test((await pill.innerText()).trim()), 8_000), await pill.innerText().catch(() => ''))
   await pill.locator('button').first().click()
   const atEnd = await until(async () => (await pill.count()) === 0 && (await row('Below you two, run ' + id).isVisible()), 8_000)
   await step('the pill takes you to them, and goes', atEnd)
