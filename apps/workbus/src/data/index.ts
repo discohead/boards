@@ -32,6 +32,8 @@ export async function readFirstPages(runtime: BusRuntime, options: { deadlineMs?
   const db = new DbClient({ bus: runtime })
   const materialize = db.collection.bind(db) as (descriptor: unknown) => Collection<object, string>
   const loads: Promise<unknown>[] = FIRST_PAGES.map((descriptor) => materialize(descriptor).preload())
+  let me: Me | null = null
+  loads.push(runtime.client.get<Me>('/me').then((answer) => (me = answer)))
   // The channel the page shows: its own first page of threads, as an opened channel reads it.
   if (options.channel) loads.push(Promise.all(loads).then(() => busOf(db).openChannel(options.channel!)))
   const timer = new Promise<'late'>((resolve) => setTimeout(() => resolve('late'), deadlineMs))
@@ -39,22 +41,27 @@ export async function readFirstPages(runtime: BusRuntime, options: { deadlineMs?
   const result = await Promise.race([Promise.allSettled(loads).then(() => 'read' as const), timer])
   const state = db.dehydrate({ shouldDehydrateCollection: (collection) => collection.status === 'ready' })
   await db.cleanup()
-  return { state, late: result === 'late' }
+  return { state, me: me as Me | null, late: result === 'late' }
 }
 
-/** A DbClient whose collections follow one feed: the page's one, or a script's. */
-export function liveDb(options: BusOptions & { keep?: number }): DbClient {
+/** A DbClient whose collections follow one feed: the page's one, or a script's. `me`, when the server read it, saves asking. */
+export function liveDb(options: BusOptions & { keep?: number; me?: Me | null }): DbClient {
   const runtime = createRuntime('browser', options)
-  runtime.shared.set('me', runtime.client.get<Me>('/me').then((me) => Object.assign(runtime.me, me)))
+  if (options.me) Object.assign(runtime.me, options.me)
+  runtime.shared.set('me', options.me ? Promise.resolve(runtime.me) : runtime.client.get<Me>('/me').then((me) => Object.assign(runtime.me, me)))
   return new DbClient({ bus: runtime })
 }
 
 let browser: DbClient | null = null
 /** The page's one DbClient. */
-export const browserDb = (options: BusOptions) => (browser ??= liveDb(options))
+export const browserDb = (options: BusOptions & { me?: Me | null }) => (browser ??= liveDb(options))
 
 /** A DbClient for the server's render: it holds the loader's rows and never reads. */
-export const renderDb = () => new DbClient({ bus: createRuntime('render', { url: 'https://render.invalid' }) })
+export const renderDb = (me?: Me | null) => {
+  const runtime = createRuntime('render', { url: 'https://render.invalid' })
+  if (me) Object.assign(runtime.me, me)
+  return new DbClient({ bus: runtime })
+}
 
 type Of<T extends object> = Collection<T, string, BusUtils<T>>
 export type BusCollections = { channels: Of<Channel>; threads: Of<Thread>; messages: Of<Message>; tasks: Of<Message>; docs: Of<Doc>; actors: Of<Actor>; follows: Of<Follow>; bodies: Of<DocBody> }

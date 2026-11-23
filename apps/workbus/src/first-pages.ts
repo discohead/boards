@@ -22,8 +22,8 @@ export const firstPages = createServerFn()
     return env.BUS.fetch(request)
   }
   // The state goes as JSON text: its rows are the board's own JSON.
-  if (!assertion && !token) return { state: null as string | null, late: false, token: null as string | null }
+  if (!assertion && !token) return { state: null as string | null, me: null as string | null, late: false, token: null as string | null }
   const runtime = createRuntime('server', { url: BUS_URL, fetch: forwarded as typeof fetch, ...(token ? { token } : {}) })
-  const { state, late } = await readFirstPages(runtime, data)
-  return { state: JSON.stringify(state) as string | null, late, token: token ?? null }
+  const { state, me, late } = await readFirstPages(runtime, data)
+  return { state: JSON.stringify(state) as string | null, me: me ? (JSON.stringify(me) as string | null) : null, late, token: token ?? null }
 })

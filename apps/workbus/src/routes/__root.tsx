@@ -2,11 +2,13 @@
 // the sidebar, the main area, and the thread pane, whose open thread is ?thread=<id> on any route.
 import { useMemo, type ReactNode } from 'react'
 import type { DehydratedDbState } from '@tanstack/db'
-import { HeadContent, Outlet, Scripts, createRootRoute } from '@tanstack/react-router'
+import { HeadContent, Outlet, Scripts, createRootRoute, useLocation, useSearch } from '@tanstack/react-router'
 import { firstPages } from '../first-pages.ts'
 import { BusProvider } from '../db.tsx'
 import { Sidebar } from '../shell/sidebar.tsx'
 import { ThreadPane } from '../shell/thread-pane.tsx'
+import { TopBar } from '../shell/top-bar.tsx'
+import type { Me } from '../data/index.ts'
 import { Keyboard } from '../command/Keyboard.tsx'
 import css from '../styles.css?url'
 
@@ -59,16 +61,33 @@ function Document({ children }: { children: ReactNode }) {
 function Frame() {
   const first = Route.useLoaderData()
   const state = useMemo(() => (first?.state ? (JSON.parse(first.state) as DehydratedDbState) : null), [first?.state])
+  const me = useMemo(() => (first?.me ? (JSON.parse(first.me) as Me) : null), [first?.me])
+  const pathname = useLocation({ select: (location) => location.pathname })
+  const threadOpen = useSearch({ strict: false, select: (search: RootSearch) => search.thread !== undefined })
   return (
-    <BusProvider state={state} token={first?.token ?? null}>
+    <BusProvider state={state} me={me} token={first?.token ?? null}>
       <div className="flex h-svh overflow-hidden">
         <Sidebar />
-        <main className="min-w-0 flex-1 overflow-y-auto">
-          <Outlet />
+        <main className="flex min-w-0 flex-1 flex-col">
+          <TopBar title={titleOf(pathname)} />
+          <div data-testid="workspace" className="flex min-h-0 flex-1">
+            {/* The view's list: the whole width alone, the list's width beside an open thread. */}
+            <div className={threadOpen ? 'flex w-[344px] shrink-0 flex-col border-r' : 'flex min-w-0 flex-1 flex-col'}>
+              <Outlet />
+            </div>
+            <ThreadPane />
+          </div>
         </main>
-        <ThreadPane />
       </div>
       <Keyboard />
     </BusProvider>
   )
+}
+
+/** The top bar's view title, by route. */
+function titleOf(pathname: string): string {
+  const channel = /^\/c\/(.+)$/.exec(pathname)?.[1]
+  if (channel) return decodeURIComponent(channel)
+  const first = pathname.split('/')[1] ?? ''
+  return ({ '': 'Inbox', 'my-work': 'My work', tasks: 'Tasks', docs: 'Docs', settings: 'Settings' } as Record<string, string>)[first] ?? 'Workbus'
 }

@@ -22,6 +22,8 @@ export class Feed {
   /** The cursor the feed has read to: every event at or before it has been handed out. */
   cursor: number | null = null
   health = new Set<FeedHealth>()
+  /** Told each time the cursor moves (the top bar's "Live log / #cursor"). */
+  watchers = new Set<(cursor: number) => void>()
 
   constructor(client: BusClient) {
     this.#client = client
@@ -78,6 +80,7 @@ export class Feed {
   #advance(cursor: number) {
     if (this.cursor !== null && cursor <= this.cursor) return
     this.cursor = cursor
+    for (const watcher of this.watchers) watcher(cursor)
     const due = this.#waiters.filter((waiter) => waiter.cursor <= cursor)
     this.#waiters = this.#waiters.filter((waiter) => waiter.cursor > cursor)
     for (const waiter of due) waiter.resolve()
