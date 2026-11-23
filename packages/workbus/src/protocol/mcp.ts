@@ -136,8 +136,8 @@ const TOOLS = [
   },
   {
     name: 'doc_create',
-    description: 'Make a doc at channel/slug, from its Markdown body, or from another doc as a template (from: its id, filling {{title}}, {{author}}, {{date}}).',
-    inputSchema: { type: 'object', properties: { channel: { type: 'string' }, slug: { type: 'string' }, body: { type: 'string' }, from: { type: 'string' }, labels: { type: 'object', additionalProperties: { type: 'string' } } }, required: ['channel', 'slug'], additionalProperties: false },
+    description: 'Make a doc at channel/slug, from its Markdown body, or from another doc as a template (from: its id, filling {{title}}, {{author}}, {{date}}). Without the edit permission there, send propose: true (and a note): the new doc becomes a task someone completes to create it.',
+    inputSchema: { type: 'object', properties: { channel: { type: 'string' }, slug: { type: 'string' }, body: { type: 'string' }, from: { type: 'string' }, labels: { type: 'object', additionalProperties: { type: 'string' } }, propose: { type: 'boolean' }, note: { type: 'string' } }, required: ['channel', 'slug'], additionalProperties: false },
   },
   {
     name: 'doc_search',
@@ -190,7 +190,7 @@ async function callTool(ctx: Ctx, name: string, args: Record<string, unknown>) {
         return content(await ctx.board.docs.edit(id, pick(args, ['revision', 'base', 'edits', 'body', 'merge', 'propose', 'note'])))
       }
       case 'doc_create':
-        return content(await ctx.board.docs.create(pick(args, ['channel', 'slug', 'body', 'from', 'labels']) as { channel: string; slug: string }))
+        return content(await ctx.board.docs.create(pick(args, ['channel', 'slug', 'body', 'from', 'labels', 'propose', 'note']) as { channel: string; slug: string }))
       case 'doc_search': {
         const label = typeof args.label === 'string' ? ['board.doc', args.label] : 'board.doc'
         const page = (await ctx.board.threads({ ...pick(args, ['text', 'channel', 'limit']), label })) as { threads: { message: { doc?: { id: string; path: string; title: string; revision: string }; editedAt: string | null; createdAt: string } }[] }

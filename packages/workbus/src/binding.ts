@@ -348,8 +348,11 @@ export class Docs extends RpcTarget {
     this.#seat = seat
   }
 
-  /** Makes a doc at channel/slug from its body, or from another doc as a template (from). */
-  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string }) {
+  /**
+   * Makes a doc at channel/slug from its body, or from another doc as a template (from). propose:
+   * true asks for it instead, as a task someone with edit there completes to create it.
+   */
+  create(input: { channel: string; slug: string; body?: string; from?: string; labels?: Record<string, string>; id?: string; propose?: boolean; note?: string }) {
     return call(this.#seat, 'createDoc', checked('createDoc', input))
   }
 

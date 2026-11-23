@@ -282,6 +282,62 @@ describe('proposals', () => {
   })
 })
 
+describe('proposed new docs', () => {
+  const narrowed = { 'x-board-can': '*=read,post' }
+  const finish = async (name: string, id: string, headers: Record<string, string> = {}) => {
+    const claim = (await api(name, 'POST', '/tasks/' + id + '/claim', {}, headers)).body.claim
+    return api(name, 'POST', '/tasks/' + id + '/complete', { epoch: claim.epoch, token: claim.token }, headers)
+  }
+
+  it('someone who may only post proposes a doc; completing the task creates it as proposed, by its completer', async () => {
+    const name = freshBoard('doc-propose-new')
+    const refused = await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'deploy', body: DOC }, narrowed)
+    expect(refused.status).toBe(403)
+    const proposed = await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'deploy', body: DOC, propose: true, note: 'We keep doing this by hand.', labels: { kind: 'runbook' } }, narrowed)
+    expect(proposed.status, JSON.stringify(proposed.body)).toBe(201)
+    const task = proposed.body.proposal
+    expect(task.labels['board.doc.proposal']).toBe('new:docs/runbooks/deploy')
+    expect(task.channel).toBe('docs/runbooks')
+    expect(task.task.state).toBe('ready')
+    // The task shows what it would create: the title, the note, and the body.
+    expect(task.text).toMatch(/^Proposed new doc \[\[docs\/runbooks\/deploy\]\]: Deploy\.\n\nWe keep doing this by hand\.\n\nComplete this task to create it/)
+    expect(task.text.endsWith(DOC)).toBe(true)
+    expect((await api(name, 'GET', '/docs?path=docs/runbooks/deploy')).status).toBe(404)
+    // The one who proposed it can't create it by completing it: that takes edit.
+    const tried = await api(name, 'POST', '/tasks/' + task.id + '/complete', {}, narrowed)
+    expect(tried.status, JSON.stringify(tried.body)).toBe(403)
+    const done = await finish(name, task.id)
+    expect(done.status, JSON.stringify(done.body)).toBe(200)
+    const made = await api(name, 'GET', '/docs?path=docs/runbooks/deploy')
+    expect(made.body.body).toBe(DOC)
+    const root = (await api(name, 'GET', '/messages/' + made.body.doc.id)).body.message
+    expect(root.labels).toMatchObject({ kind: 'runbook', 'board.doc': 'docs/runbooks/deploy' })
+    const created = (await api(name, 'GET', '/events?all=true&last=100')).body.events.find((event: { type: string }) => event.type === 'doc.created')
+    expect(created.payload).toMatchObject({ path: 'docs/runbooks/deploy', proposedBy: 'workbus:user:jared' })
+  })
+
+  it('checks blocks and the slug when proposed, and again when completed; cancel drops it', async () => {
+    const name = freshBoard('doc-propose-checks')
+    const bad = await api(name, 'POST', '/docs', { channel: 'docs/x', slug: 'bad', body: '# Bad\n\n\u0060\u0060\u0060json#git-commit@1\n{"sha":"nope"}\n\u0060\u0060\u0060\n', propose: true }, narrowed)
+    expect(bad.body.error.code).toBe('invalid_block')
+    await create(name)
+    expect((await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'deploy', body: 'x', propose: true }, narrowed)).body.error.code).toBe('slug_taken')
+    // Taken after it was proposed: completing it is refused, and the task stays open.
+    const later = (await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'later', body: '# Later\n', propose: true }, narrowed)).body.proposal
+    await create(name, 'later', '# Theirs\n')
+    const done = await finish(name, later.id)
+    expect(done.body.error.code).toBe('slug_taken')
+    expect((await api(name, 'GET', '/messages/' + later.id)).body.message.task.state).toBe('claimed')
+    // Canceled: nothing is created.
+    const dropped = (await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'dropped', body: '# Dropped\n', propose: true }, narrowed)).body.proposal
+    expect((await api(name, 'POST', '/tasks/' + dropped.id + '/cancel', { reason: 'not now' })).status).toBe(200)
+    expect((await api(name, 'GET', '/docs?path=docs/runbooks/dropped')).status).toBe(404)
+    // A proposal's own fields: propose with an id, or a note without propose, are refused.
+    expect((await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'y', body: 'y', propose: true, id: 'one' })).status).toBe(400)
+    expect((await api(name, 'POST', '/docs', { channel: 'docs/runbooks', slug: 'y', body: 'y', note: 'why' })).status).toBe(400)
+  })
+})
+
 describe('templates, comments, links, and moves', () => {
   it('makes a doc from another, filling its placeholders and recording where it came from', async () => {
     const name = freshBoard('doc-template')
