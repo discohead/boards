@@ -114,6 +114,15 @@ if (pick.has('dm')) {
       return made.length > 0 ? made : null
     }, 240_000)
     check(Boolean(decomposed), 'the operator wakes and decomposes it into eng/queue', decomposed?.map((m) => m.text.slice(0, 80)))
+    // Then the advisor stays quiet: the operator's update in the hand-off's thread (even one that mentions it) gets no answer.
+    if (handoff) {
+      await sleep(90_000)
+      const thread = (await board('GET', '/messages/' + handoff.id)).replies
+      const fromOp = thread.filter((m) => m.by?.actor === OP)
+      const after = thread.filter((m) => byAdvisor(m) && fromOp.some((op) => Number(m.id) > Number(op.id)))
+      console.log('     the operator in the thread: ' + fromOp.map((m) => (m.text.includes('@advisor') ? '[mentions @advisor] ' : '') + m.text.replace(/\n/g, ' ').slice(0, 120)).join(' | '))
+      check(after.length === 0, "the advisor doesn't answer the operator's update", after.map((m) => m.text.slice(0, 120)))
+    }
   }
 }
 
