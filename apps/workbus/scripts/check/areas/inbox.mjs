@@ -2,7 +2,7 @@
 // shows live, opens in the pane, and E marks it done (read on the board): it fades while selected,
 // leaves when the selection moves, and the sidebar's count drops. A task someone else holds for the
 // owner shows held, with its kind, and ⌘↵ answers it. A reply in the owner's thread shows, and the
-// owner's own reply answers it. A proposal shows, and Apply in the Task tab applies it. Someone else
+// owner's own reply answers it. A proposal shows, and Apply on its card applies it. Someone else
 // writes in checks/inbox.
 import { hydrated, until } from '../lib.mjs'
 
@@ -56,15 +56,14 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await owner.post('/messages', { re: root.id, text: 'Two percent it is. ' + id })
   await step("the owner's reply answers it: read on the board, gone from the inbox", (await settle(root.id)) && !(await unreadThreads()).includes(root.id), await unreadThreads())
 
-  // A proposal from someone else on the owner's doc: Apply in the Task tab applies it.
+  // A proposal from someone else on the owner's doc: Apply on its card applies it.
   const slug = 'canary-' + id.toLowerCase().replace(/[^a-z0-9]/g, '')
   const doc = (await owner.post('/docs', { channel, slug, body: '# Canary\n\n## Threshold\n\nOne percent.\n' })).message
   const read = await owner.get('/docs/' + doc.id)
   const proposal = (await other.post('/docs/' + doc.id + '/edit', { edits: [{ section: read.doc.sections.find((one) => one.key.endsWith('threshold')).key, text: 'Two percent.' }], revision: read.doc.revision, propose: true })).proposal
   await step('a proposal on the owner\'s doc shows live', await until(async () => (await item(proposal.id).getAttribute('data-kinds')) === 'proposal', 8_000), await item(proposal.id).innerText().catch(() => ''))
   await item(proposal.id).click()
-  await page.getByTestId('thread-pane').getByRole('tab', { name: 'Task' }).or(page.locator('[data-face=task]')).first().click()
-  await page.getByTestId('task-actions').getByRole('button', { name: 'Apply' }).click()
-  await step('Apply in the Task tab applies it to the doc', await until(async () => (await owner.get('/docs/' + doc.id)).body.includes('Two percent.')))
+  await page.getByTestId('proposal').getByRole('button', { name: /Apply/ }).click()
+  await step('Apply on its card applies it to the doc', await until(async () => (await owner.get('/docs/' + doc.id)).body.includes('Two percent.')))
   await step('and it leaves the inbox', await settle(proposal.id))
 }

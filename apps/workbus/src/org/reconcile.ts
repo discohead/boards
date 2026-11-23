@@ -40,7 +40,7 @@ export async function readOrg(app: Board): Promise<OrgDoc[]> {
       if (!message.doc || message.deleted) continue
       const path: string = message.doc.path
       const split = path.lastIndexOf('/')
-      out.push({ id: message.id, channel: path.slice(0, split), slug: path.slice(split + 1), title: message.doc.title, revision: Number(message.revision), text: message.text, blocks: message.blocks ?? [] })
+      out.push({ id: message.id, channel: path.slice(0, split), slug: path.slice(split + 1), title: message.doc.title, revision: Number(message.revision), text: message.text, blocks: message.blocks ?? [], labels: message.labels ?? {} })
     }
     if (!answer.older) break
     before = answer.older

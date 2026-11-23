@@ -25,7 +25,8 @@ export function TaskActionBar({ task, onDone }: { task: Task; onDone?: (action: 
   const assignable = useAssignable(task.task.owner, me?.actor)
   if (!me) return null
   const proposal = proposalOf(task) !== null
-  const actions = actionsFor(task, me.actor, can(me.can, 'manage', task.channel)).filter((action) => !(proposal && (action === 'claim' || action === 'block' || action === 'assign')))
+  // A proposal's one pair of actions is Apply and Decline, on its card (thread/proposal.tsx): nothing here.
+  const actions = proposal ? [] : actionsFor(task, me.actor, can(me.can, 'manage', task.channel))
   const w = bus.actions.task
   const run = async (action: TaskAction, transaction: { when: (state: 'settled') => Promise<unknown> }) => {
     setError(null)

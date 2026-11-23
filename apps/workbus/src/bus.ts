@@ -18,6 +18,7 @@ export type Board = {
   threads(query?: Record<string, unknown>): Answer
   schedule(input: Record<string, unknown>): Answer
   schedules(query?: Record<string, unknown>): Answer
+  label(id: string, change: { set?: Record<string, string>; unset?: string[] }): Answer
   setWake(key: string, input: { sink: string; rules: Record<string, unknown>; revision?: number }): Answer
   wakes(query?: { prefix?: string }): Answer
   deleteWake(key: string, opts?: { revision?: number }): Answer

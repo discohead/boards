@@ -15,6 +15,7 @@ import { useOpenThread } from '@/shell/open-thread'
 import { channelKey } from '@/data/unread'
 import { Composer } from './composer.tsx'
 import { MessageItem } from './message.tsx'
+import { useRequestRoots } from '@/requests/use-request-roots'
 
 /** The first render (the server's, and hydration's) shows this many of the newest, unvirtualized. */
 const FIRST = 30
@@ -26,6 +27,7 @@ type Item = { key: string; thread: Thread; root: Message; grouped: boolean; fres
 const order = (thread: Thread) => (thread.root.pending ? Number.MAX_SAFE_INTEGER : Number(thread.id))
 
 export function ChannelView({ channel }: { channel: string }) {
+  const requestRoots = useRequestRoots(channel)
   const bus = useBus()
   const { open, thread: openId } = useOpenThread()
   const { data: threads } = useLiveQuery({ query: (q) => q.from({ thread: bus.threads }).where(({ thread }) => eq(thread.channel, channel)) })
@@ -166,6 +168,7 @@ export function ChannelView({ channel }: { channel: string }) {
             {item.fresh ? <NewLine /> : null}
             <MessageItem
               message={item.root}
+              request={requestRoots.get(item.root.id)}
               grouped={item.grouped}
               thread={item.thread}
               replies={repliesOf.get(item.thread.id)}

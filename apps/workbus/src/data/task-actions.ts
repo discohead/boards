@@ -146,6 +146,22 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     },
   })
 
+  /**
+   * Apply a proposal: complete it as its owner, or with manage in its channel, without a claim, so a
+   * refusal (the doc changed since, a block the board won't take) leaves nothing held. The board
+   * applies the change as it completes.
+   */
+  const apply = action<{ id: string }>(db, {
+    onMutate: ({ id }) => patch(id, (task) => void ((task.state = 'completed'), (task.claim = null))),
+    mutationFn: async ({ id }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/complete', {}))),
+  })
+
+  /** Decline a proposal: cancel it, with the reason given (or a plain one). */
+  const decline = action<{ id: string; reason?: string }>(db, {
+    onMutate: ({ id, reason }) => patch(id, (task) => void ((task.state = 'canceled'), (task.claim = null), (task.reason = reason?.trim() || 'Declined.'))),
+    mutationFn: async ({ id, reason }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/cancel', { reason: reason?.trim() || 'Declined.' }))),
+  })
+
   const fail = action<{ id: string; reason: string }>(db, {
     onMutate: ({ id, reason }) => patch(id, (task) => void ((task.state = 'failed'), (task.claim = null), (task.reason = reason))),
     mutationFn: async ({ id, reason }) => {
@@ -198,7 +214,7 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     mutationFn: async ({ id, needs: list }) => void (await settle(() => client.post<Answer>('/tasks/' + id + '/needs', { needs: list }))),
   })
 
-  return { create, claim, release, complete, fail, block, unblock, reopen, assign, cancel, needs, held }
+  return { create, claim, release, complete, apply, decline, fail, block, unblock, reopen, assign, cancel, needs, held }
 }
 
 export type TaskActions = ReturnType<typeof taskActions>

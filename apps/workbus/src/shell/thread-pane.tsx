@@ -13,6 +13,9 @@ import { Button } from '@/components/ui/button'
 import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
 import { Approval } from '@/thread/approval'
+import { ProposalCard } from '@/thread/proposal'
+import { RequestPanel } from '@/thread/request-panel'
+import { describe } from '@/task/proposal'
 import { Body } from '@/thread/body'
 import { ThreadShortcuts } from '@/command/ThreadShortcuts'
 import { useAddFaces } from '@/thread/add-faces'
@@ -43,7 +46,8 @@ function Pane({ id }: { id: string }) {
   const replies = useLiveQuery({ query: (q) => q.from({ thread: bus.threads }).where(({ thread }) => eq(thread.id, id)) }).data[0]?.replies
   const shown = root?.task ? taskState(root.task) : null
   const name = useActorNames()
-  const title = root?.doc?.title ?? (root ? summaryOf(root.text, named(name)) : '')
+  const proposed = root && root.labels['board.doc.proposal'] ? describe(root) : null
+  const title = root?.doc?.title ?? proposed?.title ?? (root ? summaryOf(root.text, named(name)).replace(/\[\[([^\]]+)\]\]/g, '$1') : '')
   const labels = Object.entries(root?.labels ?? {}).filter(([key]) => !key.startsWith('board.'))
   return (
     <aside aria-label="Thread" data-testid="thread-pane" className="flex min-w-0 flex-1 flex-col">
@@ -73,6 +77,8 @@ function Pane({ id }: { id: string }) {
       <ThreadShortcuts threadId={id} />
       <div className="flex min-h-0 flex-1 flex-col">
         {root && open !== 'doc' ? <Approval root={root} /> : null}
+        {root && open !== 'doc' && root.labels['board.doc.proposal'] ? <ProposalCard root={root} /> : null}
+        {root && open === 'conversation' ? <RequestPanel root={root} /> : null}
         {open === 'task' && root?.task ? <Status root={root} /> : null}
         {open === 'doc' && root?.doc ? <Body root={root} /> : null}
         {open === 'conversation' ? <Conversation id={id} /> : null}

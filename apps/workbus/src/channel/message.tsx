@@ -12,6 +12,7 @@ import { Clock } from '@/shell/clock'
 import { Avatar as SystemAvatar, Message as SystemMessage } from '@/components/system'
 import { REACTIONS, Reaction } from './reactions.tsx'
 import { initialsFor, nameInitials } from '@/seats/initials'
+import { RequestLink } from '@/requests/timeline'
 
 /** A name's initials, for an avatar (seats/initials.ts). */
 export const initialsOf = nameInitials
@@ -43,7 +44,9 @@ export function repliers(thread: Thread, replies: Message[]) {
   return seen.slice(0, 5)
 }
 
-export function MessageItem({ message, grouped, thread, replies = [], onOpenThread, editing, onEditing, unreadReplies, arrive }: {
+export function MessageItem({ message, request, grouped, thread, replies = [], onOpenThread, editing, onEditing, unreadReplies, arrive }: {
+  /** The request this message started, when seats' work names it: a link to what happened. */
+  request?: string
   message: Message
   /** Under the same author's message just before it: no header. */
   grouped?: boolean
@@ -109,6 +112,11 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
         <div>
           <MessageText text={message.text} />
           {message.editedAt ? <span className="text-[11px] text-muted-foreground">(edited)</span> : null}
+          {request ? (
+            <div className="mt-1">
+              <RequestLink id={request}>What happened with this →</RequestLink>
+            </div>
+          ) : null}
         </div>
       )}
       {reactions.length ? (

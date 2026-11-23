@@ -1,7 +1,7 @@
 // Docs (design/workbus.md §9.3, design/docs.md): the tree, a doc by section, a section edit (at
 // once, then settled), a conflict that keeps the editor's text, a section comment, another actor's
 // comment arriving live, and the history's diff. The doc is made fresh in checks/docs.
-import { hydrated, until } from '../lib.mjs'
+import { hydrated, until, watchPending } from '../lib.mjs'
 
 const body = (run) => `# Check ${run}
 
@@ -84,8 +84,11 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
   await rollback.getByRole('button', { name: 'Comment on Rollback' }).click()
   const text = 'Should this be automated? (' + id + ')'
   await rollback.getByLabel('Comment on this section').fill(text)
+  // A local bus can settle the write within a frame, before a one-off count reads the page: watch
+  // every DOM change from before the click for a pending comment with this text (lib.watchPending).
+  const sawPending = await watchPending(page, text)
   await rollback.getByRole('button', { name: 'Comment' }).last().click()
-  await step('a section comment shows at once, pending', (await rollback.locator('[data-testid=comment][data-pending=yes]').count()) === 1)
+  await step('a section comment shows at once, pending', await until(sawPending, 5_000))
   const settled = await until(async () => (await rollback.locator('[data-testid=comment][data-pending=yes]').count()) === 0)
   const replies = (await owner.get('/messages/' + doc + '?limit=500')).replies
   await step('and settles, on that section', settled && replies.some((m) => m.text === text && m.labels['board.doc.section'] === key('rollback')))

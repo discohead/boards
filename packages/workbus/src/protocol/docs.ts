@@ -46,6 +46,7 @@ route({ name: 'docAt', method: 'GET', path: '/docs', query: z.strictObject({ pat
 route({ name: 'doc', method: 'GET', path: '/docs/:id', query: z.strictObject(ReadQuery) })
 route({ name: 'editDoc', method: 'POST', path: '/docs/:id/edit', body: EditDocBody })
 route({ name: 'moveDoc', method: 'POST', path: '/docs/:id/move', body: z.strictObject({ channel: ChannelPath.optional(), slug: Slug.optional() }).refine((body) => body.channel !== undefined || body.slug !== undefined, { message: 'a move names a new \u0060channel\u0060, a new \u0060slug\u0060, or both' }) })
+route({ name: 'docProposal', method: 'GET', path: '/docs/proposals/:id' })
 route({ name: 'docHistory', method: 'GET', path: '/docs/:id/history', query: z.strictObject({ after: Revision.optional(), limit: QueryInt(1, 500).optional() }) })
 route({ name: 'docDiff', method: 'GET', path: '/docs/:id/diff', query: z.strictObject({ from: Revision, to: Revision.optional() }) })
 route({ name: 'docBacklinks', method: 'GET', path: '/docs/:id/backlinks' })

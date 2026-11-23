@@ -5,7 +5,7 @@
 
 import { backstopNeeded } from './gateway.ts'
 /** A doc in org/, as its root's message view gives it. */
-export type OrgDoc = { id: string; channel: string; slug: string; title: string; revision: number; text: string; blocks: { schema: string; version: number; data: unknown }[] }
+export type OrgDoc = { id: string; channel: string; slug: string; title: string; revision: number; text: string; blocks: { schema: string; version: number; data: unknown }[]; labels?: Record<string, string> }
 
 export type Permission = 'read' | 'post' | 'react' | 'label' | 'edit' | 'sync' | 'manage'
 export type Can = Record<string, 'all' | Permission[]>
@@ -66,6 +66,11 @@ export type SeatRuntime = {
   /** The newest revision among the docs it came from (seat, team, root): orders its Seat's config. */
   configRevision: number
   doc: string
+  /**
+   * The principal's request that hired it (org.request on its seat doc: a doc made by applying a
+   * proposal keeps the proposal's labels), which its introduction carries; null for a seeded seat.
+   */
+  request: string | null
 }
 
 export type Problem = { doc: string; path: string; revision: number; why: string }
@@ -278,6 +283,7 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
       revision: Math.max(doc.revision, edgeRevision),
       configRevision: Math.max(doc.revision, team?.revision ?? 0, structure?.revision ?? 0, edgeRevision),
       doc: doc.id,
+      request: doc.labels?.['org.request'] ?? null,
     })
   }
   const notices: Problem[] = []

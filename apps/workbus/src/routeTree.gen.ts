@@ -18,6 +18,7 @@ import { Route as CSplatRouteImport } from './routes/c.$'
 import { Route as DevSystemRouteImport } from './routes/dev.system'
 import { Route as DocsIdRouteImport } from './routes/docs.$id'
 import { Route as OrgIndexRouteImport } from './routes/org.index'
+import { Route as RequestsIdRouteImport } from './routes/requests.$id'
 import { Route as SeatsKeyRouteImport } from './routes/seats.$key'
 import { Route as OrgTeamsSlugRouteImport } from './routes/org.teams.$slug'
 
@@ -66,6 +67,11 @@ const OrgIndexRoute = OrgIndexRouteImport.update({
   path: '/org/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RequestsIdRoute = RequestsIdRouteImport.update({
+  id: '/requests/$id',
+  path: '/requests/$id',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SeatsKeyRoute = SeatsKeyRouteImport.update({
   id: '/seats/$key',
   path: '/seats/$key',
@@ -86,6 +92,7 @@ export interface FileRoutesByFullPath {
   '/c/$': typeof CSplatRoute
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
+  '/requests/$id': typeof RequestsIdRoute
   '/seats/$key': typeof SeatsKeyRoute
   '/org/': typeof OrgIndexRoute
   '/org/teams/$slug': typeof OrgTeamsSlugRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByTo {
   '/c/$': typeof CSplatRoute
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
+  '/requests/$id': typeof RequestsIdRoute
   '/seats/$key': typeof SeatsKeyRoute
   '/org': typeof OrgIndexRoute
   '/org/teams/$slug': typeof OrgTeamsSlugRoute
@@ -113,6 +121,7 @@ export interface FileRoutesById {
   '/c/$': typeof CSplatRoute
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
+  '/requests/$id': typeof RequestsIdRoute
   '/seats/$key': typeof SeatsKeyRoute
   '/org/': typeof OrgIndexRoute
   '/org/teams/$slug': typeof OrgTeamsSlugRoute
@@ -128,6 +137,7 @@ export interface FileRouteTypes {
     | '/c/$'
     | '/dev/system'
     | '/docs/$id'
+    | '/requests/$id'
     | '/seats/$key'
     | '/org/'
     | '/org/teams/$slug'
@@ -141,6 +151,7 @@ export interface FileRouteTypes {
     | '/c/$'
     | '/dev/system'
     | '/docs/$id'
+    | '/requests/$id'
     | '/seats/$key'
     | '/org'
     | '/org/teams/$slug'
@@ -154,6 +165,7 @@ export interface FileRouteTypes {
     | '/c/$'
     | '/dev/system'
     | '/docs/$id'
+    | '/requests/$id'
     | '/seats/$key'
     | '/org/'
     | '/org/teams/$slug'
@@ -167,6 +179,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   CSplatRoute: typeof CSplatRoute
   DevSystemRoute: typeof DevSystemRoute
+  RequestsIdRoute: typeof RequestsIdRoute
   SeatsKeyRoute: typeof SeatsKeyRoute
   OrgIndexRoute: typeof OrgIndexRoute
   OrgTeamsSlugRoute: typeof OrgTeamsSlugRoute
@@ -237,6 +250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrgIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/requests/$id': {
+      id: '/requests/$id'
+      path: '/requests/$id'
+      fullPath: '/requests/$id'
+      preLoaderRoute: typeof RequestsIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seats/$key': {
       id: '/seats/$key'
       path: '/seats/$key'
@@ -272,6 +292,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   CSplatRoute: CSplatRoute,
   DevSystemRoute: DevSystemRoute,
+  RequestsIdRoute: RequestsIdRoute,
   SeatsKeyRoute: SeatsKeyRoute,
   OrgIndexRoute: OrgIndexRoute,
   OrgTeamsSlugRoute: OrgTeamsSlugRoute,
