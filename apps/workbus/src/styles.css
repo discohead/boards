@@ -24,9 +24,48 @@
   font-style: normal;
   font-display: swap;
 }
+/* The fallbacks while Geist loads: local faces scaled to Geist's widths and given its vertical
+   metrics (ascent 1005, descent 295, no line gap, per 1000), so the swap moves nothing. Widths were
+   measured against Geist in Chrome; regular and bold differ, so each has its own face. */
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial"), local("ArialMT"), local("Liberation Sans"), local("Arimo");
+  font-weight: 100 549;
+  size-adjust: 101.67%;
+  ascent-override: 98.85%;
+  descent-override: 29.02%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Geist Fallback";
+  src: local("Arial Bold"), local("Arial-BoldMT"), local("Liberation Sans Bold"), local("Arimo Bold");
+  font-weight: 550 900;
+  size-adjust: 100.01%;
+  ascent-override: 100.49%;
+  descent-override: 29.50%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Geist Mono Fallback";
+  src: local("Menlo"), local("Menlo-Regular"), local("Courier New"), local("Liberation Mono");
+  font-weight: 100 549;
+  size-adjust: 99.66%;
+  ascent-override: 100.84%;
+  descent-override: 29.60%;
+  line-gap-override: 0%;
+}
+@font-face {
+  font-family: "Geist Mono Fallback";
+  src: local("Menlo Bold"), local("Menlo-Bold"), local("Courier New Bold"), local("Liberation Mono Bold");
+  font-weight: 550 900;
+  size-adjust: 99.66%;
+  ascent-override: 100.84%;
+  descent-override: 29.60%;
+  line-gap-override: 0%;
+}
 :root {
-  --wb-font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --wb-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  --wb-font-sans: "Geist", "Geist Fallback", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --wb-font-mono: "Geist Mono", "Geist Mono Fallback", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Color, from tokens.css. The --wb- prefix keeps them apart from shadcn's names (its --muted is a
