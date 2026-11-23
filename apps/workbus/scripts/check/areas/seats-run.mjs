@@ -18,7 +18,7 @@ export async function run({ page, base, owner, run: id, step, must }) {
   let hold = pending(before)[0]
   let work = hold?.thread
   if (!hold) {
-    work = (await owner.post('/tasks', { channel: 'eng/queue', text: 'Run the command \'echo ' + id + '\' with exec in your workspace, then complete this task with what it printed.', for: 'worker:workbus-app+ada' })).task.id
+    work = (await owner.post('/tasks', { channel: 'eng/queue', text: 'Run one exec whose module returns the string ' + id + ' (export default () => "' + id + '"), then complete this task with what it returned. Nothing else.', for: 'worker:workbus-app+ada' })).task.id
     await until(async () => (hold = pending(await dev('status')).find((one) => one.thread === work)), 120_000)
   }
   await must('the seat holds its exec for the principal: a task of its own, held for approval', !!hold && (await owner.get('/messages/' + hold.task + '?limit=1')).message.task.blocked?.kind === 'approval', hold)

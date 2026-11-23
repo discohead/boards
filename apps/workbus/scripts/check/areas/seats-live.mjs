@@ -33,7 +33,7 @@ export async function run({ page, base, owner, run: id, step, must }) {
 
   // One live run: the principal asks the operator, the operator gives Ada a task, Ada's exec is held.
   const holdsBefore = new Set(before.holds.map((hold) => hold.task))
-  const asked = (await owner.post('/messages', { channel: 'dm/op', text: 'Make one task in eng/queue for @ada: run the command echo ' + id + ' with exec in her workspace, then complete the task with what it printed. Nothing else.' })).message.id
+  const asked = (await owner.post('/messages', { channel: 'dm/op', text: 'Make one task in eng/queue for @ada: run one exec whose module returns the string ' + id + ' (export default () => "' + id + '"), then complete the task with what it returned. Nothing else.' })).message.id
   const states = []
   const watch = setInterval(async () => {
     const shown = await seatRow('ada').getAttribute('data-state').catch(() => null)
@@ -53,7 +53,17 @@ export async function run({ page, base, owner, run: id, step, must }) {
     await step('"Ada wants to run exec.", with where and what', await until(async () => /Ada wants to run exec\.[\s\S]*In #\d+:/.test(await card.innerText()), 10_000), (await card.innerText()).replace(/\n+/g, ' | '))
     await card.getByRole('button', { name: /Approve/ }).click()
     await step('Approve lands approved on the board', await until(async () => (await owner.get('/messages/' + hold.task + '?limit=1')).message.task.answer?.decision === 'approved'), hold)
-    await step('her work completes', await until(async () => (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed', 240_000, 2_000), (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task)
+    // Should she hold another call in the same work, it's approved too (over the board's API), and counted.
+    const extra = []
+    const done = await until(async () => {
+      for (const one of (await status('ada')).holds)
+        if (one.state === 'held' && one.thread === hold.thread && one.task !== hold.task && !extra.includes(one.task)) {
+          extra.push(one.task)
+          await owner.post('/tasks/' + one.task + '/unblock', { decision: 'approved', note: 'approved by the live check' })
+        }
+      return (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed'
+    }, 240_000, 2_000)
+    await step('her work completes', done, { task: (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task, moreApprovals: extra })
     await step('and she is active again', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 60_000), states)
     await step('her state went waiting, then working, then active', states.join(' ').includes('waiting') && states.indexOf('working', states.lastIndexOf('waiting')) > 0 && states.at(-1) === 'active', states)
     const after = await status('ada')
