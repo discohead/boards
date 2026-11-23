@@ -74,7 +74,7 @@ export function CommandPalette({ query, groups, onQueryChange, open, onOpenChang
   )
   if (onOpenChange)
     return (
-      <CommandDialog open={open} onOpenChange={onOpenChange} className={className}>
+      <CommandDialog open={open} onOpenChange={onOpenChange} shouldFilter={false} className={className}>
         {body}
       </CommandDialog>
     )
