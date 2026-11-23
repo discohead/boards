@@ -33,36 +33,69 @@ export async function run({ page, base, owner, run: id, step, must }) {
 
   // One live run: the principal asks the operator, the operator gives Ada a task, Ada's exec is held.
   const holdsBefore = new Set(before.holds.map((hold) => hold.task))
-  const asked = (await owner.post('/messages', { channel: 'dm/op', text: 'Make one task in eng/queue for @ada: run the command echo ' + id + ' with exec in her workspace, then complete the task with what it printed. Nothing else.' })).message.id
+  const asked = (await owner.post('/messages', { channel: 'dm/op', text: 'Make one task in eng/queue for @ada: run one exec whose module returns the string ' + id + ' (export default () => "' + id + '"), then complete the task with what it returned. Nothing else.' })).message.id
+  // Ada's states as her Seat reports them (GET /api/seats/ada through the browser context's own
+  // request client, which a navigation doesn't hold up), every 250 ms, and as the sidebar shows them.
   const states = []
-  const watch = setInterval(async () => {
-    const shown = await seatRow('ada').getAttribute('data-state').catch(() => null)
-    if (shown && states.at(-1) !== shown) states.push(shown)
-  }, 250)
+  const shown = []
+  let sampling = true
+  const sample = (async () => {
+    while (sampling) {
+      const state = await page.context().request.get(base + '/api/seats/ada', { timeout: 2_000 }).then((answer) => answer.json()).then((body) => body.state).catch(() => null)
+      if (state && states.at(-1) !== state) states.push(state)
+      const dom = await seatRow('ada').getAttribute('data-state', { timeout: 200 }).catch(() => null)
+      if (dom && shown.at(-1) !== dom) shown.push(dom)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  })()
+  const watch = { stop: async () => ((sampling = false), await sample) }
   try {
     let hold = null
     await must('Ada\'s exec is held for approval', await until(async () => (hold = (await status('ada')).holds.find((one) => one.state === 'held' && !holdsBefore.has(one.task))), 240_000, 2_000), { asked })
-    await step('her state shows waiting', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 15_000), states)
+    const waiting = await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 90_000)
+    await step('her state shows waiting', waiting, waiting ? { seat: states, sidebar: shown } : 'Ada not shown waiting after 90 s: ' + JSON.stringify({ seat: states, sidebar: shown }))
     await page.goto(base + '/')
     await hydrated(page)
     const item = page.locator('[data-testid=inbox] [data-item="' + hold.task + '"]')
-    await must('the inbox shows it, an approval', await until(async () => /approval/i.test(await item.innerText()), 15_000))
+    // A model turn can take a while: the inbox gets up to 90 s to show the approval.
+    const shownInInbox = await until(async () => /approval/i.test(await item.innerText()), 90_000)
+    await must('the inbox shows it, an approval', shownInInbox, shownInInbox ? undefined : 'no approval for #' + hold.task + ' in the inbox after 90 s')
     await item.click()
     const card = page.locator('[data-slot=approval-card]')
     await must('its ApprovalCard shows', await until(() => card.isVisible(), 10_000))
     await step('"Ada wants to run exec.", with where and what', await until(async () => /Ada wants to run exec\.[\s\S]*In #\d+:/.test(await card.innerText()), 10_000), (await card.innerText()).replace(/\n+/g, ' | '))
     await card.getByRole('button', { name: /Approve/ }).click()
     await step('Approve lands approved on the board', await until(async () => (await owner.get('/messages/' + hold.task + '?limit=1')).message.task.answer?.decision === 'approved'), hold)
-    await step('her work completes', await until(async () => (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed', 240_000, 2_000), (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task)
-    await step('and she is active again', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 60_000), states)
-    await step('her state went waiting, then working, then active', states.join(' ').includes('waiting') && states.indexOf('working', states.lastIndexOf('waiting')) > 0 && states.at(-1) === 'active', states)
+    // Should she hold another call in the same work, it's approved too (over the board's API), and counted.
+    const extra = []
+    const done = await until(async () => {
+      for (const one of (await status('ada')).holds)
+        if (one.state === 'held' && one.thread === hold.thread && one.task !== hold.task && !extra.includes(one.task)) {
+          extra.push(one.task)
+          await owner.post('/tasks/' + one.task + '/unblock', { decision: 'approved', note: 'approved by the live check' })
+        }
+      return (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed'
+    }, 240_000, 2_000)
+    await step('her work completes, with exactly one approval', done && extra.length === 0, { task: (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task, moreApprovals: extra })
+    const activeAgain = await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 90_000)
+    await step('and she is active again', activeAgain, activeAgain ? { seat: states, sidebar: shown } : 'Ada not active again 90 s after her work completed: ' + JSON.stringify({ seat: states, sidebar: shown }))
+    // Her Seat's own sequence, sampled every 250 ms: waiting during the hold, then active. A working
+    // between them is shown when it lasts, but one shorter than a poll can't be required.
+    await watch.stop()
+    const from = states.lastIndexOf('waiting')
+    await step('her Seat went waiting during the hold, then active (working when it lasted)', from >= 0 && states.at(-1) === 'active', { seat: states, sidebar: shown, working: states.indexOf('working', from) > from })
+    // Her Seat records a run as its operation ends, a moment after the task completes.
+    await until(async () => ((await status('ada')).spend?.runs ?? 0) > (before.spend?.runs ?? 0), 90_000)
     const after = await status('ada')
     await seatRow('ada').click()
     await until(() => seat.isVisible(), 10_000)
-    await step('her page lists the new runs', after.runs.length > before.runs.length && (await until(async () => (await rows.count()) === after.runs.length)), { before: before.runs.length, after: after.runs.length })
+    // Her Seat counts her runs this period (spend.runs) and lists its last 20: the count went up, and
+    // the new ones (those it didn't list before) are each a row here.
+    const fresh = after.runs.filter((one) => !before.runs.some((had) => had.id === one.id)).map((one) => one.id)
+    await step('her page lists the new runs', (after.spend?.runs ?? 0) > (before.spend?.runs ?? 0) && fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
     await step('and her spend went up by their cost', (after.spend?.cost ?? 0) > (before.spend?.cost ?? 0) && (await until(async () => Math.abs(Number(await page.getByTestId('spend').getAttribute('data-cost')) - after.spend.cost) < 1e-9)), { before: before.spend?.cost, after: after.spend?.cost })
   } finally {
-    clearInterval(watch)
+    await watch.stop()
   }
   // Nothing this run made is left ready.
   const made = async () => (await owner.get('/tasks?channel=eng/&state=open&limit=200')).tasks.map((row) => row.message).filter((message) => Number(message.id) > Number(asked))
