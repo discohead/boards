@@ -4,8 +4,9 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm]
-// Only "dm" calls a model (the operator's and the engineer's first turns, on Haiku).
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run]
+// Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
+// whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
 const token = process.env.TOKEN
 if (!token) throw new Error('set TOKEN: an owner token for the bus')
@@ -144,6 +145,58 @@ if (pick.has('dm')) {
   check(Boolean(adaWoke), 'the engineer wakes on the assignment', adaWoke)
   const runs = (await seat({ seat: 'op', call: 'status' })).runs
   check(runs.some((run) => run.thread === root && run.cost > 0 && run.tokens.output > 0), "op's run is recorded with its cost", runs.find((run) => run.thread === root))
+}
+
+// The phase-2 run (design/workbus.md §12): the principal asks @op for something small; op makes two
+// tasks for ada, the second needing the first; ada does them in its workspace; one step (an exec)
+// waits for the principal, who approves it from the inbox; and the cost shows on each seat.
+if (pick.has('run')) {
+  const file = 'notes-' + Math.random().toString(36).slice(2, 7) + '.txt'
+  const posted = await board('POST', '/messages', { channel: 'dm/op', text: 'Two small steps for Ada, in order. First: write ' + file + ' containing the line hello. Second, once the first is done: append the line world to ' + file + ', then run a short exec that reads ' + file + ' back and returns its lines, to check it.' })
+  const since = Date.parse(posted.message.createdAt)
+  const made = await until(async () => {
+    const { tasks } = await board('GET', '/tasks?channel=eng/queue&state=all&limit=100')
+    const mine = tasks.map((entry) => entry.message).filter((message) => message.by.actor === 'worker:workbus-app+op' && Date.parse(message.createdAt) >= since).map((message) => ({ id: message.id, ...message.task }))
+    return mine.length >= 2 ? mine : null
+  }, 60000)
+  const first = made?.find((task) => task.needs.length === 0)
+  const second = made?.find((task) => task.needs.length > 0)
+  check(Boolean(first && second && second.needs.includes(first.id) && made.every((task) => task.for === 'worker:workbus-app+ada')), 'op made two tasks for ada, the second needing the first', made?.map((task) => ({ id: task.id, needs: task.needs, for: task.for })))
+  // The hold: a task blocked for the principal, kind approval, by ada; the inbox lists held tasks.
+  const hold = await until(async () => {
+    const { tasks } = await board('GET', '/tasks?state=blocked&limit=100')
+    return tasks.map((entry) => entry.message).find((message) => message.task.blocked?.kind === 'approval' && message.by.actor === 'worker:workbus-app+ada' && Date.parse(message.createdAt) >= since) ?? null
+  }, 180000)
+  check(Boolean(hold), 'a step waits for the principal: a task held for approval, by ada', hold && { id: hold.id, reason: hold.task.blocked.reason })
+  const waiting = await seat({ seat: 'ada', call: 'status' })
+  check(waiting.holds.some((held) => held.task === hold?.id && held.state === 'held'), "ada's Seat knows the hold and which thread it parks", waiting.holds)
+  // The principal approves from the inbox: this hold, and any other step ada asks for on the way.
+  const approved = new Set()
+  const approve = async () => {
+    const { tasks } = await board('GET', '/tasks?state=blocked&limit=100')
+    for (const message of tasks.map((entry) => entry.message))
+      if (message.task.blocked?.kind === 'approval' && message.by.actor === 'worker:workbus-app+ada' && Date.parse(message.createdAt) >= since && !approved.has(message.id)) {
+        await board('POST', '/tasks/' + message.id + '/unblock', { decision: 'approved', note: 'go ahead' })
+        approved.add(message.id)
+      }
+  }
+  const done = await until(async () => {
+    await approve()
+    const { tasks } = await board('GET', '/tasks?channel=eng/queue&state=all&limit=100')
+    const both = tasks.map((entry) => entry.message).filter((message) => message.id === first?.id || message.id === second?.id)
+    return both.length === 2 && both.every((message) => message.task.state === 'completed') ? both : null
+  }, 180000)
+  check(Boolean(done), 'ada completed both tasks', { approved: [...approved], results: done?.map((message) => ({ id: message.id, result: message.task.result })) })
+  // The answer's own operation ends when the one it resumed does.
+  const answered = await until(async () => (await seat({ seat: 'ada', call: 'status' })).holds.find((held) => held.task === hold?.id && held.state === 'answered'))
+  check(Boolean(answered), "the approval reached ada's parked session through its Seat", answered)
+  const notes = await fetch(app + '/dev/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: 'ada', thread: 'x', call: 'workspace.execute', args: [{ id: 'check-read', name: 'read', arguments: { path: '/workspace/' + file } }] }) }).then((response) => response.json())
+  const text = (notes?.content ?? []).map((part) => part.text ?? '').join('')
+  check(/hello[\s\S]*world/.test(text), "the file is in ada's workspace, both lines", text)
+  for (const key of ['op', 'ada']) {
+    const { spend, runs } = await seat({ seat: key, call: 'status' })
+    check(spend.cost > 0 && spend.runs > 0 && runs.every((run) => run.seat === key), 'the cost shows on ' + key, spend)
+  }
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')
