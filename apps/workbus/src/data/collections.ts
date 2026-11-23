@@ -99,11 +99,17 @@ function feedCollection<T extends object>(spec: FeedSpec<T>) {
               rows.apply([...collection.values()])
             } else {
               const first = await spec.load(runtime)
+              // Nothing the server didn't render shows before the page has hydrated.
+              await runtime.hydrated
               if (stopped) return
               rows.apply(first.rows)
               cursor = first.cursor
             }
             if (runtime.mode === 'server' || !runtime.feed) return markReady()
+            markReady()
+            // The feed's events wait for hydration too, so the first client render is the server's.
+            await runtime.hydrated
+            if (stopped) return
             const from = cursor
             const follow = (event: BoardEvent) => {
               if (Number(event.cursor) <= from) return
@@ -113,7 +119,6 @@ function feedCollection<T extends object>(spec: FeedSpec<T>) {
               cursor = Number(event.cursor)
             }
             stop = await runtime.feed.subscribe(follow, from)
-            markReady()
             runtime.feed.health.add(health)
           })().catch((error) => fail(error))
           return () => {

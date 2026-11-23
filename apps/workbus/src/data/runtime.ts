@@ -27,6 +27,13 @@ export type BusRuntime = {
   open: Set<string>
   /** How many messages to keep beyond open threads' (MESSAGES_KEPT by default). */
   keep: number
+  /**
+   * Resolves once the page has hydrated (BusProvider calls markHydrated in an effect). Until then
+   * the collections hold the server's rows and take nothing from the feed or their own reads, so
+   * the first client render matches the server's. Already resolved outside React (scripts).
+   */
+  hydrated: Promise<void>
+  markHydrated: () => void
 }
 
 export const runtimeOf = (db: DbClient): BusRuntime => db.requireDependency<BusRuntime>('bus')

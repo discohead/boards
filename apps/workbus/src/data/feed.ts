@@ -97,6 +97,7 @@ export class Feed {
 
   #start(after: number) {
     this.cursor = after
+    for (const watcher of this.watchers) watcher(after)
     const abort = new AbortController()
     this.#abort = abort
     void this.#run(abort.signal)
