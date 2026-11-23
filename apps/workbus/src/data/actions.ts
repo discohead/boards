@@ -75,17 +75,6 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
     },
   })
 
-  const createTask = action<{ channel: string; text: string; id?: string }>(db, {
-    onMutate: (input) => {
-      const id = (input.id ??= 'web-' + safeRandomUUID())
-      const me = runtime.me.actor
-      c.tasks.insert(draft({ id, channel: input.channel, text: input.text, labels: { 'board.task': 'ready' }, task: { state: 'ready', owner: me, by: me, for: null, needs: [], epoch: 0, claim: null, blocked: null, result: null, reason: null } }))
-    },
-    mutationFn: async (input) => {
-      await settle(input.id!, async () => (await client.post<{ task: Message }>('/tasks', { channel: input.channel, text: input.text, id: input.id })).task, [c.tasks.utils.rows])
-    },
-  })
-
   /** Follow a thread, or stop. Follows aren't in the feed: this settles on the write's own answer. */
   const follow = action<{ thread: string; on: boolean }>(db, {
     onMutate: ({ thread, on }) => {
@@ -110,5 +99,5 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
     return settle(id, async () => (await client.post<{ message: Message }>('/docs', { ...input, id })).message, [c.messages.utils.rows])
   }
 
-  return { post, edit, createTask, follow, createDoc, settledBy }
+  return { post, edit, follow, createDoc, settledBy }
 }
