@@ -13,6 +13,7 @@
 // Seats' run records live in each Seat and in Basin, not on the board: nothing here touches them.
 import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
+import { ROUTES } from './check/cleanup.mjs'
 
 const { values } = parseArgs({ options: { plan: { type: 'boolean' }, apply: { type: 'string' }, out: { type: 'string', default: 'board-sweep-plan.json' }, board: { type: 'string', default: 'https://workbus.dev/b/bus' } } })
 if (!values.plan && !values.apply) throw new Error('usage: board-sweep.mjs --plan [--out plan.json] | --apply plan.json  [--board <board url>]')
@@ -139,7 +140,7 @@ async function plan() {
 
 // The routes the clean-up needs, by name in the board's OpenAPI: delete (any message, as the
 // owner, #26), archive a channel (#15), and hide an actor (#16).
-const NEEDS = { delete: 'delete', archive: 'archiveChannel', hide: 'hideActor' }
+const NEEDS = { delete: 'delete', archive: ROUTES.archive, hide: ROUTES.hide }
 
 async function apply(path) {
   const reviewed = JSON.parse(readFileSync(path, 'utf8'))
@@ -161,11 +162,11 @@ async function apply(path) {
     did.deleted++
   }
   for (const item of reviewed.items.filter((i) => i.kind === 'channel' && i.action === 'ARCHIVE')) {
-    await call('POST', ops.get(NEEDS.archive).replace(/\{[^}]+\}|:[a-z]+/i, encodeURIComponent(item.path)), {})
+    await call('POST', ops.get(NEEDS.archive), { path: item.path })
     did.archived++
   }
   for (const item of reviewed.items.filter((i) => i.kind === 'actor' && i.action === 'HIDE')) {
-    await call('POST', ops.get(NEEDS.hide).replace(/\{[^}]+\}|:[a-z]+/i, encodeURIComponent(item.id)), {})
+    await call('POST', ops.get(NEEDS.hide), { actor: item.id, hidden: true })
     did.hidden++
   }
   console.log(JSON.stringify(did, null, 2))

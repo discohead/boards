@@ -15,15 +15,17 @@
 //
 // Flags: --out <dir> (screenshots; default ./check-shots), --only a,b (areas), --chrome <path>
 // (a Chrome to use instead of playwright's cached Chromium), --board <name> (default bus). seats-run
-// calls Haiku (a seat's approval, end to end), so only --only seats-run runs it.
+// calls Haiku (a seat's approval, end to end), so only --only seats-run runs it. --keep leaves what the
+// run made on the board (the clean-up is skipped).
 import { parseArgs } from 'node:util'
 import { actor, browser, recorder, Stop } from './lib.mjs'
+import { cleaner } from './cleanup.mjs'
 
 const AREAS = ['signin', 'channels', 'thread', 'tasks', 'docs', 'inbox', 'palette', 'deleted', 'seats', 'org', 'archive']
 // Areas that call a model, run only when --only names them.
 const ASKED = ['seats-run', 'seats-live', 'hiring', 'requests', 'requests-run', 'proposal-card', 'moderation']
 
-const { values } = parseArgs({ options: { base: { type: 'string' }, api: { type: 'string' }, out: { type: 'string', default: 'check-shots' }, only: { type: 'string' }, chrome: { type: 'string' }, board: { type: 'string', default: 'bus' } } })
+const { values } = parseArgs({ options: { keep: { type: 'boolean' }, base: { type: 'string' }, api: { type: 'string' }, out: { type: 'string', default: 'check-shots' }, only: { type: 'string' }, chrome: { type: 'string' }, board: { type: 'string', default: 'bus' } } })
 if (!values.base) throw new Error('usage: run.mjs --base <app url> [--api <bus host for the other actor>] [--out <dir>] [--only area,...]')
 const base = values.base.replace(/\/+$/, '')
 const board = values.board
@@ -42,6 +44,13 @@ const run = Date.now().toString(36)
 const { instance, page, errors } = await browser({ base, chrome: values.chrome, accessToken })
 const record = recorder(values.out)
 const only = values.only ? values.only.split(',') : AREAS
+// What the run makes goes again at its end: its threads (by the run id in their text, wherever a seat
+// answered), the checks/<area> channels (archived), and the profile the thread area makes (hidden).
+const clean = cleaner({ owner, others: [other] })
+clean.marker(run)
+for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) clean.channel('checks/' + area), clean.since('checks/' + area)
+if (only.includes('thread')) clean.profile(owner.actor + '+reviewer')
+await clean.prepare()
 console.log('checking ' + base + ' as ' + owner.actor + ', with ' + other.actor + ' writing; run ' + run + '; screenshots in ' + values.out)
 
 for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) {
@@ -58,6 +67,7 @@ for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) {
   }
 }
 await instance.close()
+if (!values.keep) await clean.finish()
 
 const failed = record.results.filter((result) => !result.ok)
 if (errors.length) console.log('page errors:\n  ' + [...new Set(errors)].join('\n  '))
