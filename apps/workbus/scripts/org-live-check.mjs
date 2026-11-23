@@ -4,7 +4,7 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run]
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake]
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
@@ -148,6 +148,11 @@ if (pick.has('dedupe')) {
   await seat({ seat: key, call: 'held', args: [{ approvalId: '500', thread: '77', operationId: null }] })
   const ready = await seat({ seat: key, call: 'wake', args: [{ cursor: '424243', type: 'task.ready', message: { id: '500', re: null, channel: 'eng/queue', text: 'asks to run exec', task: { state: 'ready' } } }, context] })
   check(ready.queued === false, "a held task's own events don't wake the seat", ready)
+  // A doc's edit is news only to its docs rule: one that mentions the seat in its body doesn't wake it.
+  const edited = { cursor: '424244', type: 'doc.edited', message: { id: '88', re: null, channel: 'org/seats', text: 'ask @' + key } }
+  const byMention = await seat({ seat: key, call: 'wake', args: [edited, { ...context, rules: ['mention'] }] })
+  const byDocs = await seat({ seat: key, call: 'wake', args: [{ ...edited, cursor: '424245' }, { ...context, rules: ['docs'] }] })
+  check(byMention.queued === false && byDocs.queued === true, "a doc's edit wakes a seat by its docs rule, not by a mention in the body", { byMention, byDocs })
   await seat({ seat: key, call: 'configure', args: [null, 0] })
   check((await seat({ seat: key, call: 'status' })).state === 'retired', 'no config retires it')
 }
@@ -236,6 +241,22 @@ if (pick.has('run')) {
     // The evidence: each run's operation (the wake's cursor), cost, and gateway log IDs.
     console.log('     ' + key + ' runs: ' + JSON.stringify(runs.map((run) => ({ operation: run.operation, thread: run.thread, task: run.task, cost: run.cost, logIds: run.logIds }))))
   }
+}
+
+// What a seat doc's edit wakes: no one (its body mentions @ada and @op), while a comment on a doc
+// that mentions @ada still wakes ada. The comment calls a model once (ada's turn on it).
+if (pick.has('docwake')) {
+  const runsOf = async (key) => (await status(key)).spend.runs
+  const before = { op: await runsOf('op'), ada: await runsOf('ada') }
+  const doc = await editBlock('org/seats/ada', (data) => (data.sessions = (data.sessions ?? 1) === 2 ? 3 : 2))
+  await until(async () => ((await status('ada')).revision === Number(doc.revision) ? true : null))
+  await sleep(10000)
+  const [op, ada] = [await status('op'), await status('ada')]
+  check(!op.wakes.some((wake) => wake.thread === doc.id) && !ada.wakes.some((wake) => wake.thread === doc.id), "an edit to ada's seat doc wakes neither seat", { op: op.wakes.filter((wake) => wake.thread === doc.id), ada: ada.wakes.filter((wake) => wake.thread === doc.id) })
+  check(op.spend.runs === before.op && ada.spend.runs === before.ada, 'and starts no run', { before, after: { op: op.spend.runs, ada: ada.spend.runs } })
+  const comment = await board('POST', '/messages', { re: doc.id, text: '@ada no action needed: just checking that a mention on a doc reaches you. Reply with one word.' })
+  const woke = await until(async () => (await status('ada')).wakes.find((wake) => wake.thread === doc.id), 30000)
+  check(Boolean(woke), 'a comment on the doc that mentions @ada wakes ada', { comment: comment.message.id, woke })
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')

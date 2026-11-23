@@ -14,6 +14,7 @@ import type { SeatRuntime } from '../org/rules.ts'
 import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
 import { bus } from '../bus.ts'
 import { seatBoard } from '../org/reconcile.ts'
+import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
 import { render } from './turn.ts'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
@@ -75,7 +76,7 @@ export class Seat extends DurableObject<Env> {
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     ctx.blockConcurrencyWhile(async () => {
-      this.sql.exec('create table if not exists wakes (id text primary key, thread text not null, task text, input text not null, state text not null, attempts integer not null default 0, error text, at integer not null, started integer, ended integer)')
+      this.sql.exec(WAKES_DDL)
       this.sql.exec('create index if not exists wakes_state on wakes (state, at)')
       this.sql.exec('create table if not exists holds (task text primary key, thread text not null, operation text, state text not null, at integer not null)')
     })
@@ -109,6 +110,9 @@ export class Seat extends DurableObject<Env> {
 
   /** A delivery: queued once per (wake, cursor), then routed. An answer to a hold goes to the session it holds. */
   async wake(event: Delivered, context: DeliveredContext): Promise<{ queued: boolean; thread: string | null; answer?: string }> {
+    // A doc made, edited, or moved is news only to a seat that wakes for docs ({ docs: <channel> }): a
+    // mention or a follow in a doc's body isn't a message to the seat. Comments on a doc are posts, and still wake it.
+    if (event.type.startsWith('doc.') && !context.rules.includes('docs')) return { queued: false, thread: threadOf(event) }
     const id = context.wake + ':' + event.cursor
     const answer = answerOf(event)
     const hold = answer ? this.#one<{ thread: string; state: string }>('select thread, state from holds where task = ?', answer.task) : undefined
@@ -179,9 +183,9 @@ export class Seat extends DurableObject<Env> {
     if (!runtime) return 'retired'
     if (runtime.state === 'paused') return 'paused'
     if (runtime.budget.month !== null && this.spend() >= runtime.budget.month) return 'over_budget'
-    const counts = Object.fromEntries(this.sql.exec<{ state: string; n: number }>("select state, count(*) as n from wakes where state in ('running', 'held') group by state").toArray().map((row) => [row.state, row.n]))
-    if (counts.running) return 'working'
-    if (counts.held) return 'waiting'
+    // A wake running in a thread whose session is parked on a hold waits behind it: that thread is waiting, not working.
+    if (this.#one(RUNNING_UNHELD)) return 'working'
+    if (this.#one("select 1 as there from wakes where state = 'held'")) return 'waiting'
     return 'active'
   }
 
@@ -221,8 +225,8 @@ export class Seat extends DurableObject<Env> {
     if (!runtime) return
     const state = this.state()
     if (state === 'paused' || state === 'over_budget') return
-    // A parked session doesn't hold a slot; a running one does.
-    const running = new Set(this.sql.exec<{ thread: string }>("select distinct thread from wakes where state = 'running'").toArray().map((row) => row.thread))
+    // A parked session doesn't hold a slot, nor do the wakes waiting behind it in its thread; a running one does.
+    const running = new Set(this.sql.exec<{ thread: string }>(RUNNING_UNHELD).toArray().map((row) => row.thread))
     const open = new Set([...running, ...this.sql.exec<{ thread: string }>("select distinct thread from wakes where state = 'held'").toArray().map((row) => row.thread)])
     const queued = this.sql.exec<WakeRow>("select * from wakes where state = 'queued' order by at, id").toArray()
     let next: number | null = null
