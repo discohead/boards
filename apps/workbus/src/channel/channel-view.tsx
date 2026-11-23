@@ -41,11 +41,12 @@ export function ChannelView({ channel }: { channel: string }) {
   const unreadOf = useMemo(() => new Map(counts.filter((row) => row.kind === 'thread').map((row) => [row.thread!, row.unread])), [counts])
   const channelRow = counts.find((row) => row.key === channelKey(channel))
 
-  // Where you'd read up to when you came in: the "New" line goes after it.
-  const [readAtOpen, setReadAtOpen] = useState<{ channel: string; read: string | null } | null>(null)
-  useEffect(() => {
-    if (readAtOpen?.channel !== channel && bus.unread.status === 'ready') setReadAtOpen({ channel, read: (channelRow?.unread ?? 0) > 0 ? (channelRow?.read ?? '0') : null })
-  }, [channel, channelRow, readAtOpen?.channel, bus.unread.status])
+  // Where you'd read up to when you came in: the "New" line goes after it. Taken during render from
+  // the counts the page starts with (the first pages carry them), so the server draws the line too,
+  // and kept for as long as this channel stays open, though opening it marks it read.
+  const opened = useRef<{ channel: string; read: string | null } | null>(null)
+  if (opened.current?.channel !== channel && (bus.unread.status === 'ready' || bus.unread.size > 0)) opened.current = { channel, read: (channelRow?.unread ?? 0) > 0 ? (channelRow?.read ?? '0') : null }
+  const readAtOpen = opened.current
 
   const items = useMemo(() => {
     const sorted = [...threads].sort((a, b) => order(a) - order(b))
