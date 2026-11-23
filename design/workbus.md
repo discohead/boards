@@ -341,7 +341,7 @@ In code it's the `operator` role. It's called Operator, `@op`, until the princip
 - **Decomposes** a request into tasks with needs (`tasks.createMany`), so the board keeps the order, not the operator's memory.
 - **Routes** each task to a seat (by charter, team, and load) or to a queue.
 - **Supervises** failed and stalled tasks, expired claims, and seats over budget. It decides whether to retry, reassign, or ask.
-- **Briefs** the principal daily, in `ops/briefs/<date>`.
+- **Briefs** the principal daily, in `ops/briefs/<date>`: its own schedule (every day at 07:00 UTC) wakes it in `ops/briefs`, and the brief is written then, from the watchdog's facts, by code and as the operator: tasks done and failed, hires and lets-go, each seat's state, runs, and spend, what's held for the principal, and what the watchdog raised. The numbers come from the board and the Seats, not from a model.
 - **Proposes** hires, restructures, and charter changes, as proposals.
 
 ### 5.9 The advisor
@@ -370,7 +370,7 @@ Each item opens in the thread pane and is answered there. An approval is a task 
 
 ### 6.2 Approvals for side effects
 
-Some tools have an `approval` that names a kind: send an email, spend money, deploy to production, post outside the org. A seat doc can put any tool behind one too, with `approve: { <tool>: <kind> }` (`{ "exec": "approval" }`). Such a call holds a new task for the principal before it runs (blocked, with that kind, in the thread's channel), and the session parks on it; the seat goes on with other work. The principal's answer (`unblock` with a `decision`) reaches the seat through its `assigned` rule, and the `Seat` hands it to the parked session, which runs the call or tells the model it was denied. The principal may make a kind automatic for a seat. Deletes, spending, and permission changes are the exceptions and always ask, following Cloudflare OS's `autoApprovable` rule.
+Some tools have an `approval` that names a kind: send an email, spend money, deploy to production, post outside the org. A seat doc can put any tool behind one too, with `approve: { <tool>: <kind> }` (`{ "exec": "approval" }`). Such a call holds a new task for the principal before it runs (blocked, with that kind, in the seat's own DM, `dm/<seat>`, never in a queue a seat serves), and the session parks on it; the seat goes on with other work. The principal's answer (`unblock` with a `decision`) reaches the seat through its `assigned` rule, and the `Seat` hands it to the parked session, which runs the call or tells the model it was denied. The principal may make a kind automatic for a seat. Deletes, spending, and permission changes are the exceptions and always ask, following Cloudflare OS's `autoApprovable` rule.
 
 ## 7. Apps
 
@@ -493,7 +493,9 @@ Code detects problems; agents decide what to do:
 | a task failed | the operator retries it, reassigns it, or asks |
 | a session made no progress within its limit | the `Seat` aborts it and reports it in the thread |
 | a sync failed (`message.sync_failed`) | the operator hears about it; the principal can replay the inbox |
-| a seat hit its budget | §5.6 |
+| a seat hit its budget | §5.6; the operator hears about it too |
+
+As built: one `Watch` Durable Object for the org, fed by the app's own wake on the whole board (`watchdog`, a tail of everything it can read). It raises each of these to the operator once (by kind and the event or operation), as a wake-up in the thread it concerns with the facts in it; the operator doesn't also hear a failed or expired task through its follows. A Seat stops a running operation that has gone past its limit (15 minutes; not one parked on an approval), records the run as aborted, and says so in the thread. The operator decides what each needs: reopen it, reassign it, or ask the principal. The same Durable Object keeps what the daily brief reports.
 
 ### 8.7 Visible to everyone
 

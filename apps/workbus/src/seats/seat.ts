@@ -13,18 +13,19 @@ import type { Outcome, SeatRef, ToolAnswer, ToolTier, Turn } from '../harness/ty
 import type { SeatRuntime } from '../org/rules.ts'
 import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
 import { bus } from '../bus.ts'
-import { seatBoard } from '../org/reconcile.ts'
-import { budgetStep, budgetText, nextPeriod, periodOf, usd, type BudgetKind, type BudgetTasks } from './budget.ts'
+import { BRIEFS, seatBoard } from '../org/reconcile.ts'
+import { budgetStep, budgetText, monthName, nextPeriod, periodOf, usd, type BudgetKind, type BudgetTasks } from './budget.ts'
 import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
+import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'edges-2026-11-23.2'
+export const SEAT_CODE = 'watchdog-2026-11-23.3'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
 /** What a wake delivers (design/registered-watchers.md), as the Wake entrypoint hands it on. */
-export type Delivered = { cursor: string; type: string; createdAt?: string; payload?: any; message?: any; actor?: string }
+export type Delivered = { cursor: string; type: string; createdAt?: string; payload?: any; message?: any; actor?: unknown }
 export type DeliveredContext = { board: string; wake: string; principal: string; actor: string; rules: string[]; match: string; attempt: number }
 
 type Input = Turn | ToolAnswer
@@ -35,6 +36,10 @@ const RETRY_MS = 2_000
 /** While anything runs, the alarm comes back this often to follow operations an eviction let go of. */
 const FOLLOW_MS = 60_000
 const KEEP_MS = 7 * 24 * 60 * 60 * 1000
+/** How long a running operation may go before the Seat stops it (§8.6); WATCHDOG_STALL_MS overrides it. */
+const STALL_MS = 15 * 60 * 1000
+const RAISED_BY_WATCHDOG = new Set(['task.failed', 'task.expired', 'message.sync_failed'])
+const watch = (env: Env) => env.WATCH.getByName('bus') as unknown as { raise(raised: Raised): Promise<boolean>; letGo(seat: string): Promise<void> }
 
 /** The thread an event is in: its message's root, or the message a task or doc event names. */
 export function threadOf(event: Delivered): string | null {
@@ -125,7 +130,11 @@ export class Seat extends DurableObject<Env> {
       this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at) values ('intro', ?, null, ?, 'queued', ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now())
     }
     if (!same) {
-      if (runtime === null) this.ctx.storage.kv.delete('runtime')
+      if (runtime === null) {
+        // Let go: the brief says so.
+        if (this.runtime) await watch(this.env).letGo(this.runtime.key).catch(() => undefined)
+        this.ctx.storage.kv.delete('runtime')
+      }
       else {
         this.ctx.storage.kv.put('runtime', runtime)
         this.ctx.storage.kv.put('revision', revision)
@@ -143,6 +152,14 @@ export class Seat extends DurableObject<Env> {
     // A doc made, edited, or moved is news only to a seat that wakes for docs ({ docs: <channel> }): a
     // mention or a follow in a doc's body isn't a message to the seat. Comments on a doc are posts, and still wake it.
     if (event.type.startsWith('doc.') && !context.rules.includes('docs')) return { queued: false, thread: threadOf(event) }
+    // The operator's own daily schedule in ops/briefs: the brief is written from the watchdog's facts, by code, as the operator.
+    if (event.type === 'message.posted' && event.message?.schedule && event.message.channel === BRIEFS && this.runtime?.role === 'operator') {
+      await this.#brief(this.runtime, event)
+      return { queued: false, thread: threadOf(event) }
+    }
+    // The operator hears of a failed task or a lease run out from the watchdog, once, with the facts
+    // (watch.ts), not also through its follow of the tasks it made.
+    if (this.runtime?.role === 'operator' && context.wake.startsWith('seat.') && RAISED_BY_WATCHDOG.has(event.type)) return { queued: false, thread: threadOf(event) }
     // A plain mention wakes a seat only from a person (§5.5): seats reach each other through their
     // edges (a consult, an escalation, an assignment), so another seat's @mention alone wakes nothing.
     const fromSeat = event.message?.author?.kind === 'agent'
@@ -218,6 +235,44 @@ export class Seat extends DurableObject<Env> {
     return bus().tasks.block(task, reason, kind)
   }
 
+  /**
+   * The watchdog raising something with the operator (watch.ts): one wake-up in the thread it's about,
+   * once per id, with the facts. The operator decides: retry, reassign, or ask the principal.
+   */
+  async notice(notice: { id: string; thread: string; text: string }): Promise<{ queued: boolean }> {
+    const text = [
+      'The watchdog raised this: ' + notice.text,
+      'Decide what it needs, in this thread: retry it (task_reopen, or leave a freed task ready for its seat), reassign it (task_assign), or ask the principal (mention them) if only they can decide. Say what you decided in one short reply. If it needs nothing, stop without posting.',
+    ].join('\n')
+    const result = this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at) values (?, ?, ?, ?, 'queued', ?)", 'notice:' + notice.id, notice.thread, notice.thread, JSON.stringify({ type: 'turn', parts: [{ type: 'text', text }] } satisfies Turn), Date.now())
+    if (result.rowsWritten > 0) await this.pump()
+    return { queued: result.rowsWritten > 0 }
+  }
+
+  /** The brief now, as its schedule would write it (POST /api/briefs): for the principal who wants one before 07:00. */
+  async briefNow(): Promise<{ written: string | null }> {
+    const runtime = this.runtime
+    if (!runtime || runtime.role !== 'operator') return { written: null }
+    const at = new Date().toISOString()
+    await this.#brief(runtime, { cursor: 'now', type: 'message.posted', createdAt: at, message: null })
+    return { written: BRIEFS + '/' + at.slice(0, 10) }
+  }
+
+  /** Writes the daily brief, ops/briefs/<date>, as the operator: the watchdog's facts, in its own words (watch.ts). */
+  async #brief(runtime: SeatRuntime, event: Delivered): Promise<void> {
+    const now = event.createdAt ? Date.parse(event.createdAt) : Date.now()
+    const date = new Date(now).toISOString().slice(0, 10)
+    try {
+      const body = await (this.env.WATCH.getByName('bus') as unknown as { brief(until: number, date: string): Promise<string> }).brief(now, date)
+      const board = seatBoard(bus(), runtime)
+      // One brief a date: the slug keeps it so (a second write is refused, slug_taken). No client ID, so a brief deleted can be written again.
+      await board.docs.create({ channel: BRIEFS, slug: date, body })
+      if (event.message) await board.reply(String(event.message.re ?? event.message.id), { text: 'Today\'s brief: [[' + BRIEFS + '/' + date + ']]', id: 'brief-reply-' + date })
+    } catch (error) {
+      console.error('seat ' + runtime.key + ': the brief for ' + date + ' failed', error)
+    }
+  }
+
   /** A session's word that a call is parked on a task held for the principal (§6.2). */
   async held(hold: { approvalId: string; thread: string; operationId?: string | null }): Promise<void> {
     this.sql.exec("insert or ignore into holds (task, thread, operation, state, at) values (?, ?, ?, 'held', ?)", hold.approvalId, hold.thread, hold.operationId ?? null, Date.now())
@@ -231,7 +286,13 @@ export class Seat extends DurableObject<Env> {
     if (!row || row.state === 'done' || row.state === 'failed') return
     const now = Date.now()
     const runtime = this.runtime
-    this.sql.exec('update wakes set state = ?, ended = ?, error = ? where id = ?', outcome === null ? 'failed' : 'done', now, error ?? outcome?.reason ?? null, row.id)
+    // A run its Seat stopped for making no progress (#stalls) ends as that, however its session's wait came back.
+    const stalled = row.error?.startsWith('aborted, stalled') ? row.error : null
+    if (stalled) {
+      error = stalled
+      if (outcome) outcome = { ...outcome, status: 'unanswered', reason: stalled }
+    }
+    this.sql.exec('update wakes set state = ?, ended = ?, error = ? where id = ?', outcome === null || stalled ? 'failed' : 'done', now, error ?? outcome?.reason ?? null, row.id)
     const input = JSON.parse(row.input) as Input
     if (input.type === 'approval') this.sql.exec("update holds set state = 'answered' where task = ? and state = 'held'", input.approvalId)
     // A start or a wait that failed outright ran nothing the Seat can measure: a failed run, with its error.
@@ -294,6 +355,9 @@ export class Seat extends DurableObject<Env> {
             if (!/already|task_blocked|blocked/.test(String(error))) throw error
           })
           this.sql.exec('insert or replace into budget_tasks (task, period, kind, open, at) values (?, ?, ?, 1, ?)', task, period, step.hold, now)
+          // At the limit the operator hears too (§8.6), once a period, unless it's the operator's own.
+          if (step.hold === 'limit' && runtime.key !== OPERATOR)
+            await watch(this.env).raise({ kind: 'budget', ref: runtime.key + ':' + period, thread: runtime.doc, text: words.text + ' (Its budget task, #' + task + ', is held for the principal in dm/' + runtime.key + '.)' + ' Its wake-ups wait until the principal raises its budget or ' + monthName(period) + ' ends.' }).catch((error: unknown) => console.warn('seat ' + runtime.key + ': raising its budget', error))
         }
       } catch (error) {
         console.error('seat ' + runtime.key + ': budget step ' + JSON.stringify(step) + ' failed', error)
@@ -319,6 +383,12 @@ export class Seat extends DurableObject<Env> {
     } catch (error) {
       console.error('seat ' + runtime.key + ': answering budget task #' + task + ' failed', error)
     }
+  }
+
+  /** Its runs that ended at or after since, and what they cost: the brief's day (watch.ts). */
+  async spentSince(since: string): Promise<{ runs: number; cost: number }> {
+    const row = this.#one<{ runs: number; cost: number | null }>("select count(*) as runs, sum(cost) as cost from telemetry_runs where json_extract(record, '$.ended') >= ?", since)
+    return { runs: row?.runs ?? 0, cost: row?.cost ?? 0 }
   }
 
   /** This month's spend, in USD, from its runs. */
@@ -401,7 +471,8 @@ export class Seat extends DurableObject<Env> {
       await this.#start(runtime, row)
     }
     this.sql.exec("delete from wakes where state in ('done', 'failed') and at < ?", Date.now() - KEEP_MS)
-    if (this.#one('select 1 as there from wakes where state in (\'running\', \'held\')')) next = Math.min(next ?? Infinity, Date.now() + FOLLOW_MS)
+    // While anything runs, the alarm comes back to follow it, and to stop it once it's run past its limit.
+    if (this.#one('select 1 as there from wakes where state in (\'running\', \'held\')')) next = Math.min(next ?? Infinity, Date.now() + Math.min(FOLLOW_MS, Number((this.env as { WATCHDOG_STALL_MS?: string }).WATCHDOG_STALL_MS ?? STALL_MS)))
     if (next !== null) {
       const armed = await this.ctx.storage.getAlarm()
       if (armed === null || armed > next) await this.ctx.storage.setAlarm(next)
@@ -464,8 +535,35 @@ export class Seat extends DurableObject<Env> {
     }
   }
 
+  /**
+   * A session that makes no progress within its limit is stopped (§8.6): its operation aborted, a
+   * word in its thread, and the operator told. A session parked on an approval isn't stalled.
+   */
+  async #stalls(runtime: SeatRuntime): Promise<void> {
+    const limit = Number((this.env as { WATCHDOG_STALL_MS?: string }).WATCHDOG_STALL_MS ?? STALL_MS)
+    const stalled = this.sql.exec<WakeRow>("select * from wakes where state = 'running' and started < ? and thread not in (select thread from wakes where state = 'held')", Date.now() - limit).toArray()
+    for (const row of stalled) {
+      const took = limit < 60_000 ? Math.round(limit / 1000) + ' seconds' : Math.round(limit / 60_000) + (Math.round(limit / 60_000) === 1 ? ' minute' : ' minutes')
+      const why = 'aborted, stalled: no progress in ' + took
+      // Marked first: whichever ends it (this, or its session's wait as the abort lands), the run is recorded as stopped.
+      this.sql.exec('update wakes set error = ? where id = ?', why, row.id)
+      try {
+        const session = await new PiHarnessAdapter(this.env.SESSION).open(seatRef(runtime), row.thread)
+        await session.abort(row.id)
+      } catch (error) {
+        console.warn('seat ' + runtime.key + ': aborting ' + row.id, error)
+      }
+      await this.ended(row.id, null, why)
+      const said = 'I stopped this run: it made no progress in ' + took + '. @op has been told.'
+      await seatBoard(bus(), runtime).reply(row.thread, { text: said, id: 'stalled-' + row.id.replace(/[^A-Za-z0-9_-]/g, '-') }).catch((error: unknown) => console.warn('seat ' + runtime.key + ': reporting a stall', error))
+      if (runtime.key !== OPERATOR)
+        await watch(this.env).raise({ kind: 'stalled', ref: row.id, thread: row.task ?? runtime.doc, text: runtime.name + ' (@' + runtime.handle + ')\'s run in #' + row.thread + ' made no progress in ' + took + ', so its Seat stopped it.' }).catch((error: unknown) => console.warn('seat ' + runtime.key + ': raising a stall', error))
+    }
+  }
+
   async alarm(): Promise<void> {
     const runtime = this.runtime
+    if (runtime) await this.#stalls(runtime)
     if (runtime)
       for (const row of this.sql.exec<WakeRow>("select * from wakes where state in ('running', 'held')").toArray())
         if (!this.#following.has(row.id)) this.ctx.waitUntil(this.#follow(runtime, row.id, row.thread))

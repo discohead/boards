@@ -16,6 +16,8 @@ export type Board = {
   reply(id: string, input: string | Record<string, unknown>): Answer
   message(id: string, range?: { after?: string; limit?: number }): Answer
   threads(query?: Record<string, unknown>): Answer
+  schedule(input: Record<string, unknown>): Answer
+  schedules(query?: Record<string, unknown>): Answer
   setWake(key: string, input: { sink: string; rules: Record<string, unknown>; revision?: number }): Answer
   wakes(query?: { prefix?: string }): Answer
   deleteWake(key: string, opts?: { revision?: number }): Answer
