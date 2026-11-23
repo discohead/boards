@@ -3,7 +3,7 @@
 //   const totals = new Totals(this.ctx.storage.sql)
 //   await record(totals, this.env.RUNS, run)            // when an operation ends
 //   totals.spend('ada')                                  // cost this month, for the UI and the budget
-export { Run, Tool, toRow, usageOf, type Outcome, type PiResponse, type RunRow, type Usage } from './run.ts'
+export { Run, Tool, runOf, toRow, usageOf, type HarnessOutcome, type HarnessUsage, type Outcome, type PiResponse, type RunRow, type SeatFields, type Usage } from './run.ts'
 export { Totals, periodOf, type RunStream, type Spend, type Sql } from './totals.ts'
 import type { Run } from './run.ts'
 import type { RunStream, Totals } from './totals.ts'

@@ -5,7 +5,7 @@
 //   node scripts/telemetry-check.ts
 import { DatabaseSync } from 'node:sqlite'
 import { readFileSync } from 'node:fs'
-import { Run, Totals, record, toRow, usageOf, type RunRow, type Sql } from '../src/telemetry/index.ts'
+import { Run, Totals, record, runOf, toRow, usageOf, type RunRow, type Sql } from '../src/telemetry/index.ts'
 import { costPerSeatSql } from '../src/telemetry/basin.ts'
 
 let failures = 0
@@ -95,6 +95,18 @@ const usage = usageOf([
 ])
 check(usage.steps === 2 && usage.tokens.input === 10 && usage.tokens.cacheRead === 3502 && Math.abs(usage.cost - 0.00054015) < 1e-12, 'usageOf sums two responses', usage)
 check(usage.logIds.join() === 'log-a,log-b', 'usageOf keeps each log id once', usage.logIds)
+
+// From the harness's outcome (its real sample, verified on Haiku through the workbus gateway).
+const sample = { model: 'anthropic/claude-haiku-5.5', steps: 3, tokens: { input: 8, output: 165, cacheRead: 6305, cacheWrite: 3349 }, cost: 0.000564975,
+  tools: [{ name: 'write', ms: 5, ok: true }, { name: 'exec', ms: 22, ok: true }], logs: ['log-1', 'log-2', 'log-3'], started: '2026-11-23T09:00:00.000Z', ended: '2026-11-23T09:00:04.000Z' }
+const seatFields = { seat: 'ada', team: 'eng', thread: 'ada:thread-1', task: 'task-1', charter: 'rev-3' }
+const answered = runOf({ operationId: 'cursor-41', status: 'done', usage: sample }, seatFields)
+check(answered?.outcome === 'answered' && answered.id === 'ada:cursor-41' && answered.cost === 0.000564975 && answered.logIds.length === 3 && fits(toRow(answered)).length === 0, 'an answered operation becomes a run that fits runs_v1', answered)
+check(runOf({ operationId: 'cursor-42', status: 'unanswered', reason: 'aborted', usage: sample }, seatFields)?.outcome === 'aborted', 'an aborted operation')
+const failedRun = runOf({ operationId: 'cursor-43', status: 'unanswered', reason: 'model_error', usage: { ...sample, ended: null } }, seatFields, '2026-11-23T09:01:00.000Z')
+check(failedRun?.outcome === 'failed' && failedRun.error === 'model_error' && failedRun.ended === '2026-11-23T09:01:00.000Z', 'a failed operation keeps its reason, and ends now if the harness had no end', failedRun)
+check(runOf({ operationId: 'cursor-44', status: 'done', usage: sample }, { ...seatFields, overBudget: true })?.outcome === 'over_budget', 'over budget, as the Seat says')
+check(runOf({ operationId: 'cursor-45', status: 'done', usage: { ...sample, steps: 0, tools: [], logs: [] }, resumes: 'cursor-41' }, seatFields) === null, "an approval's answer has no record of its own")
 
 // The Basin query for cost per seat: the month's bounds, December into January.
 check(costPerSeatSql('2026-11').includes("ended >= '2026-11-01T00:00:00Z' AND ended < '2026-12-01T00:00:00Z'"), 'November bounds')

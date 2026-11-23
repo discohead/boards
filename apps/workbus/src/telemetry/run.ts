@@ -93,3 +93,49 @@ export function usageOf(responses: readonly PiResponse[]): Usage {
   }
   return usage
 }
+
+/** The harness's per-operation usage (src/harness/types.ts), read structurally. */
+export type HarnessUsage = {
+  model: string | null
+  steps: number
+  tokens: Run['tokens']
+  cost: number
+  tools: Run['tools']
+  logs: string[]
+  started: string
+  ended: string | null
+}
+
+/** How the harness says an operation ended. */
+export type HarnessOutcome = { operationId: string; status: 'done' | 'unanswered'; reason?: string; usage: HarnessUsage; resumes?: string }
+
+/** What only the Seat knows about a run. */
+export type SeatFields = Pick<Run, 'seat' | 'team' | 'thread' | 'task' | 'charter'> & { overBudget?: boolean }
+
+/**
+ * The run record for a finished operation. Its id is the operation's, so recording an operation
+ * twice counts once. Returns null for an approval's answer (an operation that only resumes another):
+ * the resumed operation's own record carries the work.
+ */
+export function runOf(outcome: HarnessOutcome, seat: SeatFields, now = new Date().toISOString()): Run | null {
+  if (outcome.resumes) return null
+  const usage = outcome.usage
+  const failed = outcome.status === 'done' ? null : (outcome.reason ?? 'unanswered')
+  return Run.parse({
+    id: seat.seat + ':' + outcome.operationId,
+    seat: seat.seat, team: seat.team, thread: seat.thread, task: seat.task, charter: seat.charter,
+    operation: outcome.operationId,
+    harness: 'pi',
+    model: usage.model ?? 'none',
+    started: usage.started,
+    ended: usage.ended ?? now,
+    outcome: seat.overBudget ? 'over_budget' : outcome.status === 'done' ? 'answered' : /abort|withdraw/.test(failed ?? '') ? 'aborted' : 'failed',
+    steps: usage.steps,
+    tools: usage.tools,
+    tokens: usage.tokens,
+    cost: usage.cost,
+    costSource: 'pi',
+    logIds: usage.logs,
+    error: failed,
+  })
+}
