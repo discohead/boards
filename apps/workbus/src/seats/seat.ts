@@ -9,18 +9,19 @@
 import { DurableObject } from 'cloudflare:workers'
 
 import { PiHarnessAdapter } from '../harness/pi.ts'
-import type { Outcome, SeatRef, ToolAnswer, ToolTier, Turn } from '../harness/types.ts'
+import type { Outcome, RequestHint, SeatRef, ToolAnswer, ToolTier, Turn } from '../harness/types.ts'
 import type { SeatRuntime } from '../org/rules.ts'
 import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
 import { bus } from '../bus.ts'
 import { BRIEFS, seatBoard } from '../org/reconcile.ts'
 import { budgetStep, budgetText, monthName, nextPeriod, periodOf, usd, type BudgetKind, type BudgetTasks } from './budget.ts'
 import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
+import { REQUEST, requestOf } from './request.ts'
 import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'tiers-2026-11-23.3'
+export const SEAT_CODE = 'request-2026-11-23.2'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -29,7 +30,7 @@ export type Delivered = { cursor: string; type: string; createdAt?: string; payl
 export type DeliveredContext = { board: string; wake: string; principal: string; actor: string; rules: string[]; match: string; attempt: number }
 
 type Input = Turn | ToolAnswer
-type WakeRow = { id: string; thread: string; task: string | null; input: string; state: 'queued' | 'running' | 'held' | 'done' | 'failed'; attempts: number; error: string | null; at: number; started: number | null; ended: number | null }
+type WakeRow = { id: string; thread: string; task: string | null; input: string; state: 'queued' | 'running' | 'held' | 'done' | 'failed'; attempts: number; error: string | null; at: number; started: number | null; ended: number | null; request?: string | null }
 
 const TRIES = 5
 const RETRY_MS = 2_000
@@ -104,6 +105,8 @@ export class Seat extends DurableObject<Env> {
     super(ctx, env)
     ctx.blockConcurrencyWhile(async () => {
       this.sql.exec(WAKES_DDL)
+      // A queue made before requests were stamped gains their column.
+      if (!this.sql.exec('pragma table_info(wakes)').toArray().some((column) => column.name === 'request')) this.sql.exec('alter table wakes add column request text')
       this.sql.exec('create index if not exists wakes_state on wakes (state, at)')
       this.sql.exec('create table if not exists holds (task text primary key, thread text not null, operation text, state text not null, at integer not null)')
       this.sql.exec('create table if not exists budget_tasks (task text primary key, period text not null, kind text not null, open integer not null, at integer not null)')
@@ -127,7 +130,9 @@ export class Seat extends DurableObject<Env> {
     // A seat provisioned for the first time (a hire, §5.7) introduces itself: one turn, queued like any wake-up.
     if (runtime !== null && this.runtime === null && !this.ctx.storage.kv.get('introduced')) {
       this.ctx.storage.kv.put('introduced', new Date().toISOString())
-      this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at) values ('intro', ?, null, ?, 'queued', ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now())
+      // Part of the request that hired it, when a proposal did: its introductions show under it.
+      const request: RequestHint | null = runtime.request ? { id: runtime.request, via: 'label', reply: false } : null
+      this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at, request) values ('intro', ?, null, ?, 'queued', ?, ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now(), JSON.stringify(request))
     }
     if (!same) {
       if (runtime === null) {
@@ -193,7 +198,7 @@ export class Seat extends DurableObject<Env> {
     }
     // The task it's about, for its run record: a task's own thread, or the held task an answer is for.
     const task = answer && hold ? answer.task : event.message?.task ? String(event.message.re ?? event.message.id) : null
-    const result = this.sql.exec('insert or ignore into wakes (id, thread, task, input, state, at) values (?, ?, ?, ?, ?, ?)', id, thread, task, JSON.stringify(input), 'queued', Date.now())
+    const result = this.sql.exec('insert or ignore into wakes (id, thread, task, input, state, at, request) values (?, ?, ?, ?, ?, ?, ?)', id, thread, task, JSON.stringify(input), 'queued', Date.now(), answer && hold ? null : JSON.stringify(requestOf(event, context.rules)))
     if (result.rowsWritten > 0) await this.pump()
     return { queued: result.rowsWritten > 0, thread, ...(answer && hold ? { answer: answer.task } : {}) }
   }
@@ -213,7 +218,9 @@ export class Seat extends DurableObject<Env> {
     const reviews: string[] = []
     for (const reviewer of runtime.reviewers) {
       const text = 'Review #' + task + ', which @' + runtime.handle + ' finished: ' + first + '\n\nRead it (and what it made), then complete this task if it holds, or reply here with what to change.'
-      const made = await app.tasks.create({ channel: message.channel, text, id: 'review-' + task + '-' + reviewer, ...(reviewer === 'principal' ? {} : { for: 'worker:workbus-app+' + reviewer }) })
+      // Part of the reviewed work's request, as everything a seat makes for it.
+      const request = message.labels?.[REQUEST]
+      const made = await app.tasks.create({ channel: message.channel, text, id: 'review-' + task + '-' + reviewer, ...(reviewer === 'principal' ? {} : { for: 'worker:workbus-app+' + reviewer }), ...(request ? { labels: { [REQUEST]: request } } : {}) })
       const id = String(made.task?.id ?? made.message?.id)
       // The principal's review is held for them: in their inbox, kind review.
       if (reviewer === 'principal' && made.task?.state !== 'blocked') await app.tasks.block(id, 'A review of #' + task + ' for the principal', 'review').catch(() => undefined)
@@ -228,6 +235,14 @@ export class Seat extends DurableObject<Env> {
       waiting.push(dependent.id)
     }
     return { reviews, waiting }
+  }
+
+  /**
+   * Labels a message with its request, as the app: what a seat makes where it may post but not label
+   * (a proposal in org/) gets its org.request this way (harness/board.ts).
+   */
+  async stamp(id: string, request: string): Promise<void> {
+    await bus().label(id, { set: { [REQUEST]: request } })
   }
 
   /** An escalation to a seat (§4.3): held as the app, so the seat it's for (its task's maker) answers it, not only the principal. */
@@ -348,7 +363,10 @@ export class Seat extends DurableObject<Env> {
           const waiting = (this.#one<{ n: number }>("select count(*) as n from wakes where state = 'queued'")?.n ?? 0)
           const words = budgetText(step.hold, runtime, spend, runtime.budget.month!, period, waiting)
           const tasks = seatBoard(bus(), runtime).tasks
-          const made = await tasks.create({ channel: 'dm/' + runtime.key, text: words.text, id: 'budget-' + runtime.key + '-' + period + '-' + step.hold })
+          // Part of the request whose work spent the budget: the newest that ran.
+          const last = this.#one<{ request: string }>("select request from wakes where request is not null and request != 'null' and started is not null order by started desc limit 1")
+          const request = last ? (JSON.parse(last.request) as RequestHint | null)?.id : undefined
+          const made = await tasks.create({ channel: 'dm/' + runtime.key, text: words.text, id: 'budget-' + runtime.key + '-' + period + '-' + step.hold, ...(request ? { labels: { [REQUEST]: request } } : {}) })
           const task = String(made.task.id)
           await tasks.block(task, words.reason, 'budget').catch((error: unknown) => {
             // Made by an earlier try and held already: that's what this step wanted.
@@ -494,7 +512,9 @@ export class Seat extends DurableObject<Env> {
     try {
       const session = await new PiHarnessAdapter(this.env.SESSION).open(seatRef(runtime), row.thread)
       const input = JSON.parse(row.input) as Input
-      await session.submit(input, { operationId: row.id, ...(row.task ? { task: row.task } : {}) })
+      // An answer resumes its operation, whose request stands; a turn brings its own (or none: a schedule).
+      const request = row.request === null || row.request === undefined ? undefined : (JSON.parse(row.request) as RequestHint | null)
+      await session.submit(input, { operationId: row.id, ...(row.task ? { task: row.task } : {}), ...(request !== undefined ? { request } : {}) })
       if (input.type === 'approval') {
         // The held operation goes on: it's running again until it ends.
         const hold = this.#one<{ operation: string | null }>('select operation from holds where task = ?', input.approvalId)

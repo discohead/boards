@@ -82,12 +82,16 @@ export class Session extends Agent<Env> {
   #models = createModels()
   /** The board task of the operation whose request is being built (set in beforeRequest). */
   #task: string | null = null
+  /** The principal's request the running operation belongs to: the org.request its board writes carry (set in beforeRequest and at submit). */
+  #request: string | null = null
 
   constructor(ctx: DurableObjectState, env: Env) {
     super(ctx, env)
     this.lifecycle.use(this.harness)
     this.sql`CREATE TABLE IF NOT EXISTS wb_seat (k TEXT PRIMARY KEY, seat TEXT NOT NULL)`
-    this.sql`CREATE TABLE IF NOT EXISTS wb_ops (id TEXT PRIMARY KEY, kind TEXT NOT NULL, resumes TEXT, task TEXT, started INTEGER NOT NULL, ended INTEGER)`
+    this.sql`CREATE TABLE IF NOT EXISTS wb_ops (id TEXT PRIMARY KEY, kind TEXT NOT NULL, resumes TEXT, task TEXT, started INTEGER NOT NULL, ended INTEGER, request TEXT)`
+    // Operations kept before requests were stamped gain their column.
+    if (!this.sql<{ name: string }>`PRAGMA table_info(wb_ops)`.some((column) => column.name === 'request')) this.sql`ALTER TABLE wb_ops ADD COLUMN request TEXT`
     this.sql`CREATE TABLE IF NOT EXISTS wb_responses (id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, model TEXT, input INTEGER, output INTEGER, cache_read INTEGER, cache_write INTEGER, cost REAL, log TEXT, at INTEGER NOT NULL)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_tools (call TEXT PRIMARY KEY, op TEXT, name TEXT NOT NULL, started INTEGER, ended INTEGER, ok INTEGER)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_sandbox_files (path TEXT PRIMARY KEY, size INTEGER NOT NULL, mtime INTEGER NOT NULL)`
@@ -130,6 +134,9 @@ export class Session extends Agent<Env> {
         ...boardTools(() => seatBoard(this.env.WORKBUS, BOARD, this.#seat()), {
           claimToken: () => this.#claimToken(),
           seat: () => this.#configured(),
+          // What it makes carries the request its operation belongs to; where it may not label, its Seat labels it as the app.
+          request: () => this.#request,
+          stamp: (id, request) => (this.env.SEAT.getByName(this.#seat().key) as unknown as { stamp(id: string, request: string): Promise<void> }).stamp(id, request),
           // A reviews edge (§4.5): the Seat makes the review tasks, as the app, before the work is complete.
           escalate: (task, reason, kind) => (this.env.SEAT.getByName(this.#seat().key) as unknown as { escalate(task: string, reason: string, kind?: string): Promise<unknown> }).escalate(task, reason, kind),
           beforeComplete: async (task) => {
@@ -223,7 +230,9 @@ export class Session extends Agent<Env> {
         ...meter({
           request: async () => {
             const op = await this.#running()
-            this.#task = op ? (this.sql<{ task: string | null }>`SELECT task FROM wb_ops WHERE id = ${op}`[0]?.task ?? null) : null
+            const row = op ? this.sql<{ task: string | null; request: string | null }>`SELECT task, request FROM wb_ops WHERE id = ${op}`[0] : undefined
+            this.#task = row?.task ?? null
+            this.#request = row?.request ?? null
           },
           response: async (message) => {
             const u = message.usage ?? {}
@@ -260,7 +269,7 @@ export class Session extends Agent<Env> {
     const text = '@' + seat.handle + ' asks to run ' + call.name + ' in #' + thread.message.id + ':\n\n```json\n' + args.slice(0, 4000) + '\n```'
     // Held in the seat's own DM (owners and the seat), never in the thread's channel: that may be a queue a
     // seat serves, where the task would be ready for a moment between the answer and its close (#19).
-    const made = (await board.tasks.create({ channel: 'dm/' + seat.key, text, id: 'approval-' + call.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48) })) as { task: { id: string } }
+    const made = (await board.tasks.create({ channel: 'dm/' + seat.key, text, id: 'approval-' + call.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48), ...(this.#request ? { labels: { 'org.request': this.#request } } : {}) })) as { task: { id: string } }
     await board.tasks.block(made.task.id, 'Approve or deny ' + call.name + ' for @' + seat.handle, kind)
     const op = await this.#running()
     this.sql`INSERT OR IGNORE INTO wb_approvals (id, call, pi_task, op, tool, kind, args, state, at) VALUES (${made.task.id}, ${call.id}, ${piTask}, ${op}, ${call.name}, ${kind}, ${args}, 'held', ${Date.now()})`
@@ -275,6 +284,19 @@ export class Session extends Agent<Env> {
   }
 
   // The RPC face (harness/pi.ts's SessionStub).
+
+  /**
+   * The request an operation belongs to (harness/types.ts RequestHint): the one its wake-up carries; a
+   * person's message starts one, unless it's a reply in a thread this session already works for one;
+   * none for a schedule; and without a hint, the thread's. The thread keeps the first it gets.
+   */
+  #requestFor(hint: SubmitOptions['request']): string | null {
+    const thread = this.sql<{ seat: string }>`SELECT seat FROM wb_seat WHERE k = 'request'`[0]?.seat ?? null
+    if (hint === null) return null
+    const request = hint === undefined ? thread : hint.via === 'person' && hint.reply && thread ? thread : hint.id
+    if (request && !thread) this.sql`INSERT OR IGNORE INTO wb_seat (k, seat) VALUES ('request', ${request})`
+    return request
+  }
 
   /** The seat this session works for; a new revision reinstalls its prompt and tools. */
   async configure(seat: SeatRef): Promise<void> {
@@ -292,9 +314,11 @@ export class Session extends Agent<Env> {
     const text = input.parts.map((part) => part.text).join('\n')
     // pi reads its settings (the gateway's task metadata) before the beforeRequest hook runs, so set it here for the first request too.
     if (options.task && (await this.harness.pending()).length === 0) this.#task = options.task
+    const request = this.#requestFor(options.request)
+    if (request && (await this.harness.pending()).length === 0) this.#request = request
     const receipt = await this.harness.submit(text, { operationId: options.operationId, whenBusy: options.whenBusy ?? 'followUp', onAbort: 'keep' })
     if (receipt.accepted) {
-      this.sql`INSERT OR IGNORE INTO wb_ops (id, kind, task, started) VALUES (${options.operationId}, 'turn', ${options.task ?? null}, ${Date.now()})`
+      this.sql`INSERT OR IGNORE INTO wb_ops (id, kind, task, started, request) VALUES (${options.operationId}, 'turn', ${options.task ?? null}, ${Date.now()}, ${request})`
       this.#emit({ type: 'operation', status: { operationId: options.operationId, status: 'queued' } })
       this.ctx.waitUntil(this.wait(options.operationId).catch(() => undefined))
     }
