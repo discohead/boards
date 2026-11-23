@@ -11,7 +11,9 @@
 import { boardTools } from '../src/harness/board.ts'
 
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'owned,mentions,escalate,review,tools'] = process.argv.slice(2)
-const owner = { authorization: 'Bearer ' + process.env.TOKEN }
+// Locally a board token (TOKEN); live, a person's Access token for workbus.dev (ACCESS_TOKEN), and the Seats read through GET /api/seats/<key>.
+const live = Boolean(process.env.ACCESS_TOKEN)
+const owner = live ? { 'cf-access-token': process.env.ACCESS_TOKEN } : { authorization: 'Bearer ' + process.env.TOKEN }
 const as = (profile) => ({ authorization: 'Bearer ' + process.env.APP_TOKEN, 'x-board-profile': profile })
 const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
@@ -45,7 +47,13 @@ async function seat(body) {
 /** The wakes a seat queued for a thread (its root's ID), after things settle. */
 async function queued(key, thread, ms = 2500) {
   await sleep(ms)
-  return (await seat({ seat: key, call: 'status' })).wakes.filter((wake) => wake.thread === thread)
+  return (await status(key)).wakes.filter((wake) => wake.thread === thread)
+}
+async function status(key) {
+  if (!live) return seat({ seat: key, call: 'status' })
+  const response = await fetch(app + '/api/seats/' + key, { headers: owner })
+  if (!response.ok) throw new Error('GET /api/seats/' + key + ': ' + response.status)
+  return response.json()
 }
 /** Pauses a seat by its doc, as the principal, and waits for its Seat to say so. */
 async function pause(key) {
@@ -209,6 +217,22 @@ if (pick.has('consult')) {
   const repliesNow = consult ? (await answerOf()).length : 0
   check(fromAdvisor.length === 0 && repliesNow === 1, 'and the advisor says nothing more', { threads: fromAdvisor.length, replies: repliesNow })
   console.log('     the principal asked in #' + asked)
+}
+
+// "reviewlive": with the edge { from: op, kind: reviews, to: ada } in org/teams/eng, one task for ada through op;
+// her task_complete makes a review task for op first.
+if (pick.has('reviewlive')) {
+  const started = new Date().toISOString()
+  const runtime = (await status('ada')).runtime
+  check(runtime?.reviewers?.includes('op'), "ada's Seat has op as her reviewer (the edge is in org/teams/eng)", runtime?.reviewers)
+  await board('POST', '/messages', { channel: 'dm/op', text: 'Make exactly one task in eng/queue for Ada: write the file review-' + run + '.txt containing the word ok, then complete the task. Nothing else: no running code.' })
+  const task = await until(async () => (await board('GET', '/tasks?channel=eng/queue&state=all&limit=100')).tasks.map((t) => t.message).find((m) => m.createdAt >= started && m.by?.actor === OP && m.text.includes('review-' + run)), 240_000)
+  check(Boolean(task), 'op makes the task for ada', task?.id)
+  const review = task && (await until(async () => (await board('GET', '/tasks?channel=eng/queue&state=all&limit=100')).tasks.map((t) => t.message).find((m) => m.text.startsWith('Review #' + task.id)), 300_000))
+  check(Boolean(review) && review.task.for === OP, 'her completion makes a review task for op', review && { id: review.id, for: review.task.for, text: review.text.slice(0, 100) })
+  const done = task && (await board('GET', '/messages/' + task.id)).message.task
+  check(done?.state === 'completed', 'and her task is completed', done?.state)
+  console.log('     task #' + task?.id + ', review #' + review?.id)
 }
 
 if (pick.has('replies')) {

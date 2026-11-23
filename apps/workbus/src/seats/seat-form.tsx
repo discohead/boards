@@ -46,7 +46,7 @@ export function SeatConfig({ seat, onClose }: { seat: SeatView; onClose: () => v
   if (error) return <p role="alert" className="text-[13px] text-danger">{error}</p>
   if (!page) return <p className="text-[13px] text-muted-foreground">Reading its doc…</p>
   const block = blockIn(page.body)
-  if (!block) return <p role="alert" className="text-[13px] text-danger">Its doc has no json#seat@1 block to edit: add one in the doc first.</p>
+  if (!block) return <p role="alert" className="text-[13px] text-danger">Its doc has no json#seat@1 or @2 block to edit: add one in the doc first.</p>
   return (
     <>
       <Form key={page.doc.revision} seat={seat} page={page} block={block} onClose={onClose} onSaved={(next, revision) => (setSaved({ revision, state: 'applying' }), setPage(next))} />
@@ -308,7 +308,7 @@ function Form({ seat, page, block, onClose, onSaved }: { seat: SeatView; page: P
             <Button variant="outline" onClick={onClose}>
               Close
             </Button>
-            <span className="font-mono text-mono-label text-muted-foreground">writes org/seats/{seat.key}'s json#seat@1 block as you, at revision {page.doc.revision}</span>
+            <span className="font-mono text-mono-label text-muted-foreground">writes org/seats/{seat.key}'s seat block as you, at revision {page.doc.revision}</span>
             {formError ? (
               <p data-testid="seat-form-error" role="alert" className="basis-full text-[13px] text-danger">
                 {typeof formError === 'string' ? formError : (formError as { form?: string }).form ?? 'Fix the fields marked above.'}

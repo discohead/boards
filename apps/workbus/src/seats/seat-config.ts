@@ -1,4 +1,4 @@
-// A seat doc's config as a form edits it (design/workbus.md §4.4): its json#seat@1 block to the
+// A seat doc's config as a form edits it (design/workbus.md §4.4): its json#seat@1 or @2 block to the
 // form's values and back. What the form doesn't show (role, avatar, automatic, the occupant's
 // harness) is kept as the block had it. The charter prose is the doc editor's, never touched here.
 import type { SchemaError } from '@/org/schema-check'
@@ -7,7 +7,7 @@ export const PERMISSIONS = ['read', 'post', 'react', 'label', 'edit', 'sync', 'm
 export type Permission = (typeof PERMISSIONS)[number]
 /** The tools a seat doc may name today (org/rules.ts TOOLS). */
 export const KNOWN_TOOLS = ['board', 'computer']
-export const SIMPLE_WAKES = ['mention', 'follow', 'assigned', 'dm', 'schedules'] as const
+export const SIMPLE_WAKES = ['mention', 'follow', 'assigned', 'owned', 'dm', 'schedules'] as const
 export const WAKE_KINDS = [...SIMPLE_WAKES, 'ready', 'docs', 'tail', 'dm-all'] as const
 export type WakeKind = (typeof WAKE_KINDS)[number]
 /** What a wake kind takes: a channel (ready, docs), a filter (tail), or nothing. */
@@ -28,7 +28,7 @@ export type SeatValues = {
   approve: { tool: string; kind: string }[]
 }
 
-export const FENCE = /(```json#seat@1[^\n]*\n)([\s\S]*?)(\n```)/
+export const FENCE = /(```json#seat@[12][^\n]*\n)([\s\S]*?)(\n```)/
 
 /** The seat block in a doc's body, or null when it has none (or it isn't JSON). */
 export function blockIn(body: string): Block | null {
@@ -41,8 +41,9 @@ export function blockIn(body: string): Block | null {
   }
 }
 
-/** The body with its seat block replaced, the rest (the charter) as it was. */
-export const withBlock = (body: string, block: Block) => body.replace(FENCE, (_all, open: string, _old: string, close: string) => open + JSON.stringify(block, null, 2) + close)
+/** The body with its seat block replaced, the rest (the charter) as it was. A block that wakes for 'owned' is a seat@2 (seat@1 doesn't know it). */
+export const withBlock = (body: string, block: Block) =>
+  body.replace(FENCE, (_all, open: string, _old: string, close: string) => (Array.isArray(block.wakes) && block.wakes.includes('owned') ? open.replace('seat@1', 'seat@2') : open) + JSON.stringify(block, null, 2) + close)
 
 const text = (value: unknown) => (value === undefined || value === null ? '' : String(value))
 

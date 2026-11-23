@@ -2,7 +2,7 @@
 // required, properties, additionalProperties, items, min/maxItems, min/maxLength, minimum and
 // maximum, and format uri. The seat form checks a block with it before it sends, so what the board
 // would refuse for its shape is said beside the field; the board still checks it on the write.
-import { SEAT_SCHEMA } from './schemas.ts'
+import { SEAT_SCHEMA_2 } from './schemas.ts'
 
 type Schema = Record<string, any>
 export type SchemaError = { path: string; message: string }
@@ -50,5 +50,5 @@ export function check(schema: Schema, value: unknown, path = ''): SchemaError[] 
 const join = (path: string, key: string) => (path ? path + '.' + key : key)
 const describe = (value: unknown) => (typeof value === 'string' ? JSON.stringify(value) : typeOf(value))
 
-/** A seat block against json#seat@1: empty when the board would take its shape. */
-export const checkSeatBlock = (block: unknown) => check(SEAT_SCHEMA.schema, block)
+/** A seat block against json#seat@2 (seat@1 and 'owned'): empty when the board would take its shape, as the form writes it. */
+export const checkSeatBlock = (block: unknown) => check(SEAT_SCHEMA_2.schema, block)
