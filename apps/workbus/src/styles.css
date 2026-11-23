@@ -8,10 +8,25 @@
 
 @custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
 
-/* The faces. Each family is one line: the system's own fallback stacks, no web fonts. */
+/* The faces: Geist and Geist Mono, variable (100 to 900), self-hosted from public/fonts with their
+   OFL licenses. Nothing loads from a font CDN. The sans is preloaded in __root.tsx. */
+@font-face {
+  font-family: "Geist";
+  src: url("/fonts/geist.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Geist Mono";
+  src: url("/fonts/geist-mono.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
 :root {
-  --wb-font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --wb-font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --wb-font-sans: "Geist", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --wb-font-mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 /* Color, from tokens.css. The --wb- prefix keeps them apart from shadcn's names (its --muted is a

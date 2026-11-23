@@ -1,6 +1,7 @@
 // The status marks: SeatState, Kind, Label, HeldPill, TaskState. Every one carries a shape or a
 // word as well as a color.
 import type { ReactNode } from 'react'
+import { AtSign, CircleCheck, CircleX, GitBranch, ShieldCheck, Split, SquareCheck, Wallet, type LucideIcon } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 export type SeatStateName = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget'
@@ -42,7 +43,20 @@ export function SeatState({ state, label, className }: SeatStateProps) {
 export interface KindProps {
   kind: KindName
   children?: ReactNode
+  /** Its icon and capitalized word in the kind's ink, no tint: the inbox row's form (the prototype). */
+  plain?: boolean
   className?: string
+}
+
+const KIND_ICON: Record<KindName, LucideIcon> = {
+  approval: ShieldCheck,
+  decision: Split,
+  budget: Wallet,
+  review: SquareCheck,
+  proposal: GitBranch,
+  mention: AtSign,
+  done: CircleCheck,
+  failed: CircleX,
 }
 
 const KIND_TONE: Record<KindName, string> = {
@@ -57,7 +71,16 @@ const KIND_TONE: Record<KindName, string> = {
 }
 
 /** The kind of an inbox item or held task, in mono on a tint. Held kinds are vermilion. */
-export function Kind({ kind, children, className }: KindProps) {
+export function Kind({ kind, children, plain, className }: KindProps) {
+  if (plain) {
+    const Glyph = KIND_ICON[kind]
+    return (
+      <span data-slot="kind" data-kind={kind} className={cn('inline-flex items-center gap-1 font-mono text-mono-label capitalize', KIND_TONE[kind].replace(/bg-\S+ /, ''), className)}>
+        <Glyph size={13} strokeWidth={1.5} aria-hidden />
+        {children ?? kind}
+      </span>
+    )
+  }
   return (
     <span data-slot="kind" data-kind={kind} className={cn('rounded-xs px-1.5 font-mono text-[10.5px] leading-[18px] whitespace-nowrap', KIND_TONE[kind], className)}>
       {children ?? kind}
@@ -87,15 +110,17 @@ export function Label({ name, value, className }: LabelProps) {
 
 export interface HeldPillProps {
   kind?: 'approval' | 'decision' | 'review' | 'budget'
+  /** Words in place of "Held · <kind>", e.g. "Held for you" (the prototype's facts row). */
+  children?: ReactNode
   className?: string
 }
 
 /** The strongest status mark: a thread or task held for you. One per view. */
-export function HeldPill({ kind = 'approval', className }: HeldPillProps) {
+export function HeldPill({ kind = 'approval', children, className }: HeldPillProps) {
   return (
     <span data-slot="held-pill" className={cn('inline-flex items-center gap-1.5 rounded-sm bg-held-soft px-2 py-0.5 text-[11.5px] font-semibold whitespace-nowrap text-held', className)}>
       <i aria-hidden className="size-1.5 rounded-full bg-current" />
-      Held · {kind}
+      {children ?? <>Held · {kind}</>}
     </span>
   )
 }
