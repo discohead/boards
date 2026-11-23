@@ -84,8 +84,15 @@ type Named = { id: string; handle: string; name: string; kind: string }
 /** The actors a caller sees: everyone for a reader of every channel; else who wrote where it reads, and itself. */
 export function visibleActors(ctx: Ctx): Named[] {
   const all = ctx.sql.all<Named>('select id, handle, name, kind from actors')
-  if (ctx.access.everywhere('read')) return all
+  const everywhere = ctx.access.everywhere('read')
+  if (everywhere && !ctx.access.hides) return all
   const channels = ctx.sql.all<{ channel: string; actor: string }>('select distinct channel, actor from messages union select channel, actor from cold_authors')
+  if (everywhere) {
+    // Everyone but who wrote only in private channels closed to the caller.
+    const shown = new Set(channels.filter((row) => ctx.access.readable(row.channel)).map((row) => row.actor))
+    const hidden = new Set(channels.map((row) => row.actor).filter((actor) => !shown.has(actor) && actor !== ctx.actor.id))
+    return all.filter((actor) => !hidden.has(actor.id))
+  }
   const seen = new Set(channels.filter((row) => ctx.access.readable(row.channel)).map((row) => row.actor))
   seen.add(ctx.actor.id)
   return all.filter((actor) => seen.has(actor.id))
@@ -147,6 +154,8 @@ export type Imported = {
   textMax?: number
   /** The board's own labels (board.*) the write sets: a doc's, a doc comment's section. */
   boardLabels?: Record<string, string>
+  /** What its message.posted carries besides: a batch task's place in its batch. */
+  event?: Record<string, unknown>
 }
 
 type By = { actor: string; principal: string; profile: string | null }
@@ -182,7 +191,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   authorize(ctx.access, permission, channel)
   if (Object.keys(body.labels ?? {}).length && !imported.from) authorize(ctx.access, 'label', channel)
   if (body.sync?.length) authorize(ctx.access, 'sync', channel)
-  const key = imported.clientKey ?? body.id
+  const key = imported.clientKey ?? (body.id !== undefined ? ctx.board.clientKey(channel, body.id, author.actor) : undefined)
   if (key !== undefined) {
     const found = replay(ctx, key, channel, root?.id ?? null, replyTo, author)
     if (found) return { row: found, replayed: true }
@@ -210,7 +219,7 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   const at = ctx.now
   ctx.board.seen(imported.author ?? ctx.actor, at)
   const seq = ctx.board.reserve()
-  const threadKey = root ? root.thread_key : (key ?? crypto.randomUUID())
+  const threadKey = root ? root.thread_key : (imported.clientKey ?? body.id ?? crypto.randomUUID())
   const thread = root ? root.id : seq
   ctx.sql.run(
     'insert into messages (id, thread, thread_key, channel, re, reply_to, actor, principal, profile, from_key, origin, text, text_lower, labels, attachments, links, schedule, no_sync, blind, imported_by, version, revision, client_key, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
@@ -230,6 +239,9 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
   if (imported.schedule) payload.schedule = imported.schedule
   if (blind) payload.blind = true
   if (imported.importedBy) payload.importedBy = imported.importedBy
+  // The client ID it was written with, so a client settles its optimistic write when this event comes back.
+  if (imported.clientKey ?? body.id) payload.clientId = imported.clientKey ?? body.id
+  if (imported.event) Object.assign(payload, imported.event)
   ctx.board.append('message.posted', payload, { at, message: seq, thread, before: null, seq })
   if (!root && body.sync?.length) hooks.syncTargets(ctx, seq, threadKey, body.sync.map((entry) => (typeof entry === 'string' ? { target: entry } : entry)))
   return { row: ctx.board.message(seq)!, replayed: false, ...(mentions ? { mentions } : {}) }
@@ -243,8 +255,11 @@ op('post', (ctx, body: Posting) => {
 })
 
 op('posted', (ctx, { id }: { id: string }) => {
+  // Its own key in a private channel (Board.clientKey), or the ID as written anywhere else.
+  const own = id + '\u001f' + ctx.author.actor
+  hooks.keyed(ctx, own)
   hooks.keyed(ctx, id)
-  const row = ctx.sql.one<MessageRow>('select * from messages where client_key = ?', id)
+  const row = ctx.sql.one<MessageRow>('select * from messages where client_key = ?', own) ?? ctx.sql.one<MessageRow>('select * from messages where client_key = ?', id)
   if (!row || row.actor !== ctx.author.actor || row.principal !== ctx.author.principal || (row.profile ?? null) !== ctx.author.profile || !(ctx.access.readable(row.channel) || row.blind))
     throw notFound('no post of yours has id ' + id, 'post_not_found')
   return { message: postedView(ctx, row) }
@@ -292,6 +307,7 @@ op('edit', (ctx, { id, text, revision }: { id: string; text: string; revision?: 
 
 /** Tombstones a message: in the caller's transaction, with whatever its task and thread need. */
 export function deleteMessage(ctx: Ctx, row: MessageRow, by: By, from: string | null = null) {
+  hooks.deleting(ctx, row)
   if (row.re === null) hooks.rootDeleted(ctx, row.id)
   const before = ctx.board.facet(row.id)
   const seq = ctx.board.reserve()
@@ -382,25 +398,26 @@ op('label', (ctx, body: { id: string; set?: Record<string, string>; unset?: stri
 
 // -- channels ------------------------------------------------------------------------------------
 
-const channelView = (row: { path: string; last: number; messages: number; threads: number }) => ({ path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads })
+// A private channel (design/private-channels.md) says so to its parties, the only ones who list it.
+const channelView = (ctx: Ctx, row: { path: string; last: number; messages: number; threads: number }) => ({ path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads, ...(ctx.board.partiesOf(row.path) ? { private: true } : {}) })
 
 op('channels', (ctx, query: { prefix?: string; after?: string; limit?: number }) => {
   const limit = query.limit ?? 100
   const rows = ctx.sql.all<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path > ? order by path', query.after ?? '')
   const readable = rows.filter((row) => (query.prefix === undefined || row.path.startsWith(query.prefix)) && ctx.access.readable(row.path))
   const page = readable.slice(0, limit)
-  return { channels: page.map(channelView), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
+  return { channels: page.map((row) => channelView(ctx, row)), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
 }, { read: true })
 
 op('createChannel', (ctx, { path }: { path: string }) => {
   authorize(ctx.access, 'read', path)
   authorize(ctx.access, 'post', path)
   const there = ctx.sql.one<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path = ?', path)
-  if (there) return { channel: channelView(there), created: false }
+  if (there) return { channel: channelView(ctx, there), created: false }
   ctx.board.seen(ctx.actor, ctx.now)
   ensureChannel(ctx, path, ctx.now)
   ctx.board.append('channel.created', { channel: path, by: ctx.author }, { at: ctx.now })
-  return { channel: { path, lastIndex: 0, messages: 0, threads: 0 }, created: true }
+  return { channel: channelView(ctx, { path, last: 0, messages: 0, threads: 0 }), created: true }
 })
 
 // -- reads ------------------------------------------------------------------------------------

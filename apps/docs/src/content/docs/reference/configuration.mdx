@@ -94,11 +94,13 @@ Export every class your `wrangler.jsonc` names, and `BoardSession` for `run_code
 
 ```ts
 type WorkbusConfig = {
+  owners?: string | string[]                   // who signing in through Access is an owner: emails or Access subs
+  private?: (channel: string) => string[] | null // a private channel's parties, or null where the grants decide
   watch?: Record<string, WatchConfig>          // config watchers, by ID
   sync?: Record<string, SyncProvider>          // the board's own syncs, by key
 }
 
-type WatchConfig = { tail: string; sink: Sink }
+type WatchConfig = { tail: string; sink: Sink; private?: boolean }
 
 type Sink =
   | { kind: 'service'; binding: string; method?: string }   // env[binding][method ?? 'onEvent'](event, context)
@@ -106,13 +108,21 @@ type Sink =
   | { kind: 'sync'; key: string }                            // a sync's courier; the board sets this up itself
 ```
 
+### owners
+
+Who is the board's owner when they sign in through Cloudflare Access: each entry an email (with an `@`, matched in any case) or an Access `sub`. `ACCESS_OWNERS` adds more from the Worker's env, so they needn't be in code. [Identity and access](/guides/identity-and-access/#cloudflare-access) says which to use.
+
+### private
+
+The deployment's [private channels](/guides/identity-and-access/#private-channels): for a channel's name, its parties (actor IDs, or `owners`), or `null`. It must answer the same for the same name every time. `dms(principal)` is the one the app needs: `dm/<seat>` and its subtree, private to `owners` and `<principal>+<seat>`. The plain deployment uses `dms('worker:workbus-app')`.
+
 ### watch
 
 Each watcher sees every event whose tail matches, on every board of the deployment, from when it is first deployed. A Mailbox per board and watcher delivers matches one at a time per thread, threads in parallel, each under a 5 minute lease; an error waits 1 second, doubling to 30, and after 5 tries the match is recorded failed and the thread goes on. [Watchers](/guides/watchers/) covers both kinds of watcher.
 
 A **tail** is what you'd type after `wb tail`: a channel (`deploys`), a subtree (`deploys/`), or nothing for every channel, then filters: `--label k=v` (repeatable), `--by <who>`, `--mentions <who>`, `--source <key>`, `--text <words>`, `--re <id>`, and `--all` for bookkeeping events too.
 
-A **service** sink calls a method on a binding in `env` with `(event, context)`. `event` is the [feed event](/reference/http-api/#events) (`cursor`, `type`, `payload`, `message`, `actor`). `context` is `{ board, name, watcher, match, attempt }`: `name` is the board's name, and `board` is the board acting as the watcher, with `me()`, `message(id)`, `threads(query)`, `post(channel, input)`, `reply(id, input)`, `react(id, emoji)`, `label(id, change)`, and `typing(id, status?)`. Its writes are the watcher's (`workbus:watch:<id>`, outside the grants), and a retried match writes each one once.
+A **service** sink calls a method on a binding in `env` with `(event, context)`. `event` is the [feed event](/reference/http-api/#events) (`cursor`, `type`, `payload`, `message`, `actor`). `context` is `{ board, name, watcher, match, attempt }`: `name` is the board's name, and `board` is the board acting as the watcher, with `me()`, `message(id)`, `threads(query)`, `post(channel, input)`, `reply(id, input)`, `react(id, emoji)`, `label(id, change)`, and `typing(id, status?)`. Its writes are the watcher's (`workbus:watch:<id>`, outside the grants), and a retried match writes each one once. A watcher sees private channels' events, and its `board` reads them, only with `private: true`.
 
 A **url** sink POSTs the match as JSON. With a `secret`, `x-board-signature` is `sha256=` and the hex HMAC-SHA256 of the body; `x-board-match` is the match ID. Any answer but 2xx is a failed try.
 
@@ -190,6 +200,7 @@ Each Durable Object class is a SQLite class: declare it in `new_sqlite_classes`.
 | `BOARD_ORIGIN` | the request's origin | The public origin: the issuer is `<origin>/issuer`, and a board's URL and token audience are `<origin>/b/<name>`. Set it when the Worker sits behind another host, and so service bindings know a board's URL before its first HTTP request. |
 | `ACCESS_TEAM` | none | Your Cloudflare Access team name: with `ACCESS_AUD`, a request with `cf-access-jwt-assertion` and no bearer token is the Access user. |
 | `ACCESS_AUD` | none | The Access application's audience tag. |
+| `ACCESS_OWNERS` | none | Who signing in through Access is the board's owner, beside `owners` in code: emails or Access subs, comma-separated. A secret, so the repo needn't name anyone. |
 | `ARCHIVE` | on | `off` turns archival off for every board. |
 | `ARCHIVE_SEAL_AFTER_MS` | 30 days | Events older than this are sealed into segments on R2. 0 to 100 years. |
 | `ARCHIVE_COLD_AFTER_MS` | 90 days | Threads with no activity this long go cold, to R2. 0 to 100 years. |

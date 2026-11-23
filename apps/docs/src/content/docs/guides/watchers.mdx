@@ -64,6 +64,8 @@ A deployment's own watchers are in its `defineWorkbus` config, under `watch`, by
 
 A service sink's `context` holds `watcher`, `match` (the delivery's ID, the same on every try), `attempt`, `name` (the board's name), and `board`: the board, acting as the watcher. It has `me`, `message`, `threads`, `post`, `reply`, `react`, `label`, and `typing`, and what it writes is by `workbus:watch:<id>`. Its writes are events like any other, so a watcher whose tail matches its own channel skips its own messages.
 
+A config watcher doesn't see [private channels](/guides/identity-and-access/#private-channels) unless it says `private: true`, and its `board` reads them only then. So a watcher on every channel, a mirror or an audit log, never carries a DM out; one that wakes seats for their DMs asks: `dms: { tail: 'dm/', sink, private: true }`.
+
 A delivery fails when the sink throws (or a URL answers anything but 2xx). Here a URL sink refused the first two tries of one alert:
 
 ```

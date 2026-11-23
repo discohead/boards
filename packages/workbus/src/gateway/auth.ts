@@ -32,8 +32,34 @@ export type AuthOptions = {
   issuerKey: IssuerKey
   /** OIDC issuers the board's grants name: their tokens are trusted. */
   issuers: () => Promise<string[]>
-  access?: { team: string; aud: string }
+  /** Cloudflare Access: its team and application, and who signing in through it is the board's owner (ownersOf). */
+  access?: { team: string; aud: string; owners?: readonly string[] }
 }
+
+/**
+ * The owners a deployment names, from code and ACCESS_OWNERS, as entries to match: an email (with an @,
+ * any case) or an Access sub. Commas or newlines between them.
+ */
+export function ownersOf(...lists: (string | readonly string[] | null | undefined)[]): string[] {
+  const out = new Set<string>()
+  for (const list of lists)
+    for (const entry of typeof list === 'string' ? list.split(/[,\n]/) : (list ?? [])) {
+      const trimmed = entry.trim()
+      if (trimmed) out.add(trimmed.includes('@') ? asciiLower(trimmed) : trimmed)
+    }
+  return [...out]
+}
+
+/**
+ * Whether an Access login is an owner: its sub is named, or its email is. The sub is the stable one
+ * (an email can be renamed or given to someone else); an email is what's known before a first sign-in.
+ */
+export function isOwner(owners: readonly string[], sub: string, email: string): boolean {
+  return owners.includes(sub) || owners.includes(asciiLower(email))
+}
+
+/** A-Z to a-z and nothing else: toLowerCase maps some other letters onto ASCII ones (KELVIN SIGN to k), so a different address would match. */
+const asciiLower = (text: string) => text.replace(/[A-Z]/g, (letter) => letter.toLowerCase())
 
 const SUB = /^[a-z0-9](?:[a-z0-9._@-]{0,62}[a-z0-9])?$/
 
@@ -85,7 +111,7 @@ export async function authenticate(request: Request, options: AuthOptions): Prom
   throw unauthorized('untrusted issuer: ' + iss)
 }
 
-async function fromAccess(token: string, access: { team: string; aud: string }): Promise<Principal> {
+async function fromAccess(token: string, access: { team: string; aud: string; owners?: readonly string[] }): Promise<Principal> {
   const iss = 'https://' + access.team + '.cloudflareaccess.com'
   let payload: Record<string, unknown>
   try {
@@ -96,7 +122,9 @@ async function fromAccess(token: string, access: { team: string; aud: string }):
   const email = typeof payload.email === 'string' ? payload.email : undefined
   const sub = String(payload.sub ?? email ?? '')
   const handle = email ? email.split('@')[0]!.toLowerCase().replace(/[^a-z0-9._-]/g, '-') : sub
-  return { id: (email ? 'access:user:' : 'access:service:') + sub, kind: email ? 'person' : 'workflow', handle, name: email ?? handle, facts: { issuer: 'access', claims: payload }, expiresAt: typeof payload.exp === 'number' ? payload.exp * 1000 : null, role: 'member' }
+  // Only a person's login can be an owner: a service token never is.
+  const role = email && isOwner(access.owners ?? [], sub, email) ? 'owner' : 'member'
+  return { id: (email ? 'access:user:' : 'access:service:') + sub, kind: email ? 'person' : 'workflow', handle, name: email ?? handle, facts: { issuer: 'access', claims: payload }, expiresAt: typeof payload.exp === 'number' ? payload.exp * 1000 : null, role }
 }
 
 /** A token for sub, for the board at audience, signed by the board's issuer. */

@@ -24,6 +24,7 @@ export const gateway = createGateway()
 export { Relay, Mailbox, Inbox, createGateway, Workbus, BoardSession }
 export { Board, Tasks, Claim, Docs, type WorkbusProps } from './binding.ts'
 export type { WorkbusConfig }
+export { dms, type Privacy } from './ledger/core.ts'
 export type { Sink } from './mailbox.ts'
 export type { SyncProvider, InboxEvent, Received, ImportTools, OutboundMessage, Copy, SyncUser } from './sync/provider.ts'
 export { SyncRefused, SyncRetry } from './sync/provider.ts'

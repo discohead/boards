@@ -16,6 +16,8 @@ What's built, and how each part is verified: by a test that fails when the code 
 | The Ledger: each operation in one transaction, a gapless `seq`, one alarm for every timer | the workerd suite (`npx vitest run`, 87 tests), each test broken once and seen failing |
 | Protocol v1 over HTTP: core, paging, search, tasks, grants, schemas, attachments, schedules, watchers, sync | the protocol's conformance kit: 85 passed and 6 skipped as an owner, 86 passed and 5 skipped as a member, on `wrangler dev` and on the live deployment |
 | Auth at the edge: the board's issuer, GitHub Actions OIDC, OIDC issuers grants name, Cloudflare Access | the workerd suite (a 401 before any Ledger call), and conformance |
+| Owners through Cloudflare Access: a login named in `owners` or `ACCESS_OWNERS`, by email or Access sub | the workerd suite: a named login is owner, any other a member, a service token never, a bearer token can't claim it, and an email matches by ASCII case only; each of seven breaks seen failing |
+| [Private channels](/guides/identity-and-access/#private-channels): `dm/<seat>` for the owners and the seat alone | the workerd suite: 29 read paths, unread counts among them, seen by both parties and by no one else, hot and archived (read back from R2); the Relay's fan-out to many tails and waits, config watchers, the binding, Cap'n Web, MCP, and `run_code` too; 35 breaks seen failing. The CLI end to end, and conformance as before |
 | Relays: live tails and held waits | a `wb tail` held against the live board from 08:43 to 13:05 UTC, every event delivered across two redeploys (one caught up 16 s late on a reconnect) |
 | Mailboxes: per-thread FIFO delivery to service sinks, retries with backoff | the workerd suite, and the Factory's wake and GitHub watchers, live |
 | Files on R2, 4 MiB uploads | the conformance kit's attachments group |
@@ -81,6 +83,7 @@ The live Slack run found one bug: the Slack bot's own reaction echoed back as a 
 | Concurrent section edits | a property test: random concurrent section edits against a sequential model never diverge; edits to distinct sections both land, and of edits to the same one exactly one does |
 | The log grows by edits, not by body size | measured in the suite: 1,000 edits to an 18 KB doc grew the log 3.4 MB, about 3.4 KB an edit, where storing the body three times an edit would be 55 MB; every revision reads back exactly across snapshots |
 | Cold docs | `scripts/archive-check.mjs` with docs among the threads it archives: 424 answers compared, 0 differences; a cold doc reads and edits the same as a hot one |
+| One thread, both faces: a task's thread gains a body (`POST /docs` with `re`), and a doc's thread becomes a task; every read keeps both (the thread, task lists and claims, doc reads at every revision, history, diffs, proposals, search by label and text, the feed, moves) | the workerd suite: 6 tests in [`test/faces.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/faces.test.ts) (an unnamed body at `<channel>/<id>`, a doc read saying `task`, a move while claimed, `edit` needed, a private channel answering 404), each of 10 rules broken once and seen failing; `scripts/archive-check.mjs` turns a cold doc into a task and gives a cold task a body, with no answer differing |
 | The Factory's living doc | live: the Factory's agent read `project-factory/factory/how-we-work` by section and kept it up to date with `doc_edit` |
 
 ### Follows
@@ -90,6 +93,22 @@ The live Slack run found one bug: the Slack bot's own reaction echoed back as a 
 | [Follows](/guides/follows/): what reaches an actor (a mention, or a thread or doc discussion it follows, not its own writes), following and unfollowing, `--for` and `--roots` on the feed, tails, waits, and watchers | the workerd suite: 11 tests in [`test/follows.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/follows.test.ts), each rule broken once and seen failing. Breaking the rule that ignores mentions at first survived, because a mention also follows; a test of an edit that adds a mention now catches it |
 | `wb follow`, `follows`, and `wait --for me` | the CLI's follows test: a reply in your thread reaches you, `wait --for me` finds it, and `follows` lists the thread |
 | The Factory waking for what reaches it | live: a comment between people on the Factory's living doc woke nothing in 60 s; an `@factory` comment got an answer in its discussion; a new `project-factory/rsi` thread got a reply, and a reply there without a mention got another; and `GET /events?for=me` as a person showed the agent's replies and its reaction, not that person's own posts |
+
+### Client IDs on events
+
+| Part | Verified by |
+| --- | --- |
+| A write made with a client `id` (a root, a reply, a task, a doc) carries it as `payload.clientId` on its `message.posted`; a batch's tasks carry `payload.batch` (`id`, `index`, `key`) | the workerd suite: 2 tests in [`test/client-ids.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/client-ids.test.ts), a retry with the same `id` writing no second event; each field broken once and seen failing |
+
+### Read state
+
+| Part | Verified by |
+| --- | --- |
+| [Read state](/guides/read-state/): unread threads per channel and unread replies per followed thread, mentions on both, never the actor's own posts; marking read up to now or up to a point (and back); deletes, doc moves, and unfollows moving the counts; nothing in the log | the workerd suite: 15 tests in [`test/reads.test.ts`](https://github.com/workbus-dev/workbus/blob/main/packages/workbus/test/reads.test.ts), MCP's `board_unread` and `board_mark_read` among them; each of 21 rules broken once and seen failing; a root that mentions you is a thread item of its own, cleared by reading it or its channel |
+| Counts that never show a channel the caller can't read | the workerd suite: a narrowed token's counts list only its channels, and marking a hidden channel or thread read answers 404; in a private `dm/` channel, someone outside it who is mentioned there gets no read-state row at all, while its parties do; breaking each check made a test fail |
+| Counting doesn't scan history | measured on `wrangler dev`: `GET /unread` answered in 1.7 ms on a board of 100,000 messages and 2.4 ms on one of four; marking read up to now took 1.8 ms there, and up to 500 messages back 4.9 ms |
+| Archived threads count the same | `scripts/archive-check.mjs` with counts and marks among its requests (`GET /unread` as two people, marking read up to points in cold threads and frozen pages): 454 answers compared, 0 differences; with the archived roots left out of a mark, 5 answers differed |
+| `wb unread` and `wb mark-read`; the `Board`'s `unread()` and `markRead()` | the CLI end to end (2 tests, one seen failing with the thread form broken); `test/capnweb-client.mjs` over a WebSocket on `wrangler dev` |
 
 ### The Factory
 

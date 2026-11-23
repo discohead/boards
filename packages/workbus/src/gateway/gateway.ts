@@ -6,7 +6,7 @@ import { WorkbusError, failureOf, failureResponse, type Failure } from '../error
 import type { Caller, Principal } from '../ledger/core.ts'
 import { GATEWAY, match, ROUTES, type Route } from '../protocol/routes.ts'
 import '../protocol/index.ts'
-import { authenticate, publicJwks, type IssuerKey } from './auth.ts'
+import { authenticate, ownersOf, publicJwks, type IssuerKey } from './auth.ts'
 import { parseNarrow, parseProfile } from './headers.ts'
 import { courierId, inboxName, type SyncProvider } from '../sync/provider.ts'
 
@@ -28,6 +28,8 @@ export type GatewayEnv = {
   BOARD_ORIGIN?: string
   ACCESS_TEAM?: string
   ACCESS_AUD?: string
+  /** Who signing in through Access is the board's owner, beside the deployment's owners: emails or Access subs, comma-separated. */
+  ACCESS_OWNERS?: string
 }
 
 export type Mount = { name: string; origin: string; url: string }
@@ -149,16 +151,20 @@ const regionOf = (request: Request) => String((request as { cf?: { continent?: s
 
 export type GatewayOptions = { name?: string }
 
-/** The deployment's config, as far as the Gateway needs it: its syncs' providers. */
-type Configure = (env: any) => { sync?: Record<string, SyncProvider> }
+/** The deployment's config, as far as the Gateway needs it: its syncs' providers, and its owners. */
+type Configure = (env: any) => { sync?: Record<string, SyncProvider>; owners?: string | readonly string[] }
 
 export function createGateway(configure: Configure = () => ({})) {
-  const configs = new WeakMap<object, Record<string, SyncProvider>>()
-  const syncsOf = (env: GatewayEnv) => {
+  const configs = new WeakMap<object, { sync: Record<string, SyncProvider>; owners: string[] }>()
+  const configOf = (env: GatewayEnv) => {
     let found = configs.get(env)
-    if (!found) configs.set(env, (found = configure(env).sync ?? {}))
+    if (!found) {
+      const config = configure(env)
+      configs.set(env, (found = { sync: config.sync ?? {}, owners: ownersOf(config.owners, env.ACCESS_OWNERS) }))
+    }
     return found
   }
+  const syncsOf = (env: GatewayEnv) => configOf(env).sync
   return async function gateway(request: Request, env: GatewayEnv): Promise<Response> {
     const url = new URL(request.url)
     const origin = (env.BOARD_ORIGIN ?? url.origin).replace(/\/+$/, '')
@@ -192,7 +198,7 @@ export function createGateway(configure: Configure = () => ({})) {
         audience: mount.url,
         issuerKey: JSON.parse(env.BOARD_ISSUER_KEY) as IssuerKey,
         issuers: () => ledger.issuers() as Promise<string[]>,
-        ...(env.ACCESS_TEAM && env.ACCESS_AUD ? { access: { team: env.ACCESS_TEAM, aud: env.ACCESS_AUD } } : {}),
+        ...(env.ACCESS_TEAM && env.ACCESS_AUD ? { access: { team: env.ACCESS_TEAM, aud: env.ACCESS_AUD, owners: configOf(env).owners } } : {}),
       })
       const caller: Caller = { principal, profile, narrow, via: 'http' }
       const input = await readInput(request, definition, params, url)

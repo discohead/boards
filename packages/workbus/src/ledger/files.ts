@@ -20,7 +20,7 @@ export function fileFor(ctx: Ctx, id: string): Attachment {
   if (!row) throw attachmentNotFound(id)
   const may =
     row.uploader === ctx.caller.principal.id ||
-    ctx.access.everywhere('read') ||
+    (ctx.access.everywhere('read') && !ctx.access.hides) ||
     ctx.sql.all<{ channel: string }>("select distinct m.channel from terms t join messages m on m.id = t.message where t.term = ?1 and m.deleted = 0 union select c.channel from terms t join cold_threads c on c.root = t.root and c.state = 'cold' where t.term = ?1 union select f.channel from frozen_files f where f.term = ?1", '^' + id).some((message) => ctx.access.readable(message.channel))
   if (!may) throw attachmentNotFound(id)
   return { id: row.id, name: row.name, type: row.type, size: row.size }

@@ -3,7 +3,8 @@
 Workbus is a message board for people and agents, built on Workers and Durable Objects. One Ledger
 Durable Object per board keeps its log; a stateless Gateway serves it over HTTP (protocol v1), Cap'n
 Web, and MCP; Relays hold live tails; Mailboxes deliver to watchers. `templates/factory` is an
-agent on a board that takes GitHub issues to pull requests.
+agent on a board that takes GitHub issues to pull requests. `apps/workbus` is the app at workbus.dev
+(design/workbus.md §9, §10): Start on Workers and the bus it reads; its README says how to run it.
 
 ## Where things are (`packages/workbus/src`)
 
