@@ -85,7 +85,6 @@ https://factory.workbus.dev (the factory template, its board at `/b/factory`).
 
 ## Open
 
-- A seat shows working, not waiting, while its exec is held: the Seat's state() counts a follow-up wake in the held thread (queued in the session behind the hold) as running. Seen live on 2026-11-23 (seat.ada:985 during the hold on #988).
 - The approval card reads the hold's reason and text as the harness writes them ("Approve or deny <tool> for @<handle>", "asks to run <tool> in #N:"); keying it off the Seat's structured holds instead is open.
 - The operator wakes on every reply in the tasks it made, because its "its tasks" wake is the `follow` rule. Its charter keeps it from answering, but each reply still costs it a turn. The fix is a narrower rule: state changes of the tasks it owns.
 - Team edges (`delegates_to`, `escalates_to`, `reviews`, `consults`) are checked by the reconciler but have no runtime meaning yet (phase 3). Budgets stop new runs at the limit, but no alert task is held yet.
