@@ -43,21 +43,26 @@ without it the binding answers "Worker workbus-bus not found". A token's audienc
 
 ### Containers in development
 
-The sandbox tier's containers run in Docker under `pnpm dev`, and workerd publishes each container
-sidecar's port with no host address, so Docker binds it on every interface, IPv4 and IPv6: the
-container is on the local network while it runs. workerd, Miniflare, wrangler, and the Vite plugin
-have no setting for the host address. Two fixes, either one:
+The sandbox tier runs a Docker container per session under `pnpm dev` (workerd builds
+`sandbox/Dockerfile`), and beside each a `cloudflare/proxy-everything` sidecar that carries its
+HTTP and HTTPS to the egress. workerd publishes the sidecar's port with no host address, so Docker
+binds it on every interface, IPv4 and IPv6: the container is on the local network while it runs.
+workerd, Miniflare, wrangler, and the Vite plugin have no setting for the host address. So every
+local check that starts containers runs through `scripts/with-containers.mjs`: it starts the dev
+servers itself, gives them a Docker socket of its own (`WRANGLER_DOCKER_HOST`, which wrangler and
+the Vite plugin both read) that binds published ports to 127.0.0.1, and on success, failure, or
+Ctrl-C stops the servers and removes exactly the containers and volumes they created. Don't have
+the dev servers running when you start it.
 
-- Run container checks through `scripts/with-containers.mjs`, which starts the dev servers itself,
-  gives them a Docker socket of its own (`WRANGLER_DOCKER_HOST`, which wrangler and the Vite
-  plugin both read) that binds published ports to 127.0.0.1, and on success, failure, or Ctrl-C
-  stops the servers and removes exactly the containers and volumes they created:
-  `node scripts/with-containers.mjs -- node scripts/sandbox-check.mjs http://127.0.0.1:8831`
-  (`--server "<command>" <ready-url>` for other servers; the app's two by default).
-- Or set Docker's default host address: `"ip": "127.0.0.1"` in the daemon settings.
+```bash
+pnpm check:sandbox                       # the sandbox tier, no model (GITHUB_REPO=owner/name for a private clone)
+TOKEN=<a board token> pnpm check:session # the Session, with Haiku (its sandbox part: ... sandbox)
+```
 
-Don't leave `pnpm dev` running with containers when you're done: stop it with Ctrl-C, which
-removes its containers; `docker ps --filter label=dev.workerd.session` lists any left.
+(`--server "<command>" <ready-url>` runs other servers, such as the same two on other ports.) The
+checks also tear down the containers they start, as a second layer. Docker's `"ip": "127.0.0.1"`
+daemon setting is the other fix, the machine owner's to choose. Don't leave `pnpm dev` running with
+containers: Ctrl-C removes them; `docker ps --filter label=dev.workerd.session` lists any left.
 
 ## The org
 
@@ -88,18 +93,6 @@ gateway also has `seat-any`: \$25 over a sliding 31 days with `metadata: { seat:
 seat whose budget needs more (above \$20 a month) gets a named rule: the reconciler says so in its
 doc's thread, and the limits it checks against are in `src/org/gateway.ts`. A gateway takes 20
 rules.
-
-### Containers in local dev
-
-The sandbox tier runs a Docker container per session under `pnpm dev` (workerd builds
-`sandbox/Dockerfile`), and beside each a `cloudflare/proxy-everything` sidecar that carries its
-HTTP and HTTPS to the egress. workerd creates the sidecar with its port published on every interface
-(`0.0.0.0` and `[::]`), and neither wrangler, miniflare, nor the Vite plugin has an option to bind it
-to 127.0.0.1 (as of wrangler 4.165 and workerd 1.20261118). Docker's daemon setting `"ip": "127.0.0.1"`
-does it for every container, and is the machine owner's to choose. So: keep `pnpm dev` running with
-containers only while you use them. `scripts/sandbox-check.mjs` tears down the containers it starts,
-passed or failed; a session's `sandboxReset()` removes its container; the sidecars go when the dev
-server stops (`docker ps --filter label=dev.workerd.session` lists what's left).
 
 ## Deploy
 

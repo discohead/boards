@@ -3,8 +3,9 @@
 // answers 403; the seat's workspace goes in before a command and what the command changes or
 // removes comes back (node_modules stays in the container); another thread of the seat gets its own
 // container with the same workspace; a container that's gone starts again with the workspace. No model.
-//   pnpm dev:bus & pnpm dev   (Docker running: vite dev builds sandbox/Dockerfile)
-//   node scripts/sandbox-check.mjs http://127.0.0.1:8831 [tools,egress,sync,threads,restart]
+//   pnpm check:sandbox   (Docker running; it starts the dev servers through scripts/with-containers.mjs,
+//                         ports on 127.0.0.1 only, and removes their containers after, whatever happens)
+//   or: node scripts/with-containers.mjs -- node scripts/sandbox-check.mjs http://127.0.0.1:8831 [tools,egress,sync,threads,restart,github]
 const [app = 'http://127.0.0.1:8831', only = 'tools,egress,sync,threads,restart,github'] = process.argv.slice(2)
 // GITHUB_REPO: owner/name of a private repository the Workbus GitHub App is installed on. The clone
 // of it, which only the egress's installation token makes possible, is skipped without it.

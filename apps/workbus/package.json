@@ -11,7 +11,9 @@
     "typecheck": "wrangler types -c wrangler.jsonc >/dev/null && tsc --noEmit -p . && tsc --noEmit -p bus",
     "deploy": "vite build && wrangler deploy",
     "deploy:bus": "wrangler deploy -c bus/wrangler.jsonc",
-    "cf-typegen": "wrangler types -c wrangler.jsonc"
+    "cf-typegen": "wrangler types -c wrangler.jsonc",
+    "check:sandbox": "node scripts/with-containers.mjs -- node scripts/sandbox-check.mjs http://127.0.0.1:8831",
+    "check:session": "node scripts/with-containers.mjs -- node scripts/session-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832"
   },
   "dependencies": {
     "@cloudflare/computer": "0.11.4",
