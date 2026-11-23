@@ -38,7 +38,7 @@ export function useAddFaces(root: Message | undefined, onFace: (face: 'task' | '
       throw refused
     })
   const tabs: AddTab[] = []
-  if (!root.task) tabs.push({ id: 'add-task', label: 'Make a task', add: true, onAdd: () => void settle(() => bus.threadActions.makeTask({ thread: root.id }).when('settled'), 'task') })
+  if (!root.task) tabs.push({ id: 'add-task', label: 'Make a task', add: true, onAdd: () => void settle(() => bus.actions.task.create({ re: root.id }).when('settled'), 'task') })
   if (!root.doc) tabs.push({ id: 'add-doc', label: 'Write it up', add: true, onAdd: () => void settle(writeUp, 'doc') })
   return { tabs, error }
 }

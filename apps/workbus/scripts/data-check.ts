@@ -96,7 +96,7 @@ const theirsOutcome = await theirs.when('settled').then(() => 'persisted', (erro
 check(theirsOutcome instanceof BusRefusal && bus.messages.get(posted.message.id)?.text === text1, 'is refused, and rolls back', theirsOutcome instanceof BusRefusal ? theirsOutcome.message : String(theirsOutcome))
 
 // 6. Tasks: one made here (optimistic, settled), and a state change from wb, live.
-const taskTx = bus.actions.createTask({ channel: 'work', text: 'a task from the app ' + Date.now() })
+const taskTx = bus.actions.task.create({ channel: 'work', text: 'a task from the app ' + Date.now() })
 const pendingTask = [...bus.tasks.values()].find((task) => task.pending)
 check(pendingTask?.task?.state === 'ready', 'a task shows at once', pendingTask?.id)
 await taskTx.when('settled')
