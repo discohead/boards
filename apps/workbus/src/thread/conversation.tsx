@@ -4,6 +4,7 @@
 // bottom.
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
+import { useLocation } from '@tanstack/react-router'
 import { eq, or } from '@tanstack/db'
 import { useBus } from '@/data'
 import { threadKey } from '@/data/unread'
@@ -20,15 +21,17 @@ export function Conversation({ id }: { id: string }) {
   const following = follows.length > 0
   const { data: counts } = useLiveQuery({ query: (q) => q.from({ row: bus.unread }).where(({ row }) => eq(row.key, threadKey(id))) })
   const unread = (counts[0]?.unread ?? 0) + (counts[0]?.mentions ?? 0)
+  // Opened from the inbox, a thread stays unread: an inbox item leaves when it's answered or marked done (work's rule).
+  const fromInbox = useLocation({ select: (location) => location.pathname === '/' })
   useEffect(() => {
-    if (bus.unread.status !== 'ready') return
+    if (bus.unread.status !== 'ready' || fromInbox) return
     const mark = () => {
       if (document.visibilityState === 'visible') void bus.actions.markRead({ thread: id })
     }
     if (unread > 0 || counts.length === 0) mark()
     document.addEventListener('visibilitychange', mark)
     return () => document.removeEventListener('visibilitychange', mark)
-  }, [bus, id, unread, bus.unread.status])
+  }, [bus, id, unread, bus.unread.status, fromInbox])
 
   const list = useRef<HTMLOListElement>(null)
   const atBottom = useRef(true)

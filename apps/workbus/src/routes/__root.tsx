@@ -79,6 +79,13 @@ function Frame() {
   const me = useMemo(() => (first?.me ? (JSON.parse(first.me) as Me) : null), [first?.me])
   const pathname = useLocation({ select: (location) => location.pathname })
   const threadOpen = useSearch({ strict: false, select: (search: RootSearch) => search.thread !== undefined })
+  // The dev gallery (/dev/system) draws its own screens, outside the frame.
+  if (pathname.startsWith('/dev/'))
+    return (
+      <BusProvider state={state} me={me} token={first?.token ?? null}>
+        <Outlet />
+      </BusProvider>
+    )
   return (
     <BusProvider state={state} me={me} token={first?.token ?? null}>
       <div className="flex h-svh overflow-hidden">
@@ -87,7 +94,7 @@ function Frame() {
           <TopBar title={titleOf(pathname)} />
           <div data-testid="workspace" className="flex min-h-0 flex-1">
             {/* The view's list: the whole width alone, the list's width beside an open thread. */}
-            <div className={threadOpen ? 'flex w-[344px] shrink-0 flex-col border-r' : 'flex min-w-0 flex-1 flex-col'}>
+            <div className={threadOpen ? 'flex w-[344px] shrink-0 flex-col overflow-hidden border-r border-line' : 'flex min-w-0 flex-1 flex-col'}>
               <Outlet />
             </div>
             <ThreadPane />

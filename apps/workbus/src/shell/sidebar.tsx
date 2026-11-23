@@ -44,9 +44,8 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
     const unread = (count?.unread ?? 0) > 0 || (count?.mentions ?? 0) > 0
     return (
       <li key={channel.path}>
-        <SidebarItem asChild child={child} active={at('/c/' + channel.path)} unread={unread && !count?.mentions} className={unread ? 'font-semibold text-text' : undefined}>
+        <SidebarItem asChild child={child} active={at('/c/' + channel.path)} icon={channel.path.startsWith('dm/') ? MessageSquare : Hash} unread={unread && !count?.mentions} className={unread ? 'font-semibold text-text' : undefined}>
           <Link to="/c/$" params={{ _splat: channel.path }} data-channel={channel.path} data-unread={unread ? 'yes' : undefined}>
-            {icon(channel.path.startsWith('dm/') ? MessageSquare : Hash)}
             <span className="truncate">{label}</span>
             <MentionCount count={count} />
           </Link>
@@ -55,26 +54,22 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
     )
   }
   const place = (to: '/' | '/my-work' | '/docs' | '/tasks' | '/settings', label: string, Icon: LucideIcon, count?: number) => (
-    <SidebarItem asChild active={to === '/' ? at('/') : pathname.startsWith(to)} {...(count ? { count } : {})}>
-      <Link to={to}>
-        {icon(Icon)}
-        {label}
-      </Link>
+    <SidebarItem asChild icon={Icon} active={to === '/' ? at('/') : pathname.startsWith(to)} {...(count ? { count } : {})}>
+      <Link to={to}>{label}</Link>
     </SidebarItem>
   )
   const inert = (label: string, Icon: LucideIcon) => (
-    <SidebarItem className="cursor-default opacity-50 hover:bg-transparent" aria-disabled>
-      {icon(Icon)}
+    <SidebarItem icon={Icon} className="cursor-default opacity-50 hover:bg-transparent" aria-disabled>
       {label}
     </SidebarItem>
   )
   return (
     <nav aria-label="Workspace navigation" data-testid="sidebar" className="flex w-sidebar shrink-0 flex-col border-r border-line bg-sidebar">
-      <div className="px-4 pt-4 pb-3">
-        <Lockup />
+      <div className="flex h-[61px] flex-none items-center px-[18px]">
+        <Lockup height={22} />
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-2">
-        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('workbus:command'))} className="mb-3 flex h-control-md w-full items-center gap-2 rounded-sm border border-line-control bg-surface px-2 text-ui text-muted-foreground">
+      <div className="min-h-0 flex-1 overflow-y-auto px-2.5">
+        <button type="button" onClick={() => window.dispatchEvent(new CustomEvent('workbus:command'))} className="mb-[18px] flex h-[30px] w-full items-center gap-2 rounded-sm border border-line-strong bg-surface px-2 text-ui text-muted-foreground">
           {icon(Search)}
           Search or ask
           <Kbd className="ml-auto">⌘ K</Kbd>
@@ -83,16 +78,15 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         {place('/my-work', 'My work', CircleDot)}
         {dms.length ? (
           <>
-            <SidebarGroup>direct messages</SidebarGroup>
+            <SidebarGroup>Direct messages</SidebarGroup>
             <ul data-testid="dms">{dms.map((channel) => channelLink(channel, channel.path.slice(3)))}</ul>
           </>
         ) : null}
-        {teams.length ? <SidebarGroup>teams</SidebarGroup> : null}
+        {teams.length ? <SidebarGroup>Teams</SidebarGroup> : null}
         <ul data-testid="teams">
           {teams.map(([team, list]) => (
             <li key={team}>
-              <SidebarItem className="cursor-default hover:bg-transparent">
-                {icon(Users)}
+              <SidebarItem icon={Users} className="cursor-default hover:bg-transparent">
                 <span className="capitalize">{team}</span>
               </SidebarItem>
               <ul>{list.map((channel) => channelLink(channel, channel.path.slice(team.length + 1), true))}</ul>
@@ -100,13 +94,13 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
           ))}
         </ul>
         <div className="relative flex items-center">
-          <SidebarGroup>channels</SidebarGroup>
+          <SidebarGroup>Channels</SidebarGroup>
           <div className="ml-auto mt-3 pr-1">
             <NewChannel />
           </div>
         </div>
         <ul data-testid="channels">{loose.map((channel) => channelLink(channel, channel.path))}</ul>
-        <SidebarGroup>workspace</SidebarGroup>
+        <SidebarGroup>Workspace</SidebarGroup>
         {inert('Org & seats', Network)}
         {place('/docs', 'Docs', FileText)}
         <div className="pl-5">
@@ -116,12 +110,12 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         {inert('Apps', LayoutGrid)}
         {inert('Ops', Activity)}
       </div>
-      <div className="border-t border-line px-2 py-2">{place('/settings', 'Settings', Settings)}</div>
+      <div className="border-t border-line px-2.5 py-2">{place('/settings', 'Settings', Settings)}</div>
       <div data-testid="profile" className="flex items-center gap-2 border-t border-line px-4 py-3">
         <Avatar kind="person" initials={initials(name)} name={name} size="md" />
         <div className="min-w-0 leading-tight">
-          <strong className="block truncate text-ui">{name}</strong>
-          <small className="font-mono text-mono-ui text-muted-foreground">Principal</small>
+          <strong className="block truncate font-semibold text-text">{name}</strong>
+          <small className="font-mono text-mono-label text-muted-foreground">Principal</small>
         </div>
       </div>
     </nav>

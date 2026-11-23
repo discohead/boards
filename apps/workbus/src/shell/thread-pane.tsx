@@ -5,8 +5,10 @@ import { useEffect } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
 import { taskState, useBus } from '@/data'
-import { X } from 'lucide-react'
-import { HeldPill, Label, Tabs, TaskState } from '@/components/system'
+import { FileCheck, FileText, MessageSquare, X } from 'lucide-react'
+import { Avatar, HeldPill, Label, Tabs, TaskState } from '@/components/system'
+
+const ICONS = { conversation: MessageSquare, task: FileCheck, doc: FileText }
 import { Button } from '@/components/ui/button'
 import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
@@ -40,7 +42,7 @@ function Pane({ id }: { id: string }) {
   const labels = Object.entries(root?.labels ?? {}).filter(([key]) => !key.startsWith('board.'))
   return (
     <aside aria-label="Thread" data-testid="thread-pane" className="flex min-w-0 flex-1 flex-col">
-      <header className="px-5 pt-5">
+      <header className="px-6 pt-5">
         <div className="flex items-center justify-between">
           <span data-testid="thread-path" className="font-mono text-mono-ui text-muted-foreground">
             {root ? root.channel : '…'} <span aria-hidden>/</span> #{id}
@@ -49,17 +51,17 @@ function Pane({ id }: { id: string }) {
             <X size={16} strokeWidth={1.5} aria-hidden />
           </Button>
         </div>
-        <h2 data-testid="thread-title" className="mt-2 text-title-lg text-text">{title}</h2>
-        <div data-testid="thread-facts" className="mt-2 flex flex-wrap items-center gap-2 font-mono text-mono-ui text-muted-foreground">
-          {shown?.state === 'held' ? <span data-held><HeldPill kind="approval" /></span> : null}
-          {shown && shown.state !== 'held' ? <span data-state={shown.state}><TaskState state={shown.state} label={shown.waitsOn?.length ? 'waits on #' + shown.waitsOn.join(', #') : shown.word} muted={shown.word === 'canceled'} /></span> : null}
-          {root ? <span>@{root.author?.handle ?? root.by.actor.replace(/^.*:/, '')}</span> : null}
+        <h2 data-testid="thread-title" className="mt-[11px] mb-2.5 text-title-lg tracking-[-0.03em] text-text">{title}</h2>
+        <div data-testid="thread-facts" className="mb-[17px] flex flex-wrap items-center gap-2 font-mono text-mono-ui text-muted-foreground">
+          {shown?.state === 'held' ? <span data-held><HeldPill>Held for you</HeldPill></span> : null}
+          {shown && shown.state !== 'held' ? <span data-state={shown.state}><TaskState state={shown.state} {...(shown.waitsOn?.length ? { label: 'waits on #' + shown.waitsOn.join(', #') } : shown.word !== shown.state ? { label: shown.word } : {})} muted={shown.word === 'canceled'} /></span> : null}
+          {root ? <><Avatar kind={root.author?.kind !== undefined && root.author.kind !== 'person' ? 'agent' : 'person'} initials={(root.author?.name ?? root.by.actor.replace(/^.*:/, '')).slice(0, 2).toUpperCase()} size="xs" /><span>@{root.author?.handle ?? root.by.actor.replace(/^.*:/, '')}</span></> : null}
           {labels.map(([key, value]) => (
             <Label key={key} name={key} value={value} />
           ))}
         </div>
-        <div aria-label="Faces" className="mt-4">
-          <Tabs tabs={[...faces.map((tab) => ({ id: tab.id, label: tab.label, ...(tab.id === 'conversation' && replies !== undefined ? { count: replies + 1 } : {}) })), ...adding.tabs]} value={open} onChange={(id) => show(id as Face)} />
+        <div aria-label="Faces" className="-mx-5 mt-1">
+          <Tabs className="[&_[data-slot=tabs-list]]:px-6" tabs={[...faces.map((tab) => ({ id: tab.id, label: tab.label, icon: ICONS[tab.id], ...(tab.id === 'conversation' && replies !== undefined ? { count: replies + 1 } : {}) })), ...adding.tabs]} value={open} onChange={(id) => show(id as Face)} />
         </div>
         {adding.error ? <p role="alert" className="mt-1 text-xs text-destructive">{adding.error}</p> : null}
       </header>

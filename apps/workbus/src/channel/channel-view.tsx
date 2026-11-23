@@ -211,19 +211,21 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
       <div ref={scroller} className="h-full overflow-y-auto" data-testid="history" data-opened={opened ?? undefined}>
         {hasOlder || loading ? <div className="py-2 text-center text-xs text-muted-foreground">{loading ? 'Loading older threads…' : ' '}</div> : <ChannelStart empty={items.length === 0} />}
         {mounted ? (
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
+          <ul style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
             {virtual.map((row) => (
-              <div key={row.key} data-index={row.index} ref={virtualizer.measureElement} className="hover:z-10 focus-within:z-10 has-[[role=menu]]:z-20 has-[[role=alertdialog]]:z-20" style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: 'translateY(' + row.start + 'px)' }}>
+              <li key={row.key} data-index={row.index} data-id={items[row.index]!.root.id} data-pending={items[row.index]!.root.pending ? 'yes' : undefined} ref={virtualizer.measureElement} className="hover:z-10 focus-within:z-10 has-[[role=menu]]:z-20 has-[[role=alertdialog]]:z-20" style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: 'translateY(' + row.start + 'px)' }}>
                 {render(items[row.index]!)}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <div data-testid="threads">
+          <ul data-testid="threads">
             {items.slice(-FIRST).map((item) => (
-              <div key={item.key}>{render(item)}</div>
+              <li key={item.key} data-id={item.root.id} data-pending={item.root.pending ? 'yes' : undefined}>
+                {render(item)}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
         <div className="h-2" />
       </div>
