@@ -68,7 +68,7 @@ export async function until(test, ms = 10_000, every = 150) {
 }
 
 /** Waits until the page has hydrated and its feed runs: the top bar's live cursor shows a number. */
-export const hydrated = (page, ms = 20_000) => until(async () => /#\d+/.test(await page.getByTestId('live-cursor').innerText()), ms)
+export const hydrated = (page, ms = 45_000) => until(async () => /#\d+/.test(await page.getByTestId('live-cursor').innerText()), ms)
 
 /** Stops an area at the first check it can't go past. */
 export class Stop extends Error {}

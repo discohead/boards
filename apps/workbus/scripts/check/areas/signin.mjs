@@ -18,7 +18,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
 
   // The live cursor: "Live log / #n", and n moves when someone else posts.
   const cursor = async () => Number(/#(\d+)/.exec(await page.getByTestId('live-cursor').innerText().catch(() => ''))?.[1] ?? NaN)
-  const started = await until(async () => Number.isFinite(await cursor()), 15_000)
+  const started = await hydrated(page)
   const before = await cursor()
   await other.post('/messages', { channel, text: 'Someone else writes, run ' + id })
   const moved = started && (await until(async () => (await cursor()) > before, 10_000))

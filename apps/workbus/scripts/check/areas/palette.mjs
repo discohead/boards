@@ -9,14 +9,15 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await page.goto(base + '/')
   await hydrated(page)
   await page.getByTestId('sidebar').waitFor({ timeout: 30_000 })
-  const palette = page.getByTestId('palette')
+  // The system's CommandPalette: a dialog with cmdk's list and its input, labelled Command.
+  const palette = page.locator('[cmdk-list]')
   // ⌘K, again until it opens: the shortcut is registered once the page has hydrated.
   const open = async () => {
     await palette.waitFor({ state: 'hidden' }).catch(() => {})
     await until(async () => {
       if (await palette.isVisible()) return true
       await page.keyboard.press('Meta+K')
-      return page.getByTestId('palette-input').waitFor({ timeout: 700 }).then(() => true, () => false)
+      return page.getByLabel('Command').waitFor({ timeout: 700 }).then(() => true, () => false)
     }, 15_000, 0)
   }
 
@@ -43,7 +44,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await open()
   // The board's text filter matches a run of text: this run's question, by its tail.
   await page.keyboard.type('current? ' + id)
-  const results = page.getByTestId('palette-results')
+  const results = page.locator('[cmdk-group]', { hasText: 'Search: ' })
   await step('text that is no command searches threads and docs', await until(async () => (await results.innerText()).includes(id), 8_000))
   await page.keyboard.press('Enter')
   await step('Enter opens the top result in the thread pane', await until(() => page.url().includes('thread=' + found.id), 5_000), page.url())
