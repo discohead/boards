@@ -19,7 +19,7 @@ const READS = new Set(['GET', 'HEAD'])
 export const STRIPPED = ['authorization', 'proxy-authorization', 'cookie', 'x-api-key']
 
 export type Decision =
-  | { ok: true; credential: 'github' | null; repo: { owner: string; name: string } | null }
+  | { ok: true; credential: 'github' | null; repo: { owner: string; name: string } | null; write?: GitHubWrite }
   | { ok: false; status: number; reason: string }
 
 /** The repository a GitHub URL is about, if any: owner and name, from the host's own path shape. */
@@ -56,8 +56,76 @@ export function decide(method: string, href: string, props: EgressProps): Decisi
   if (url.protocol !== 'https:') return { ok: false, status: 403, reason: 'GitHub only over https' }
   const repo = githubRepo(url)
   if (!repo) return { ok: false, status: 403, reason: verb + ' to GitHub outside a repository' }
-  return { ok: true, credential: 'github', repo }
+  const write = githubWrite(verb, url)
+  if (!write.ok) return { ok: false, status: 403, reason: write.reason }
+  return { ok: true, credential: 'github', repo, write: write.kind }
 }
+
+/**
+ * The GitHub writes a sandbox may make (the user's rule, with branch protection behind it): push to
+ * a branch that isn't the default branch or main, open a pull request, comment, and edit the title
+ * or body of its own pull request. Fetching (git-upload-pack) is a POST too, and is a read.
+ * Everything else is refused: contents PUT and DELETE, ref writes, merges, reviews, settings.
+ */
+export type GitHubWrite = 'upload-pack' | 'receive-pack' | 'pull-create' | 'comment' | 'pull-edit'
+
+export function githubWrite(method: string, url: URL): { ok: true; kind: GitHubWrite } | { ok: false; reason: string } {
+  const parts = url.pathname.split('/').filter(Boolean)
+  if (url.hostname === 'github.com' && method === 'POST' && parts.length === 3) {
+    if (parts[2] === 'git-upload-pack') return { ok: true, kind: 'upload-pack' }
+    if (parts[2] === 'git-receive-pack') return { ok: true, kind: 'receive-pack' }
+  }
+  if (url.hostname === 'api.github.com' && parts[0] === 'repos') {
+    const [, , , what, n, sub, extra] = parts
+    const number = n !== undefined && /^\d+$/.test(n)
+    if (method === 'POST' && what === 'pulls' && n === undefined) return { ok: true, kind: 'pull-create' }
+    if (method === 'POST' && (what === 'issues' || what === 'pulls') && number && sub === 'comments' && extra === undefined) return { ok: true, kind: 'comment' }
+    if (method === 'PATCH' && what === 'pulls' && number && sub === undefined) return { ok: true, kind: 'pull-edit' }
+    if (what === 'pulls' && sub === 'merge') return { ok: false, reason: 'merging a pull request is the principal’s, not a seat’s' }
+    if (what === 'contents') return { ok: false, reason: method + ' to repository contents is not allowed: push a branch and open a pull request' }
+    if (what === 'git') return { ok: false, reason: method + ' to git refs or objects through the API is not allowed: push a branch' }
+  }
+  return { ok: false, reason: method + ' ' + url.hostname + url.pathname + ' is not a GitHub write a seat may make' }
+}
+
+/** One ref update a push asks for. */
+export type RefUpdate = { old: string; new: string; ref: string }
+
+/**
+ * The ref updates at the start of a git-receive-pack request: pkt-lines of "<old> <new> <ref>", the
+ * first with capabilities after a NUL, up to a flush (0000). Returns null until the flush has
+ * arrived, and the length of that command section, so the caller knows where the pack begins.
+ */
+export function receivePackCommands(bytes: Uint8Array): { updates: RefUpdate[]; length: number } | null {
+  const text = new TextDecoder('latin1')
+  const updates: RefUpdate[] = []
+  let at = 0
+  while (at + 4 <= bytes.length) {
+    const size = parseInt(text.decode(bytes.subarray(at, at + 4)), 16)
+    if (Number.isNaN(size)) throw new Error('not a pkt-line')
+    if (size === 0) return { updates, length: at + 4 }
+    if (size < 4) throw new Error('bad pkt-line length ' + size)
+    if (at + size > bytes.length) return null
+    const line = text.decode(bytes.subarray(at + 4, at + size)).split('\0')[0]!.replace(/\n$/, '')
+    const [old, next, ref] = line.split(' ')
+    if (!old || !next || !ref) throw new Error('bad ref update: ' + line.slice(0, 80))
+    updates.push({ old, new: next, ref })
+    at += size
+  }
+  return null
+}
+
+/** Whether a push may go: none of its updates touches the default branch or main. */
+export function pushAllowed(updates: readonly RefUpdate[], defaultBranch: string): { ok: true } | { ok: false; reason: string } {
+  const guarded = new Set(['refs/heads/main', 'refs/heads/' + defaultBranch])
+  const hit = updates.find((update) => guarded.has(update.ref))
+  if (hit) return { ok: false, reason: 'a push to ' + hit.ref + ' is not allowed: push a branch and open a pull request' }
+  if (!updates.length) return { ok: false, reason: 'a push with no ref updates' }
+  return { ok: true }
+}
+
+/** The fields a seat may change on its own pull request. */
+export const PULL_EDIT_FIELDS = new Set(['title', 'body'])
 
 /** One line per request, for the logs: who, where, what, and how it went. */
 export type EgressLog = {
