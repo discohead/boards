@@ -107,6 +107,11 @@ export function receivePackCommands(bytes: Uint8Array): { updates: RefUpdate[]; 
     if (size < 4) throw new Error('bad pkt-line length ' + size)
     if (at + size > bytes.length) return null
     const line = text.decode(bytes.subarray(at + 4, at + size)).split('\0')[0]!.replace(/\n$/, '')
+    // A shallow clone names its shallow commits first ("shallow <oid>"): no ref update, nothing to check.
+    if (line.startsWith('shallow ')) {
+      at += size
+      continue
+    }
     const [old, next, ref] = line.split(' ')
     if (!old || !next || !ref) throw new Error('bad ref update: ' + line.slice(0, 80))
     updates.push({ old, new: next, ref })

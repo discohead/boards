@@ -92,6 +92,11 @@ check(!pushAllowed(updates(pushBody('refs/heads/seat/ada/x', 'refs/heads/main'))
 check(pushAllowed(updates(deleteBody('refs/heads/seat/ada/egress-check')), 'ada').ok, 'a seat deletes its own branch')
 check(!pushAllowed(updates(deleteBody('refs/heads/app/tiers')), 'ada').ok, 'deleting a teammate’s branch is refused')
 check(!pushAllowed(updates(deleteBody('refs/heads/main')), 'ada').ok, 'deleting main is refused')
+// A push from a shallow clone names its shallow commits first (seen live: git push from a --depth 1 clone).
+const shallow = new TextEncoder().encode(pkt('shallow ' + a + '\n') + pkt(a + ' ' + b + ' refs/heads/seat/ada/egress-check\0report-status\n') + '0000')
+check(updates(shallow).length === 1 && updates(shallow)[0]!.ref === 'refs/heads/seat/ada/egress-check' && pushAllowed(updates(shallow), 'ada').ok, "a shallow clone's push: its shallow lines are skipped, its ref update read")
+const shallowMain = new TextEncoder().encode(pkt('shallow ' + a + '\n') + pkt(a + ' ' + b + ' refs/heads/main\0report-status\n') + '0000')
+check(!pushAllowed(updates(shallowMain), 'ada').ok, 'and a shallow push to main is still refused')
 check(receivePackCommands(pushBody('refs/heads/x').subarray(0, 30)) === null, 'a body cut before the flush is not read yet')
 let threwBad = false
 try { receivePackCommands(new TextEncoder().encode('zzzz')) } catch { threwBad = true }
