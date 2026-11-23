@@ -38,6 +38,20 @@ plugin ship different Miniflare betas that look for each other in different plac
 without it the binding answers "Worker workbus-bus not found". A token's audience is
 `https://workbus.dev/b/bus` locally too, since the bus's origin is pinned.
 
+## The org
+
+The org lives on the board in `org/` (design/workbus.md §4.4): the app seeds it on its first
+boot, and its reconciler (`src/org/`) turns each change there into running seats (`src/seats/`).
+An owner sets the board up for it once, before the app's first request:
+
+```bash
+node scripts/org-setup.ts <board url> <owner token>     # the seat and team schemas, and the app's grant
+node scripts/org-check.ts                               # the reconciler's rules, in node
+TOKEN=<owner token> node scripts/org-live-check.mjs <app> <bus> [boot,edit,bad,dedupe,dm,run]   # against dev servers
+```
+
+`dm` and `run` call Haiku through the gateway; `run` is the phase-2 run, the approval included.
+
 ## Deploy
 
 The Access applications exist first, so nothing at workbus.dev is ever public. Then:
@@ -47,7 +61,8 @@ The Access applications exist first, so nothing at workbus.dev is ever public. T
 # in the main checkout, gitignored; the secrets file is temporary, mode 600, and deleted after)
 npx wrangler deploy -c bus/wrangler.jsonc --secrets-file <file with {"BOARD_ISSUER_KEY": "<the key's JSON>"}>
 npx wrangler secret put ACCESS_OWNERS -c bus/wrangler.jsonc     # the owner's Access sub, never in code
-pnpm deploy                                                     # the app
+pnpm deploy                                                     # the app, first: the bus binds its Wake
+node scripts/org-setup.ts https://api.workbus.dev/b/bus <owner token>   # once, before the app's first request
 ```
 
 A token for the CLI at api.workbus.dev: from packages/workbus,
