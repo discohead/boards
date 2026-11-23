@@ -9,7 +9,7 @@ import { isPrivateOrLocalHost } from 'agents/webfetch'
  *   App's installation token added on the way out.
  */
 export type EgressMode = 'web' | 'sandbox'
-export type EgressProps = { seat: string; mode: EgressMode }
+export type EgressProps = { seat: string; mode: EgressMode; /** The session's thread, for the log line. */ thread?: string }
 
 /** Where the GitHub App's token goes, and the only hosts a sandbox may write to. */
 export const GITHUB_HOSTS = ['github.com', 'api.github.com', 'codeload.github.com', 'uploads.github.com']
@@ -63,6 +63,7 @@ export function decide(method: string, href: string, props: EgressProps): Decisi
 export type EgressLog = {
   egress: 1
   seat: string
+  thread?: string
   mode: EgressMode | 'browser' | 'search'
   method: string
   host: string

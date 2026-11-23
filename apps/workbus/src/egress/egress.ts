@@ -16,7 +16,7 @@ export class Egress extends WorkerEntrypoint<GitHubAppEnv, EgressProps> {
     const props = this.ctx.props
     const started = Date.now()
     const url = new URL(request.url)
-    const base = { egress: 1 as const, seat: props.seat, mode: props.mode, method: request.method, host: url.hostname, path: url.pathname.slice(0, 200) }
+    const base = { egress: 1 as const, seat: props.seat, ...(props.thread ? { thread: props.thread } : {}), mode: props.mode, method: request.method, host: url.hostname, path: url.pathname.slice(0, 200) }
     const decision = decide(request.method, request.url, props)
     if (!decision.ok) {
       logEgress({ ...base, status: decision.status, bytes: 0, ms: Date.now() - started, credential: null, refused: decision.reason })
