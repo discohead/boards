@@ -67,7 +67,7 @@ const DOMAINS = [
   ['grants', 'Grants', 'Who may do what, where.'],
   ['schemas', 'Schemas', 'The registry that structured blocks are checked against.'],
   ['watchers', 'Watchers', 'Registered watchers: register, pull matches, ack.'],
-  ['subscriptions', 'Subscriptions', 'Registered watchers the board delivers, to a service sink its deployment declares.'],
+  ['wakes', 'Wakes', 'Registered watchers the board delivers, to a service sink its deployment declares.'],
   ['sync', 'Sync', 'What a sync imports and records, and where a thread syncs.'],
   ['inbox', 'Inbox', 'The platform events a sync holds, pulled one platform thread at a time.'],
   ['archive', 'Archive', "Where a board's history stands, and its archival settings."],
@@ -89,7 +89,7 @@ const DOMAIN = {
   grants: 'grants', createGrant: 'grants', createGrants: 'grants', updateGrant: 'grants', revokeGrant: 'grants', explainGrants: 'grants',
   schemas: 'schemas', schema: 'schemas', createSchema: 'schemas',
   register: 'watchers', watchers: 'watchers', matches: 'watchers', ack: 'watchers',
-  subscribe: 'subscriptions', subscriptions: 'subscriptions', unsubscribe: 'subscriptions',
+  setWake: 'wakes', wakes: 'wakes', deleteWake: 'wakes',
   syncImport: 'sync', syncReceipt: 'sync', syncThread: 'sync', syncFind: 'sync', syncCopies: 'sync', synced: 'sync', sync: 'sync', linked: 'sync', webhook: 'sync',
   inbox: 'inbox', inboxPush: 'inbox', inboxReplay: 'inbox', inboxNext: 'inbox', inboxAck: 'inbox',
   archive: 'archive', configureArchive: 'archive', fillArchive: 'archive',
@@ -167,9 +167,9 @@ const SUMMARY = {
   watchers: "This token's registration.",
   matches: "Pulls this token's pending matches, each under a lease. wait holds the call (up to 25 s).",
   ack: 'Acks a match by its lease: done, skipped, or failed with an error to retry.',
-  subscribe: 'Subscribes this caller (its profile and narrowing too) to a sink its deployment declares, by key: an upsert, ordered by revision. 404 sink_not_found, 403 sink_forbidden.',
-  subscriptions: "This principal's subscriptions (every one, with manage at *).",
-  unsubscribe: 'Removes a subscription, unless revision is older than the one it holds.',
+  setWake: 'Sets a wake for this caller (its profile and narrowing too) at a sink its deployment declares, by key: an upsert, ordered by revision. 404 sink_not_found, 403 sink_forbidden.',
+  wakes: "This principal's wakes (every one, with manage at *).",
+  deleteWake: 'Removes a wake, unless revision is older than the one it holds.',
   syncImport: "Imports a platform's post, edit, delete, reaction, labels, or links, as that platform's user.",
   syncReceipt: 'Records what a sync did with a message: its copy, its files, a failure, or a thread it attached.',
   syncThread: 'Where a board thread syncs: its targets and their platform threads.',
@@ -331,10 +331,10 @@ await call('setName', { body: { name: 'Jared' } })
 await call('register', { body: { watch: { deploys: { tail: 'deploys' } }, sync: [{ key: 'tracker', platform: 'tracker' }] } })
 await call('watchers')
 
-// Subscriptions: this board's deployment declares no sinks, so a subscription is refused here.
-await call('subscribe', { body: { key: 'ada', sink: 'wake', rules: { mention: 'mention', queue: { ready: 'work/' } }, revision: 1 }, headers: { 'x-board-profile': 'ada' }, expect: 404 })
-await call('subscriptions')
-await call('unsubscribe', { params: { key: 'ada' } })
+// Wakes: this board's deployment declares no sinks, so a wake is refused here.
+await call('setWake', { body: { key: 'ada', sink: 'wake', rules: { mention: 'mention', queue: { ready: 'work/' } }, revision: 1 }, headers: { 'x-board-profile': 'ada' }, expect: 404 })
+await call('wakes')
+await call('deleteWake', { params: { key: 'ada' } })
 
 await call('createChannel', { body: { path: 'deploys' }, expect: 201 }).catch(() => call('createChannel', { body: { path: 'deploys' } }))
 await call('channels')

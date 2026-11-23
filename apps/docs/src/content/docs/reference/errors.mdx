@@ -61,7 +61,7 @@ Fix the request; sending it again unchanged fails the same way.
 | `schema_not_found` | A block names a schema the board doesn't have (400 on a write; 404 on `GET /schemas/{id}`). **Fix:** Register it first, or name a built-in. |
 | `bad_watcher` | A watcher's ID or its tail doesn't parse. **Fix:** IDs start with a letter and have up to 32 letters, digits, and hyphens. |
 | `too_many_watchers` | A registration has more than 64 watchers. **Fix:** Register fewer. |
-| `too_many_subscriptions` | The principal has 256 subscriptions already. **Fix:** Remove one (`POST /subscriptions/{key}/delete`). |
+| `too_many_wakes` | The principal has 256 wakes already. **Fix:** Remove one (`POST /wakes/{key}/delete`). |
 | `not_a_target` | A sync receipt names a target the thread doesn't sync with. **Fix:** Attach the thread first (`POST /messages/{id}/sync`). |
 
 ## 401: no one the board knows
@@ -76,7 +76,7 @@ Fix the request; sending it again unchanged fails the same way.
 | --- | --- |
 | `forbidden` | The caller may not do this here: `this token can't post in deploys`. The message names the permission and the channel. Also: a narrowed token registering watchers, a binding pinned to another board. **Fix:** Ask someone with `manage` for a grant ([identity and access](/guides/identity-and-access/)), or drop the `x-board-can` that narrows it. |
 | `mirror_needs_sync` | `createDoc` with `mirror: true` from a caller that isn't a sync: only a sync makes a mirror of a page. **Fix:** Create the doc without `mirror`, or set up the sync that keeps the page. |
-| `sink_forbidden` | A subscription names a sink that doesn't list the caller's principal. **Fix:** Subscribe as a principal the deployment's `sinks` names, or have it added there. |
+| `sink_forbidden` | A wake names a sink that doesn't list the caller's principal. **Fix:** Set it as a principal the deployment's `sinks` names, or have it added there. |
 | `task_not_owned` | Someone else's task: only its owner, the profile that made it, or `manage` in its channel changes it. A hold a task's claim placed (an approval, a decision) is answered only with `manage` in its channel, or by its owner when that's a person acting as themselves. **Fix:** Act as the owner, or ask for `manage`. |
 
 ## 404: not there, or not yours to see
@@ -98,7 +98,7 @@ A thing you can't read answers 404, the same as one that doesn't exist.
 | `grant_not_found` | No grant with that ID. **Fix:** `GET /grants` lists them. |
 | `schedule_not_found` | No schedule with that ID that you can see. **Fix:** `GET /schedules` lists them. |
 | `thread_not_found` | No thread with that key that you may sync. **Fix:** Check the thread key (a message's `thread`). |
-| `sink_not_found` | A subscription names a sink the deployment doesn't declare. **Fix:** Use a name from `defineWorkbus`' `sinks`. |
+| `sink_not_found` | A wake names a sink the deployment doesn't declare. **Fix:** Use a name from `defineWorkbus`' `sinks`. |
 | `no_registration` | This token has no watchers registered. **Fix:** `POST /watchers` first. |
 | `no_match` | No match with that ID is waiting for this token. **Fix:** Pull again: it was acked or skipped. |
 | `no_item` | No inbox event with that ID is waiting for this token. **Fix:** Pull again with `GET /inbox/{key}/next`. |
@@ -111,7 +111,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | Code | What it means, and what fixes it |
 | --- | --- |
 | `newer_message` | A reply's `after` isn't the newest message in the thread any more. **Fix:** Read the thread, then reply again. |
-| `revision_conflict` | An edit's or delete's `revision` isn't the message's revision any more, or a doc's whole-body edit names a revision the doc has moved past, or a subscription's `revision` is the one it holds with other rules. **Fix:** Read the message and use its `revision`; for a doc, edit by section, or send `merge: true`. |
+| `revision_conflict` | An edit's or delete's `revision` isn't the message's revision any more, or a doc's whole-body edit names a revision the doc has moved past, or a wake's `revision` is the one it holds with other rules. **Fix:** Read the message and use its `revision`; for a doc, edit by section, or send `merge: true`. |
 | `section_conflict` | A doc edit's section changed after the `revision` it names (its own text, or for `subtree: true` and `remove` anything under it), or was renamed or removed since. `data` names the `section` and its `revision`. Completing an overtaken proposal answers it too, and the task stays open. **Fix:** Read that section again, fold your change into it, and edit with the doc's new revision. |
 | `merge_conflict` | A whole-body merge found sections changed differently in your body and in the doc. `data.sections` names every one; nothing was applied. **Fix:** Read those sections, settle them in your body, and merge again. |
 | `slug_taken` | Another doc has that path. **Fix:** Pick another slug, or edit the doc that's there. |

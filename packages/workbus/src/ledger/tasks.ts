@@ -804,7 +804,8 @@ op('unblockTask', (ctx, body: { id: string; decision?: 'approved' | 'declined'; 
   if (task.state !== 'blocked') return answer(ctx, task)
   ctx.board.seen(ctx.actor, ctx.now)
   const given: Answer | null = body.decision ? { decision: body.decision, note: body.note ?? null, by: ctx.author.actor } : null
-  apply(ctx, task, 'task.unblocked', { by: ctx.author, ...(given ? { decision: given.decision, note: given.note } : {}) }, (t) => {
+  // holder: who placed the hold, so the seat that parked on the task is woken by its answer (wakes.ts).
+  apply(ctx, task, 'task.unblocked', { by: ctx.author, ...(task.held ? { holder: task.held.by } : {}), ...(given ? { decision: given.decision, note: given.note } : {}) }, (t) => {
     t.state = t.needs.length > 0 ? 'waiting' : 'ready'
     t.blocked = null
     t.held = null

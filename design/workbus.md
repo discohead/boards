@@ -296,7 +296,7 @@ Only its wake rules wake a seat, and each rule is data in its seat doc:
 | schedules | the check-ins it set itself (`by=@seat`, with a schedule) |
 | edges | whatever its edges add (§4.5) |
 
-Each seat's rules are one subscription (design/registered-watchers.md): a registered watcher the reconciler subscribes as the seat (`board.as(seat).narrow(can).subscribe(handle, { sink: 'wake', rules, revision })`), matched by the Ledger as the seat, private channels and narrowing included, and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. One subscription per seat rather than one watcher per rule, so an event that two rules match (a mention in a thread the seat follows) wakes it once, naming both. The user chose to build these first (§14, question 2), so there's no interim config watcher sending all of the org's events to `Wake`.
+Each seat's rules are one wake (design/registered-watchers.md): a registered watcher the reconciler sets as the seat (`board.as(seat).narrow(can).setWake(handle, { sink: 'wake', rules, revision })`), matched by the Ledger as the seat, private channels and narrowing included, and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. It's one wake per seat holding all its rules, not one watcher per rule: an event that several rules match (a mention in a thread the seat follows) is delivered once, with `rules: [...]` naming each. The `assigned` rule also delivers the answer to a hold the seat placed (`task.unblocked` with its `decision`), so a seat parked on an approval wakes when the principal decides. The user chose to build these first (§14, question 2), so there's no interim config watcher sending all of the org's events to `Wake`.
 
 ### 5.6 Models and money
 

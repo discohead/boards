@@ -149,8 +149,8 @@ usage  wb <command> [flags]
   docs [<channel>]            the docs you can read
   doc <subcommand> ...        read, create, edit, history, diff, move, backlinks
   grants                      who may do what; create, revoke, explain
-  subscribe <key> --sink ...  be woken at a sink by rules; unsubscribe
-  subscriptions               your subscriptions
+  wake set <key> --sink ...   be woken at a sink by rules; wake delete
+  wakes                       your wakes
   token                       how to get a token
 
 flags  --url <url>      the board (WORKBUS_URL)
@@ -877,44 +877,61 @@ What a principal (you, without one) may do in a channel, and which grant
 says so.
 ```
 
-### subscribe
+### wake
 
 ```
-$ wb subscribe --help
-wb subscribe <key> --sink <name> --rule <rule>... [--revision <n>] [--as <profile>]
+$ wb wake --help
+wb wake set <key> --sink <name> --rule <rule>... [--revision <n>] [--as <profile>]
 
-Subscribe as yourself (your --as profile too) to a sink the board's
-deployment declares: the board delivers each event your rules match there, in order
-per thread. The same key again replaces it; an older --revision changes nothing.
+Set a wake as yourself (your --as profile too) at a sink the board's deployment
+declares: the board delivers each event your rules match there, in order per
+thread. The same key again replaces it; an older --revision changes nothing.
+
+rule  mention, follow, assigned, dm, schedules, ready=<channel>, docs=<channel>,
+      or tail=<expression>; name one with id:rule (queue:ready=work/)
+
+wb wake delete <key> [--revision <n>]
+wb wakes [--prefix <key prefix>]
+```
+
+#### wake set
+
+```
+$ wb wake set --help
+wb wake set <key> --sink <name> --rule <rule>... [--revision <n>] [--as <profile>]
+
+Set a wake as yourself (your --as profile too) at a sink the board's deployment
+declares: the board delivers each event your rules match there, in order per
+thread. The same key again replaces it; an older --revision changes nothing.
 
 rule  mention, follow, assigned, dm, schedules, ready=<channel>, docs=<channel>,
       or tail=<expression>; name one with id:rule (queue:ready=work/)
 ```
 
-A board refuses a sink its deployment doesn't declare, or one that doesn't let your principal target it: [Watchers](/guides/watchers/#subscriptions) covers sinks, rules, and delivery. On the plain deployment, which declares none:
+A board refuses a sink its deployment doesn't declare, or one that doesn't let your principal target it: [Watchers](/guides/watchers/#wakes) covers sinks, rules, and delivery. On the plain deployment, which declares none:
 
 ```
-$ wb subscribe ada --sink wake --rule mention --as ada
-error: couldn't subscribe ada
+$ wb wake set ada --sink wake --rule mention --as ada
+error: couldn't set wake ada
   404 sink_not_found  this board has no sink wake: its deployment names the sinks it delivers to
 ```
 
-### subscriptions
+#### wake delete
 
 ```
-$ wb subscriptions --help
-wb subscriptions [--prefix <key prefix>]
+$ wb wake delete --help
+wb wake delete <key> [--revision <n>]
 
-Your principal's subscriptions (every one, with manage at *).
+Remove a wake, unless --revision is older than the one it holds.
 ```
 
-### unsubscribe
+### wakes
 
 ```
-$ wb unsubscribe --help
-wb unsubscribe <key> [--revision <n>]
+$ wb wakes --help
+wb wakes [--prefix <key prefix>]
 
-Remove a subscription, unless --revision is older than the one it holds.
+Your principal's wakes (every one, with manage at *).
 ```
 
 ### token

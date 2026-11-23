@@ -14,7 +14,7 @@ import { parseTail } from './tail.ts'
 import type { Sink } from '../mailbox.ts'
 import { courierId, type SyncProvider } from '../sync/provider.ts'
 import { courierMatch } from './sync.ts'
-import { matchSubscription, sinkAllows, subscriberOf, subscriptionId, subscriptionOf, subscriptionsOf, type SinkConfig } from './subscriptions.ts'
+import { matchWake, sinkAllows, wakerOf, wakeId, wakeOf, wakesOf, type SinkConfig } from './wakes.ts'
 import './messages.ts'
 import './feed.ts'
 import './domains.ts'
@@ -42,9 +42,9 @@ export type WorkbusConfig = {
   /** The board's own syncs, by key: an Inbox takes each one's webhooks (/webhooks/<key>), and a courier copies what's written on the board back. */
   sync?: Record<string, SyncProvider>
   /**
-   * The service sinks subscriptions may deliver to, by name (design/registered-watchers.md): the
+   * The service sinks wakes may deliver to, by name (design/registered-watchers.md): the
    * service binding in env, the method called on it (wake, say), and the principals that may target
-   * it. A subscriber names one; it never gives one.
+   * it. A wake names one; it never gives one.
    */
   sinks?: Record<string, SinkConfig>
 }
@@ -300,8 +300,8 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
         try {
           const mount = this.ctx.storage.kv.get<Mount>('mount')
           if (!mount || !this.env.MAILBOX) return
-          const subscribed = this.sql.one<{ n: number }>('select count(*) as n from subscriptions')?.n ?? 0
-          if (!this.config.watch && !this.config.sync && !subscribed) return
+          const waking = this.sql.one<{ n: number }>('select count(*) as n from wakes')?.n ?? 0
+          if (!this.config.watch && !this.config.sync && !waking) return
           for (;;) {
             const ctx = contextFor(this.board, selfCaller(), mount, Date.now(), [], this.timers())
             // A watcher that didn't ask for private channels sees the board as an outsider to them.
@@ -345,9 +345,9 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
               this.sql.run('insert into outbox (destination, seq) values (?, ?) on conflict (destination) do update set seq = excluded.seq', destination, rows.at(-1).seq)
               moved = true
             }
-            // Subscriptions: each one's matches, as its subscriber sees them, to its Mailbox, in order, once each.
-            for (const sub of subscribed ? subscriptionsOf(this) : []) {
-              const destination = subscriptionId(sub.owner, sub.key)
+            // Wakes: each one's matches, as the caller that set it sees them, to its Mailbox, in order, once each.
+            for (const sub of waking ? wakesOf(this) : []) {
+              const destination = wakeId(sub.owner, sub.key)
               const from = this.sql.one<{ seq: number }>('select seq from outbox where destination = ?', destination)?.seq
               if (from === undefined) continue
               const rows = this.sql.all<any>('select * from events where seq > ? order by seq limit 100', from)
@@ -355,12 +355,12 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
               const sink = this.config.sinks?.[sub.sink]
               // Asked again at each hand-off: a sink the code no longer declares, or no longer lets this principal target, gets nothing.
               if (sinkAllows(sink, sub.owner)) {
-                const matches = matchSubscription(this.board, mount, sub, rows)
-                const target: Sink = { kind: 'service', binding: sink!.binding, ...(sink!.method ? { method: sink!.method } : {}), subscription: { key: sub.key, principal: sub.owner, actor: actorOf(subscriberOf(sub)).id } }
+                const matches = matchWake(this.board, mount, sub, rows)
+                const target: Sink = { kind: 'service', binding: sink!.binding, ...(sink!.method ? { method: sink!.method } : {}), wake: { key: sub.key, principal: sub.owner, actor: actorOf(wakerOf(sub)).id } }
                 if (matches.length) await (this.env.MAILBOX as any).getByName(mount.name + ':' + destination).enqueue(mount.name, target, matches)
-              } else console.error('[workbus] subscription', destination, 'names sink', sub.sink, "which isn't there for it: its matches are dropped")
+              } else console.error('[workbus] wake', destination, 'names sink', sub.sink, "which isn't there for it: its matches are dropped")
               // Removed while its matches were on their way: its Mailbox is emptied again, and it keeps no cursor.
-              if (!subscriptionOf(this, sub.owner, sub.key)) {
+              if (!wakeOf(this, sub.owner, sub.key)) {
                 await this.board.clearMailbox?.(mount.name + ':' + destination)
                 continue
               }
@@ -385,7 +385,7 @@ export function ledgerClass<E extends { RELAY: Namespace; MAILBOX?: Namespace }>
 
     /** A watcher's write or read, from its Mailbox: as the watcher, IDs derived from the match. */
     async act(watcher: string, match: string, method: string, args: unknown[], seq?: number): Promise<unknown> {
-      // Only a config watcher acts as the board's own code: a subscription's sink is handed no board.
+      // Only a config watcher acts as the board's own code: a wake's sink is handed no board.
       if (!this.config.watch?.[watcher]) throw new WorkbusError(404, 'not_found', 'no watcher ' + watcher + ' on this board')
       const caller = selfCaller('workbus:watch:' + watcher, watcher, !this.config.watch[watcher]!.private)
       // A write's ID comes from its place in its delivery attempt, so a retried delivery's writes replay instead of repeating.

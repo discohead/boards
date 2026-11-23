@@ -1,4 +1,4 @@
-// A Mailbox: one per subscriber (a watcher, or a sync's courier). The Ledger's watcher consumer hands it each match,
+// A Mailbox: one per subscriber (a watcher, a wake, or a sync's courier). The Ledger's watcher consumer hands it each match,
 // in the thread's order, and goes on at once. The Mailbox delivers to the sink, one match at a time
 // per thread and threads in parallel, leasing each for 5 minutes, waiting 1 second doubling to 30
 // after an error, and recording a failure after 5 tries so the thread goes on. So a watcher's code,
@@ -14,9 +14,9 @@ type Env = { LEDGER: Namespace; MAILBOX: Namespace }
 export type Sink =
   /**
    * A Worker entrypoint, by its binding's name in env: the Mailbox calls binding[method](event, context).
-   * A subscription's (design/registered-watchers.md) is handed no board: its subscriber isn't the board's own code.
+   * A wake's (design/registered-watchers.md) is handed no board: whoever set it isn't the board's own code.
    */
-  | { kind: 'service'; binding: string; method?: string; subscription?: { key: string; principal: string; actor: string } }
+  | { kind: 'service'; binding: string; method?: string; wake?: { key: string; principal: string; actor: string } }
   /** A URL, POSTed the match as JSON, signed with an HMAC of the body when there's a secret. */
   | { kind: 'url'; url: string; secret?: string }
   /** A sync's courier: the provider of the board's own sync under this key posts, edits, deletes, and reacts. */
@@ -26,8 +26,8 @@ export type Match = { id: string; watcher: string; thread: string; event: BoardE
 export type Delivered = { board: string; watcher: string; match: string; attempt: number }
 /** What a service sink is handed beside the event: the board as the watcher, and the board's name. */
 export type DeliveredContext = Omit<Delivered, 'board'> & { board: WatcherBoard; name: string }
-/** What a subscription's sink is handed beside the event: which subscription, and which of its rules matched. Dedupe on (subscription, event.cursor). */
-export type SubscriptionContext = { board: string; subscription: string; principal: string; actor: string; rules: string[]; match: string; attempt: number }
+/** What a wake's sink is handed beside the event: which wake (its key), and which of its rules matched. Dedupe on (wake, event.cursor). */
+export type WakeContext = { board: string; wake: string; principal: string; actor: string; rules: string[]; match: string; attempt: number }
 
 const TRIES = 5
 const LEASE_MS = 5 * 60 * 1000
@@ -97,7 +97,7 @@ export class Mailbox extends DurableObject<Env> {
     await this.arm(now)
   }
 
-  /** Forgets everything queued: its subscription was removed. */
+  /** Forgets everything queued: its wake was removed. */
   async clear(): Promise<void> {
     this.ctx.storage.sql.exec('delete from queue')
   }
@@ -164,9 +164,9 @@ export class Mailbox extends DurableObject<Env> {
     if (sink.kind === 'service') {
       const target = (this.env as unknown as Record<string, Record<string, (...args: unknown[]) => Promise<unknown>>>)[sink.binding]
       if (!target) throw new Error('no binding ' + sink.binding)
-      if (sink.subscription) {
+      if (sink.wake) {
         const held = event as unknown as { event: BoardEventView; rules: string[] }
-        const context: SubscriptionContext = { board: row.board, subscription: sink.subscription.key, principal: sink.subscription.principal, actor: sink.subscription.actor, rules: held.rules, match: row.id, attempt }
+        const context: WakeContext = { board: row.board, wake: sink.wake.key, principal: sink.wake.principal, actor: sink.wake.actor, rules: held.rules, match: row.id, attempt }
         await target[sink.method ?? 'onEvent']!(held.event, context)
         return
       }

@@ -116,11 +116,11 @@ export async function standIn() {
       return [200, { grant }]
     }],
     ['POST', /^\/grants\/([^/]+)\/revoke$/, (_b, [, id]) => [200, { revoked: grants.delete(id) }]],
-    // A subscription, as a board whose deployment declares the sink answers it (design/registered-watchers.md).
-    ['POST', /^\/subscriptions$/, (body, _m, _q, headers) => {
+    // A wake, as a board whose deployment declares the sink answers it (design/registered-watchers.md).
+    ['POST', /^\/wakes$/, (body, _m, _q, headers) => {
       const profile = headers['x-board-profile']
-      const subscription = { key: body.key, sink: body.sink, rules: body.rules, revision: body.revision ?? null, principal: 'workbus:user:tester', actor: 'workbus:user:tester' + (profile ? '+' + profile : ''), can: null, createdAt: now(), updatedAt: now() }
-      return [201, { subscription, changed: true, created: true }]
+      const wake = { key: body.key, sink: body.sink, rules: body.rules, revision: body.revision ?? null, principal: 'workbus:user:tester', actor: 'workbus:user:tester' + (profile ? '+' + profile : ''), can: null, createdAt: now(), updatedAt: now() }
+      return [201, { wake, changed: true, created: true }]
     }],
   ]
 

@@ -30,7 +30,7 @@ export const { Ledger, Relay, Mailbox, Inbox, BoardSession, gateway } = defineWo
     ...lateWatchers,
   },
   sync: { test: provider },
-  // Subscriptions' sinks (subscriptions.test.ts): wake lets the app's principal target it, elsewhere no one but a Worker that isn't here.
+  // Wakes' sinks (wakes.test.ts): wake lets the app's principal target it, elsewhere no one but a Worker that isn't here.
   sinks: {
     wake: { binding: 'WAKE', method: 'wake', principals: wakePrincipals },
     elsewhere: { binding: 'WAKE', method: 'wake', principals: ['worker:someone-else'] },
