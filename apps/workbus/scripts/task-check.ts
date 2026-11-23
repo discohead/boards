@@ -65,6 +65,14 @@ check(doneWhy === 'persisted', 'the board takes the completion', doneWhy instanc
 const after = await board(id)
 check(after.task?.state === 'completed' && after.task?.result === 'checked' && task(id)?.task.state === 'completed', 'complete without a claim claims, then completes', after.task)
 
+// 3b. Claim, then complete with that claim (not a second claim, which the board refuses).
+const third = w.create({ channel, text: 'claim then complete ' + Date.now(), id: 'cc-' + Date.now() })
+await third.when('settled')
+const id3 = [...bus.tasks.values()].filter((row) => row.text.startsWith('claim then complete ') && !row.pending).sort((a, b) => Number(b.id) - Number(a.id))[0]!.id
+await w.claim({ id: id3 }).when('settled')
+const ccWhy = await outcome(w.complete({ id: id3 }))
+check(ccWhy === 'persisted' && (await board(id3)).task?.state === 'completed', 'claim, then complete: it completes with the claim it holds', ccWhy instanceof Error ? ccWhy.message : (await board(id3)).task?.state)
+
 // 4. Hold with a kind, then unblock: held for me, then ready.
 const second = w.create({ channel, text: 'to hold ' + Date.now(), id: 'check-' + Date.now() })
 await second.when('settled')

@@ -60,15 +60,18 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
   }
 
   /** Send a task write; it settles on its event (the answer's version), or after ECHO_MS its answer is written. */
-  const settle = (send: () => Promise<Answer>, clientId?: string) =>
-    sendAndSettle(feed, send, { ...(clientId ? { clientId } : {}), cursor: (answer) => answer.task.version }, (answer) => {
+  const settle = (send: () => Promise<Answer>) =>
+    sendAndSettle(feed, send, { cursor: (answer) => answer.task.version }, (answer) => {
       c.tasks.utils.rows.merge([answer.task], (row) => row.version)
       if (c.messages.has(answer.task.id)) c.messages.utils.rows.merge([answer.task], (row) => row.version)
     })
 
-  /** My live claim on a task, if this browser holds it. */
+  /**
+   * My live claim on a task, if this browser holds it. It reads the board's own row (the synced
+   * rows), not the collection's: inside a write, the optimistic change has already moved the task on.
+   */
   const held = (id: string): Claim | null => {
-    const task = c.tasks.get(id)?.task
+    const task = c.tasks.utils.rows.get(id)?.task
     const claim = claims.get(id)
     if (!task || !claim) return null
     return task.state === 'claimed' && task.claim?.actor === me() && task.epoch === claim.epoch ? claim : null
@@ -106,7 +109,10 @@ export function taskActions(db: DbClient, runtime: BusRuntime, c: BusCollections
     },
     mutationFn: async (input) => {
       const body = 're' in input ? { re: input.re, ...(input.for ? { for: input.for } : {}) } : { channel: input.channel, text: input.text, id: input.id, ...(input.labels ? { labels: input.labels } : {}), ...(input.for ? { for: input.for } : {}) }
-      await settle(() => client.post<Answer>('/tasks', body), 're' in input ? undefined : input.id)
+      // Not by its client ID: that echo is the root's message.posted, which comes before the task.created
+      // that puts it in tasks, so settling there would drop the pending row for a moment. The answer's
+      // version is task.created's cursor.
+      await settle(() => client.post<Answer>('/tasks', body))
     },
   })
 
