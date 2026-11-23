@@ -72,7 +72,7 @@ https://factory.workbus.dev (the factory template, its board at `/b/factory`).
 
 - The app's channels: thread summaries (GET /threads) don't carry repliers, so a root shows those it has seen (always its last replier; all of them once its thread is open). Messages use the design system's Message (its time and cursor widened to take elements, so Clock fits), Avatar, Kbd, NewEventsPill, and the pane's add tabs; a message grouped under the one before it keeps the app's compact row, which Message lacks.
 - The app (phase 2): a task's `for` must be its owner's profile, so a person can't be the assignee of a seat's task (owned by `worker:workbus-app`); My work counts tasks claimed by the principal or for it or one of its profiles. Complete, release, and fail need the claim's token, so the app's Complete claims first (a token it makes, kept in localStorage), and a person can't complete a task an agent holds: they cancel it as its owner.
-- The app: a root that mentions the principal counts only on its channel until step 2 counts it on its thread too; the inbox lists such roots from `for=me`, and E can't clear them until then.
+- The app's inbox: the board has no batch read of messages by ID (a framework candidate), so the inbox doesn't read the roots it lacks. An item whose root isn't in memory is titled with its newest reply's first line (from `GET /events?for=me`), and opening it reads the thread. A batch read would give every item its root's title in one request.
 - Past archival, the hot set is the recent window (30 days of log, threads active in 90 days)
   plus about 4.5 B per archived message. The page index lives in memory and grows with history
   (about 4 B per keyed message), so past about 25 GB it needs a second level. Threads with tasks

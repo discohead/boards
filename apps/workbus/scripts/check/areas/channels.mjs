@@ -28,7 +28,8 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   // Someone else posts while you're here: it arrives, with the arrival tint.
   const theirs = 'From someone else, live, run ' + id
   await other.post('/messages', { channel, text: theirs })
-  const tinted = await until(async () => (await row(theirs).getAttribute('data-arrive')) === 'yes', 8_000, 30)
+  // The tint is on the message inside the row (threads' fc3553c moved it to [data-message]).
+  const tinted = await until(async () => (await row(theirs).locator('[data-arrive="yes"]').count()) > 0, 8_000, 30)
   await step("someone else's post arrives live, tinted once", tinted)
 
   // Unread: while you're elsewhere, someone writes here; the sidebar's link turns bold, and opening clears it.
@@ -40,6 +41,8 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await step('a post by someone else makes it unread in the sidebar', await until(async () => (await link.getAttribute('data-unread')) === 'yes'), await link.getAttribute('class').catch(() => ''))
   await link.click()
   await step('opening the channel clears it', await until(async () => (await link.getAttribute('data-unread')) === null))
+  const listed = async () => (await owner.get('/unread')).channels.some((row) => row.channel === channel && row.unread + row.mentions > 0)
+  await step('and the board has it read: GET /unread lists it no more', await until(async () => !(await listed())))
 
   // Scrolled up: new posts gather behind the pill, and the pill takes you to them.
   await hydrated(page)

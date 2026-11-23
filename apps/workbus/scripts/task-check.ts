@@ -79,7 +79,7 @@ await second.when('settled')
 const id2 = [...bus.tasks.values()].find((row) => row.text.startsWith('to hold ') && !row.pending && row.task?.state === 'ready')!.id
 await w.block({ id: id2, reason: 'pick one', kind: 'decision' }).when('settled')
 check((await board(id2)).task?.state === 'blocked' && ((await board(id2)).task?.blocked as { kind: string })?.kind === 'decision', 'hold with a kind: the board has it held, as a decision')
-const items = () => inboxItems({ reach: { ready: true, channels: new Map(), threads: new Map(), reached: [], cursor: 0 }, tasks: [...bus.tasks.values()].filter(isTask) as Task[], messages: new Map(), me, can: bus.runtime.me.can })
+const items = () => inboxItems({ unread: [], tasks: [...bus.tasks.values()].filter(isTask) as Task[], messages: new Map(), me, can: bus.runtime.me.can })
 check(items().some((item) => item.thread === id2 && item.reasons.some((reason) => reason.kind === 'held' && reason.hold === 'decision')), 'and it is in the inbox, held, with its kind')
 await w.unblock({ id: id2 }).when('settled')
 check((await board(id2)).task?.state === 'ready' && !items().some((item) => item.thread === id2), 'unblock: ready, and out of the inbox')
