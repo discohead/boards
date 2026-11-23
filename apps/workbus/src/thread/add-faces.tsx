@@ -3,7 +3,7 @@
 // C and A are ci's shortcuts (src/command/ThreadShortcuts.tsx); these buttons call the same writes.
 import { useState } from 'react'
 import { FileText, SquareCheck, UserRound } from 'lucide-react'
-import type { Message } from '@/data'
+import { BusRefusal, type Message } from '@/data'
 import { useDocsBus } from '@/docs/bus'
 import { Button } from '@/components/ui/button'
 import { Kbd } from '@/channel/composer'
@@ -17,6 +17,12 @@ export function AddFaces({ root, onFace }: { root: Message; onFace: (face: 'task
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   if (root.task && root.doc) return null
+  /** The slug from its first line; if a doc there has it already, the same with its cursor. */
+  const writeUp = () =>
+    bus.actions.writeUp({ re: root.id, slug: slugOf(root.text) }).catch((error: unknown) => {
+      if (error instanceof BusRefusal && error.code === 'slug_taken') return bus.actions.writeUp({ re: root.id, slug: slugOf(root.text) + '-' + root.id })
+      throw error
+    })
   const settle = async (written: Promise<unknown>, face: 'task' | 'doc') => {
     setError(null)
     setBusy(true)
@@ -38,7 +44,7 @@ export function AddFaces({ root, onFace }: { root: Message; onFace: (face: 'task
         </Button>
       )}
       {root.doc ? null : (
-        <Button size="xs" variant="outline" disabled={busy} onClick={() => void settle(bus.actions.writeUp({ re: root.id, slug: slugOf(root.text) + '-' + root.id }), 'doc')}>
+        <Button size="xs" variant="outline" disabled={busy} onClick={() => void settle(writeUp(), 'doc')}>
           <FileText size={16} strokeWidth={1.5} aria-hidden />
           Write it up
         </Button>
