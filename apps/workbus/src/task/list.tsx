@@ -2,6 +2,7 @@
 // the list groups them by state, or lays them out as a board by state. j and k move the selection,
 // Enter opens it in the thread pane (?thread=<id>). Rows update live, and the selected row never
 // moves under the cursor: it holds its place (hold.ts), and the list scrolls to keep it where it was.
+import { initialsFor } from '@/seats/initials'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   columnFacetingFeature,
@@ -302,7 +303,7 @@ function Compact({ item, header, count, selected, opened, gone, onPick }: { item
 function useAssignee(row: TaskRow) {
   const kindOf = useActorKinds()
   if (!row.assignee) return null
-  return { kind: kindOf(row.assignee), initials: row.assigneeName.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '?', name: row.assigneeName }
+  return { kind: kindOf(row.assignee), initials: initialsFor(row.assignee, row.assigneeName), name: row.assigneeName }
 }
 
 // Beside an open thread the list is narrow: it keeps the cursor, title, state, and when; the rest

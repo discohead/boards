@@ -8,7 +8,7 @@ import { seatInitials, useSeats } from '@/seats/use-seats'
 
 export type Assignee = { id: string; name: string; handle: string; kind: 'person' | 'agent'; initials: string; seat: boolean }
 
-const initialsOf = (name: string) => name.replace(/[^A-Za-z0-9 ]/g, '').split(/\s+/).map((part) => part[0] ?? '').join('').slice(0, 2).toUpperCase() || '?'
+import { initialsFor } from '@/seats/initials'
 
 export function useAssignable(owner: string | null | undefined, me: string | null | undefined): Assignee[] {
   const bus = useBus()
@@ -22,7 +22,7 @@ export function useAssignable(owner: string | null | undefined, me: string | nul
       const mine = me && actor.id === me
       const profile = owner && actor.id.startsWith(owner + '+')
       if (!mine && !profile) continue
-      out.set(actor.id, { id: actor.id, name: actor.name, handle: actor.handle, kind: actor.kind === 'person' ? 'person' : 'agent', initials: initialsOf(actor.name), seat: false })
+      out.set(actor.id, { id: actor.id, name: actor.name, handle: actor.handle, kind: actor.kind === 'person' ? 'person' : 'agent', initials: initialsFor(actor.id, actor.name, actor.handle), seat: false })
     }
     // Seats first (who the work usually goes to), then the principal, then its profiles.
     return [...out.values()].sort((a, b) => Number(b.seat) - Number(a.seat) || Number(b.id === me) - Number(a.id === me) || a.name.localeCompare(b.name))
