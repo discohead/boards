@@ -2,7 +2,7 @@
 // thread-actions.ts), each made once per bus.
 import { useBus, type Bus } from '@/data'
 import { docsActions, type DocsActions } from '@/data/docs-actions'
-import { threadActions, type ThreadActions } from '@/data/thread-actions'
+import { threadActions, type ThreadActions } from '@/data/shortcut-actions'
 
 type More = { docActions: DocsActions; threadActions: ThreadActions }
 const made = new WeakMap<Bus, More>()
