@@ -56,7 +56,15 @@ const Text = z.string().min(1).describe('markdown; @handle mentions someone')
  * The board tools. claimToken is the session's own claim token: a claim made with it is the
  * session's to complete later, after the stub is gone (a retry with the token gets the claim back).
  */
-export function boardTools(board: () => SeatBoard, claimToken: () => string): Tool<any>[] {
+export function boardTools(board: () => SeatBoard, claimToken: () => string, assigns?: () => readonly string[] | undefined): Tool<any>[] {
+  // A seat that may assign only to some (the advisor, to the operator) is refused any other, before the board is asked.
+  const refused = (fors: (string | undefined)[]): ToolResult | null => {
+    const allowed = assigns?.()
+    if (!allowed) return null
+    const other = fors.find((to) => to === undefined || !allowed.includes(to))
+    if (other === undefined && fors.every((to) => to !== undefined)) return null
+    return { text: 'You may assign tasks only to ' + allowed.join(' or ') + ': set "for" to ' + (allowed.length === 1 ? 'it' : 'one of them') + ' on every task.', isError: true }
+  }
   const claimed = (id: string) => board().tasks.claim({ id }, { token: claimToken() })
   const tools: Tool<any>[] = [
     {
@@ -111,7 +119,7 @@ export function boardTools(board: () => SeatBoard, claimToken: () => string): To
       input: z.object({ channel: Channel, text: Text, needs: z.array(Id).optional(), for: z.string().optional() }),
       replay: 'unsafe',
       approval: 'never',
-      run: (input) => answer(() => board().tasks.create(input)),
+      run: async (input) => refused([input.for]) ?? answer(() => board().tasks.create(input)),
     },
     {
       name: 'task_create_many',
@@ -122,7 +130,8 @@ export function boardTools(board: () => SeatBoard, claimToken: () => string): To
       }),
       replay: 'unsafe',
       approval: 'never',
-      run: ({ channel, tasks }) =>
+      run: async ({ channel, tasks }) =>
+        refused(tasks.map((t: { for?: string }) => t.for)) ??
         answer(() => board().tasks.createMany(channel, tasks.map((t: { key: string; text: string; needs?: string[]; for?: string }) => ({ ...t, needs: t.needs?.map((need) => (tasks.some((o: { key: string }) => o.key === need) ? { key: need } : need)) })))),
     },
     {

@@ -30,10 +30,10 @@ const check = (name: string, fn: () => void) => {
   console.log('ok ' + name)
 }
 
-check('the seed plans two seats, with no problems', () => {
+check('the seed plans three seats, with no problems', () => {
   const planned = plan(seed(), holds)
   assert.deepEqual(planned.problems, [])
-  assert.deepEqual(planned.seats.map((seat) => seat.key), ['ada', 'op'])
+  assert.deepEqual(planned.seats.map((seat) => seat.key), ['ada', 'advisor', 'op'])
   const op = planned.seats.find((seat) => seat.key === 'op')!
   assert.equal(op.name, 'Operator')
   assert.equal(op.handle, 'op')
@@ -95,12 +95,45 @@ check('an edge or a seat that names no seat doc is refused, and the team lends i
 check("a seat doc with no block, or two, is refused, and the others still plan", () => {
   const docs = seed().map((doc) => (doc.slug === 'ada' ? { ...doc, blocks: [] } : doc))
   assert.match(why(docs)[0]!, /org\/seats\/ada: it has no `json#seat@1` block/)
-  assert.deepEqual(plan(docs, holds).seats.map((seat) => seat.key), ['op'])
+  assert.deepEqual(plan(docs, holds).seats.map((seat) => seat.key), ['advisor', 'op'])
 })
 
 check('a slug that is no profile key is refused', () => {
   const docs = [...seed(), docOf('org/seats', 'big_bird', SEED[3]!.body)]
   assert.match(why(docs).find((problem) => problem.includes('big_bird'))!, /a seat's slug is its key/)
+})
+
+check('the advisor: board only, its DM and dm wakes, in Core with its edges, and it assigns to the operator alone', () => {
+  const planned = plan(seed(), holds)
+  const advisor = planned.seats.find((seat) => seat.key === 'advisor')!
+  assert.equal(advisor.name, 'Advisor')
+  assert.equal(advisor.handle, 'advisor')
+  assert.equal(advisor.role, 'advisor')
+  assert.equal(advisor.team, 'core')
+  assert.deepEqual(advisor.tools, ['board'])
+  assert.deepEqual(advisor.rules, { dm: 'dm', mention: 'mention' })
+  assert.deepEqual(advisor.can['dm/advisor/'], ['read', 'post', 'react', 'label', 'edit'])
+  assert.deepEqual(advisor.can['docs/plans/'], ['read', 'post', 'react', 'label', 'edit'])
+  assert.deepEqual(advisor.assigns, ['worker:workbus-app+op'])
+  assert.ok(advisor.charter.includes('docs/plans') && advisor.charter.includes('worker:workbus-app+op'))
+  // The operator stays in Engineering, the first team that names it; only the advisor may be held to whom it assigns.
+  const op = planned.seats.find((seat) => seat.key === 'op')!
+  assert.equal(op.team, 'eng')
+  assert.equal(op.assigns, null)
+  // Renamed, the operator is still the one the advisor hands to.
+  const renamed = plan(replace(seed(), 'org/seats/op', (data) => (data.handle = 'ops')), holds).seats.find((seat) => seat.key === 'advisor')!
+  assert.deepEqual(renamed.assigns, ['worker:workbus-app+op'])
+})
+
+check("the advisor doesn't do the work: a tool beyond board is refused", () => {
+  assert.match(why(replace(seed(), 'org/seats/advisor', (data) => data.tools.push('computer')))[0]!, /^org\/seats\/advisor: the advisor thinks with the principal/)
+})
+
+check('an edge may end at the principal, and principal is no seat key', () => {
+  assert.deepEqual(why(seed()), [])
+  assert.match(why(replace(seed(), 'org/teams/core', (data) => data.edges.push({ from: 'op', kind: 'consults', to: 'boss' })))[0]!, /its edge op consults boss names boss, which has no doc in org\/seats \(and isn't principal\)/)
+  const docs = [...seed(), docOf('org/seats', 'principal', SEED[3]!.body.replace('"handle": "ada"', '"handle": "pri"'))]
+  assert.match(why(docs).find((problem) => problem.startsWith('org/seats/principal'))!, /principal is reserved/)
 })
 
 check('the config revision is the newest of the seat, its team, and the root', () => {

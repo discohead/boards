@@ -23,6 +23,8 @@ export type SeatRef = {
   approve?: Readonly<Record<string, string>>
   /** Approval kinds the principal made automatic for this seat. Deletes, spending, and permissions still ask (§6.2). */
   automatic?: readonly string[]
+  /** Who the seat may assign a task to, by actor; absent, anyone. The advisor's is the operator alone (§5.9). */
+  assigns?: readonly string[]
   /** The seat doc's revision, for the run record's charter. */
   revision: string
 }

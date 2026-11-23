@@ -22,6 +22,11 @@ export async function run({ page, base, owner, run: id, channel, must, step }) {
   await step('it reads Operator and @op, and opens dm/op', dmText.includes('Operator') && dmText.includes('@op') && (await dm.getAttribute('href')) === '/c/dm/op', dmText)
   await step('with a square agent avatar', (await dm.locator('[data-slot=avatar]').getAttribute('data-kind')) === 'agent')
 
+  // The advisor's DM (§5.9): built in like the operator's, so it's there before anyone writes in it.
+  const advisorDm = nav.locator('[data-testid=dms] a[data-seat=advisor]')
+  await step("Direct messages has the advisor's DM, Advisor and @advisor, opening dm/advisor", await until(async () => (await advisorDm.count()) === 1 && (await advisorDm.innerText()).includes('@advisor') && (await advisorDm.getAttribute('href')) === '/c/dm/advisor', 15_000))
+  await step('and Seats lists the Advisor', await until(async () => (await nav.locator('[data-testid=seats] a[data-seat=advisor]').count()) === 1, 10_000))
+
   // Seats: Ada, with a live state from her Seat.
   const ada = nav.locator('[data-testid=seats] a[data-seat=ada]')
   await must('Seats lists Ada', await until(async () => (await ada.count()) === 1, 10_000))

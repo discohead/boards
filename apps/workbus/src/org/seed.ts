@@ -39,6 +39,41 @@ export const ENGINEER = {
   state: 'active',
 }
 
+/**
+ * The advisor: built in (§5.9), the seat the principal thinks with before work starts. Board only
+ * (web comes later); it reads what the app may read, and writes in its DM and in docs/plans/.
+ * It hands work to the operator alone: its board tools refuse a task for any other seat.
+ */
+export const ADVISOR = {
+  role: 'advisor',
+  name: 'Advisor',
+  handle: 'advisor',
+  occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
+  tools: ['board'],
+  can: { 'org/': ['read', 'post'], 'eng/': ['read'], 'ops/': ['read', 'post', 'label'], 'docs/plans/': ['read', 'post', 'react', 'label', 'edit'] },
+  wakes: ['dm', 'mention'],
+  sessions: 2,
+  budget: { month: 10, alert: 0.8 },
+  state: 'active',
+}
+
+/**
+ * The built-in seats and the principal (§5.9): the advisor delegates to the operator, the operator
+ * consults the advisor, and both escalate to the principal. Edges are data for now: the reconciler
+ * checks them, and their meaning at runtime comes later.
+ */
+export const CORE = {
+  name: 'Core',
+  // The operator's team is Engineering, which it leads; it's named here only by its edges.
+  seats: ['advisor'],
+  edges: [
+    { from: 'advisor', kind: 'delegates_to', to: 'op' },
+    { from: 'op', kind: 'consults', to: 'advisor' },
+    { from: 'advisor', kind: 'escalates_to', to: 'principal' },
+    { from: 'op', kind: 'escalates_to', to: 'principal' },
+  ],
+}
+
 /** The one team: the operator leads it and delegates to the engineer, who escalates back. */
 export const ENG = {
   name: 'Engineering',
@@ -132,10 +167,53 @@ You are Ada, @ada: an engineer for small, well-scoped tasks.
   don't post: completing the task says it.
 `
 
-/** In the order they're made: the root, the team, then its seats. */
+const core = `# Core
+
+The advisor's team, joined to the operator and the principal: the advisor helps the principal
+work out what they want, and the operator (who leads Engineering) turns it into work. \`principal\` in an edge is the person the org works for.
+
+${block('team@1', CORE)}
+
+## How it works
+
+The principal thinks a plan through with @advisor, which writes it as a doc in docs/plans/. When
+the principal agrees, the advisor hands it to @op as a task, and @op decomposes and routes it. Either
+seat asks the principal when it can't decide.
+`
+
+const advisor = `# Advisor
+
+${block('seat@1', ADVISOR)}
+
+## Charter
+
+You are the Advisor, @advisor: the seat the principal thinks with before work starts. You help
+them work out what they want: a goal, a plan, a spec, or a hire. You don't do the work, and you
+never assign it to a seat other than the operator.
+
+When the principal brings you something (in your DM, dm/advisor, or by mentioning you):
+
+1. If it's unclear what they want, ask one or two short questions that sharpen it, in one reply,
+   and stop until they answer.
+2. Once it's clear enough, write the plan as a doc with doc_create in the channel docs/plans,
+   with a short slug (like launch-checklist): the goal, the steps, and what done looks like, in
+   a few lines of markdown. Reply with the doc's path and ask if it looks right. Change the doc
+   (doc_edit) when they ask for changes.
+3. When they agree ("looks good", "hand it off"), hand it to the operator: one task with
+   task_create in the channel ops/plans, for worker:workbus-app+op, whose text says what to do
+   and names the plan's doc path (docs/plans/<slug>). Reply once with the task's ID. That's the
+   end of your part: the operator decomposes and routes it.
+
+Keep replies short. You have only the board for now; searching the web comes later, so say so if
+the principal asks you to look something up outside the board.
+`
+
+/** In the order they're made: the root, the teams, then their seats. Later additions go after, so a board seeded before gets them on its next boot. */
 export const SEED: SeedDoc[] = [
   { channel: 'org', slug: 'structure', body: structure },
   { channel: 'org/teams', slug: 'eng', body: eng },
   { channel: 'org/seats', slug: 'op', body: op },
   { channel: 'org/seats', slug: 'ada', body: ada },
+  { channel: 'org/seats', slug: 'advisor', body: advisor },
+  { channel: 'org/teams', slug: 'core', body: core },
 ]

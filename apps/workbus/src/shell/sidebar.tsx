@@ -38,9 +38,9 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
   const { dms, loose, teams } = arrange(channels)
   const { seats } = useSeats()
-  // The operator's DM is always there, the one door to the org; a seat's DM shows once it has a channel.
-  const operator = seats.find((seat) => seat.role === 'operator')
-  const dmPaths = [...new Set([...(operator ? ['dm/' + operator.key] : []), ...dms.map((channel) => channel.path)])]
+  // The built-in seats' DMs are always there, the doors to the org (the operator's, then the advisor's); another seat's DM shows once it has a channel.
+  const builtIn = ['operator', 'advisor'].flatMap((role) => seats.filter((seat) => seat.role === role))
+  const dmPaths = [...new Set([...builtIn.map((seat) => 'dm/' + seat.key), ...dms.map((channel) => channel.path)])]
   const seatOfDm = (path: string) => seats.find((seat) => 'dm/' + seat.key === path)
   const me = bus.runtime.me
   const name = useDisplayNames()(me.actor, me.name ?? me.handle ?? '')

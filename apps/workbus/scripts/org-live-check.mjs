@@ -77,7 +77,7 @@ async function editBlock(path, change) {
 if (pick.has('boot')) {
   const first = await seat({ call: 'boot' })
   const second = await seat({ call: 'boot' })
-  check(second.seeded.length === 0 && second.found.length === 4, 'a second boot seeds nothing and finds the four docs', second.found)
+  check(second.seeded.length === 0 && second.found.length === 6, 'a second boot seeds nothing and finds the six docs', second.found)
   check(second.reconciler === 'same', "the reconciler's wake is the same", second.reconciler)
   check(second.pass.applied.every((applied) => applied.wake === 'same' && applied.config.applied === false), "every seat's wake and config are the same", second.pass.applied.map((a) => a.seat + ' ' + a.wake + ' ' + a.config.applied))
   const threads = (await board('GET', '/threads?channel=org/&limit=50')).threads.filter((thread) => thread.message.doc)

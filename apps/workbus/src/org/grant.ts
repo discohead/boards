@@ -7,4 +7,6 @@ export const APP_CAN = {
   'eng/': ['read', 'post', 'react', 'label', 'edit'],
   'ops/': ['read', 'post', 'react', 'label', 'edit'],
   'dm/': ['read', 'post', 'react', 'label', 'edit'],
+  // Plans the advisor writes (docs/plans/), and in time other seats' docs.
+  'docs/': ['read', 'post', 'react', 'label', 'edit'],
 }

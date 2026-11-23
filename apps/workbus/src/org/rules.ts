@@ -51,6 +51,8 @@ export type SeatRuntime = {
   charter: string
   teamDoc: string | null
   structure: string | null
+  /** Who its board tools may assign a task to, by actor, or null for anyone: the advisor hands work to the operator alone (§5.9). */
+  assigns: string[] | null
   /** The seat doc's revision: orders its wake's applies. */
   revision: number
   /** The newest revision among the docs it came from (seat, team, root): orders its Seat's config. */
@@ -65,6 +67,10 @@ export type Plan = { seats: SeatRuntime[]; problems: Problem[] }
 export const TOOLS = ['board', 'computer']
 const LATER = ['code', 'sandbox', 'browser', 'web']
 const DEFAULT_MODEL = 'anthropic/claude-haiku-5-5'
+/** The principal, as an edge names it. No seat may take the key. */
+export const PRINCIPAL = 'principal'
+/** A seat's actor is the app's, with the seat's key as its profile. */
+const APP_ACTOR = 'worker:workbus-app+'
 const KEY = /^[a-z][a-z0-9-]{0,31}$/
 const KIND = /^[a-z0-9][a-z0-9_.-]*$/
 const HANDLE = /^[a-z](?:[a-z0-9-]{0,30}[a-z0-9])?$/
@@ -164,6 +170,8 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
   // Teams: every seat they name exists, and every edge is between seats that do.
   const teamOf = new Map<string, OrgDoc>()
   const known = new Set(seatDocs.map((doc) => doc.slug))
+  // An edge may end at the principal, the person the org works for (§5.9); it isn't a seat.
+  const endpoint = (key: string) => key === PRINCIPAL || known.has(key)
   for (const doc of teamDocs) {
     const { data, why } = blockOf<TeamBlock>(doc, 'team')
     if (!data) {
@@ -172,18 +180,19 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
     }
     const missing = data.seats.filter((seat) => !known.has(seat))
     const edges = data.edges ?? []
-    const badEdge = edges.find((edge) => !known.has(edge.from) || !known.has(edge.to))
+    const badEdge = edges.find((edge) => !endpoint(edge.from) || !endpoint(edge.to))
     const teams = new Set(teamDocs.map((team) => team.slug))
     const badTeam = (data.teams ?? []).find((team) => !teams.has(team) || team === doc.slug)
     if (missing.length) refuse(doc, 'it names ' + list(missing.map((seat) => 'org/seats/' + seat)) + ', which ' + (missing.length === 1 ? "doesn't" : "don't") + ' exist')
     else if (data.lead !== undefined && !data.seats.includes(data.lead)) refuse(doc, 'its lead, ' + data.lead + ", isn't one of its seats")
-    else if (badEdge) refuse(doc, 'its edge ' + badEdge.from + ' ' + badEdge.kind + ' ' + badEdge.to + ' names ' + (!known.has(badEdge.from) ? badEdge.from : badEdge.to) + ', which has no doc in org/seats')
+    else if (badEdge) refuse(doc, 'its edge ' + badEdge.from + ' ' + badEdge.kind + ' ' + badEdge.to + ' names ' + (!endpoint(badEdge.from) ? badEdge.from : badEdge.to) + ', which has no doc in org/seats (and isn\'t ' + PRINCIPAL + ')')
     else if (edges.some((edge) => edge.from === edge.to)) refuse(doc, 'an edge goes from a seat to itself')
     else if (badTeam) refuse(doc, 'it nests ' + badTeam + ", which isn't another team in org/teams")
     else if (data.queue !== undefined && !CHANNEL.test(data.queue)) refuse(doc, 'its queue, ' + data.queue + ", isn't a channel")
     else for (const seat of data.seats) if (!teamOf.has(seat)) teamOf.set(seat, doc)
   }
 
+  const operator = [...seats].find(([, { block }]) => block.role === 'operator')?.[0] ?? null
   const out: SeatRuntime[] = []
   for (const [key, { doc, block }] of seats) {
     const team = teamOf.get(key) ?? null
@@ -216,6 +225,7 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
       charter: prose(doc.text),
       teamDoc: team ? prose(team.text) : null,
       structure: structure ? prose(structure.text) : null,
+      assigns: block.role === 'advisor' ? (operator ? [APP_ACTOR + operator] : []) : null,
       revision: doc.revision,
       configRevision: Math.max(doc.revision, team?.revision ?? 0, structure?.revision ?? 0),
       doc: doc.id,
@@ -232,12 +242,14 @@ function checkSeat(doc: OrgDoc, block: SeatBlock, holds: Record<string, Permissi
   const handle = (block.handle ?? doc.slug).replace(/^@/, '').toLowerCase()
   if (!HANDLE.test(handle)) return '@' + handle + " isn't a handle: 1 to 32 lowercase letters, numbers, and hyphens, starting with a letter"
   if (handle === 'me') return '@me is reserved: filters read it as the caller'
+  if (doc.slug === PRINCIPAL) return PRINCIPAL + " is reserved: edges name the principal by it, so it can't be a seat's key"
   if (!block.tools.includes('board')) return 'every seat has the board tool: add "board" to its tools'
   for (const tool of block.tools) {
     if (LATER.includes(tool) || tool.startsWith('mcp:') || tool.startsWith('app:')) return 'the ' + tool + " tool isn't built yet: today a seat's tools are " + list(TOOLS)
     if (!TOOLS.includes(tool)) return tool + " isn't a tool: a seat's tools are " + list(TOOLS)
   }
   if (block.role === 'operator' && block.tools.some((tool) => tool !== 'board')) return 'the operator only orchestrates: its only tool is board (§5.8)'
+  if (block.role === 'advisor' && block.tools.some((tool) => tool !== 'board')) return "the advisor thinks with the principal and doesn't do the work: its only tool is board (web comes later) (§5.9)"
   for (const [pattern, grant] of Object.entries(block.can)) {
     if (!validPattern(pattern)) return 'its can names ' + pattern + ', which is neither *, a channel, nor a channel and its subtree (eng/)'
     const has = atPattern(holds, pattern)
