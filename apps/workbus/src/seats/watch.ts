@@ -13,7 +13,7 @@ import type { Delivered } from './seat.ts'
 /** The operator's key: it stays op when the operator is renamed (§5.8). */
 export const OPERATOR = 'op'
 
-export type Raised = { kind: 'expired' | 'failed' | 'sync_failed' | 'stalled' | 'budget'; ref: string; thread: string; text: string }
+export type Raised = { kind: 'expired' | 'failed' | 'sync_failed' | 'stalled' | 'budget' | 'declined'; ref: string; thread: string; text: string }
 type Fact = { cursor: string; kind: string; at: number; task: string | null; seat: string | null; text: string }
 
 const KEEP_MS = 30 * 24 * 60 * 60 * 1000
@@ -46,8 +46,12 @@ export class Watch extends DurableObject<Env> {
     // The event's actor, as the feed gives it: its view ({ id, … }) or its ID.
     const actor = typeof event.actor === 'string' ? event.actor : ((event.actor as { id?: string } | undefined)?.id ?? null)
     const by = seatOfActor(actor)
+    // A hire the principal declined (its proposal failed or canceled): the work waiting on it stops, and the operator asks how to proceed.
+    const proposal = String(message?.labels?.['board.doc.proposal'] ?? '')
+    if ((event.type === 'task.canceled' || event.type === 'task.failed') && task && proposal.startsWith('new:org/seats/') && by !== OPERATOR) return { raised: await this.#declined(task, proposal.slice(4), event) }
     switch (event.type) {
       case 'task.completed':
+        if (message?.labels?.['org.handoff']) await this.#handoffDone(String(message.labels['org.handoff'])).catch((error: unknown) => console.warn('watch: a handoff done', error))
         this.#fact({ cursor: event.cursor, kind: 'completed', at, task, seat: seatOfActor(message?.task?.claim?.actor) ?? seatOfActor(message?.task?.for) ?? by, text: '#' + task + where + title })
         return { raised: false }
       case 'task.failed': {
@@ -74,6 +78,37 @@ export class Watch extends DurableObject<Env> {
       default:
         return { raised: false }
     }
+  }
+
+  /** The work that waited on a declined hire is canceled, as its owner, and the operator is told in the proposal's thread. */
+  async #declined(task: string, path: string, event: Delivered): Promise<boolean> {
+    const app = bus()
+    const { tasks } = (await app.tasks.list({ needs: task, state: 'open', limit: 50 })) as { tasks: { message: { id: string } }[] }
+    const canceled: string[] = []
+    for (const { message } of tasks) {
+      try {
+        await app.tasks.cancel(message.id, 'The hire it waited on, ' + path + ' (#' + task + '), was declined.')
+        canceled.push('#' + message.id)
+      } catch (error) {
+        console.warn('watch: canceling #' + message.id + ' after a declined hire', error)
+      }
+    }
+    const why = event.message?.task?.reason ? ' ("' + cut(String(event.message.task.reason), 160) + '")' : ''
+    this.#fact({ cursor: event.cursor, kind: 'declined', at: Date.now(), task, seat: path.slice('org/seats/'.length), text: path + ', #' + task + why })
+    return this.raise({ kind: 'declined', ref: event.cursor, thread: task, text: 'The principal declined the hire ' + path + ' (#' + task + ')' + why + '. ' + (canceled.length ? 'The work waiting on it was canceled: ' + canceled.join(', ') + '.' : 'No work was waiting on it.') + ' Ask the principal how to proceed, in their thread, once.' })
+  }
+
+  /**
+   * The work a handoff became (its tasks labeled org.handoff) all done: the operator says so in the
+   * handoff's thread, once, with what each task left.
+   */
+  async #handoffDone(handoff: string): Promise<void> {
+    const app = bus()
+    const { tasks } = (await app.tasks.list({ label: 'org.handoff=' + handoff, state: 'all', limit: 50 })) as { tasks: { message: { id: string; task: { state: string; result: string | null } } }[] }
+    if (tasks.length === 0 || tasks.some(({ message }) => ['waiting', 'ready', 'claimed', 'blocked'].includes(message.task.state))) return
+    const lines = tasks.map(({ message }) => '- #' + message.id + ', ' + message.task.state + (message.task.result ? ': ' + cut(message.task.result, 200) : ''))
+    // As the operator by its key alone: its name and handle stay whatever the principal made them.
+    await (app.as as unknown as (profile: string) => typeof app)(OPERATOR).reply(handoff, { text: 'Done: the work this handed off is finished.\n\n' + lines.join('\n'), id: 'handoff-done-' + handoff })
   }
 
   /** A seat retired (its seat doc gone): kept for the brief. */

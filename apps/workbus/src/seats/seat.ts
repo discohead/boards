@@ -21,7 +21,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'request-2026-11-23.2'
+export const SEAT_CODE = 'op-sequencing-2026-11-23.2'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -60,7 +60,13 @@ export function answerOf(event: Delivered): { task: string; approved: boolean; n
 }
 
 /** Where a new seat introduces itself: its team's channel (the team's key), or the org's. */
-export const introChannel = (runtime: Pick<SeatRuntime, 'team'>) => runtime.team ?? 'org'
+export const introChannel = (runtime: Pick<SeatRuntime, 'team' | 'can'>) => {
+  const team = runtime.team
+  // Its team's channel when it may post there (eng for eng/), else the org's.
+  const grants = Object.entries(runtime.can ?? {})
+  const posts = (grant: unknown) => grant === 'all' || (Array.isArray(grant) && (grant.includes('post') || grant.includes('manage')))
+  return team && grants.some(([pattern, grant]) => (pattern === team || pattern === team + '/') && posts(grant)) ? team : 'org'
+}
 
 /** The turn a new seat's first session reads: say who it is, where it's heard, and stop. */
 export function introduction(runtime: SeatRuntime): Turn {
@@ -133,6 +139,8 @@ export class Seat extends DurableObject<Env> {
       // Part of the request that hired it, when a proposal did: its introductions show under it.
       const request: RequestHint | null = runtime.request ? { id: runtime.request, via: 'label', reply: false } : null
       this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at, request) values ('intro', ?, null, ?, 'queued', ?, ?)", runtime.doc, JSON.stringify(introduction(runtime)), Date.now(), JSON.stringify(request))
+      // Work made for it before it existed (a hire's, waiting on its proposal) went ready before its wake was set: it's taken up now.
+      await this.#adopt(runtime)
     }
     if (!same) {
       if (runtime === null) {
@@ -285,6 +293,21 @@ export class Seat extends DurableObject<Env> {
       if (event.message) await board.reply(String(event.message.re ?? event.message.id), { text: 'Today\'s brief: [[' + BRIEFS + '/' + date + ']]', id: 'brief-reply-' + date })
     } catch (error) {
       console.error('seat ' + runtime.key + ': the brief for ' + date + ' failed', error)
+    }
+  }
+
+  /** The tasks already ready for a seat that has just been provisioned: one wake-up each, as its assigned rule would have brought. */
+  async #adopt(runtime: SeatRuntime): Promise<void> {
+    try {
+      const actor = 'worker:workbus-app+' + runtime.key
+      const { tasks } = (await bus().tasks.list({ for: actor, state: 'ready', limit: 50 })) as { tasks: { message: any }[] }
+      for (const { message } of tasks) {
+        const event: Delivered = { cursor: 'adopt-' + message.id, type: 'task.ready', createdAt: new Date().toISOString(), message }
+        const input: Turn = { type: 'turn', parts: [{ type: 'text', text: render(event, ['assigned'], String(message.id)) }] }
+        this.sql.exec("insert or ignore into wakes (id, thread, task, input, state, at) values (?, ?, ?, ?, 'queued', ?)", 'adopt:' + message.id, String(message.id), String(message.id), JSON.stringify(input), Date.now() + 1)
+      }
+    } catch (error) {
+      console.warn('seat ' + runtime.key + ': taking up its ready tasks', error)
     }
   }
 
