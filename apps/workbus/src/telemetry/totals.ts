@@ -61,6 +61,15 @@ export class Totals {
     return this.sql.exec('SELECT DISTINCT period FROM telemetry_runs WHERE seat = ? ORDER BY period DESC', seat).toArray().map((row) => this.spend(seat, String(row.period)))
   }
 
+  /**
+   * Mark runs as unsent again, so the next flush() delivers them: for a backfill, such as runs sent
+   * before the stream had a pipeline. Basin counts each run id once, so a resend can't double cost.
+   */
+  resend(sinceIso = '0000'): number {
+    this.sql.exec("UPDATE telemetry_runs SET sent = 0 WHERE json_extract(record, '$.ended') >= ?", sinceIso)
+    return this.unsent()
+  }
+
   /** Runs not yet delivered to Basin. */
   unsent(): number {
     return Number(this.sql.exec('SELECT count(*) AS n FROM telemetry_runs WHERE sent = 0').toArray()[0].n)

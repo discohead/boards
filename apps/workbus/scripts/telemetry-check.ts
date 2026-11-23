@@ -85,6 +85,8 @@ await record(delivery, stream, run({ id: 'run-2' }))
 check(got.length === 2, 'recording a run again sends nothing')
 for (let i = 0; i < 250; i++) delivery.add(run({ id: 'bulk-' + i }))
 check((await delivery.flush(stream)) === 250 && got.length === 252, 'flush sends in batches until none are left')
+check(delivery.resend() === 252 && (await delivery.flush(stream)) === 252 && delivery.unsent() === 0, 'resend() delivers every run again, for a backfill')
+check(delivery.resend('2027-01-01T00:00:00Z') === 0, 'resend(since) leaves older runs alone')
 
 // Usage from pi's responses: tokens and cost summed, the gateway's log ids kept once each.
 const usage = usageOf([
