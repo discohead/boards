@@ -11,6 +11,8 @@ import { actors, bodies, channels, docs, FIRST_PAGES, MESSAGES_KEPT, follows, me
 import { busActions } from './actions.ts'
 import { threadActions } from './thread-actions.ts'
 import { readState, unread, type Unread } from './unread.ts'
+import { taskActions } from './task-actions.ts'
+import { inboxReads } from './inbox.ts'
 import { runtimeOf, type BusMode, type BusRuntime, type Me } from './runtime.ts'
 import type { Actor, Channel, Doc, DocBody, Follow, Message, Thread } from './types.ts'
 
@@ -86,7 +88,9 @@ function makeBus(db: DbClient) {
   runtime.following = (thread) => c.follows.utils.rows.get(thread) !== undefined
   const reads = runtime.mode === 'browser' ? readState(runtime, c.unread.utils.rows) : null
   runtime.unread = reads
-  const actions = { ...busActions(db, runtime, c), ...threadActions(db, runtime, c), markRead: (target: { channel: string } | { thread: string }) => reads?.markRead(target) ?? Promise.resolve() }
+  const actions = { ...busActions(db, runtime, c), ...threadActions(db, runtime, c), markRead: (target: ({ channel: string } | { thread: string }) & { upto?: string }) => reads?.markRead(target) ?? Promise.resolve() }
+  const taskWrites = taskActions(db, runtime, c)
+  const inbox = inboxReads(runtime, c)
 
   /** Open a thread: its replies, read now (up to 500) and kept in memory while it's open. */
   const openThread = async (id: string) => {
@@ -122,7 +126,7 @@ function makeBus(db: DbClient) {
     if (!had || Number(had.revision) <= Number(page.doc.revision)) c.bodies.utils.rows.apply([{ id, revision: page.doc.revision, body: page.body }])
     return page
   }
-  return { db, runtime, ...c, actions, openChannel, openThread, closeThread, openDoc }
+  return { db, runtime, ...c, actions: { ...actions, task: taskWrites }, ...inbox, openChannel, openThread, closeThread, openDoc }
 }
 
 /** The collections and writes of db (one set per DbClient). */

@@ -11,6 +11,7 @@ import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
 import { Body } from '@/thread/body'
 import { ThreadShortcuts } from '@/command/ThreadShortcuts'
+import { AddFaces } from '@/thread/add-faces'
 import { useOpenThread } from './open-thread.ts'
 import type { Face } from '../routes/__root.tsx'
 
@@ -58,6 +59,7 @@ function Pane({ id }: { id: string }) {
             </span>
           ))}
         </div>
+        {root ? <AddFaces root={root} onFace={show} /> : null}
         <nav aria-label="Faces" className="mt-4 flex gap-5 border-b text-sm">
           {faces.map((tab) => {
             const Icon = icons[tab.id]

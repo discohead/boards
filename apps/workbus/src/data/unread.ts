@@ -75,7 +75,7 @@ export const unread = feedCollection<Unread>({
 })
 
 /** What a mark says to the principal's other tabs. */
-type ReadNotice = { type: 'read'; key: string; read: string | null }
+type ReadNotice = { type: 'read'; key: string; read: string | null } | { type: 'refresh' }
 
 /**
  * Marking read and keeping the counts current: marks (POST /read) show at once, reach other tabs,
@@ -88,7 +88,11 @@ export function readState(runtime: BusRuntime, rows: Rows<Unread>) {
     if (!had || (had.unread === 0 && had.mentions === 0 && had.read === read)) return
     rows.apply([{ ...had, unread: 0, mentions: 0, read }])
   }
-  if (channel) channel.onmessage = (event: MessageEvent<ReadNotice>) => event.data?.type === 'read' && zero(event.data.key, event.data.read)
+  if (channel)
+    channel.onmessage = (event: MessageEvent<ReadNotice>) => {
+      if (event.data?.type === 'read') zero(event.data.key, event.data.read)
+      else if (event.data?.type === 'refresh') soon()
+    }
 
   let asking: Promise<void> | null = null
   let again = false
@@ -115,16 +119,24 @@ export function readState(runtime: BusRuntime, rows: Rows<Unread>) {
     return asking
   }
 
-  /** Mark a channel or a thread read, up to now. */
-  const markRead = async (target: { channel: string } | { thread: string }) => {
+  /** Mark a channel or a thread read, up to now, or up to a message (upto: its ID). */
+  const markRead = async (target: ({ channel: string } | { thread: string }) & { upto?: string }) => {
     const key = 'channel' in target ? channelKey(target.channel) : threadKey(target.thread)
-    const read = runtime.feed?.cursor != null ? String(runtime.feed.cursor) : null
-    zero(key, read)
-    channel?.postMessage({ type: 'read', key, read } satisfies ReadNotice)
+    // Up to now shows at once; up to a point waits for the board to count what's after it.
+    if (target.upto === undefined) {
+      const read = runtime.feed?.cursor != null ? String(runtime.feed.cursor) : null
+      zero(key, read)
+      channel?.postMessage({ type: 'read', key, read } satisfies ReadNotice)
+    }
     try {
       const answer = await runtime.client.post<{ read: string; unread: number; mentions: number }>('/read', target)
-      zero(key, answer.read)
-      channel?.postMessage({ type: 'read', key, read: answer.read } satisfies ReadNotice)
+      if (target.upto === undefined) {
+        zero(key, answer.read)
+        channel?.postMessage({ type: 'read', key, read: answer.read } satisfies ReadNotice)
+      } else {
+        await refresh()
+        channel?.postMessage({ type: 'refresh' } satisfies ReadNotice)
+      }
     } catch {
       await refresh().catch(() => {})
     }

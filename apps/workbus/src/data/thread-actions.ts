@@ -64,18 +64,19 @@ export function threadActions(db: DbClient, runtime: BusRuntime, c: BusCollectio
     return answer
   }
 
-  /** Give a thread a body (POST /docs { re }): its root becomes a doc, starting from body or the root's text. */
-  const writeUp = action<{ re: string; slug: string; body?: string }>(db, {
-    onMutate: () => {},
-    mutationFn: async (input) => {
-      await sendAndSettle(
-        feed(),
-        () => client.post<{ message: Message }>('/docs', { re: input.re, slug: input.slug, ...(input.body !== undefined ? { body: input.body } : {}) }),
-        { test: (event) => event.message?.id === input.re && event.message.doc !== undefined },
-        (answer) => c.messages.utils.rows.merge([answer.message], (row) => row.version),
-      )
-    },
-  })
+  /**
+   * Give a thread a body (POST /docs { re }): its root becomes a doc, starting from body or the
+   * root's text. Nothing shows before the board answers (a doc's facet is the board's to make), so
+   * this waits for the echo and resolves then.
+   */
+  const writeUp = async (input: { re: string; slug: string; body?: string }) => {
+    await sendAndSettle(
+      feed(),
+      () => client.post<{ message: Message }>('/docs', { re: input.re, slug: input.slug, ...(input.body !== undefined ? { body: input.body } : {}) }),
+      { test: (event) => event.message?.id === input.re && event.message.doc !== undefined },
+      (answer) => c.messages.utils.rows.merge([answer.message], (row) => row.version),
+    )
+  }
 
   return { remove, react, createChannel, writeUp }
 }
