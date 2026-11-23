@@ -25,12 +25,17 @@ function OrgPage() {
   return (
     <ListPane title="Org & seats" foot={false}>
       <div data-testid="org" className="mx-auto max-w-[860px] px-6 py-6">
-        {org.profile !== 'org-chart' ? (
+        {org.profile !== 'org-chart' && !chart.holds ? (
           <p data-testid="no-chart" data-why="not-opted-in" className="mb-4 text-[13px] text-muted-foreground">
-            This org doesn't hold to the org-chart profile, so there's no chart: the relationships below are the whole graph. org/structure opts in with a <span className="font-mono">json#org@1</span> block, {'{ "profile": "org-chart" }'}.
+            This org doesn't hold to the org-chart profile, and its delegations don't form one ({chart.why}), so there's no chart: the relationships below are the whole graph. org/structure opts in with a <span className="font-mono">json#org@1</span> block, {'{ "profile": "org-chart" }'}.
           </p>
         ) : chart.holds ? (
-          <OrgBox title="Org chart" testid="org-chart">
+          <OrgBox title={org.profile === 'org-chart' ? 'Org chart' : 'Org chart, as the delegations happen to form one'} testid="org-chart">
+            {org.profile === 'org-chart' ? null : (
+              <p data-testid="chart-not-opted-in" className="mb-2 text-[12px] text-muted-foreground">
+                The org hasn't opted into the org-chart profile (a <span className="font-mono">json#org@1</span> block in org/structure), so nothing holds it to one: this is how its delegations stand now.
+              </p>
+            )}
             <div className="overflow-x-auto py-2">
               <div className="flex justify-center">
                 <ChartTree at={chart.root} children={chart.children} who={who} />

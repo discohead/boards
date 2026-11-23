@@ -1,5 +1,6 @@
 // A seat doc's config as a form (TanStack Form): name, handle, model, tools, can, wakes, sessions,
-// budget, state, and approve. It writes the doc's json#seat@1 block as the principal, at the doc's
+// budget, state, and approve. It writes the doc's json#seat@1 or @2 block as the principal (at the doc's
+// own version, unless the change needs @2's 'owned' wake), at the doc's
 // revision it read, after checking the block against the schema the board checks it with; a field
 // the schema refuses says why beside it, and the board's own refusal is shown as it gave it. Once
 // saved, it follows the reconciler: applied when the Seat holds that revision, or its reply in the
@@ -12,7 +13,7 @@ import { useBus } from '@/data'
 import { checkSeatBlock } from '@/org/schema-check'
 import { refreshSeats } from './use-seats.ts'
 import type { SeatView } from './views.ts'
-import { blockIn, blockOf, fieldOf, KNOWN_TOOLS, PERMISSIONS, valuesOf, WAKE_KINDS, WAKE_VALUE, withBlock, type Block, type Permission, type SeatValues, type WakeKind } from './seat-config.ts'
+import { blockIn, blockOf, fieldOf, versionFor, KNOWN_TOOLS, PERMISSIONS, valuesOf, WAKE_KINDS, WAKE_VALUE, withBlock, type Block, type Permission, type SeatValues, type WakeKind } from './seat-config.ts'
 
 type Page = { doc: { id: string; revision: string }; body: string }
 type Saved = { revision: number; state: 'applying' | 'applied' | 'refused'; why?: string }
@@ -45,11 +46,12 @@ export function SeatConfig({ seat, onClose }: { seat: SeatView; onClose: () => v
   }, [bus, seat.doc])
   if (error) return <p role="alert" className="text-[13px] text-danger">{error}</p>
   if (!page) return <p className="text-[13px] text-muted-foreground">Reading its doc…</p>
-  const block = blockIn(page.body)
-  if (!block) return <p role="alert" className="text-[13px] text-danger">Its doc has no json#seat@1 block to edit: add one in the doc first.</p>
+  const found = blockIn(page.body)
+  if (!found) return <p role="alert" className="text-[13px] text-danger">Its doc has no json#seat@1 or @2 block to edit: add one in the doc first.</p>
+  const { block, version } = found
   return (
     <>
-      <Form key={page.doc.revision} seat={seat} page={page} block={block} onClose={onClose} onSaved={(next, revision) => (setSaved({ revision, state: 'applying' }), setPage(next))} />
+      <Form key={page.doc.revision} seat={seat} page={page} block={block} version={version} onClose={onClose} onSaved={(next, revision) => (setSaved({ revision, state: 'applying' }), setPage(next))} />
       {saved ? (
         <p data-testid="seat-saved" data-state={saved.state} className={'mt-2 text-[13px] ' + (saved.state === 'refused' ? 'text-danger' : 'text-body')}>
           {saved.state === 'applying' ? 'Saved as revision ' + saved.revision + '. The reconciler is applying it…' : saved.state === 'applied' ? 'Saved as revision ' + saved.revision + ', and applied: the seat runs with it.' : 'Saved as revision ' + saved.revision + ", but it can't apply: " + (saved.why ?? '')}
@@ -59,7 +61,7 @@ export function SeatConfig({ seat, onClose }: { seat: SeatView; onClose: () => v
   )
 }
 
-function Form({ seat, page, block, onClose, onSaved }: { seat: SeatView; page: Page; block: Block; onClose: () => void; onSaved: (page: Page, revision: number) => void }) {
+function Form({ seat, page, block, version, onClose, onSaved }: { seat: SeatView; page: Page; block: Block; version: 1 | 2; onClose: () => void; onSaved: (page: Page, revision: number) => void }) {
   const bus = useBus()
   const [refusal, setRefusal] = useState<string | null>(null)
 
@@ -79,7 +81,8 @@ function Form({ seat, page, block, onClose, onSaved }: { seat: SeatView; page: P
         value.approve.forEach((row, i) => {
           if (!row.tool.trim()) fields['approve[' + i + '].tool'] = 'name a tool'
         })
-        for (const problem of checkSeatBlock(blockOf(value, block))) {
+        const next = blockOf(value, block)
+        for (const problem of checkSeatBlock(next, versionFor(next, version))) {
           const field = fieldOf(problem, value)
           if (field && !fields[field]) fields[field] = problem.message
           else if (!field) form.push(problem.path + ' ' + problem.message)
@@ -90,7 +93,7 @@ function Form({ seat, page, block, onClose, onSaved }: { seat: SeatView; page: P
     onSubmit: async ({ value }) => {
       setRefusal(null)
       const next = blockOf(value, block)
-      const body = withBlock(page.body, next)
+      const body = withBlock(page.body, next, versionFor(next, version))
       try {
         const answer = await bus.runtime.client.post<{ doc: { revision: string } }>('/docs/' + page.doc.id + '/edit', { revision: page.doc.revision, body })
         onSaved({ doc: { id: page.doc.id, revision: answer.doc.revision }, body }, Number(answer.doc.revision))
@@ -308,7 +311,7 @@ function Form({ seat, page, block, onClose, onSaved }: { seat: SeatView; page: P
             <Button variant="outline" onClick={onClose}>
               Close
             </Button>
-            <span className="font-mono text-mono-label text-muted-foreground">writes org/seats/{seat.key}'s json#seat@1 block as you, at revision {page.doc.revision}</span>
+            <span className="font-mono text-mono-label text-muted-foreground">writes org/seats/{seat.key}'s json#seat@{version} block as you, at revision {page.doc.revision}</span>
             {formError ? (
               <p data-testid="seat-form-error" role="alert" className="basis-full text-[13px] text-danger">
                 {typeof formError === 'string' ? formError : (formError as { form?: string }).form ?? 'Fix the fields marked above.'}
