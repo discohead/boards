@@ -1,7 +1,7 @@
 // A new document: its folder (a channel), its name in it, and its first text. It lands when the board
 // has it, and opens on its Document face.
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/system'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useDocsBus } from './bus'
 
@@ -38,20 +38,20 @@ export function NewDoc({ open, onClose, onMade }: { open: boolean; onClose: () =
           <DialogTitle>New document</DialogTitle>
           <DialogDescription>A thread with a body, edited by section.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={(event) => (event.preventDefault(), void make())} className="flex flex-col gap-3 text-sm">
+        <form onSubmit={(event) => (event.preventDefault(), void make())} className="flex flex-col gap-3 text-ui">
           <label>
             Folder
-            <input value={channel} onChange={(event) => setChannel(event.target.value)} aria-label="Folder" className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 font-mono" />
+            <input value={channel} onChange={(event) => setChannel(event.target.value)} aria-label="Folder" className="mt-1 w-full rounded-md border border-line-control bg-surface px-2 py-1.5 font-mono" />
           </label>
           <label>
             Title
-            <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Title" className="mt-1 w-full rounded-md border bg-background px-2 py-1.5" />
-            {title ? <span className="mt-1 block font-mono text-xs text-muted-foreground">{channel.trim() + '/' + slugOf(title)}</span> : null}
+            <input autoFocus value={title} onChange={(event) => setTitle(event.target.value)} aria-label="Title" className="mt-1 w-full rounded-md border border-line-control bg-surface px-2 py-1.5" />
+            {title ? <span className="mt-1 block font-mono text-mono-ui text-muted-foreground">{channel.trim() + '/' + slugOf(title)}</span> : null}
           </label>
-          <textarea value={text} onChange={(event) => setText(event.target.value)} rows={6} aria-label="First text" placeholder="What it says" className="w-full rounded-md border bg-background p-2" />
-          {error ? <p className="text-destructive">Not made: {error}</p> : null}
+          <textarea value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => (event.metaKey || event.ctrlKey) && event.key === 'Enter' && void make()} rows={6} aria-label="First text" placeholder="What it says" className="w-full rounded-md border border-line-control bg-surface p-2" />
+          {error ? <p className="text-danger">Not made: {error}</p> : null}
           <div className="flex justify-end">
-            <Button type="submit" disabled={saving || !title.trim()}>
+            <Button variant="primary" type="submit" kbd="⌘↵" disabled={saving || !title.trim()}>
               {saving ? 'Making…' : 'Make the document'}
             </Button>
           </div>

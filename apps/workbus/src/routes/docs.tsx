@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { ChevronRight, FileText, Plus } from 'lucide-react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/system'
 import { ListPane, type Chip } from '@/shell/list-pane'
 import { useOpenThread } from '@/shell/open-thread'
 import { useDocsBus } from '@/docs/bus'
@@ -31,24 +31,24 @@ function Docs() {
       title="Docs"
       chips={chips}
       actions={
-        <Button size="sm" onClick={() => setMaking(true)}>
-          <Plus className="size-4" /> New document
+        <Button variant="primary" size="sm" icon={Plus} onClick={() => setMaking(true)}>
+          New document
         </Button>
       }
     >
-      {shown.length === 0 ? <p className="px-4 py-3 text-sm text-muted-foreground">No documents yet.</p> : null}
+      {shown.length === 0 ? <p className="px-4 py-3 text-ui text-muted-foreground">No documents yet.</p> : null}
       <ul data-testid="doc-list">
         {shown.map((doc) => (
           <li key={doc.id} data-id={doc.id} data-path={doc.path}>
             <button type="button" onClick={() => open(doc.id, 'doc')} aria-current={thread === doc.id ? 'true' : undefined} className={cn('flex w-full items-center gap-3 border-b px-4 py-3 text-left hover:bg-accent', thread === doc.id && 'bg-accent')}>
               <FileText className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-medium">{doc.title}</span>
-                <span className="block truncate font-mono text-xs text-muted-foreground">
+                <span className="block truncate text-ui font-medium">{doc.title}</span>
+                <span className="block truncate font-mono text-mono-ui text-muted-foreground">
                   {doc.path} · revision {doc.revision}
                 </span>
               </span>
-              <span className="font-mono text-xs text-muted-foreground">#{doc.id}</span>
+              <span className="font-mono text-mono-ui text-muted-foreground">#{doc.id}</span>
               <ChevronRight className="size-4 text-muted-foreground" />
             </button>
           </li>

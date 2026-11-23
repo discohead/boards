@@ -1,7 +1,7 @@
 // The palette's two writes: a new post, and a new task, each in a channel. Both are the data
 // layer's optimistic actions: the dialog closes at once, and a refusal reopens it with the text.
 import { useState } from 'react'
-import { Button } from '@/components/ui/button'
+import { Button } from '@/components/system'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { useDocsBus } from '@/docs/bus'
 
@@ -37,9 +37,9 @@ export function Composer({ kind, onClose, channels, initialChannel }: { kind: Co
           <DialogDescription>{shown === 'task' ? 'A new thread in a channel, ready for someone to take.' : 'A new thread in a channel.'}</DialogDescription>
         </DialogHeader>
         <form onSubmit={(event) => (event.preventDefault(), send())} className="flex flex-col gap-3">
-          <label className="text-sm">
+          <label className="text-ui">
             Channel
-            <input list="composer-channels" value={channel} onChange={(event) => setChannel(event.target.value)} className="mt-1 w-full rounded-md border bg-background px-2 py-1.5 font-mono text-sm" aria-label="Channel" />
+            <input list="composer-channels" value={channel} onChange={(event) => setChannel(event.target.value)} className="mt-1 w-full rounded-md border border-line-control bg-surface px-2 py-1.5 font-mono text-ui" aria-label="Channel" />
             <datalist id="composer-channels">
               {channels.map((path) => (
                 <option key={path} value={path} />
@@ -52,13 +52,13 @@ export function Composer({ kind, onClose, channels, initialChannel }: { kind: Co
             onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => (event.metaKey || event.ctrlKey) && event.key === 'Enter' && send()}
             rows={4}
-            className="w-full rounded-md border bg-background p-2 text-sm"
+            className="w-full rounded-md border border-line-control bg-surface p-2 text-ui"
             aria-label={shown === 'task' ? 'What needs doing' : 'Message'}
             placeholder={shown === 'task' ? 'What needs doing' : 'Write a message'}
           />
-          {error && <p className="text-sm text-destructive">Not sent: {error}</p>}
+          {error && <p className="text-ui text-danger">Not sent: {error}</p>}
           <div className="flex justify-end gap-2">
-            <Button type="submit" disabled={!text.trim()}>
+            <Button variant="primary" type="submit" kbd="⌘↵" disabled={!text.trim()}>
               {shown === 'task' ? 'Make the task' : 'Post'}
             </Button>
           </div>

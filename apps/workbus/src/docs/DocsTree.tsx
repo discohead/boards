@@ -26,9 +26,9 @@ export function DocsTree({ current: given }: { current?: string }) {
       else next.add(path)
       return next
     })
-  if (tree.length === 0) return <p className="px-2 py-1 text-sm text-muted-foreground">No docs yet.</p>
+  if (tree.length === 0) return <p className="px-2 py-1 text-ui text-muted-foreground">No docs yet.</p>
   return (
-    <ul role="tree" aria-label="Docs" className="text-sm" data-testid="docs-tree">
+    <ul role="tree" aria-label="Docs" className="text-ui" data-testid="docs-tree">
       {tree.map((node) => (
         <Branch key={node.path} node={node} depth={0} current={current} isOpen={isOpen} toggle={toggle} />
       ))}
