@@ -73,16 +73,19 @@ export async function run({ page, base, owner, run: id, step, must }) {
         }
       return (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed'
     }, 240_000, 2_000)
-    await step('her work completes', done, { task: (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task, moreApprovals: extra })
+    await step('her work completes, with exactly one approval', done && extra.length === 0, { task: (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task, moreApprovals: extra })
     await step('and she is active again', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 60_000), { seat: states, sidebar: shown })
-    // Her Seat's own sequence, sampled every 250 ms; the sidebar polls every 4 s, so it can miss a short working.
+    // Her Seat's own sequence, sampled every 250 ms: waiting during the hold, then active. A working
+    // between them is shown when it lasts, but one shorter than a poll can't be required.
     await watch.stop()
     const from = states.lastIndexOf('waiting')
-    await step('her Seat went waiting, then working, then active', from >= 0 && states.indexOf('working', from) > from && states.at(-1) === 'active', { seat: states, sidebar: shown })
+    await step('her Seat went waiting during the hold, then active (working when it lasted)', from >= 0 && states.at(-1) === 'active', { seat: states, sidebar: shown, working: states.indexOf('working', from) > from })
     const after = await status('ada')
     await seatRow('ada').click()
     await until(() => seat.isVisible(), 10_000)
-    await step('her page lists the new runs', after.runs.length > before.runs.length && (await until(async () => (await rows.count()) === after.runs.length)), { before: before.runs.length, after: after.runs.length })
+    // Her Seat lists its last 20 runs: the new ones are those it didn't list before, each a row here.
+    const fresh = after.runs.filter((one) => !before.runs.some((had) => had.id === one.id)).map((one) => one.id)
+    await step('her page lists the new runs', fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
     await step('and her spend went up by their cost', (after.spend?.cost ?? 0) > (before.spend?.cost ?? 0) && (await until(async () => Math.abs(Number(await page.getByTestId('spend').getAttribute('data-cost')) - after.spend.cost) < 1e-9)), { before: before.spend?.cost, after: after.spend?.cost })
   } finally {
     await watch.stop()

@@ -8,7 +8,8 @@ import { hydrated, until } from '../lib.mjs'
 export async function run({ page, base, owner, run: id, step, must }) {
   const nav = page.getByRole('navigation')
   const ada = nav.locator('[data-testid=seats] a[data-seat=ada]')
-  const dev = async (call) => (await fetch(base + '/dev/seat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: 'ada', call }) })).json()
+  // Her Seat's status: GET /api/seats/ada, which the app serves in dev and behind Access alike.
+  const dev = async () => page.context().request.get(base + '/api/seats/ada', { timeout: 10_000 }).then((answer) => answer.json())
   const before = await dev('status')
   await page.goto(base + '/')
   await hydrated(page)
@@ -34,11 +35,13 @@ export async function run({ page, base, owner, run: id, step, must }) {
   await step('Approve answers it with the decision approved', await until(async () => (await owner.get('/messages/' + task + '?limit=1')).message.task.answer?.decision === 'approved'))
   await step('her parked session goes on, and the work completes', await until(async () => (await owner.get('/messages/' + work + '?limit=1')).message.task.state === 'completed', 180_000), (await owner.get('/messages/' + work + '?limit=1')).message.task)
   // Her Seat records the run once the operation ends, a moment after the task completes.
-  await until(async () => (await dev('status')).runs.length > before.runs.length, 30_000)
+  await until(async () => (await dev('status')).spend.runs > before.spend.runs, 30_000)
   const after = await dev('status')
   await ada.click()
   await until(() => page.getByTestId('seat').isVisible())
   const rows = page.locator('[data-testid=runs] tbody tr')
-  await step("her page lists the new runs, as her Seat does", after.runs.length > before.runs.length && (await until(async () => (await rows.count()) === after.runs.length)), { before: before.runs.length, after: after.runs.length })
+  // Her Seat lists its last 20 runs: the new ones are those it didn't list before, each a row here.
+  const fresh = after.runs.filter((one) => !before.runs.some((had) => had.id === one.id)).map((one) => one.id)
+  await step('her page lists the new runs, as her Seat does', fresh.length > 0 && (await until(async () => (await Promise.all(fresh.map((one) => page.locator('[data-testid=runs] [data-run="' + one + '"]').count()))).every((n) => n === 1))), { fresh, spendRuns: [before.spend?.runs, after.spend?.runs] })
   await step('and her spend went up by their cost', await until(async () => Math.abs(Number(await page.getByTestId('spend').getAttribute('data-cost')) - after.spend.cost) < 1e-9) && after.spend.cost > before.spend.cost, { before: before.spend.cost, after: after.spend.cost })
 }
