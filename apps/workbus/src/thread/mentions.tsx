@@ -31,7 +31,7 @@ export function Mention({ actor }: { actor: string; children?: ReactNode }) {
   const me = actor === bus.runtime.me.actor
   const dm = 'dm/' + handle
   // A mention of the reader is waiting on them: held, in the brand color. Others are handles, in mono.
-  const className = cn('mention rounded-sm px-0.5 font-mono text-[0.92em]', me ? 'bg-primary/10 font-semibold text-primary' : 'text-foreground')
+  const className = cn('mention rounded-xs px-0.5 font-mono text-[0.92em] !no-underline', me ? 'bg-held-soft font-semibold !text-held' : '!text-text hover:bg-raised')
   if (bus.channels.get(dm))
     return (
       <Link to="/c/$" params={{ _splat: dm }} className={className} data-mention={actor} title={actor}>

@@ -12,7 +12,7 @@ import { Conversation } from '@/thread/conversation'
 import { Status } from '@/thread/status'
 import { Body } from '@/thread/body'
 import { ThreadShortcuts } from '@/command/ThreadShortcuts'
-import { AddFaces } from '@/thread/add-faces'
+import { useAddFaces } from '@/thread/add-faces'
 import { useOpenThread } from './open-thread.ts'
 import type { Face } from '../routes/__root.tsx'
 
@@ -31,6 +31,7 @@ function Pane({ id }: { id: string }) {
   }, [bus, id])
   const { data: roots } = useLiveQuery({ query: (q) => q.from({ message: bus.messages }).where(({ message }) => eq(message.id, id)) })
   const root = roots[0]
+  const adding = useAddFaces(root, show)
   const faces: { id: Face; label: string }[] = [{ id: 'conversation', label: 'Conversation' }, ...(root?.task ? [{ id: 'task' as const, label: 'Task' }] : []), ...(root?.doc ? [{ id: 'doc' as const, label: 'Document' }] : [])]
   const open: Face = faces.some((tab) => tab.id === face) ? face! : 'conversation'
   const replies = useLiveQuery({ query: (q) => q.from({ thread: bus.threads }).where(({ thread }) => eq(thread.id, id)) }).data[0]?.replies
@@ -57,10 +58,10 @@ function Pane({ id }: { id: string }) {
             <Label key={key} name={key} value={value} />
           ))}
         </div>
-        {root ? <AddFaces root={root} onFace={show} /> : null}
         <div aria-label="Faces" className="mt-4">
-          <Tabs tabs={faces.map((tab) => ({ id: tab.id, label: tab.label, ...(tab.id === 'conversation' && replies !== undefined ? { count: replies + 1 } : {}) }))} value={open} onChange={(id) => show(id as Face)} />
+          <Tabs tabs={[...faces.map((tab) => ({ id: tab.id, label: tab.label, ...(tab.id === 'conversation' && replies !== undefined ? { count: replies + 1 } : {}) })), ...adding.tabs]} value={open} onChange={(id) => show(id as Face)} />
         </div>
+        {adding.error ? <p role="alert" className="mt-1 text-xs text-destructive">{adding.error}</p> : null}
       </header>
       <ThreadShortcuts threadId={id} />
       <div className="flex min-h-0 flex-1 flex-col">
