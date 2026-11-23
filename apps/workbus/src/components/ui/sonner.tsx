@@ -1,3 +1,4 @@
+import type * as React from 'react'
 import { Toaster as Sonner, type ToasterProps } from 'sonner'
 import { useTheme } from '@/components/system/appearance'
 
@@ -6,7 +7,7 @@ import { useTheme } from '@/components/system/appearance'
 // '@/components/system').
 function Toaster(props: ToasterProps) {
   const { resolved } = useTheme()
-  return <Sonner theme={resolved} position="bottom-left" duration={5000} gap={8} offset={16} toastOptions={{ unstyled: true }} {...props} />
+  return <Sonner theme={resolved} position="bottom-left" duration={5000} gap={8} offset={16} toastOptions={{ unstyled: true }} style={{ '--width': '440px' } as React.CSSProperties} {...props} />
 }
 
 export { Toaster }

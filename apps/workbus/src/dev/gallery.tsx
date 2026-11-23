@@ -261,7 +261,7 @@ function Live() {
   const items = [
     { label: 'Inbox', icon: Inbox, kbd: 'G I' },
     { label: 'general', icon: Hash, path: 'general' },
-  ].filter((it) => it.label.includes(q.toLowerCase()))
+  ].filter((it) => it.label.toLowerCase().includes(q.toLowerCase()))
   return (
     <div className={row}>
       <Menu

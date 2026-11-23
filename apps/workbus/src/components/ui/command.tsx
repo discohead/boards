@@ -21,14 +21,17 @@ function CommandDialog({
   description = 'Run a command, search, or ask @op',
   children,
   className,
+  shouldFilter,
   ...props
-}: React.ComponentProps<typeof Dialog> & { title?: string; description?: string; className?: string }) {
+}: React.ComponentProps<typeof Dialog> & { title?: string; description?: string; className?: string; shouldFilter?: boolean }) {
   return (
     <Dialog {...props}>
       <DialogContent className={cn('max-w-[560px] overflow-hidden p-0 sm:max-w-[560px]', className)}>
         <DialogTitle className="sr-only">{title}</DialogTitle>
         <DialogDescription className="sr-only">{description}</DialogDescription>
-        <Command loop>{children}</Command>
+        <Command loop shouldFilter={shouldFilter}>
+          {children}
+        </Command>
       </DialogContent>
     </Dialog>
   )
