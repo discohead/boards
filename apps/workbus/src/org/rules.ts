@@ -1,5 +1,5 @@
 // The reconciler's rules (design/workbus.md §4.5), as pure functions: from the org's docs as the
-// board holds them (blocks already checked against json#seat@1 and json#team@1) to each seat's
+// board holds them (blocks already checked against json#seat@1 or @2, json#team@1, and json#org@1) to each seat's
 // runtime, or the reasons a doc can't apply. Nothing here touches the board, so it's checked in
 // node (scripts/org-check.ts) as well as through the real reconciler.
 
@@ -9,7 +9,7 @@ export type OrgDoc = { id: string; channel: string; slug: string; title: string;
 
 export type Permission = 'read' | 'post' | 'react' | 'label' | 'edit' | 'sync' | 'manage'
 export type Can = Record<string, 'all' | Permission[]>
-export type Rule = 'mention' | 'follow' | 'assigned' | 'dm' | 'schedules' | { ready: string } | { docs: string } | { dm: true } | { tail: string }
+export type Rule = 'mention' | 'follow' | 'assigned' | 'owned' | 'dm' | 'schedules' | { ready: string } | { docs: string } | { dm: true } | { tail: string }
 
 export type SeatBlock = {
   role?: string
@@ -54,7 +54,14 @@ export type SeatRuntime = {
   structure: string | null
   /** Who its board tools may assign a task to, by actor, or null for anyone: the advisor hands work to the operator alone (§5.9). */
   assigns: string[] | null
-  /** The seat doc's revision: orders its wake's applies. */
+  /** Where its escalations go (§4.3): its escalates_to, else the seat that delegates to it, else the principal (null). */
+  escalates: { key: string; actor: string } | null
+  /** Who reviews its completed work (reviews edges coming in): seat keys, or principal. */
+  reviewers: string[]
+  /** Whom it may consult (consults edges going out), and who consults it (coming in): their keys, handles, and actors. */
+  consults: { key: string; handle: string; actor: string }[]
+  consultedBy: { key: string; handle: string; actor: string }[]
+  /** The newest revision among its doc, the team docs (whose edges add to its rules), and the root: orders its wake's applies. */
   revision: number
   /** The newest revision among the docs it came from (seat, team, root): orders its Seat's config. */
   configRevision: number
@@ -126,10 +133,12 @@ export function prose(text: string): string {
   return text.replace(/^```json#[a-z][a-z0-9._-]*@\d+[^\n]*\n[\s\S]*?^```[ \t]*$\n?/gm, '').replace(/\n{3,}/g, '\n\n').trim()
 }
 
-const blockOf = <T>(doc: OrgDoc, schema: string): { data: T | null; why: string | null } => {
-  const found = doc.blocks.filter((block) => block.schema === schema && block.version === 1)
-  if (found.length === 0) return { data: null, why: 'it has no `json#' + schema + '@1` block' }
-  if (found.length > 1) return { data: null, why: 'it has ' + found.length + ' `json#' + schema + '@1` blocks, and a ' + schema + ' has one' }
+/** A doc's one block of a schema, at any of versions (seat@1 and seat@2 are read the same). */
+const blockOf = <T>(doc: OrgDoc, schema: string, versions: number[] = [1]): { data: T | null; why: string | null } => {
+  const found = doc.blocks.filter((block) => block.schema === schema && versions.includes(block.version))
+  const name = '`json#' + schema + '@' + versions.join('` or `json#' + schema + '@') + '`'
+  if (found.length === 0) return { data: null, why: 'it has no ' + name + ' block' }
+  if (found.length > 1) return { data: null, why: 'it has ' + found.length + ' ' + name + ' blocks, and a ' + schema + ' has one' }
   return { data: found[0]!.data as T, why: null }
 }
 
@@ -149,7 +158,7 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
   // Seats: each doc on its own.
   const seats = new Map<string, { doc: OrgDoc; block: SeatBlock }>()
   for (const doc of seatDocs) {
-    const { data, why } = blockOf<SeatBlock>(doc, 'seat')
+    const { data, why } = blockOf<SeatBlock>(doc, 'seat', [1, 2])
     if (!data) {
       refuse(doc, why!)
       continue
@@ -171,6 +180,7 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
 
   // Teams: every seat they name exists, and every edge is between seats that do.
   const teamOf = new Map<string, OrgDoc>()
+  const edgesOf = new Map<OrgDoc, Edge[]>()
   const known = new Set(seatDocs.map((doc) => doc.slug))
   // An edge may end at the principal, the person the org works for (§5.9); it isn't a seat.
   const endpoint = (key: string) => key === PRINCIPAL || known.has(key)
@@ -191,10 +201,34 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
     else if (edges.some((edge) => edge.from === edge.to)) refuse(doc, 'an edge goes from a seat to itself')
     else if (badTeam) refuse(doc, 'it nests ' + badTeam + ", which isn't another team in org/teams")
     else if (data.queue !== undefined && !CHANNEL.test(data.queue)) refuse(doc, 'its queue, ' + data.queue + ", isn't a channel")
-    else for (const seat of data.seats) if (!teamOf.has(seat)) teamOf.set(seat, doc)
+    else {
+      for (const seat of data.seats) if (!teamOf.has(seat)) teamOf.set(seat, doc)
+      edgesOf.set(doc, edges as Edge[])
+    }
   }
 
-  const operator = [...seats].find(([, { block }]) => block.role === 'operator')?.[0] ?? null
+  // The org-chart profile (§4.3), when org/structure opts in: delegations form one tree. A team doc
+  // that breaks it is answered, and its edges don't apply until it's fixed; its seats keep their team.
+  const settings = structure ? blockOf<{ profile?: string }>(structure, 'org').data : null
+  const orgChart = settings?.profile === 'org-chart'
+  if (orgChart) {
+    const broken = orgChartProblem([...edgesOf.values()].flat(), [...seats.keys()])
+    if (broken)
+      for (const [doc, edges] of edgesOf)
+        if (edges.some((edge) => edge.kind === 'delegates_to')) {
+          refuse(doc, 'its delegations break the org-chart profile org/structure holds to: ' + broken + '. Until they hold to it, its edges do nothing')
+          edgesOf.delete(doc)
+        }
+  }
+  const edgeRevision = Math.max(0, structure?.revision ?? 0, ...teamDocs.map((doc) => doc.revision))
+  const edges = [...edgesOf.values()].flat().filter((edge) => edge.from === PRINCIPAL || seats.has(edge.from) || edge.to === PRINCIPAL || seats.has(edge.to))
+  const actorOf = (key: string) => APP_ACTOR + key
+  const handleOf = (key: string) => (seats.get(key)!.block.handle ?? key).replace(/^@/, '').toLowerCase()
+  const from = (key: string, kind: string) => edges.filter((edge) => edge.from === key && edge.kind === kind).map((edge) => edge.to)
+  const into = (key: string, kind: string) => edges.filter((edge) => edge.to === key && edge.kind === kind).map((edge) => edge.from)
+  /** Where a seat's escalations go: its escalates_to, else whoever delegates to it, else the principal. */
+  const escalationOf = (key: string) => [...from(key, 'escalates_to'), ...into(key, 'delegates_to'), PRINCIPAL].find((to) => to === PRINCIPAL || seats.has(to))!
+
   const out: SeatRuntime[] = []
   for (const [key, { doc, block }] of seats) {
     const team = teamOf.get(key) ?? null
@@ -202,12 +236,19 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
     const dm = 'dm/' + key + '/'
     if (!Object.keys(can).some((pattern) => pattern === dm || pattern === 'dm/' + key)) can[dm] = DM
     const rules: Record<string, Rule> = {}
-    for (const rule of block.wakes) {
-      const base = ruleId(rule)
+    const add = (base: string, rule: Rule) => {
       let id = base
       for (let n = 2; id in rules; n++) id = base + '-' + n
-      rules[id] = rule === 'dm' ? 'dm' : rule
+      rules[id] = rule
     }
+    for (const rule of block.wakes) add(ruleId(rule), rule === 'dm' ? 'dm' : rule)
+    // What its edges add (§4.5): a consult from each seat that consults it, and holds escalated to it.
+    for (const source of into(key, 'consults')) if (seats.has(source)) add('consulted', { tail: '--mentions=' + actorOf(key) + ' --by ' + actorOf(source) + ' --label ' + CONSULT_LABEL + '=' + key })
+    // And its consult's answer, from each seat it consults.
+    for (const target of from(key, 'consults')) if (seats.has(target)) add('answered', { tail: '--by ' + actorOf(target) + ' --label ' + ANSWER_LABEL + '=' + key })
+    if ([...seats.keys()].some((other) => other !== key && escalationOf(other) === key)) add('escalated', { tail: '--label ' + ESCALATED_LABEL + '=' + key + ' --label board.task=blocked' })
+    const escalation = escalationOf(key)
+    const delegates = from(key, 'delegates_to').filter((to) => seats.has(to))
     out.push({
       key,
       name: block.name ?? doc.title,
@@ -227,9 +268,15 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
       charter: prose(doc.text),
       teamDoc: team ? prose(team.text) : null,
       structure: structure ? prose(structure.text) : null,
-      assigns: block.role === 'advisor' ? (operator ? [APP_ACTOR + operator] : []) : null,
-      revision: doc.revision,
-      configRevision: Math.max(doc.revision, team?.revision ?? 0, structure?.revision ?? 0),
+      // Along its delegations only under the org-chart profile, and always for the advisor (§5.9).
+      assigns: orgChart || block.role === 'advisor' ? delegates.map(actorOf) : null,
+      escalates: escalation === PRINCIPAL ? null : { key: escalation, actor: actorOf(escalation) },
+      reviewers: into(key, 'reviews').filter((by) => by === PRINCIPAL || seats.has(by)),
+      consults: from(key, 'consults').filter((to) => seats.has(to)).map((to) => ({ key: to, handle: handleOf(to), actor: actorOf(to) })),
+      consultedBy: into(key, 'consults').filter((by) => seats.has(by)).map((by) => ({ key: by, handle: handleOf(by), actor: actorOf(by) })),
+      // Its wake's rules come from its doc and, by their edges, every team's: an edit to any orders the next apply.
+      revision: Math.max(doc.revision, edgeRevision),
+      configRevision: Math.max(doc.revision, team?.revision ?? 0, structure?.revision ?? 0, edgeRevision),
       doc: doc.id,
     })
   }
@@ -240,6 +287,34 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
     if (why && doc) notices.push({ doc: doc.id, path: pathOf(doc), revision: doc.revision, why })
   }
   return { seats: out.sort((a, b) => (a.key < b.key ? -1 : 1)), problems, notices }
+}
+
+type Edge = { from: string; kind: string; to: string }
+
+/** The labels an edge's runtime writes and wakes on (seat tools write them; the board keeps board.* to itself). */
+export const CONSULT_LABEL = 'org.consult'
+export const ESCALATED_LABEL = 'org.escalated'
+export const ANSWER_LABEL = 'org.answer'
+
+/** Why delegations aren't one tree among the seats (at most one in each, no cycle, one root), or null. */
+export function orgChartProblem(edges: Edge[], seats: string[]): string | null {
+  const delegations = edges.filter((edge) => edge.kind === 'delegates_to' && edge.from !== PRINCIPAL && edge.to !== PRINCIPAL)
+  const parent = new Map<string, string>()
+  for (const edge of delegations) {
+    const other = parent.get(edge.to)
+    if (other !== undefined && other !== edge.from) return edge.to + ' has two delegates_to coming in, from ' + other + ' and ' + edge.from
+    parent.set(edge.to, edge.from)
+  }
+  for (const seat of seats) {
+    const seen = new Set([seat])
+    for (let at = parent.get(seat); at !== undefined; at = parent.get(at)) {
+      if (seen.has(at)) return 'the delegations ' + [...seen].join(' → ') + ' → ' + at + ' go in a circle'
+      seen.add(at)
+    }
+  }
+  const roots = seats.filter((seat) => !parent.has(seat)).sort()
+  if (roots.length !== 1) return 'they have ' + roots.length + ' roots (' + list(roots) + '), and an org chart has one: give each but one a delegates_to coming in'
+  return null
 }
 
 const list = (items: string[]) => (items.length <= 2 ? items.join(' and ') : items.slice(0, -1).join(', ') + ', and ' + items.at(-1))

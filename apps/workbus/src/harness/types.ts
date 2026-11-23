@@ -25,6 +25,14 @@ export type SeatRef = {
   automatic?: readonly string[]
   /** Who the seat may assign a task to, by actor; absent, anyone. The advisor's is the operator alone (§5.9). */
   assigns?: readonly string[]
+  /** Where its escalations go (task_block): a seat, or absent for the principal (§4.3). */
+  escalates?: { key: string; actor: string }
+  /** Whom it may consult (board_consult), by its consults edges. */
+  consults?: readonly { key: string; handle: string; actor: string }[]
+  /** Who consults it (board_answer answers them). */
+  consultedBy?: readonly { key: string; handle: string; actor: string }[]
+  /** Whether a reviews edge comes into it: its completions make review tasks first. */
+  reviewed?: boolean
   /** The seat doc's revision, for the run record's charter. */
   revision: string
 }

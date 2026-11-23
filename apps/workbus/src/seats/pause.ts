@@ -2,7 +2,7 @@
 // or "active", made as the principal. The reconciler applies it, and the Seat stops starting runs
 // (its queue waits) or starts them again. The edit is the doc's, so its history says who paused it.
 
-const FENCE = /(```json#seat@1[^\n]*\n)([\s\S]*?)(\n```)/
+const FENCE = /(```json#seat@[12][^\n]*\n)([\s\S]*?)(\n```)/
 
 /** The seat doc's body with its block's state set; null when the doc has no seat block, or it's already so. */
 export function withState(body: string, state: 'active' | 'paused'): string | null {

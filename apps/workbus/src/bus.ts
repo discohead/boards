@@ -31,6 +31,7 @@ export type Board = {
     create(input: Record<string, unknown>): Answer
     block(id: string, reason: string, kind?: string): Answer
     unblock(id: string, answer?: { decision: 'approved' | 'declined'; note?: string }): Answer
+    needs(id: string, needs: string[]): Answer
   }
 }
 

@@ -84,4 +84,30 @@ export const TEAM_SCHEMA = {
   },
 }
 
-export const ORG_SCHEMAS = [SEAT_SCHEMA, TEAM_SCHEMA]
+/** seat@1 is frozen once registered: seat@2 is the same, and its wakes may also be 'owned', the state changes of tasks the seat made (#20). The reconciler reads either. */
+export const SEAT_SCHEMA_2 = {
+  ...SEAT_SCHEMA,
+  version: 2,
+  description: SEAT_SCHEMA.description + " Version 2 adds the wake rule 'owned': the state changes of tasks the seat made.",
+  schema: {
+    ...SEAT_SCHEMA.schema,
+    properties: {
+      ...SEAT_SCHEMA.schema.properties,
+      wakes: { type: 'array', maxItems: 16, items: { anyOf: [{ enum: ['mention', 'follow', 'assigned', 'owned', 'dm', 'schedules'] }, ...WAKE.anyOf.slice(1)] } },
+    },
+  },
+}
+
+/** The org's own settings, in org/structure (§4.3): today, whether it holds to the org-chart profile. */
+export const ORG_SCHEMA = {
+  name: 'org',
+  version: 1,
+  description: "The org's settings (design/workbus.md §4.3). profile 'org-chart': each seat has at most one delegates_to coming in, the delegations have no cycle, and they have one root.",
+  schema: {
+    type: 'object',
+    additionalProperties: false,
+    properties: { profile: { enum: ['org-chart'] } },
+  },
+}
+
+export const ORG_SCHEMAS = [SEAT_SCHEMA, SEAT_SCHEMA_2, TEAM_SCHEMA, ORG_SCHEMA]

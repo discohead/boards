@@ -24,7 +24,7 @@ const RULE_ID = /^[A-Za-z][A-Za-z0-9-]{0,31}$/
 /** A service sink a deployment declares (WorkbusConfig.sinks): the binding it calls, and who may target it. */
 export type SinkConfig = { binding: string; method?: string; principals: readonly string[] }
 
-export type Rule = 'mention' | 'follow' | 'assigned' | 'dm' | 'schedules' | { ready: string } | { docs: string } | { dm: true } | { tail: string }
+export type Rule = 'mention' | 'follow' | 'assigned' | 'owned' | 'dm' | 'schedules' | { ready: string } | { docs: string } | { dm: true } | { tail: string }
 
 export type Wake = { owner: string; key: string; principal: Principal; profile: Profile | null; narrow: Record<string, Grant> | null; sink: string; rules: Record<string, Rule>; revision: number | null; hash: string; created: number; at: number }
 type Row = { owner: string; key: string; principal: string; profile: string | null; narrow: string | null; sink: string; rules: string; revision: number | null; hash: string; created: number; at: number }
@@ -71,6 +71,8 @@ type Matcher = (row: EventRow, facets: { before: Facet | null; after: Facet | nu
 
 const TASK_RECEIPTS = new Set(['message.synced', 'message.files_synced', 'task.renewed'])
 const DOCS = new Set(['doc.created', 'doc.edited', 'doc.moved'])
+/** A task's changes of state: what 'owned' wakes its maker for (not its making, its renewals, or its replies). */
+const STATES = new Set(['task.ready', 'task.claimed', 'task.released', 'task.expired', 'task.completed', 'task.failed', 'task.blocked', 'task.unblocked', 'task.canceled', 'task.reopened'])
 /** The events a rule may match: what registered watchers see, and docs' own. */
 export const WAKE_EVENTS = new Set(['message.posted', 'message.edited', 'message.deleted', 'reaction.added', 'reaction.removed', 'labels.changed', 'message.sync_failed', 'message.synced', 'message.files_synced', 'task.created', 'task.assigned', 'task.needs_changed', 'task.ready', 'task.claimed', 'task.renewed', 'task.released', 'task.expired', 'task.completed', 'task.failed', 'task.blocked', 'task.unblocked', 'task.canceled', 'task.reopened', ...DOCS])
 
@@ -86,7 +88,7 @@ function matcherOf(ctx: Ctx, rule: Rule): Matcher {
   const terms = new Set([self, ctx.actor.handle.toLowerCase()])
   const mentions = (facet: Facet | null) => Boolean(facet && facet.terms.some((value) => terms.has(value)))
   const concerned = (facets: { before: Facet | null; after: Facet | null }) => facets.after ?? facets.before
-  type Held = { for?: string | null; claim?: { actor: string } | null }
+  type Held = { for?: string | null; claim?: { actor: string } | null; by?: string }
   const taskAt = (root: number, at: number) => hooks.taskView(ctx, root, at) as Held | undefined
   const taskFor = (root: number, at: number) => taskAt(root, at)?.for ?? null
   /** Whether a task is its as an event left it: assigned to it, or claimed by it. */
@@ -105,6 +107,13 @@ function matcherOf(ctx: Ctx, rule: Rule): Matcher {
       if (its(root, row.seq)) return true
       if ((row.type === 'task.assigned' || row.type === 'task.released' || row.type === 'task.expired') && its(root, row.seq - 1)) return true
       return row.type === 'task.unblocked' && payload.holder === self
+    }
+  // A task it made changing state (design §5.8, #20): not every reply in its thread, as follow would.
+  if (rule === 'owned')
+    return (row, facets) => {
+      if (!STATES.has(row.type)) return false
+      const facet = concerned(facets)!
+      return taskAt(facet.re ?? facet.id, row.seq)?.by === self
     }
   if (rule === 'schedules') return (row, _facets, payload, by) => row.type === 'message.posted' && Boolean(payload.schedule) && by === self
   if (rule === 'dm' || (typeof rule === 'object' && 'dm' in rule)) {

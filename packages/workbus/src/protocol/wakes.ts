@@ -5,7 +5,7 @@ import { route } from './routes.ts'
 
 const Channel = z.string().min(1).max(200)
 export const Rule = z.union([
-  z.enum(['mention', 'follow', 'assigned', 'dm', 'schedules']),
+  z.enum(['mention', 'follow', 'assigned', 'owned', 'dm', 'schedules']),
   z.object({ ready: Channel }).strict(),
   z.object({ docs: Channel }).strict(),
   z.object({ dm: z.literal(true) }).strict(),

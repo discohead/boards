@@ -11,16 +11,17 @@ import { cn } from '@/lib/utils'
 import { Clock } from '@/shell/clock'
 import { Avatar as SystemAvatar, Message as SystemMessage } from '@/components/system'
 import { REACTIONS, Reaction } from './reactions.tsx'
+import { initialsFor, nameInitials } from '@/seats/initials'
 
-/** A name's initials, for an avatar. */
-export const initialsOf = (name: string) => name.split(/[\s._-]+/).filter(Boolean).slice(0, 2).map((part) => part[0]!.toUpperCase()).join('') || '?'
+/** A name's initials, for an avatar (seats/initials.ts). */
+export const initialsOf = nameInitials
 
 /** An actor's avatar: the design system's (people round, agents square), from what the app knows of it. */
 export function Avatar({ actor, size = 'md' }: { actor: string; size?: 'sm' | 'md' }) {
   const bus = useBus()
   const known = bus.actors.get(actor)
   const name = known?.name ?? handleOf(bus.actors, actor)
-  return <SystemAvatar kind={isAgent(known?.kind, actor) ? 'agent' : 'person'} initials={initialsOf(name)} name={name} size={size === 'sm' ? 'xs' : 'md'} />
+  return <SystemAvatar kind={isAgent(known?.kind, actor) ? 'agent' : 'person'} initials={initialsFor(actor, name, known?.handle)} name={name} size={size === 'sm' ? 'xs' : 'md'} />
 }
 
 /** An actor is an agent unless it's a person: a person's kind is "person", and people sign in as workbus:user: or access:user:. */
@@ -182,7 +183,7 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
     return (
       <div data-message={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className="group relative hover:bg-accent">
         <SystemMessage
-          author={{ name, handle: '@' + handle, initials: initialsOf(name), kind: isAgent(bus.actors.get(message.by.actor)?.kind, message.by.actor) ? 'agent' : 'person' }}
+          author={{ name, handle: '@' + handle, initials: initialsFor(message.by.actor, name, handle), kind: isAgent(bus.actors.get(message.by.actor)?.kind, message.by.actor) ? 'agent' : 'person' }}
           time={<Clock at={message.createdAt} />}
           cursor={<span data-testid="cursor">#{message.id}</span>}
           pending={!!message.pending}

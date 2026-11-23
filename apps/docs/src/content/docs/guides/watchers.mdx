@@ -161,6 +161,7 @@ The caller that sets a wake is whole: its principal, its profile, and its narrow
 | `'mention'` | a message posted that mentions it, or edited to |
 | `'follow'` | what [reaches](/guides/follows/) it: events by others in threads and doc discussions it follows, or that mention it |
 | `'assigned'` | any event on a task that's its (assigned to it, or claimed by it, as of that event) or in that task's thread; one that takes the task from it; and the answer to a hold it placed (`task.unblocked` with its `decision`, naming it as `holder`) |
+| `'owned'` | a task it made changing state (ready, claimed, released, expired, completed, failed, blocked, unblocked, canceled, reopened), and nothing else in that task's thread |
 | `{ ready: 'work/' }` | a task in the channel (or subtree) that just became ready, unassigned or assigned to it |
 | `'dm'` | everything in `dm/<profile>` and its subtree (it needs a profile) |
 | `{ docs: 'specs/' }` | a doc made, edited, or moved in the channel (or subtree) |

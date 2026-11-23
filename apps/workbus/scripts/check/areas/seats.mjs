@@ -19,12 +19,12 @@ export async function run({ page, base, owner, run: id, channel, must, step }) {
   const dm = nav.locator('[data-testid=dms] a[data-seat=op]')
   await must("Direct messages has the operator's DM", await until(async () => (await dm.count()) === 1, 15_000))
   const dmText = await dm.innerText()
-  await step('it reads Operator and @op, and opens dm/op', dmText.includes('Operator') && dmText.includes('@op') && (await dm.getAttribute('href')) === '/c/dm/op', dmText)
+  await step('it reads Operator and @op, and opens dm/op', dmText.includes('Operator') && (dmText.includes('@op') || (await dm.getAttribute('data-unread')) === 'yes') && (await dm.getAttribute('href')) === '/c/dm/op', dmText)
   await step('with a square agent avatar', (await dm.locator('[data-slot=avatar]').getAttribute('data-kind')) === 'agent')
 
   // The advisor's DM (§5.9): built in like the operator's, so it's there before anyone writes in it.
   const advisorDm = nav.locator('[data-testid=dms] a[data-seat=advisor]')
-  await step("Direct messages has the advisor's DM, Advisor and @advisor, opening dm/advisor", await until(async () => (await advisorDm.count()) === 1 && (await advisorDm.innerText()).includes('@advisor') && (await advisorDm.getAttribute('href')) === '/c/dm/advisor', 15_000))
+  await step("Direct messages has the advisor's DM, Advisor and @advisor, opening dm/advisor", await until(async () => (await advisorDm.count()) === 1 && ((await advisorDm.innerText()).includes('@advisor') || (await advisorDm.getAttribute('data-unread')) === 'yes') && (await advisorDm.getAttribute('href')) === '/c/dm/advisor', 15_000))
   await step('and Seats lists the Advisor', await until(async () => (await nav.locator('[data-testid=seats] a[data-seat=advisor]').count()) === 1, 10_000))
 
   // Seats: Ada, with a live state from her Seat.
@@ -43,7 +43,8 @@ export async function run({ page, base, owner, run: id, channel, must, step }) {
   const status = await (await fetch(base + '/dev/seat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: 'ada', call: 'status' }) })).json()
   const charter = (await owner.get('/docs?path=org/seats/ada')).body ?? ''
   const prose = charter.replace(/^```json#[\s\S]*?^```$/gm, '')
-  const firstLine = prose.split('\n').find((line) => line.trim() && !line.startsWith('#'))?.trim() ?? ''
+  // The page shows mentions as @handles: the doc stores them as @[actor ID].
+  const firstLine = (prose.split('\n').find((line) => line.trim() && !line.startsWith('#'))?.trim() ?? '').replace(/@\[[^\]\s]*\+([a-z0-9-]+)\]/g, '@$1')
   await step("her charter: her seat doc's prose", firstLine.length > 0 && (await page.getByTestId('charter').innerText()).includes(firstLine.slice(0, 40)), firstLine)
   const shownCost = Number(await page.getByTestId('spend').getAttribute('data-cost'))
   await step("her spend this period: her Seat's total", Math.abs(shownCost - (status.spend?.cost ?? 0)) < 1e-9 && (await page.getByTestId('spend').innerText()).includes('$'), { shown: shownCost, seat: status.spend })

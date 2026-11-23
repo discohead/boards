@@ -67,7 +67,7 @@ async function until(fn, ms = 15000) {
 /** Rewrites a seat doc's block, as the owner. */
 async function editBlock(path, change) {
   const { doc, body } = await board('GET', '/docs?path=' + path)
-  const fence = /(```json#seat@1\n)([\s\S]*?)(\n```)/
+  const fence = /(```json#seat@[12]\n)([\s\S]*?)(\n```)/
   const data = JSON.parse(fence.exec(body)[2])
   change(data)
   const next = body.replace(fence, (_, open, _old, close) => open + JSON.stringify(data, null, 2) + close)
@@ -140,7 +140,9 @@ if (pick.has('dedupe')) {
   const one = await seat({ seat: key, call: 'wake', args: [event, context] })
   const two = await seat({ seat: key, call: 'wake', args: [event, { ...context, attempt: 2 }] })
   const status = await seat({ seat: key, call: 'status' })
-  check(one.queued === true && two.queued === false && status.queue.queued === 1, 'a delivery made twice is queued once', { one, two, queue: status.queue })
+  // (A new seat also queues its introduction, #30: count this thread's.)
+  const forThread = status.wakes.filter((wake) => wake.thread === '77')
+  check(one.queued === true && two.queued === false && forThread.length === 1, 'a delivery made twice is queued once', { one, two, wakes: forThread })
   check(status.state === 'paused', 'a paused seat starts nothing', status.state)
   const older = await seat({ seat: key, call: 'configure', args: [{ ...paused, sessions: 9 }, 0] })
   check(older.applied === false && (await seat({ seat: key, call: 'status' })).runtime.sessions === paused.sessions, 'an older revision changes nothing', older)

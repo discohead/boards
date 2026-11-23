@@ -118,15 +118,17 @@ This follows OpenRig, which models teams more generally than Paperclip's org cha
    - `delegates_to`: the source may assign the target work, and the target's work escalates to the source by default;
    - `escalates_to`: where the source takes what it can't decide;
    - `reviews`: a task the target completes gets a review task for the source, and work that needs the reviewed task waits on the review;
-   - `consults`: the target wakes when the source mentions it, even if it doesn't wake for others' mentions.
+   - `consults`: the target wakes when the source consults it (a mention labeled as a consult), even though a seat's plain mention rule doesn't wake it for other seats' mentions; the target's answer wakes the source.
 
-   Every edge kind does something at runtime (§4.5). A kind that would do nothing isn't added.
+   Every edge kind does something at runtime (§4.5). A kind that would do nothing isn't added. An edge may end at `principal`, the person the org works for (`escalates_to principal` is the default: a hold in their inbox).
+
+   Seats reach each other through edges, not plain mentions (decided in phase 3): a seat's `mention` rule wakes it only for a person's mention. A seat that needs another without an edge escalates, which reaches its `escalates_to` target, or the principal by default; and the principal's mentions always wake.
 2. **Work: what's being done.** The board's threads, tasks, and docs.
 3. **Authority: what each seat may do.** Each seat's capability (`can`), its tools (§5.4), and its budget (§5.6). An edge never implies authority. A policy may compute authority from the graph ("a seat may assign within the teams it leads"), but only as a written rule in `org/`.
 
 A seat is a stable address, like `@eng-lead`. Its **occupant** (harness, model, charter) can change without changing who people talk to or what history the seat has. The principal is a seat too, `@you`, so routing work to a person is routing it to a seat.
 
-An org chart is one profile of this graph: at most one incoming `delegates_to` per seat, no cycles, and one root. An org that opts into the profile gets it validated, plus an org chart view. Other shapes fall out of the same graph:
+An org chart is one profile of this graph: at most one incoming `delegates_to` per seat, no cycles, and one root. An org opts in with a `json#org@1` block in `org/structure` (`{ "profile": "org-chart" }`). It gets the profile validated (a team doc whose delegations break it is answered in its thread, and its edges do nothing until fixed; its seats keep their team), assignment held to `delegates_to` (a seat assigns only the seats it delegates to), plus an org chart view. Other shapes fall out of the same graph:
 
 - a swarm is one team of identical seats on one queue;
 - a pipeline is seats chained by `delegates_to`;
@@ -188,10 +190,12 @@ A watcher on `org/`, in the app Worker, turns these docs into running parts. On 
 
 Edges get their runtime meaning here:
 
-- `delegates_to` lets the source `assign` to the target, and sets the target's default escalation;
-- `escalates_to` adds a wake rule on the target for tasks the source holds for it;
-- `reviews` makes the review tasks;
-- `consults` adds the source to the target's mention rule.
+- `delegates_to` sets the target's default escalation (to the source), and lets the source `assign` to the target: under the org-chart profile, and for the advisor, only along its delegations (its board tools refuse others); otherwise assigning is open;
+- `escalates_to` routes the source's escalations (its `task_block`, kinds decision, review, and budget) to the target: the task is labeled `org.escalated=<target>` and held by the source's `Seat` as the app, and the target's derived rule (`{ tail: '--label org.escalated=<target> --label board.task=blocked' }`) wakes it; it answers with `task_answer`, allowed only on tasks escalated to it. Approval holds (§6.2) stay the principal's;
+- `reviews`: before the target completes a task, its `Seat` makes a review task for the source in the same channel, and every open task that needs the reviewed one now needs the review too (as the app, the tasks' owner). A review for `principal` is held for them, kind review;
+- `consults` gives the source a `board_consult` tool (it posts mentioning the target, labeled `org.consult=<target>`, in a channel both read) and the target a derived rule that wakes it for that, by that source; the target answers with `board_answer` (labeled `org.answer=<source>`), which wakes the source by its own derived rule.
+
+A seat's wake revision is the newest of its doc and the team docs (their edges add rules), so an edge edit re-applies every seat it touches.
 
 ## 5. Seats
 
@@ -288,9 +292,10 @@ Only its wake rules wake a seat, and each rule is data in its seat doc:
 
 | Rule | Wakes it for |
 | --- | --- |
-| `mention` | a message that mentions it |
+| `mention` | a message that mentions it, by a person: another seat's plain mention wakes nothing (seats reach each other through edges) |
 | `follow` | events by others in threads and doc discussions it follows (`for=@seat`) |
 | `assigned` | a task assigned to it (`for`) |
+| `owned` | a task it made changing state, not replies in it (the operator's, #20); needs `json#seat@2` |
 | `{ ready: <channel> }` | a ready task in a queue it serves; it claims the task before it works on it |
 | `{ dm: true }` | every message in `dm/<seat>` |
 | `{ docs: <channel> }` | doc edits under a path, such as a changed spec |

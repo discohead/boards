@@ -17,7 +17,9 @@ import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as CSplatRouteImport } from './routes/c.$'
 import { Route as DevSystemRouteImport } from './routes/dev.system'
 import { Route as DocsIdRouteImport } from './routes/docs.$id'
+import { Route as OrgIndexRouteImport } from './routes/org.index'
 import { Route as SeatsKeyRouteImport } from './routes/seats.$key'
+import { Route as OrgTeamsSlugRouteImport } from './routes/org.teams.$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -59,9 +61,19 @@ const DocsIdRoute = DocsIdRouteImport.update({
   path: '/$id',
   getParentRoute: () => DocsRoute,
 } as any)
+const OrgIndexRoute = OrgIndexRouteImport.update({
+  id: '/org/',
+  path: '/org/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SeatsKeyRoute = SeatsKeyRouteImport.update({
   id: '/seats/$key',
   path: '/seats/$key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OrgTeamsSlugRoute = OrgTeamsSlugRouteImport.update({
+  id: '/org/teams/$slug',
+  path: '/org/teams/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -75,6 +87,8 @@ export interface FileRoutesByFullPath {
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
   '/seats/$key': typeof SeatsKeyRoute
+  '/org/': typeof OrgIndexRoute
+  '/org/teams/$slug': typeof OrgTeamsSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -86,6 +100,8 @@ export interface FileRoutesByTo {
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
   '/seats/$key': typeof SeatsKeyRoute
+  '/org': typeof OrgIndexRoute
+  '/org/teams/$slug': typeof OrgTeamsSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -98,6 +114,8 @@ export interface FileRoutesById {
   '/dev/system': typeof DevSystemRoute
   '/docs/$id': typeof DocsIdRoute
   '/seats/$key': typeof SeatsKeyRoute
+  '/org/': typeof OrgIndexRoute
+  '/org/teams/$slug': typeof OrgTeamsSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -111,6 +129,8 @@ export interface FileRouteTypes {
     | '/dev/system'
     | '/docs/$id'
     | '/seats/$key'
+    | '/org/'
+    | '/org/teams/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -122,6 +142,8 @@ export interface FileRouteTypes {
     | '/dev/system'
     | '/docs/$id'
     | '/seats/$key'
+    | '/org'
+    | '/org/teams/$slug'
   id:
     | '__root__'
     | '/'
@@ -133,6 +155,8 @@ export interface FileRouteTypes {
     | '/dev/system'
     | '/docs/$id'
     | '/seats/$key'
+    | '/org/'
+    | '/org/teams/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -144,6 +168,8 @@ export interface RootRouteChildren {
   CSplatRoute: typeof CSplatRoute
   DevSystemRoute: typeof DevSystemRoute
   SeatsKeyRoute: typeof SeatsKeyRoute
+  OrgIndexRoute: typeof OrgIndexRoute
+  OrgTeamsSlugRoute: typeof OrgTeamsSlugRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -204,11 +230,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DocsIdRouteImport
       parentRoute: typeof DocsRoute
     }
+    '/org/': {
+      id: '/org/'
+      path: '/org'
+      fullPath: '/org/'
+      preLoaderRoute: typeof OrgIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/seats/$key': {
       id: '/seats/$key'
       path: '/seats/$key'
       fullPath: '/seats/$key'
       preLoaderRoute: typeof SeatsKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/org/teams/$slug': {
+      id: '/org/teams/$slug'
+      path: '/org/teams/$slug'
+      fullPath: '/org/teams/$slug'
+      preLoaderRoute: typeof OrgTeamsSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -233,6 +273,8 @@ const rootRouteChildren: RootRouteChildren = {
   CSplatRoute: CSplatRoute,
   DevSystemRoute: DevSystemRoute,
   SeatsKeyRoute: SeatsKeyRoute,
+  OrgIndexRoute: OrgIndexRoute,
+  OrgTeamsSlugRoute: OrgTeamsSlugRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

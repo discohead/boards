@@ -18,6 +18,9 @@ import { budgetStep, budgetText, nextPeriod, periodOf, usd, type BudgetKind, typ
 import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
 import { render } from './turn.ts'
 
+/** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
+export const SEAT_CODE = 'edges-2026-11-23.2'
+
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
 /** What a wake delivers (design/registered-watchers.md), as the Wake entrypoint hands it on. */
@@ -78,6 +81,10 @@ export function seatRef(runtime: SeatRuntime): SeatRef {
     ...(Object.keys(runtime.approve ?? {}).length ? { approve: runtime.approve } : {}),
     ...(runtime.automatic?.length ? { automatic: runtime.automatic } : {}),
     ...(runtime.assigns ? { assigns: runtime.assigns } : {}),
+    ...(runtime.escalates ? { escalates: runtime.escalates } : {}),
+    ...(runtime.consults?.length ? { consults: runtime.consults } : {}),
+    ...(runtime.consultedBy?.length ? { consultedBy: runtime.consultedBy } : {}),
+    ...(runtime.reviewers?.length ? { reviewed: true } : {}),
   }
 }
 
@@ -136,6 +143,12 @@ export class Seat extends DurableObject<Env> {
     // A doc made, edited, or moved is news only to a seat that wakes for docs ({ docs: <channel> }): a
     // mention or a follow in a doc's body isn't a message to the seat. Comments on a doc are posts, and still wake it.
     if (event.type.startsWith('doc.') && !context.rules.includes('docs')) return { queued: false, thread: threadOf(event) }
+    // A plain mention wakes a seat only from a person (§5.5): seats reach each other through their
+    // edges (a consult, an escalation, an assignment), so another seat's @mention alone wakes nothing.
+    const fromSeat = event.message?.author?.kind === 'agent'
+    const rules = context.rules.filter((rule) => !(fromSeat && /^mention(-\d+)?$/.test(rule)))
+    if (rules.length === 0) return { queued: false, thread: threadOf(event) }
+    context = { ...context, rules }
     const id = context.wake + ':' + event.cursor
     const answer = answerOf(event)
     // A budget task it holds for the principal is theirs: an answer is noted, nothing about it starts a turn.
@@ -166,6 +179,43 @@ export class Seat extends DurableObject<Env> {
     const result = this.sql.exec('insert or ignore into wakes (id, thread, task, input, state, at) values (?, ?, ?, ?, ?, ?)', id, thread, task, JSON.stringify(input), 'queued', Date.now())
     if (result.rowsWritten > 0) await this.pump()
     return { queued: result.rowsWritten > 0, thread, ...(answer && hold ? { answer: answer.task } : {}) }
+  }
+
+  /**
+   * A reviews edge (§4.5): before this seat completes a task, a review task for each of its
+   * reviewers, in the same channel, and every open task that needs the reviewed one now needs the
+   * reviews too, so work after it waits on them. As the app, the tasks' owner (a seat may only
+   * change the needs of tasks it made). Once per task and reviewer: client IDs make a retry the same.
+   */
+  async review(task: string): Promise<{ reviews: string[]; waiting: string[] }> {
+    const runtime = this.runtime
+    if (!runtime?.reviewers?.length) return { reviews: [], waiting: [] }
+    const app = bus()
+    const { message } = await app.message(task, { limit: 1 })
+    const first = String(message.text ?? '').split('\n')[0]!.slice(0, 200)
+    const reviews: string[] = []
+    for (const reviewer of runtime.reviewers) {
+      const text = 'Review #' + task + ', which @' + runtime.handle + ' finished: ' + first + '\n\nRead it (and what it made), then complete this task if it holds, or reply here with what to change.'
+      const made = await app.tasks.create({ channel: message.channel, text, id: 'review-' + task + '-' + reviewer, ...(reviewer === 'principal' ? {} : { for: 'worker:workbus-app+' + reviewer }) })
+      const id = String(made.task?.id ?? made.message?.id)
+      // The principal's review is held for them: in their inbox, kind review.
+      if (reviewer === 'principal' && made.task?.state !== 'blocked') await app.tasks.block(id, 'A review of #' + task + ' for the principal', 'review').catch(() => undefined)
+      reviews.push(id)
+    }
+    const waiting: string[] = []
+    const { tasks } = await app.tasks.list({ needs: task, state: 'open', limit: 100 })
+    for (const { message: dependent } of tasks as { message: { id: string; task: { needs: string[]; state: string } } }[]) {
+      const needs = [...new Set([...dependent.task.needs, ...reviews])]
+      if (needs.length === dependent.task.needs.length) continue
+      await app.tasks.needs(dependent.id, needs)
+      waiting.push(dependent.id)
+    }
+    return { reviews, waiting }
+  }
+
+  /** An escalation to a seat (§4.3): held as the app, so the seat it's for (its task's maker) answers it, not only the principal. */
+  async escalate(task: string, reason: string, kind?: string): Promise<unknown> {
+    return bus().tasks.block(task, reason, kind)
   }
 
   /** A session's word that a call is parked on a task held for the principal (§6.2). */
@@ -297,7 +347,7 @@ export class Seat extends DurableObject<Env> {
     const wakes = this.sql.exec('select id, thread, state, attempts, error from wakes order by at desc limit 20').toArray()
     const spend = runtime ? this.totals.spend(runtime.key) : null
     const budget = { tasks: this.sql.exec('select task, period, kind, open from budget_tasks order by at desc limit 12').toArray(), error: this.ctx.storage.kv.get('budgetError') ?? null }
-    return { seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
+    return { code: SEAT_CODE, seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
   }
 
   #pumping = false

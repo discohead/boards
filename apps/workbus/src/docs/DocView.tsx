@@ -15,6 +15,7 @@ import { useDocsBus } from './bus'
 import { DocHistory } from './DocHistory'
 import { DocPaths, Markdown } from './markdown'
 import { parseDoc, type Section } from './sections'
+import { initialsFor } from '@/seats/initials'
 
 type Editing = { draft: string; revision: string; saving: boolean; conflict: { theirs: string; revision: string; message: string } | null; error: string | null }
 
@@ -218,7 +219,7 @@ function Comment({ comment, detached = false }: { comment: Message; detached?: b
   return (
     <div className={cn('mb-3 text-ui', comment.pending && 'opacity-60')} data-testid="comment" data-pending={comment.pending ? 'yes' : undefined}>
       <p className="flex items-center gap-2 text-small text-muted-foreground">
-        <Avatar size="xs" kind={author && author.kind !== 'person' ? 'agent' : 'person'} initials={(author?.name ?? handleOf(bus.actors, comment.by.actor)).slice(0, 2).toUpperCase()} />
+        <Avatar size="xs" kind={author && author.kind !== 'person' ? 'agent' : 'person'} initials={initialsFor(comment.by.actor, author?.name ?? handleOf(bus.actors, comment.by.actor), author?.handle)} />
         <span className="font-medium text-foreground">{author?.name ?? comment.by.actor}</span>
         <span className="font-mono">@{author?.handle ?? handleOf(bus.actors, comment.by.actor)}</span>
         <span className="ml-auto font-mono">{comment.pending ? 'sending…' : new Date(comment.createdAt).toLocaleTimeString([], { hour12: false }) + ' · #' + comment.id}</span>
