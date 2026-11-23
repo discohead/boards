@@ -12,6 +12,7 @@ import { useDocsBus } from '@/docs/bus'
 import { isIssue } from '@/docs/tree'
 import { Composer, type ComposerKind } from './Composer'
 import { usePlaces } from './places'
+import { typedText } from '@/thread/mentions'
 
 const SCREENS = [
   { to: '/', label: 'Inbox', icon: Inbox },
@@ -20,13 +21,15 @@ const SCREENS = [
   { to: '/docs', label: 'Docs', icon: FileText },
 ]
 
-const firstLine = (text: string) => text.split('\n').find((line) => line.trim())?.replace(/^#+\s*/, '').slice(0, 120) ?? ''
+const firstLineOf = (text: string) => text.split('\n').find((line) => line.trim())?.replace(/^#+\s*/, '').slice(0, 120) ?? ''
 
 /** The board's task states, as the design names them (blocked is held). */
 const stateOf = (state: string | undefined): TaskStateName => (state === 'blocked' ? 'held' : state === 'claimed' || state === 'done' || state === 'failed' ? state : 'ready')
 
 export function Palette({ onCheatSheet }: { onCheatSheet?: () => void }) {
   const bus = useDocsBus()
+  // A thread's first line as typed: mentions as @handle, not the board's @[actor id].
+  const firstLine = (text: string) => firstLineOf(typedText(text, bus.actors))
   const places = usePlaces()
   const router = useRouter()
   const [open, setOpen] = useState(false)
