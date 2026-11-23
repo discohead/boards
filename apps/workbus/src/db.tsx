@@ -11,14 +11,16 @@ export function BusProvider({ state, me, token, children }: { state: DehydratedD
   const [db] = useState(() => (typeof window === 'undefined' ? renderDb(me) : browserDb({ url: '/b/' + BOARD, me, ...(token ? { token } : {}) })))
   // After the first client render has matched the server's, the collections take the feed and their
   // reads. This effect runs once this tree has hydrated, but a route's lazily loaded component can
-  // still be hydrating below it, so the gate opens once the matched routes' chunks are in and React
-  // has had a frame to hydrate them.
+  // still be hydrating below it: the gate opens once the matched routes' chunks are in and React's
+  // scheduled hydration work is done (the browser is idle). threads' hyd-repro.mjs, without its own
+  // guards: this effect alone, 6 of 6 loads mismatched; chunks and a frame, 5 of 6; this, 0 of 12.
   const router = useRouter()
   useEffect(() => {
     let live = true
     const chunks = router.state.matches.map((match) => router.loadRouteChunk((router.routesById as unknown as Record<string, Parameters<typeof router.loadRouteChunk>[0]>)[match.routeId]!))
     void Promise.all(chunks)
-      .then(() => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0))))
+      // React hydrates a boundary whose code just arrived as scheduled work; idle means that work is done.
+      .then(() => new Promise((resolve) => requestAnimationFrame(() => (typeof requestIdleCallback === 'function' ? requestIdleCallback(() => resolve(undefined), { timeout: 1000 }) : setTimeout(resolve, 50)))))
       .then(() => live && runtimeOf(db).markHydrated())
     return () => {
       live = false
