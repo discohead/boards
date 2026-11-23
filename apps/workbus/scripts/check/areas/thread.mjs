@@ -2,8 +2,8 @@
 // shows pending, then settles taking its cursor; C and A don't fire while typing in the reply; C
 // makes the thread a task at once (the Task face appears), and A assigns it to one of the owner's
 // profiles. Someone else starts the thread in checks/thread.
-// TODO: "write it up" (a body on a thread), with threads' selectors when that lands.
-import { hydrated, until } from '../lib.mjs'
+// "+ Write it up" gives the thread a body (POST /docs { re }): the Document tab opens and shows it.
+import { hydrated, until, watchPending } from '../lib.mjs'
 
 export async function run({ page, base, owner, other, run: id, channel, must, step }) {
   // A profile of the owner's to assign to: one post made as owner+reviewer.
@@ -16,16 +16,17 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   const pane = page.getByTestId('thread-pane')
   await pane.waitFor({ timeout: 30_000 }).catch(() => {})
   await must('the pane opens from the URL', await pane.isVisible())
-  await step('it shows the path and cursor, and the title', (await pane.getByTestId('thread-path').innerText().catch(() => '')).includes(channel + ' / #' + root.id) && (await pane.getByTestId('thread-title').innerText().catch(() => '')).includes('canary'))
+  await step('it shows the path and cursor, and the title', await until(async () => (await pane.getByTestId('thread-path').innerText()).includes(channel + ' / #' + root.id) && (await pane.getByTestId('thread-title').innerText()).includes('canary')), await pane.getByTestId('thread-path').innerText().catch(() => ''))
 
   // A reply: pending at once ("sending…"), then settled, taking its cursor.
   const reply = pane.getByLabel('Reply')
   await reply.waitFor()
   const text = 'I will look at it now. ' + id
   await reply.fill(text)
+  const sawPending = await watchPending(page, text)
   await reply.press('Meta+Enter')
   const mine = pane.locator('[data-testid=conversation] li', { hasText: text })
-  await step('a reply shows at once, pending', await until(async () => (await mine.getAttribute('data-pending')) === 'yes', 3_000, 30))
+  await step('a reply shows at once, pending', await until(sawPending, 3_000, 30))
   const settled = await until(async () => (await mine.count()) === 1 && (await mine.getAttribute('data-pending')) === null && /#\d+/.test(await mine.innerText()))
   await step('and settles, taking its cursor', settled, await mine.innerText().catch(() => ''))
 
@@ -53,4 +54,13 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   // The system's toast: role=status, what happened, and the cursor.
   const told = page.getByRole('status').filter({ hasText: 'Assigned to' })
   await step('and says so in a toast, with the cursor', await until(async () => (await told.last().innerText()).includes('#' + root.id), 5_000), await told.last().innerText().catch(() => ''))
+
+  // Write it up: the add tab makes the thread a doc; the Document tab opens and shows its body.
+  await pane.getByText('Write it up', { exact: false }).first().click()
+  const docTab = pane.getByRole('tab', { name: 'Document' })
+  await step('"Write it up" adds the Document tab and opens it', await until(async () => (await docTab.getAttribute('aria-selected')) === 'true', 10_000))
+  const shown = pane.getByTestId('doc')
+  await step('it shows the body', await until(async () => (await shown.innerText()).includes('canary'), 10_000), await shown.innerText().catch(() => ''))
+  const written = (await owner.get('/messages/' + root.id + '?limit=1')).message
+  await step('and the board has the thread as a doc', written.doc !== undefined, written.doc?.path)
 }

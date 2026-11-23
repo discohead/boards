@@ -70,5 +70,23 @@ export async function until(test, ms = 10_000, every = 150) {
 /** Waits until the page has hydrated and its feed runs: the top bar's live cursor shows a number. */
 export const hydrated = (page, ms = 45_000) => until(async () => /#\d+/.test(await page.getByTestId('live-cursor').innerText()), ms)
 
+/**
+ * Starts watching for a pending row (data-pending="yes") holding text, and returns a function that
+ * says whether one was ever seen. A local bus can settle a write within a frame, so the check watches
+ * every DOM change rather than polling.
+ */
+export async function watchPending(page, text) {
+  const key = 'pending:' + text
+  await page.evaluate(({ key, text }) => {
+    const found = () => [...document.querySelectorAll('[data-pending="yes"]')].some((el) => el.textContent?.includes(text))
+    window[key] = found()
+    const observer = new MutationObserver(() => {
+      if (!window[key] && found()) (window[key] = true), observer.disconnect()
+    })
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['data-pending'], characterData: true })
+  }, { key, text })
+  return () => page.evaluate((key) => window[key] === true, key)
+}
+
 /** Stops an area at the first check it can't go past. */
 export class Stop extends Error {}

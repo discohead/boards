@@ -1,7 +1,7 @@
 // Writes on messages and channels beyond actions.ts: delete, react, a new channel, and a thread that
 // gains a body ("write it up"). Each shows at once and settles on the board's own event for it
-// (settle.ts); a refusal rolls it back. Making a thread a task and assigning it are the C and A
-// shortcuts' (shortcut-actions.ts); task verbs are task-actions.ts's.
+// (settle.ts); a refusal rolls it back. The task verbs, making a thread a task (C) and assigning it
+// (A) among them, are task-actions.ts's.
 import type { DbClient } from '@tanstack/db'
 import { action, sendAndSettle } from './settle.ts'
 import type { BusCollections } from './index.ts'
