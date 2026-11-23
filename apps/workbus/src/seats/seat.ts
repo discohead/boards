@@ -20,7 +20,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'edges-2026-11-23.2'
+export const SEAT_CODE = 'watchdog-2026-11-23.1'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
