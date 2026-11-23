@@ -239,7 +239,8 @@ export const WRITER_TEMPLATE = {
   role: 'writer',
   occupant: { harness: 'pi', model: 'anthropic/claude-haiku-5-5' },
   tools: ['board'],
-  can: { 'docs/': ['read', 'post', 'react', 'label', 'edit'], 'eng/': ['read', 'post', 'react'], 'org/': ['read', 'post'] },
+  // label in eng/: claiming a task there takes it.
+  can: { 'docs/': ['read', 'post', 'react', 'label', 'edit'], 'eng/': ['read', 'post', 'react', 'label'], 'org/': ['read', 'post'] },
   wakes: ['assigned', 'mention', 'dm', 'follow'],
   sessions: 1,
   budget: { month: 5, alert: 0.8 },
