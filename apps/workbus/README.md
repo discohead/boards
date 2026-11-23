@@ -71,6 +71,18 @@ seat whose budget needs more (above \$20 a month) gets a named rule: the reconci
 doc's thread, and the limits it checks against are in `src/org/gateway.ts`. A gateway takes 20
 rules.
 
+### Containers in local dev
+
+The sandbox tier runs a Docker container per session under `pnpm dev` (workerd builds
+`sandbox/Dockerfile`), and beside each a `cloudflare/proxy-everything` sidecar that carries its
+HTTP and HTTPS to the egress. workerd creates the sidecar with its port published on every interface
+(`0.0.0.0` and `[::]`), and neither wrangler, miniflare, nor the Vite plugin has an option to bind it
+to 127.0.0.1 (as of wrangler 4.165 and workerd 1.20261118). Docker's daemon setting `"ip": "127.0.0.1"`
+does it for every container, and is the machine owner's to choose. So: keep `pnpm dev` running with
+containers only while you use them. `scripts/sandbox-check.mjs` tears down the containers it starts,
+passed or failed; a session's `sandboxReset()` removes its container; the sidecars go when the dev
+server stops (`docker ps --filter label=dev.workerd.session` lists what's left).
+
 ## Deploy
 
 The Access applications exist first, so nothing at workbus.dev is ever public. Then:

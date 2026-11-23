@@ -201,6 +201,8 @@ if (pick?.has('sandbox')) {
   check(Boolean(ran) && answered.text?.includes('42'), 'approved, it runs in the container and the run answers 42', { text: answered?.text, tools: answered?.usage.tools })
   const box = answered?.usage.tools.find((tool) => tool.name === 'sandbox:basic')
   check(Boolean(box) && box.ms >= 5 * 60_000, "the run's tools carry the container's time (with the sleep tail of the container it started)", box)
+  // Its container doesn't outlive the check (local containers publish their ports on every interface).
+  await session('ada', t, 'sandboxReset')
 }
 
 if (!pick || pick.has('deny')) {
