@@ -228,6 +228,8 @@ export class Seat extends DurableObject<Env> {
         }
       } catch (error) {
         console.error('seat ' + runtime.key + ': budget step ' + JSON.stringify(step) + ' failed', error)
+        // Kept for status(): the seat's page and the checks see why a budget task didn't come.
+        this.ctx.storage.kv.put('budgetError', { at: new Date(now).toISOString(), step, error: String(error) })
         return
       }
     }
@@ -275,7 +277,8 @@ export class Seat extends DurableObject<Env> {
     const runs = this.sql.exec<{ record: string }>('select record from telemetry_runs order by rowid desc limit 20').toArray().map((row) => JSON.parse(row.record) as Run)
     const wakes = this.sql.exec('select id, thread, state, attempts, error from wakes order by at desc limit 20').toArray()
     const spend = runtime ? this.totals.spend(runtime.key) : null
-    return { seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs }
+    const budget = { tasks: this.sql.exec('select task, period, kind, open from budget_tasks order by at desc limit 12').toArray(), error: this.ctx.storage.kv.get('budgetError') ?? null }
+    return { seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
   }
 
   #pumping = false
