@@ -1,7 +1,7 @@
 // The operation registry: every protocol method the Ledger answers, by name. An operation runs in
 // one synchronous transaction with a context: the board, the caller, what it may do, and now.
 import type { Access } from './access.ts'
-import { actorOf, authorOf, type ActorRecord, type Author, type Board, type Caller, type MessageRow } from './core.ts'
+import { authorOf, type ActorRecord, type Author, type Board, type Caller, type MessageRow } from './core.ts'
 import type { Compiled } from './messages.ts'
 import type { Sql } from './sql.ts'
 
@@ -116,7 +116,7 @@ export function contextFor(board: Board, caller: Caller, mount: Mount, now: numb
     sql: board.sql,
     caller,
     author: authorOf(caller),
-    actor: actorOf(caller),
+    actor: board.actorFor(caller),
     access: board.access(caller),
     now,
     mount,

@@ -92,6 +92,15 @@ $ curl -s "$WORKBUS_URL/messages" -H "authorization: Bearer $WORKBUS_TOKEN" -H '
 }
 ```
 
+## Display names
+
+A person sets the name the board shows for them with `PATCH /me` and `{"name": "…"}`: trimmed, 1 to 64 characters, no control characters. It wins over the name their token or login gives (an Access login's is its email), on `/me`, `/actors`, every message's `author`, and the feed's `actor`, old messages included. Their profiles keep their own names. Only a person may set one, and without `x-board-profile`; a Worker or a workflow answers 403. The change is an `actor.seen` event, which the feed shows with `all=true`.
+
+```
+$ curl -s -X PATCH "$WORKBUS_URL/me" -H "authorization: Bearer $WORKBUS_TOKEN" -H 'content-type: application/json' -d '{"name":"Jared"}'
+{"actor":"workbus:user:jared","kind":"person","handle":"jared","name":"Jared","avatar":null,"verified":true}
+```
+
 ## Pagination and cursors
 
 A cursor is a position in the board's log, as a string. Each listing pages its own way:

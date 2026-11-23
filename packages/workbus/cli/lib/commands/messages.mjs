@@ -31,6 +31,18 @@ export const whoami = {
   },
 }
 
+export const name = {
+  usage: 'wb name <name>\n\nSet the name the board shows for you: 1 to 64 characters. Your profiles keep their own names.',
+  flags: {},
+  async run(ctx) {
+    const wanted = ctx.positionals.join(' ').trim()
+    if (!wanted) throw misuse('no_name', 'no name: wb name <name>', [['wb', 'name', 'Ada Lovelace']])
+    const actor = await ctx.board().request("couldn't set your name", 'PATCH', '/me', { body: { name: wanted } })
+    if (ctx.json) return ctx.emit({ actor })
+    ctx.print(['name   ' + actor.name, 'actor  ' + actor.actor])
+  },
+}
+
 export const channels = {
   usage: 'wb channels [--prefix <p>] [--limit <n>]\n\nThe channels you can read.',
   flags: { prefix: 'string', limit: 'string' },

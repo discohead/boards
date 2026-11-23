@@ -305,6 +305,13 @@ export class Board {
   }
 
   // -- actors -------------------------------------------------------------------------------
+  /** The caller's actor as the board shows it: a person's own actor takes the name they set (PATCH /me). */
+  actorFor(caller: Caller): ActorRecord {
+    const record = actorOf(caller)
+    if (caller.profile || caller.principal.kind !== 'person') return record
+    const named = this.sql.one<{ name: string }>('select name from names where principal = ?', caller.principal.id)
+    return named ? { ...record, name: named.name } : record
+  }
   actor(id: string): ActorRecord | null {
     const row = this.sql.one<{ id: string; kind: string; handle: string; name: string; avatar: string | null; via: string | null; platform: string | null; verified: number }>('select * from actors where id = ?', id)
     return row ? { id: row.id, kind: row.kind, handle: row.handle, name: row.name, avatar: row.avatar, ...(row.via ? { via: JSON.parse(row.via) } : {}), ...(row.platform ? { platform: row.platform } : {}), ...(row.verified ? { verified: true } : {}) } : null

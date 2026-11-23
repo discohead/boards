@@ -632,3 +632,17 @@ op('me', (ctx) => {
     can: canonicalCan(ctx.access.summary()),
   }
 }, { read: true })
+
+/**
+ * A person sets their own display name (PATCH /me). It's kept per principal, wins over the name their
+ * token gives, and shows on their own actor; their profiles keep their names. The actor's change is
+ * an actor.seen event, as any change to how an actor shows.
+ */
+op('setName', (ctx, { name }: { name: string }) => {
+  if (ctx.caller.principal.kind !== 'person') throw forbidden('only a person sets a display name: this caller is a ' + ctx.caller.principal.kind)
+  if (ctx.caller.profile) throw badRequest("name: a profile keeps the name it's written with; set your own without x-board-profile")
+  ctx.sql.run('insert into names (principal, name, at) values (?, ?, ?) on conflict (principal) do update set name = excluded.name, at = excluded.at', ctx.caller.principal.id, name, ctx.now)
+  const actor = ctx.board.actorFor(ctx.caller)
+  ctx.board.seen(actor, ctx.now)
+  return { actor: actor.id, ...ctx.board.actorView(actor)! }
+})

@@ -8,6 +8,7 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { Activity, CircleDot, FileText, Hash, Inbox, LayoutGrid, MessageSquare, Network, Search, Settings, SquareCheck, Users, type LucideIcon } from 'lucide-react'
 import { useBus, type Channel } from '@/data'
 import { DocsTree } from '@/docs/DocsTree'
+import { useDisplayNames } from './display-name.ts'
 import { Avatar, Kbd, Lockup, SidebarGroup, SidebarItem } from '@/components/system'
 import { MentionCount, NewChannel, useChannelCounts } from './channel-list.tsx'
 
@@ -35,7 +36,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
   const { dms, loose, teams } = arrange(channels)
   const me = bus.runtime.me
-  const name = me.name ?? me.handle ?? ''
+  const name = useDisplayNames()(me.actor, me.name ?? me.handle ?? '')
   const at = (path: string) => pathname === path
   // Unread roots make a channel bold with a dot; mentions show as a count instead, in the held color.
   const counts = useChannelCounts()

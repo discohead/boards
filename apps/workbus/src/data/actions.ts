@@ -6,7 +6,7 @@ import { safeRandomUUID, type DbClient } from '@tanstack/db'
 import { action, sendAndSettle, type Settled } from './settle.ts'
 import type { BusCollections } from './index.ts'
 import type { BusRuntime } from './runtime.ts'
-import type { Follow, Message } from './types.ts'
+import type { Actor, Follow, Message } from './types.ts'
 
 export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections) {
   const { client } = runtime
@@ -99,5 +99,22 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
     return settle(id, async () => (await client.post<{ message: Message }>('/docs', { ...input, id })).message, [c.messages.utils.rows])
   }
 
-  return { post, edit, follow, createDoc, settledBy }
+  /**
+   * Your display name (PATCH /me): at once on your actor, settled on the board's answer (the name is
+   * the board's actor record; other views get it as an actor.seen event).
+   */
+  const setName = action<{ name: string }>(db, {
+    onMutate: ({ name }) => {
+      const me = runtime.me.actor
+      if (c.actors.get(me)) c.actors.update(me, (actor) => void (actor.name = name.trim()))
+      else c.actors.insert({ id: me, kind: 'person', handle: runtime.me.handle ?? '', name: name.trim(), avatar: null })
+    },
+    mutationFn: async ({ name }) => {
+      const { actor: id, ...shown } = await client.call<{ actor: string } & Omit<Actor, 'id'>>('PATCH', '/me', { name })
+      c.actors.utils.rows.apply([{ id, ...shown }])
+      runtime.me.name = shown.name
+    },
+  })
+
+  return { post, edit, follow, createDoc, settledBy, setName }
 }

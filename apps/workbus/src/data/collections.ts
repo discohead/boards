@@ -237,7 +237,9 @@ export const actors = feedCollection<Actor>({
     return { rows: page.actors, cursor: Number(page.cursor) }
   },
   apply: (event, rows) => {
-    const actor = event.actor
+    // A change to how an actor shows (a new name, say) is an actor.seen event, its payload the actor.
+    const seen = event.type === 'actor.seen' && typeof event.payload.actor === 'string' ? (({ actor: id, ...rest }) => ({ id, ...rest }) as Actor)(event.payload as { actor: string }) : null
+    const actor = seen ?? event.actor
     if (!actor) return
     const had = rows.get(actor.id)
     if (had && JSON.stringify(had) === JSON.stringify(actor)) return
