@@ -87,15 +87,23 @@ export function ChannelView({ channel }: { channel: string }) {
 
   // Read while it's in view: on opening it, and as roots come while the tab is visible.
   const unread = (channelRow?.unread ?? 0) + (channelRow?.mentions ?? 0)
+  // Once per thing to read: opening the channel marks it once, and so does each new unread count
+  // (not each re-run of this effect, as React's development double run or a status change).
+  const marked = useRef<string | null>(null)
   useEffect(() => {
     if (bus.unread.status !== 'ready') return
-    const mark = () => {
-      if (document.visibilityState === 'visible') void bus.actions.markRead({ channel })
+    const mark = (force = false) => {
+      const key = channel + ':' + unread
+      if (document.visibilityState !== 'visible' || (!force && marked.current === key)) return
+      marked.current = key
+      void bus.actions.markRead({ channel })
     }
-    if (unread > 0 || channelRow === undefined) mark()
-    document.addEventListener('visibilitychange', mark)
-    return () => document.removeEventListener('visibilitychange', mark)
+    if (unread > 0 || marked.current?.split(':')[0] !== channel) mark()
+    const onVisible = () => mark(unread > 0)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [bus, channel, unread, bus.unread.status])
+
 
   // Others' roots that come in while you're here get one brief tint.
   const seen = useRef<Map<string, number> | null>(null)
@@ -166,12 +174,17 @@ function NewLine() {
 
 function History({ items, hasOlder, loading, onOlder, render, opened }: { items: Item[]; hasOlder: boolean; loading: boolean; onOlder: () => void; render: (item: Item) => React.ReactNode; opened: string | null }) {
   const scroller = useRef<HTMLDivElement>(null)
+  // The first render (the server's, and hydration's) is a plain list of the newest rows, pinned to
+  // the bottom by column-reverse with no script. Before the browser paints again, the virtualizer
+  // takes over, measures the rows exactly, and starts at the end: the same rows in the same places.
   const [mounted, setMounted] = useState(false)
-  useEffect(() => setMounted(true), [])
+  useLayoutEffect(() => setMounted(true), [])
   const virtualizer = useVirtualizer({
     count: items.length,
     getScrollElement: () => scroller.current,
     estimateSize: () => 64,
+    // Exact heights, unrounded, as the plain list laid them out.
+    measureElement: (element) => element.getBoundingClientRect().height,
     getItemKey: (index) => items[index]!.key,
     overscan: 10,
     anchorTo: 'end',
@@ -213,7 +226,8 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
 
   return (
     <div className="relative min-h-0 flex-1">
-      <div ref={scroller} className="h-full overflow-y-auto" data-testid="history" data-opened={opened ?? undefined}>
+      <div ref={scroller} className={'h-full overflow-y-auto' + (mounted ? '' : ' flex flex-col-reverse')} data-testid="history" data-opened={opened ?? undefined}>
+        <div>
         {hasOlder || loading ? <div className="py-2 text-center text-xs text-muted-foreground">{loading ? 'Loading older threads…' : ' '}</div> : <ChannelStart empty={items.length === 0} />}
         {mounted ? (
           <ul style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
@@ -233,6 +247,7 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
           </ul>
         )}
         <div className="h-2" />
+        </div>
       </div>
       {below > 0 ? (
         <div className="absolute bottom-2 left-1/2 -translate-x-1/2" data-testid="new-below">

@@ -23,14 +23,20 @@ export function Conversation({ id }: { id: string }) {
   const unread = (counts[0]?.unread ?? 0) + (counts[0]?.mentions ?? 0)
   // Opened from the inbox, a thread stays unread: an inbox item leaves when it's answered or marked done (work's rule).
   const fromInbox = useLocation({ select: (location) => location.pathname === '/' })
+  // Once per thing to read: on opening it, and once per new unread count (not per re-run).
+  const marked = useRef<string | null>(null)
   useEffect(() => {
     if (bus.unread.status !== 'ready' || fromInbox) return
-    const mark = () => {
-      if (document.visibilityState === 'visible') void bus.actions.markRead({ thread: id })
+    const mark = (force = false) => {
+      const key = id + ':' + unread
+      if (document.visibilityState !== 'visible' || (!force && marked.current === key)) return
+      marked.current = key
+      void bus.actions.markRead({ thread: id })
     }
-    if (unread > 0 || counts.length === 0) mark()
-    document.addEventListener('visibilitychange', mark)
-    return () => document.removeEventListener('visibilitychange', mark)
+    if (unread > 0 || marked.current === null) mark()
+    const onVisible = () => mark(unread > 0)
+    document.addEventListener('visibilitychange', onVisible)
+    return () => document.removeEventListener('visibilitychange', onVisible)
   }, [bus, id, unread, bus.unread.status, fromInbox])
 
   const list = useRef<HTMLOListElement>(null)
