@@ -101,7 +101,7 @@ export function Palette({ onCheatSheet }: { onCheatSheet?: () => void }) {
 
   return (
     <>
-      <CommandPalette open={open} onOpenChange={(next) => (setOpen(next), next || setQuery(''))} query={query} onQueryChange={setQuery} groups={groups} />
+      <CommandPalette ask={false} open={open} onOpenChange={(next) => (setOpen(next), next || setQuery(''))} query={query} onQueryChange={setQuery} groups={groups} />
       <Composer kind={composer} onClose={() => setComposer(null)} channels={channels} />
     </>
   )
