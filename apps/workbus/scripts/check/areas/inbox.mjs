@@ -29,6 +29,9 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await step("its row shows the mention as the owner's @handle", await until(async () => asHandle((seen = await item(mention.id).innerText())), 5_000), seen.replace(/\n+/g, ' | '))
   await item(mention.id).click()
   await step('it opens in the thread pane', await until(async () => page.url().includes('thread=' + mention.id) && (await page.getByTestId('thread-pane').isVisible())), page.url())
+  let title = ''
+  await step("the pane's title shows the mention as the owner's @handle", await until(async () => asHandle((title = await page.getByTestId('thread-title').innerText())), 5_000), title)
+  await step('no raw @[actor id] anywhere on the page', !(await page.locator('body').innerText()).includes('@['))
   await page.locator('[data-testid=inbox]').click({ position: { x: 1, y: 1 } }).catch(() => {})
   await page.keyboard.press('e')
   await step('E marks it done: it fades in place while selected', await until(async () => (await item(mention.id).getAttribute('data-gone')) === 'yes', 5_000))
