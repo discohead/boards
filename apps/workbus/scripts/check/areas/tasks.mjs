@@ -60,7 +60,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   // Complete from the pane's Task tab: it claims, then completes.
   await page.goto(queue('&thread=' + a))
   await hydrated(page)
-  await page.getByTestId('thread-pane').getByRole('tab', { name: 'Task' }).click()
+  await page.getByTestId('thread-pane').getByRole('tab', { name: 'Task' }).or(page.locator('[data-face=task]')).first().click()
   await page.getByTestId('task-actions').getByRole('button', { name: 'Complete' }).click()
   await step('Complete in the Task tab completes it on the board', await until(async () => (await taskOf(a)).state === 'completed'), await taskOf(a))
 
@@ -91,7 +91,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await hydrated(page)
   await page.getByRole('button', { name: 'Board view' }).click()
   const columns = page.getByTestId('task-board').locator('section[data-group]')
-  await step('Board view lays out a column per state', await until(async () => (await columns.evaluateAll((els) => els.map((el) => el.getAttribute('data-group')))).join() === 'ready,claimed,held,done'), await columns.evaluateAll((els) => els.map((el) => el.getAttribute('data-group'))).catch(() => []))
+  await step('Board view lays out the pipeline: ready, claimed, held', await until(async () => (await columns.evaluateAll((els) => els.map((el) => el.getAttribute('data-group')))).join() === 'ready,claimed,held'), await columns.evaluateAll((els) => els.map((el) => el.getAttribute('data-group'))).catch(() => []))
 
   // My work: one the owner claimed, one for its profile; not someone else's.
   const claimed = await make(owner, 'Golf: mine, claimed')

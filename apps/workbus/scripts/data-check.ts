@@ -72,7 +72,8 @@ const settled = [...bus.messages.values()].filter((message) => message.text === 
 check(settled.length === 1 && !settled[0]!.pending && /^\d+$/.test(settled[0]!.id), 'it settles as one row with the board ID', { id: settled[0]?.id, ms: Date.now() - before })
 check(feed.cursor! >= settled[0]!.version && Date.now() - before < 5000, 'on its echo: the feed had reached its event, well before the fallback', { feed: feed.cursor, event: settled[0]?.version })
 const way = bus.actions.settledBy.get(optimistic!.id)
-check(way === (process.env.EXPECT_CLIENT_ID ? 'clientId' : 'cursor'), 'settled by ' + (process.env.EXPECT_CLIENT_ID ? 'its client ID' : 'the cursor (this board carries no client IDs)'), way)
+// The framework carries client IDs since #4; NO_CLIENT_IDS=1 checks the fallback on a board built before it.
+check(way === (process.env.NO_CLIENT_IDS ? 'cursor' : 'clientId'), 'settled by ' + (process.env.NO_CLIENT_IDS ? 'the cursor (this board carries no client IDs)' : 'its client ID'), way)
 check(!bus.messages.has(optimistic!.id) && bus.threads.has(settled[0]!.id) && !bus.threads.has(optimistic!.id), 'the pending row and thread are gone, the board one is there')
 
 // 4. A refused write rolls back: a reply to a thread that isn't there.

@@ -44,7 +44,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
     const unread = (count?.unread ?? 0) > 0 || (count?.mentions ?? 0) > 0
     return (
       <li key={channel.path}>
-        <SidebarItem asChild child={child} active={at('/c/' + channel.path)} icon={channel.path.startsWith('dm/') ? MessageSquare : Hash} unread={unread && !count?.mentions} className={unread ? 'font-semibold text-text' : undefined}>
+        <SidebarItem asChild child={child} active={at('/c/' + channel.path)} unread={unread && !count?.mentions} icon={channel.path.startsWith('dm/') ? MessageSquare : Hash} className={unread ? 'font-semibold text-text' : undefined}>
           <Link to="/c/$" params={{ _splat: channel.path }} data-channel={channel.path} data-unread={unread ? 'yes' : undefined}>
             <span className="truncate">{label}</span>
             <MentionCount count={count} />
@@ -95,7 +95,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         </ul>
         <div className="relative flex items-center">
           <SidebarGroup>Channels</SidebarGroup>
-          <div className="ml-auto mt-3 pr-1">
+          <div className="mt-3 ml-auto pr-1">
             <NewChannel />
           </div>
         </div>

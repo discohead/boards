@@ -29,6 +29,8 @@ class ReachStore {
   #reading = 0
   #tabs: BroadcastChannel | null = null
   #users = 0
+  /** The newest change seen before the first read landed. */
+  #seen = 0
   #stop: (() => void) | null = null
   constructor(bus: Bus) {
     this.#bus = bus
@@ -53,8 +55,16 @@ class ReachStore {
 
   #start() {
     const me = () => this.#bus.runtime.me.actor
+    // Only what's newer than the last read counted: the rows a collection loads with (and replays) aren't news.
     const changes = this.#bus.messages.subscribeChanges((batch) => {
-      if (batch.some((change) => (change.value as Message | undefined)?.by?.actor !== me() && !(change.value as Message | undefined)?.pending)) this.refresh()
+      let newest = 0
+      for (const change of batch) {
+        const message = change.value as Message | undefined
+        if (message && !message.pending && message.by?.actor !== me()) newest = Math.max(newest, Number(message.version))
+      }
+      // Before the first read lands, keep the newest: if that read was counted before it, read again.
+      if (!this.state.ready) this.#seen = Math.max(this.#seen, newest)
+      else if (newest > this.state.cursor) this.refresh()
     })
     const focus = () => this.refresh()
     window.addEventListener('focus', focus)
@@ -88,6 +98,8 @@ class ReachStore {
       reached,
       cursor: Number(unread.cursor),
     })
+    if (this.#seen > Number(unread.cursor)) this.refresh(0)
+    this.#seen = 0
   }
 
   /** Mark a thread read (up to now, or up to a message): it leaves the counts at once. */
