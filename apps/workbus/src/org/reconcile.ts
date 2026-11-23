@@ -14,6 +14,17 @@ export const ORG_WAKE = 'org'
 export const SEAT_PREFIX = 'seat.'
 export const seatWake = (key: string) => SEAT_PREFIX + key
 export const SINK = 'wake'
+/** The app's own wake on the whole board, for the watchdog (seats/watch.ts). */
+export const WATCHDOG_WAKE = 'watchdog'
+/** An operator's own schedules (its daily brief): a wake of its own beside its seat's, so its seat doc's rules stay its doc's. */
+export const SCHEDULES_PREFIX = 'schedules.'
+/** The daily brief's channel and time (§5.8): every day at 07:00 UTC. */
+export const BRIEFS = 'ops/briefs'
+export const nextBrief = (now: number) => {
+  const at = new Date(now)
+  const next = Date.UTC(at.getUTCFullYear(), at.getUTCMonth(), at.getUTCDate(), 7)
+  return new Date(next > now ? next : next + 24 * 60 * 60 * 1000).toISOString()
+}
 
 export type SeatStub = { configure(runtime: SeatRuntime | null, revision: number): Promise<unknown> }
 export type Applied = { seat: string; wake: 'created' | 'changed' | 'same' | 'stale' | 'conflict' | 'removed'; config: unknown }
@@ -48,6 +59,13 @@ export async function holdings(app: Board): Promise<Record<string, Permission[]>
 export const seatBoard = (app: Board, seat: Pick<SeatRuntime, 'key' | 'name' | 'handle' | 'avatar' | 'can'>) =>
   app.as({ key: seat.key, name: seat.name, handle: seat.handle, ...(seat.avatar ? { avatar: seat.avatar } : {}) }).narrow(seat.can)
 
+/** The operator's daily brief: its schedule in ops/briefs, and the wake its schedules arrive by. Both idempotent. */
+async function keepBrief(operator: Board, key: string): Promise<void> {
+  await operator.setWake(SCHEDULES_PREFIX + key, { sink: SINK, rules: { schedules: 'schedules' } })
+  const { schedules } = await operator.schedules({ channel: BRIEFS })
+  if ((schedules as unknown[]).length === 0) await operator.schedule({ channel: BRIEFS, text: 'The daily brief.', at: nextBrief(Date.now()), every: '1d' })
+}
+
 /**
  * One pass. changed names the doc that brought it (from its event), so a problem with that doc is
  * answered in its thread; on boot there's none, and problems are only logged.
@@ -68,6 +86,7 @@ export async function reconcile(app: Board, seatOf: (key: string) => SeatStub, c
       console.warn('reconcile: ' + seat.key + "'s wake at revision " + seat.revision + ' conflicts with what the board holds:', String(error))
     }
     applied.push({ seat: seat.key, wake, config: await seatOf(seat.key).configure(seat, seat.configRevision) })
+    if (seat.role === 'operator') await keepBrief(seatBoard(app, seat), seat.key)
   }
   // A seat whose doc is gone is let go: its wake removed, its Seat retired. History stays.
   const live = new Set(docs.filter((doc) => doc.channel === 'org/seats').map((doc) => doc.slug))

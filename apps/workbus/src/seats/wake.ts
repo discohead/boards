@@ -6,7 +6,7 @@
 import { WorkerEntrypoint } from 'cloudflare:workers'
 
 import { bus } from '../bus.ts'
-import { reconcile, ORG_WAKE, SEAT_PREFIX, type SeatStub } from '../org/reconcile.ts'
+import { reconcile, ORG_WAKE, SEAT_PREFIX, WATCHDOG_WAKE, SCHEDULES_PREFIX, type SeatStub } from '../org/reconcile.ts'
 import type { Delivered, DeliveredContext } from './seat.ts'
 
 const APP = 'worker:workbus-app'
@@ -22,6 +22,15 @@ export class Wake extends WorkerEntrypoint<Env> {
       const pass = await reconcile(bus(), seatOf(this.env), doc === undefined ? undefined : String(doc))
       console.log('wake: org ' + event.type + ' at ' + event.cursor + ': ' + pass.applied.map((seat) => seat.seat + ' ' + seat.wake).join(', ') + (pass.replies.length ? '; replied in ' + pass.replies.join(', ') : ''))
       return { reconciled: pass.applied, problems: pass.plan.problems.length, replies: pass.replies }
+    }
+    if (context.wake === WATCHDOG_WAKE) {
+      if (context.actor !== APP) throw new Error("wake: the watchdog's wake is the app's own, not " + context.actor + "'s")
+      return (this.env.WATCH.getByName('bus') as unknown as { event(event: Delivered): Promise<unknown> }).event(event)
+    }
+    if (context.wake.startsWith(SCHEDULES_PREFIX)) {
+      const key = context.wake.slice(SCHEDULES_PREFIX.length)
+      if (context.actor !== APP + '+' + key) throw new Error('wake: ' + context.wake + ' is delivered as ' + context.actor + ', not the seat ' + key)
+      return this.env.SEAT.getByName(key).wake(event, context)
     }
     if (context.wake.startsWith(SEAT_PREFIX)) {
       const key = context.wake.slice(SEAT_PREFIX.length)

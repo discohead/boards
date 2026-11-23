@@ -2,7 +2,7 @@
 // wake (org/'s doc events, to the Wake sink), and a first pass. All of it is idempotent, so
 // each isolate runs it once, and two at once agree.
 import { codeOf, type Board } from '../bus.ts'
-import { ORG_WAKE, SINK, reconcile, type Pass, type SeatStub } from './reconcile.ts'
+import { ORG_WAKE, WATCHDOG_WAKE, SINK, reconcile, type Pass, type SeatStub } from './reconcile.ts'
 import { SEED } from './seed.ts'
 
 export type Booted = { seeded: string[]; found: string[]; reconciler: 'created' | 'changed' | 'same'; pass: Pass }
@@ -40,6 +40,7 @@ export async function boot(app: Board, seatOf: (key: string) => SeatStub): Promi
     }
   }
   const set = await app.setWake(ORG_WAKE, { sink: SINK, rules: { org: { docs: 'org/' } } })
+  await app.setWake(WATCHDOG_WAKE, { sink: SINK, rules: { all: { tail: '' } } })
   const pass = await reconcile(app, seatOf)
   return { seeded, found, reconciler: set.created ? 'created' : set.changed ? 'changed' : 'same', pass }
 }

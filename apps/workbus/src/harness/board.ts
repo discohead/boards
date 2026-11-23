@@ -22,6 +22,8 @@ export type SeatBoard = {
     block(id: string, reason: string, kind?: string): Promise<unknown>
     approve(id: string, note?: string): Promise<unknown>
     decline(id: string, note?: string): Promise<unknown>
+    assign(id: string, to: string | null): Promise<unknown>
+    reopen(id: string): Promise<unknown>
   }
   label(id: string, change: { set?: Record<string, string>; unset?: string[] }): Promise<unknown>
   docs: {
@@ -246,6 +248,22 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
         if (!me || !asker) return { text: '#' + id + " isn't a consult from a seat that consults you" + (me?.consultedBy?.length ? ' (' + me.consultedBy.map((one) => '@' + one.handle).join(', ') + ')' : '') + '.', isError: true }
         return answer(() => board().reply(id, { text: '@[' + asker.actor + '] ' + unmention(text, asker), labels: { [ANSWER]: asker.key } }))
       },
+    },
+    {
+      name: 'task_assign',
+      description: "Assign a task to an actor (for: worker:workbus-app+<seat>, or a person's actor), or to no one (null) so anyone may claim it. Its owner or a manager reassigns.",
+      input: z.object({ id: Id, for: z.string().nullable() }),
+      replay: 'safe',
+      approval: 'never',
+      run: ({ id, for: to }) => answer(() => board().tasks.assign(id, to)),
+    },
+    {
+      name: 'task_reopen',
+      description: 'Open a failed or canceled task again, as it was, to retry it. Its owner or a manager reopens.',
+      input: z.object({ id: Id }),
+      replay: 'safe',
+      approval: 'never',
+      run: ({ id }) => answer(() => board().tasks.reopen(id)),
     },
     {
       name: 'doc_read',

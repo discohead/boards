@@ -12,12 +12,14 @@ import { sessionName, type SessionStub } from './harness/pi.ts'
 import { boot } from './org/boot.ts'
 import { reconcile } from './org/reconcile.ts'
 import { seatOf } from './seats/wake.ts'
+import { OPERATOR } from './seats/watch.ts'
 
 export { Seat } from './seats/seat.ts'
 export { Session } from './seats/session.ts'
 export { SeatWorkspace } from './seats/workspace.ts'
 export { Wake } from './seats/wake.ts'
 export { Egress } from './egress/egress.ts'
+export { Watch } from './seats/watch.ts'
 
 /** Once per isolate: the org seeded, the reconciler's wake set, and a first pass (org/boot.ts). */
 let booting: Promise<unknown> | null = null
@@ -44,6 +46,8 @@ export default {
     ctx.waitUntil(bootOnce(env))
     const seat = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})$/.exec(new URL(request.url).pathname)?.[1]
     if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
+    // The daily brief now, as the operator's schedule writes it at 07:00 UTC (seats/seat.ts): behind Access, like the rest.
+    if (new URL(request.url).pathname === '/api/briefs' && request.method === 'POST') return Response.json(await (env.SEAT.getByName(OPERATOR) as unknown as { briefNow(): Promise<unknown> }).briefNow())
     const resend = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})\/runs\/resend$/.exec(new URL(request.url).pathname)?.[1]
     if (resend && request.method === 'POST') return resendRuns(env, resend, new URL(request.url).searchParams.get('since'))
     return handler.fetch(request)
@@ -103,6 +107,7 @@ async function devSeat(request: Request, env: Env): Promise<Response> {
   try {
     if (call === 'reconcile') return Response.json(await reconcile(bus(), seatOf(env), args[0] as string | undefined))
     if (call === 'boot') return Response.json(await boot(bus(), seatOf(env)))
+    if (call.startsWith('watch.')) return Response.json((await (env.WATCH.getByName('bus') as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>)[call.slice('watch.'.length)]!(...args)) ?? null)
     const stub = env.SEAT.getByName(seat!) as unknown as Record<string, (...args: unknown[]) => Promise<unknown>>
     return Response.json((await stub[call]!(...args)) ?? null)
   } catch (error) {

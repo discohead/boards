@@ -29,10 +29,15 @@
       { "name": "SEAT", "class_name": "Seat" },
       { "name": "SESSION", "class_name": "Session" },
       // A seat's computer workspace, shared by its sessions: one per seat key.
-      { "name": "WORKSPACE", "class_name": "SeatWorkspace" }
+      { "name": "WORKSPACE", "class_name": "SeatWorkspace" },
+      // The watchdog (src/seats/watch.ts): one for the org, fed by the app's own wake on the whole board.
+      { "name": "WATCH", "class_name": "Watch" }
     ]
   },
-  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Seat", "Session", "SeatWorkspace"] }],
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["Seat", "Session", "SeatWorkspace"] },
+    { "tag": "v2", "new_sqlite_classes": ["Watch"] }
+  ],
   // The sandbox tier (§5.4): a Session may start one Linux container, its own, basic size (1/4 vCPU,
   // 1 GiB, 4 GB), asleep after 5 idle minutes; no Internet of its own, only HTTP(S) through the egress.
   "containers": [

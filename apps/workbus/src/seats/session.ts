@@ -258,7 +258,9 @@ export class Session extends Agent<Env> {
     const thread = (await board.read(this.thread, { limit: 1 })) as { message: { id: string; channel: string } }
     const args = JSON.stringify(call.arguments ?? {}, null, 1)
     const text = '@' + seat.handle + ' asks to run ' + call.name + ' in #' + thread.message.id + ':\n\n```json\n' + args.slice(0, 4000) + '\n```'
-    const made = (await board.tasks.create({ channel: thread.message.channel, text, id: 'approval-' + call.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48) })) as { task: { id: string } }
+    // Held in the seat's own DM (owners and the seat), never in the thread's channel: that may be a queue a
+    // seat serves, where the task would be ready for a moment between the answer and its close (#19).
+    const made = (await board.tasks.create({ channel: 'dm/' + seat.key, text, id: 'approval-' + call.id.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 48) })) as { task: { id: string } }
     await board.tasks.block(made.task.id, 'Approve or deny ' + call.name + ' for @' + seat.handle, kind)
     const op = await this.#running()
     this.sql`INSERT OR IGNORE INTO wb_approvals (id, call, pi_task, op, tool, kind, args, state, at) VALUES (${made.task.id}, ${call.id}, ${piTask}, ${op}, ${call.name}, ${kind}, ${args}, 'held', ${Date.now()})`
