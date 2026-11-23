@@ -4,7 +4,7 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire,watchdog,sequence]
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire,watchdog,sequence,letgo]
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
@@ -479,6 +479,41 @@ if (pick.has('sequence')) {
   const asked = await until(async () => (await status('op')).wakes.find((wake) => wake.id.startsWith('notice:declined:') && wake.thread === second?.id && wake.state === 'done'), 90000)
   const reply = second ? (await board('GET', '/messages/' + second.id)).replies.find((message) => message.by.actor === OP) : null
   check(Boolean(asked && reply), 'and op hears of it once and asks how to proceed', { notice: asked?.id, reply: reply?.text })
+}
+
+// Letting a seat go (design/workbus.md §5.7), on the dev stack: a seat made from the engineer template
+// (as the owner, so no proposal), with a session (its introduction, one Haiku turn) and a file in its
+// workspace, is let go by deleting its seat doc: its wake goes, each session it ran is retired, its
+// workspace emptied, and its run records stay; doing it again changes nothing; a seat with a doc
+// can't be let go by the route.
+if (pick.has('letgo')) {
+  const key = 'lg' + Math.random().toString(36).slice(2, 6)
+  const template = (await board('GET', '/docs?path=org/templates/engineer')).body
+  const body = template.replace(/^# .*$/m, '# Lee').replace(/"role": "engineer",/, '"role": "engineer",\n  "name": "Lee",\n  "handle": "' + key + '",').replace(/\{\{name\}\}/g, 'Lee').replace(/\n## Hiring from this template[\s\S]*$/, '\n')
+  const doc = (await board('POST', '/docs', { channel: 'org/seats', slug: key, body })).message
+  const introduced = await until(async () => (await seat({ seat: key, call: 'status' })).wakes?.find((wake) => wake.id === 'intro' && wake.state === 'done'), 120000)
+  check(Boolean(introduced), 'a seat made from the engineer template is provisioned, and its introduction runs', introduced)
+  await fetch(app + '/dev/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: key, thread: 'x', call: 'workspace.execute', args: [{ id: 'lg-write', name: 'write', arguments: { path: '/workspace/kept.txt', content: 'hello' } }] }) })
+  const files = async () => (await fetch(app + '/dev/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: key, thread: 'x', call: 'workspace.files' }) })).json()
+  check((await files()).some((file) => file.name === 'kept.txt'), 'its workspace has a file')
+  const inspect = async () => (await fetch(app + '/dev/session', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ seat: key, thread: doc.id, call: 'inspect' }) })).json()
+  const before = await inspect()
+  const runs = (await seat({ seat: key, call: 'status' })).spend?.runs
+  check(before.operations?.length >= 1, 'its session (its introduction) has an operation', before.operations?.length)
+  // The route refuses a seat with a doc.
+  const refused = await fetch(app + '/api/seats/' + key + '/let-go', { method: 'POST' })
+  check(refused.status === 409, 'POST /api/seats/<key>/let-go refuses a seat with a seat doc', refused.status)
+  await board('POST', '/messages/' + doc.id + '/delete', {})
+  const gone = await until(async () => !(await board('GET', '/wakes')).wakes.some((wake) => wake.key === 'seat.' + key), 30000)
+  check(gone === true, 'deleting its seat doc removes its wake')
+  const status = await until(async () => { const one = await seat({ seat: key, call: 'status' }); return one.retired ? one : null }, 30000)
+  check(Boolean(status && status.retired.sessions >= 1 && status.state === 'retired'), 'its Seat is retired and its sessions retired', status?.retired)
+  const after = await inspect()
+  check((after.operations ?? []).length === 0, 'its session holds nothing now', after.operations)
+  check((await files()).length === 0, 'its workspace is empty')
+  check(status?.spend?.runs === undefined ? (await seat({ seat: key, call: 'spentSince', args: ['2000-01-01T00:00:00Z'] })).runs === runs : true, 'its run records stay', { runs })
+  const again = await (await fetch(app + '/api/seats/' + key + '/let-go', { method: 'POST' })).json()
+  check(JSON.stringify(again.retired) === JSON.stringify(status?.retired), 'letting it go again changes nothing', again)
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')

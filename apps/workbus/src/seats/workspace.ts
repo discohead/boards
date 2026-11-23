@@ -80,6 +80,14 @@ export class SeatWorkspace extends DurableObject<Env> {
     })
   }
 
+  /** Everything in it gone (a seat let go, §5.7): its files, its repositories, its storage. */
+  async reset(): Promise<void> {
+    await this.#serial(async () => {
+      await this.ctx.storage.deleteAlarm()
+      await this.ctx.storage.deleteAll()
+    })
+  }
+
   /** What's in a directory of the workspace, for checks and the Seat's views. */
   async files(path = '/workspace') {
     return this.space.fs.readdir(path).catch(() => [])

@@ -48,6 +48,9 @@ export default {
     ctx.waitUntil(bootOnce(env))
     const seat = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})$/.exec(new URL(request.url).pathname)?.[1]
     if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
+    // Finishing a let-go (§5.7) for a seat whose doc is already gone: its sessions and workspace torn down. Behind Access.
+    const leaving = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})\/let-go$/.exec(new URL(request.url).pathname)?.[1]
+    if (leaving && request.method === 'POST') return letGo(env, leaving)
     // The daily brief now, as the operator's schedule writes it at 07:00 UTC (seats/seat.ts): behind Access, like the rest.
     if (new URL(request.url).pathname === '/api/briefs' && request.method === 'POST') return Response.json(await (env.SEAT.getByName(OPERATOR) as unknown as { briefNow(): Promise<unknown> }).briefNow())
     const resend = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})\/runs\/resend$/.exec(new URL(request.url).pathname)?.[1]
@@ -55,6 +58,16 @@ export default {
     return handler.fetch(request)
   },
 } satisfies ExportedHandler<Env>
+
+/** POST /api/seats/<key>/let-go: a seat with no seat doc is let go (its Seat retired and torn down); one with a doc is refused, since deleting the doc is how a seat is let go. */
+async function letGo(env: Env, key: string): Promise<Response> {
+  const there = await bus().docs.at('org/seats/' + key).then(() => true, () => false)
+  if (there) return Response.json({ error: 'org/seats/' + key + ' is a seat doc: delete it to let the seat go' }, { status: 409 })
+  const stub = env.SEAT.getByName(key) as unknown as { configure(runtime: null, revision: number): Promise<unknown>; status(): Promise<{ retired: unknown; code: string }> }
+  await stub.configure(null, 0)
+  const status = await stub.status()
+  return Response.json({ seat: key, retired: status.retired })
+}
 
 /**
  * GET /api/seats/<key>, behind Access: the Seat's status (its state, queue, holds, spend, and last
