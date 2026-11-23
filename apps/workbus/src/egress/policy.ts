@@ -115,12 +115,30 @@ export function receivePackCommands(bytes: Uint8Array): { updates: RefUpdate[]; 
   return null
 }
 
-/** Whether a push may go: none of its updates touches the default branch or main. */
-export function pushAllowed(updates: readonly RefUpdate[], defaultBranch: string): { ok: true } | { ok: false; reason: string } {
-  const guarded = new Set(['refs/heads/main', 'refs/heads/' + defaultBranch])
-  const hit = updates.find((update) => guarded.has(update.ref))
-  if (hit) return { ok: false, reason: 'a push to ' + hit.ref + ' is not allowed: push a branch and open a pull request' }
+/** A seat's own branches: refs/heads/seat/<seat key>/<topic>. The only branches it may push or delete. */
+export function seatBranchPrefix(seat: string): string {
+  return 'seat/' + seat + '/'
+}
+
+/**
+ * Whether a push may go: every ref update, deletions included, is a branch in the seat's own
+ * namespace (refs/heads/seat/<seat>/...). The seat comes from the egress's props, never the client.
+ */
+export function pushAllowed(updates: readonly RefUpdate[], seat: string): { ok: true } | { ok: false; reason: string } {
   if (!updates.length) return { ok: false, reason: 'a push with no ref updates' }
+  const prefix = 'refs/heads/' + seatBranchPrefix(seat)
+  const outside = updates.find((update) => !update.ref.startsWith(prefix) || update.ref.length === prefix.length || update.ref.includes('/../') || update.ref.endsWith('/'))
+  if (outside) return { ok: false, reason: 'a push to ' + outside.ref + ' is not allowed: seat ' + seat + ' pushes only to ' + prefix + '<topic>, then opens a pull request' }
+  return { ok: true }
+}
+
+/** Whether a pull request may be opened: its head is one of the seat's own branches, in this repository. */
+export function pullHeadAllowed(head: unknown, owner: string, seat: string): { ok: true } | { ok: false; reason: string } {
+  if (typeof head !== 'string' || !head) return { ok: false, reason: 'a pull request needs a head branch' }
+  const [headOwner, branch] = head.includes(':') ? (head.split(':', 2) as [string, string]) : [owner, head]
+  if (headOwner.toLowerCase() !== owner.toLowerCase()) return { ok: false, reason: 'a pull request from another repository (' + headOwner + ') is not allowed' }
+  const prefix = seatBranchPrefix(seat)
+  if (!branch.startsWith(prefix) || branch.length === prefix.length) return { ok: false, reason: 'a pull request from ' + branch + ' is not allowed: seat ' + seat + '’s head branches are ' + prefix + '<topic>' }
   return { ok: true }
 }
 

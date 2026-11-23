@@ -4,8 +4,8 @@
 // sees each hop and asks again, so each is checked), and logs one line per request.
 //   const egress = this.ctx.exports.Egress({ props: { seat: 'ada', mode: 'web' } })
 import { WorkerEntrypoint } from 'cloudflare:workers'
-import { appLogin, authorization, defaultBranch, installationToken, pullAuthor, type GitHubAppEnv } from './github.ts'
-import { decide, pushAllowed, PULL_EDIT_FIELDS, STRIPPED, type EgressLog, type EgressProps } from './policy.ts'
+import { appLogin, authorization, installationToken, pullAuthor, type GitHubAppEnv } from './github.ts'
+import { decide, pullHeadAllowed, pushAllowed, PULL_EDIT_FIELDS, STRIPPED, type EgressLog, type EgressProps } from './policy.ts'
 import { readCommands } from './push.ts'
 
 export function logEgress(line: EgressLog): void {
@@ -42,17 +42,22 @@ export class Egress extends WorkerEntrypoint<GitHubAppEnv, EgressProps> {
       return new Response('blocked by the egress: ' + reason + '\n', { status, headers: { 'x-workbus-egress': 'refused' } })
     }
     let body: BodyInit | null = request.body
-    // The writes that need more than the URL to decide: a push's ref updates, and whose pull request an edit is.
-    if (decision.write === 'receive-pack' || decision.write === 'pull-edit') {
+    // The writes that need more than the URL to decide: a push's ref updates, a new pull request's head, and whose pull request an edit is.
+    if (decision.write === 'receive-pack' || decision.write === 'pull-edit' || decision.write === 'pull-create') {
       if (!token || !decision.repo) return refuse(403, 'a GitHub write needs the app’s token, and there is none for ' + decision.repo?.owner)
       const { owner, name } = decision.repo
       try {
         if (decision.write === 'receive-pack') {
           const read = await readCommands(request.body)
           if (!read) return refuse(400, 'a push whose ref updates could not be read')
-          const allowed = pushAllowed(read.updates, await defaultBranch(owner, name, token))
+          const allowed = pushAllowed(read.updates, props.seat)
           if (!allowed.ok) return refuse(403, allowed.reason)
           body = read.body
+        } else if (decision.write === 'pull-create') {
+          const text = await request.text()
+          const allowed = pullHeadAllowed((JSON.parse(text || '{}') as { head?: unknown }).head, owner, props.seat)
+          if (!allowed.ok) return refuse(403, allowed.reason)
+          body = text
         } else {
           const text = await request.text()
           const fields = Object.keys(JSON.parse(text || '{}') as object)

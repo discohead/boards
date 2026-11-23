@@ -46,20 +46,6 @@ export async function installationToken(env: GitHubAppEnv, owner: string, name: 
   return body.token
 }
 
-const branches = new Map<string, { branch: string; until: number }>()
-
-/** A repository's default branch, read with the installation token and cached for ten minutes. */
-export async function defaultBranch(owner: string, name: string, token: string, fetcher: typeof fetch = fetch): Promise<string> {
-  const key = (owner + '/' + name).toLowerCase()
-  const cached = branches.get(key)
-  if (cached && cached.until > Date.now()) return cached.branch
-  const response = await fetcher(API + '/repos/' + owner + '/' + name, { headers: headers(token) })
-  if (!response.ok) throw new Error('GitHub repository ' + key + ': ' + response.status)
-  const { default_branch } = (await response.json()) as { default_branch: string }
-  branches.set(key, { branch: default_branch, until: Date.now() + 10 * 60 * 1000 })
-  return default_branch
-}
-
 let login: Promise<string> | null = null
 
 /** The app's own GitHub login ("<slug>[bot]"): what a pull request the seats opened is authored by. */
