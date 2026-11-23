@@ -28,6 +28,9 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Ledger", "Relay", "Mailbox", "Inbox"] }],
+  // The "wake" sink (worker.ts): wakes the app sets for its seats and its reconciler are
+  // delivered to the app's Wake entrypoint.
+  "services": [{ "binding": "WAKE", "service": "workbus-app", "entrypoint": "Wake" }],
   "r2_buckets": [{ "binding": "FILES", "bucket_name": "workbus-bus-files" }],
   "worker_loaders": [{ "binding": "LOADER" }],
   "observability": { "enabled": true }

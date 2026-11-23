@@ -1,0 +1,150 @@
+// The org on a real bus and app (design/workbus.md §4.4, §4.5, §5.2, §5.5): seeding is idempotent,
+// an edit to a seat doc re-reconciles through the reconciler's wake (the seat's wake updates once,
+// by revision), a bad edit gets one reply in its thread and changes nothing, a Seat takes a
+// delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
+// makes two tasks for the engineer, the second needing the first, and the engineer wakes.
+//   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm]
+// Only "dm" calls a model (the operator's and the engineer's first turns, on Haiku).
+const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
+const token = process.env.TOKEN
+if (!token) throw new Error('set TOKEN: an owner token for the bus')
+const pick = new Set(only.split(','))
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+let failures = 0
+const check = (ok, what, detail = '') => {
+  if (!ok) failures++
+  console.log((ok ? 'ok   ' : 'FAIL ') + what + (detail === '' ? '' : '  ' + JSON.stringify(detail)))
+}
+
+async function board(method, path, body) {
+  const response = await fetch(bus + '/b/bus' + path, { method, headers: { authorization: 'Bearer ' + token, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
+  const answer = await response.json()
+  if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
+  return answer
+}
+async function seat(body) {
+  const response = await fetch(app + '/dev/seat', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+  const answer = await response.json()
+  if (!response.ok) throw new Error('dev/seat ' + body.call + ': ' + (answer?.error ?? response.status))
+  return answer
+}
+const wakeOf = async (key) => (await board('GET', '/wakes')).wakes.find((wake) => wake.key === key)
+/** Polls until fn answers something truthy, or the time is up. */
+async function until(fn, ms = 15000) {
+  const end = Date.now() + ms
+  for (;;) {
+    const value = await fn()
+    if (value || Date.now() > end) return value
+    await sleep(500)
+  }
+}
+/** Rewrites a seat doc's block, as the owner. */
+async function editBlock(path, change) {
+  const { doc, body } = await board('GET', '/docs?path=' + path)
+  const fence = /(```json#seat@1\n)([\s\S]*?)(\n```)/
+  const data = JSON.parse(fence.exec(body)[2])
+  change(data)
+  const next = body.replace(fence, (_, open, _old, close) => open + JSON.stringify(data, null, 2) + close)
+  return (await board('POST', '/docs/' + doc.id + '/edit', { revision: doc.revision, body: next })).doc
+}
+
+if (pick.has('boot')) {
+  const first = await seat({ call: 'boot' })
+  const second = await seat({ call: 'boot' })
+  check(second.seeded.length === 0 && second.found.length === 4, 'a second boot seeds nothing and finds the four docs', second.found)
+  check(second.reconciler === 'same', "the reconciler's wake is the same", second.reconciler)
+  check(second.pass.applied.every((applied) => applied.wake === 'same' && applied.config.applied === false), "every seat's wake and config are the same", second.pass.applied.map((a) => a.seat + ' ' + a.wake + ' ' + a.config.applied))
+  const threads = (await board('GET', '/threads?channel=org/&limit=50')).threads.filter((thread) => thread.message.doc)
+  const paths = threads.map((thread) => thread.message.doc.path).sort()
+  check(new Set(paths).size === paths.length && ['org/seats/ada', 'org/seats/op', 'org/structure', 'org/teams/eng'].every((path) => paths.includes(path)), 'org/ holds each seed doc once', paths)
+  const op = await wakeOf('seat.op')
+  check(op?.actor === 'worker:workbus-app+op' && op.can.includes('dm/op/='), "op's wake is the seat itself, narrowed, with its own DM", op && { actor: op.actor, can: op.can })
+  void first
+}
+
+if (pick.has('edit')) {
+  const before = await wakeOf('seat.ada')
+  const doc = await editBlock('org/seats/ada', (data) => (data.sessions = (data.sessions ?? 1) === 2 ? 3 : 2))
+  const revision = Number(doc.revision)
+  const status = await until(async () => {
+    const now = await seat({ seat: 'ada', call: 'status' })
+    return now.revision === revision ? now : null
+  })
+  check(status?.revision === revision, "ada's Seat takes the edit's revision through the reconciler's wake", { revision, seat: status?.revision })
+  const after = await wakeOf('seat.ada')
+  check(after.revision === revision && before.revision < revision, "ada's wake moves to the edit's revision", { before: before.revision, after: after.revision })
+  const again = await seat({ call: 'reconcile' })
+  const ada = again.applied.find((applied) => applied.seat === 'ada')
+  check(ada.wake === 'same' && ada.config.applied === false, 'a second pass at that revision changes nothing', ada)
+}
+
+if (pick.has('bad')) {
+  const held = (await seat({ seat: 'ada', call: 'status' })).revision
+  const doc = await editBlock('org/seats/ada', (data) => (data.can['eng/'] = 'all'))
+  const since = Date.now() - 2000
+  const ours = (thread) => thread.replies.filter((reply) => reply.text.startsWith('This revision of org/seats/ada') && Date.parse(reply.createdAt) >= since)
+  const replies = await until(async () => {
+    const found = ours(await board('GET', '/messages/' + doc.id))
+    return found.length ? found : null
+  })
+  check(replies?.length === 1 && /can gives sync and manage at eng\/, more than the app holds/.test(replies[0].text), 'a can wider than the app holds gets one reply in the thread, saying why', replies?.map((reply) => reply.text))
+  check(replies?.[0]?.by.actor === 'worker:workbus-app', 'the reply is the reconciler, as the app', replies?.[0]?.by)
+  const status = await seat({ seat: 'ada', call: 'status' })
+  check(status.revision === held && status.runtime.can['eng/'] !== 'all', 'ada keeps the config it had', { held, now: status.revision })
+  check((await wakeOf('seat.ada')).revision === held, "ada's wake keeps its revision")
+  // The pass again, twice, as a redelivery of the same doc's event makes it: still one reply.
+  const pass = await seat({ call: 'reconcile', args: [doc.id] })
+  await seat({ call: 'reconcile', args: [doc.id] })
+  const thread = await board('GET', '/messages/' + doc.id)
+  check(ours(thread).length === 1, 'passes again leave one reply', pass.replies)
+  // Put it back, so the next run starts clean.
+  await editBlock('org/seats/ada', (data) => (data.can['eng/'] = ['read', 'post', 'react', 'label', 'edit']))
+  const restored = await until(async () => ((await seat({ seat: 'ada', call: 'status' })).revision > held ? true : null))
+  check(restored === true, 'the fixed doc applies again')
+}
+
+if (pick.has('dedupe')) {
+  const { runtime } = await seat({ seat: 'op', call: 'status' })
+  const key = 'dedupe' + Math.random().toString(36).slice(2, 7)
+  // A paused seat queues and starts nothing: no model is called.
+  const paused = { ...runtime, key, state: 'paused' }
+  await seat({ seat: key, call: 'configure', args: [paused, 1] })
+  const event = { cursor: '424242', type: 'message.posted', message: { id: '77', re: null, channel: 'dm/' + key, text: 'hi' } }
+  const context = { board: 'bus', wake: 'seat.' + key, principal: 'worker:workbus-app', actor: 'worker:workbus-app+' + key, rules: ['dm'], match: 'm', attempt: 1 }
+  const one = await seat({ seat: key, call: 'wake', args: [event, context] })
+  const two = await seat({ seat: key, call: 'wake', args: [event, { ...context, attempt: 2 }] })
+  const status = await seat({ seat: key, call: 'status' })
+  check(one.queued === true && two.queued === false && status.queue.queued === 1, 'a delivery made twice is queued once', { one, two, queue: status.queue })
+  check(status.state === 'paused', 'a paused seat starts nothing', status.state)
+  const older = await seat({ seat: key, call: 'configure', args: [{ ...paused, sessions: 9 }, 0] })
+  check(older.applied === false && (await seat({ seat: key, call: 'status' })).runtime.sessions === paused.sessions, 'an older revision changes nothing', older)
+  await seat({ seat: key, call: 'configure', args: [null, 0] })
+  check((await seat({ seat: key, call: 'status' })).state === 'retired', 'no config retires it')
+}
+
+if (pick.has('dm')) {
+  const posted = await board('POST', '/messages', { channel: 'dm/op', text: 'Something small for Ada: first, write hello.txt containing the word hello; then, as a second step that needs the first, append a line saying world. Two tasks, please.' })
+  const root = posted.message.id
+  const woke = await until(async () => (await seat({ seat: 'op', call: 'status' })).wakes.find((wake) => wake.thread === root && wake.state === 'done'), 60000)
+  check(Boolean(woke), "the DM wakes @op through its wake, and its run ends", woke)
+  const made = await until(async () => {
+    const { tasks } = await board('GET', '/tasks?channel=eng/queue&state=all&limit=100')
+    const mine = tasks.map((entry) => entry.message).filter((message) => message.by.actor === 'worker:workbus-app+op' && Date.parse(message.createdAt) >= Date.parse(posted.message.createdAt)).map((message) => ({ id: message.id, ...message.task }))
+    return mine.length >= 2 ? mine : null
+  }, 30000)
+  const first = made?.find((task) => task.needs.length === 0)
+  const second = made?.find((task) => task.needs.length > 0)
+  check(Boolean(first && second && second.needs.includes(first.id)), 'op made two tasks, the second needing the first', made?.map((task) => ({ id: task.id, needs: task.needs, for: task.for })))
+  check(Boolean(made?.every((task) => task.for === 'worker:workbus-app+ada')), 'both are for the engineer')
+  const reply = (await board('GET', '/messages/' + root)).replies.find((message) => message.by.actor === 'worker:workbus-app+op')
+  check(Boolean(reply), 'op replied in its DM', reply?.text)
+  const adaWoke = await until(async () => (await seat({ seat: 'ada', call: 'status' })).wakes.find((wake) => wake.thread === first?.id), 30000)
+  check(Boolean(adaWoke), 'the engineer wakes on the assignment', adaWoke)
+  const runs = (await seat({ seat: 'op', call: 'status' })).runs
+  check(runs.some((run) => run.thread === root && run.cost > 0 && run.tokens.output > 0), "op's run is recorded with its cost", runs.find((run) => run.thread === root))
+}
+
+console.log(failures ? failures + ' failed' : 'all passed')
+process.exitCode = failures ? 1 : 0
