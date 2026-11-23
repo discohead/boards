@@ -87,11 +87,13 @@ describe('profiles: a key, a handle, a name', () => {
     expect((await api(name, 'GET', '/me', undefined, { ...app, 'x-board-profile': 'eng;handle="op"' })).body.error.message).toBe('@op is taken by Operator. Try @op2.')
 
     // What a handle can be.
-    for (const bad of ['me', 'Op/x', '-op', 'op-', 'a'.repeat(33), '']) {
+    for (const bad of ['me', 'you', 'Op/x', '-op', 'op-', 'a'.repeat(33), '']) {
       const refused = await api(name, 'GET', '/me', undefined, { ...app, 'x-board-profile': 'eng;handle=' + JSON.stringify(bad) })
       expect(refused.status, bad).toBe(400)
       expect(refused.body.error.code, bad).toBe('invalid_profile')
     }
+    // Hyphens and digits are fine: @eng-lead, @eng2.
+    for (const good of ['eng-lead', 'eng2']) expect((await api(name, 'GET', '/me', undefined, { ...app, 'x-board-profile': 'lead;handle="' + good + '"' })).body.handle, good).toBe(good)
     // A display name is any text, up to 64 characters, apart from the key.
     expect((await api(name, 'GET', '/me', undefined, { ...app, 'x-board-profile': 'eng;name="Ada, the engineer"' })).body).toMatchObject({ actor: 'worker:workbus-app+eng', name: 'Ada, the engineer' })
     expect((await api(name, 'GET', '/me', undefined, { ...app, 'x-board-profile': 'eng;name="' + 'x'.repeat(65) + '"' })).status).toBe(400)

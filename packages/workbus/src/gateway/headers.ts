@@ -88,7 +88,7 @@ export function profileOf(given: { key: string; name?: string; handle?: string |
   if (given.handle !== undefined && given.handle !== null) {
     handle = given.handle.replace(/^@/, '').toLowerCase()
     if (!HANDLE.test(handle)) throw refuse('a handle is 1 to 32 lowercase letters, numbers, and hyphens, starting with a letter: @op, @ops')
-    if (RESERVED_HANDLES.includes(handle)) throw refuse('@' + handle + ' is reserved: filters read it as the caller')
+    if (RESERVED_HANDLES.includes(handle)) throw refuse('@' + handle + " is reserved: @me is the caller in filters, and @you is the principal's own seat")
   }
   const avatar = given.avatar ?? null
   if (avatar !== null) {

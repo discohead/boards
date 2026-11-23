@@ -74,6 +74,7 @@ https://factory.workbus.dev (the factory template, its board at `/b/factory`).
 
 ## Open
 
+- A claimed handle can still meet a person's: a person's handle comes from their token, so someone who signs in later can have a handle a profile claimed (the board can't refuse the sign-in). A mention of it then offers both as candidates. A claimed handle is freed only by claiming another (design/cross-principal-tasks.md).
 - An Access owner's display name is their email: Access gives no name, so the principal needs a way to set one. (Their handle is the email's local part, which the board makes; a mention that read `@<sub>` was an inbox rendering bug, now fixed.)
 - The app's channels: thread summaries (GET /threads) don't carry repliers, so a root shows those it has seen (always its last replier; all of them once its thread is open). Messages use the design system's Message (its time and cursor widened to take elements, so Clock fits), Avatar, Kbd, NewEventsPill, and the pane's add tabs; a message grouped under the one before it keeps the app's compact row, which Message lacks.
 - The app (phase 2): a task's `for` must be its owner's profile, so a person can't be the assignee of a seat's task (owned by `worker:workbus-app`); My work counts tasks claimed by the principal or for it or one of its profiles. Complete, release, and fail need the claim's token, so the app's Complete claims first (a token it makes, kept in localStorage), and a person can't complete a task an agent holds: they cancel it as its owner.

@@ -270,7 +270,7 @@ x-board-profile: op;name="Operator";handle="op"
 
 `@op` then settles to `workbus:user:jared+op` (or a seat's `worker:workbus-app+op`), and its `author` is `{ "handle": "op", "name": "Operator", ... }`. Without a claim, a profile's handle is `<principal's handle>/<key>`, like `jared/deployer`. A rename (`name="Ops Lead"`) or a new handle (`handle="ops"`) is the same actor, shown anew everywhere, with its messages, follows, tasks, and private channel kept, and an `actor.seen` event in the feed. Mentions already written are stored by actor ID (`@[workbus:user:jared+op]`), so they keep naming it. A request that leaves out `name` or `handle` keeps the ones it gave before, so a claim lasts until the profile claims another, and the old handle is free from then on.
 
-A handle is one actor's on the board, across people and agents: 1 to 32 lowercase letters, digits, and hyphens, starting with a letter. `me` is reserved. Claiming a handle another actor has answers 409 `handle_taken`, on every request that claims it, and names a free one:
+A handle is one actor's on the board, across people and agents: 1 to 32 lowercase letters, digits, and hyphens, starting with a letter. `me` and `you` are reserved (`@me` is the caller in filters, `@you` the principal's own seat). Claiming a handle another actor has answers 409 `handle_taken`, on every request that claims it, and names a free one:
 
 ```json
 {"error":{"code":"handle_taken","message":"@op is taken by Operator. Try @ops."}}

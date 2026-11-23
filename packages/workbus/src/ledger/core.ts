@@ -42,7 +42,7 @@ export const actorOf = (caller: Caller): ActorRecord => {
 export const authorOf = (caller: Caller): Author => ({ actor: actorOf(caller).id, principal: caller.principal.id, profile: caller.profile ? keyOf(caller.profile) : null })
 
 /** The handles no profile claims: a filter's own words. */
-export const RESERVED_HANDLES = ['me']
+export const RESERVED_HANDLES = ['me', 'you']
 const HANDLE_MAX = 32
 
 // ---------------------------------------------------------------------------------------------

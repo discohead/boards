@@ -71,6 +71,13 @@ The principal finishes one by hand from the issue view.
 - Who held a task, and whether through its claim, is kept beside the tasks table
   (`task_holds`), not on the view.
 
+## Known gap
+
+The handles in this note are profiles' claims (design/workbus.md §5.1). A person's handle comes
+from their token, so a person who signs in later can still have a handle a profile claimed. The
+board can't refuse a sign-in over it: a mention of that handle then offers both as candidates, as
+it does for any two actors with one handle.
+
 ## Not doing
 
 An answer from a person other than the owner or a manager: delegating approvals is a grant
