@@ -2,7 +2,7 @@
 // direct messages, teams with their channels, seats, the workspace's places, and at the foot
 // Settings and who you are. Channels group under a team by their first path segment
 // (eng/releases is Engineering's releases); dm/<seat> are the direct messages.
-import { Link, useParams } from '@tanstack/react-router'
+import { Link } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { Activity, CircleDot, FileText, Hash, Inbox, LayoutGrid, MessageSquare, Network, Search, Settings, Users, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
@@ -34,7 +34,6 @@ function arrange(channels: Channel[]) {
 
 export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const bus = useBus()
-  const docId = useParams({ strict: false, select: (params: { id?: string }) => params.id })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
   const { dms, loose, teams } = arrange(channels)
   const me = bus.runtime.me
@@ -91,7 +90,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
           Docs
         </Link>
         <div className="pl-5">
-          <DocsTree {...(docId ? { current: docId } : {})} />
+          <DocsTree />
         </div>
         <Link to="/tasks" className={row} activeProps={active}>
           {icon(LayoutGrid)}
