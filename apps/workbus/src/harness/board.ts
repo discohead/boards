@@ -24,6 +24,7 @@ export type SeatBoard = {
     decline(id: string, note?: string): Promise<unknown>
     assign(id: string, to: string | null): Promise<unknown>
     reopen(id: string): Promise<unknown>
+    cancel(id: string, reason: string): Promise<unknown>
   }
   label(id: string, change: { set?: Record<string, string>; unset?: string[] }): Promise<unknown>
   docs: {
@@ -61,6 +62,8 @@ const Text = z.string().min(1).describe('markdown; @handle mentions someone')
 const CONSULT = 'org.consult'
 const ESCALATED = 'org.escalated'
 const ANSWER = 'org.answer'
+/** The handoff a task carries out: when every task with it is done, the watchdog says so in the handoff's thread (seats/watch.ts). */
+export const HANDOFF = 'org.handoff'
 /** A text without a leading mention of whom it's for: the tool adds that mention itself. */
 const unmention = (text: string, to: { handle: string; actor: string }) => text.replace(/^\s*(?:@\[([^\]]+)\]|@([a-z0-9-]+))[:,]?\s*/, (all, actor, handle) => (actor === to.actor || handle === to.handle ? '' : all))
 /** Where a consult goes when the session's thread is a DM, which the other seat can't read. */
@@ -138,6 +141,31 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
     if (!id) return
     for (const one of madeIds(made)) await board().label(one, { set: { [REQUEST]: id } }).catch(() => options.stamp?.(one, id))
   }
+
+  /** An open proposal for a path, by anyone: a new doc's (new:<path>) or an existing doc's (its ID). */
+  const openProposal = async (channel: string, value: string): Promise<string | null> => {
+    const { tasks } = (await board().tasks.list({ channel, state: 'open', label: 'board.doc.proposal=' + value, limit: 5 })) as { tasks: { message: { id: string } }[] }
+    return tasks[0]?.message.id ?? null
+  }
+  /** An open hire proposal for a role (its seat block's "role"), by anyone. */
+  const openHire = async (role: string): Promise<string | null> => {
+    const { tasks } = (await board().tasks.list({ channel: 'org/seats', state: 'open', label: 'board.doc.proposal', limit: 50 })) as { tasks: { message: { id: string; text: string; labels: Record<string, string> } }[] }
+    const hire = tasks.find(({ message }) => (message.labels['board.doc.proposal'] ?? '').startsWith('new:org/seats/') && message.text.includes('"role": "' + role + '"'))
+    return hire?.message.id ?? null
+  }
+  const proposedAlready = (id: string, path: string) =>
+    'an open proposal, #' + id + ', already asks for ' + path + ': reuse it (say what you would change in its thread), or wait for the principal to apply or drop it. A second proposal for the same path is refused.'
+
+  /** Ends a handoff task (one assigned to this seat) with what it became. A handoff already done or not this seat's is left as it is. */
+  const closeHandoff = async (id: string, result: string): Promise<string> => {
+    try {
+      await (await claimed(id)).complete(result)
+      return 'completed'
+    } catch (error) {
+      return 'left open: ' + (error instanceof Error ? error.message : String(error))
+    }
+  }
+
   const tools: Tool<any>[] = [
     {
       name: 'board_post',
@@ -195,16 +223,22 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
     },
     {
       name: 'task_create_many',
-      description: "Make several tasks in one channel at once. Each has a key; needs names other tasks' keys (or existing IDs), so the board keeps their order.",
+      description: "Make several tasks in one channel at once. Each has a key; needs names other tasks' keys (or existing IDs), so the board keeps their order. handoff: the ID of a task handed to you that these tasks carry out; it's completed, naming them.",
       input: z.object({
         channel: Channel,
         tasks: z.array(z.object({ key: z.string(), text: Text, needs: z.array(z.string()).optional(), for: z.string().optional() })).min(1).max(20),
+        handoff: Id.optional(),
       }),
       replay: 'unsafe',
       approval: 'never',
-      run: async ({ channel, tasks }) =>
+      run: async ({ channel, tasks, handoff }) =>
         refused(tasks.map((t: { for?: string }) => t.for)) ??
-        answer(() => stamped((labels) => board().tasks.createMany(channel, tasks.map((t: { key: string; text: string; needs?: string[]; for?: string }) => ({ ...t, labels, needs: t.needs?.map((need) => (tasks.some((o: { key: string }) => o.key === need) ? { key: need } : need)) }))))),
+        answer(async () => {
+          const made = (await stamped((labels) => board().tasks.createMany(channel, tasks.map((t: { key: string; text: string; needs?: string[]; for?: string }) => ({ ...t, labels: { ...labels, ...(handoff ? { [HANDOFF]: handoff } : {}) }, needs: t.needs?.map((need) => (tasks.some((o: { key: string }) => o.key === need) ? { key: need } : need)) }))))) as { tasks?: { task?: { id: string }; id?: string; message?: { id: string } }[] }
+          if (!handoff) return made
+          const ids = (made.tasks ?? []).map((one) => '#' + (one.task?.id ?? one.message?.id ?? one.id))
+          return { ...made, handoff: { id: handoff, state: await closeHandoff(handoff, 'Turned into ' + ids.join(', ') + ' in ' + channel + '.') } }
+        }),
     },
     {
       name: 'task_claim',
@@ -335,10 +369,95 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       approval: 'never',
       run: (input) =>
         answer(async () => {
+          // A note goes with a proposal only; without one, it's dropped rather than refused.
+          if (!input.propose) delete input.note
+          if (input.propose) {
+            const path = input.channel + '/' + input.slug
+            const open = await openProposal(input.channel, 'new:' + path)
+            if (open) throw new Error(proposedAlready(open, path))
+          }
           const made = await stamped((labels) => board().docs.create({ ...input, labels }))
           // A proposal's task is the proposal itself: it carries the request too.
           if (input.propose) await stampAfter((made as { proposal?: unknown })?.proposal)
           return made
+        }),
+    },
+    {
+      name: 'hire_propose',
+      description: "Propose hiring a seat from a template in org/templates (engineer, writer), with the work it's for, in one step: the seat doc as a proposal for the principal to apply, and the work's tasks made for the new seat and waiting on that proposal, so nothing starts and no other seat takes them until it's applied. An open proposal for the same seat is reused, never doubled. handoff: the ID of a task handed to you that this carries out; it's completed, naming what was made.",
+      input: z.object({
+        template: z.string().describe('a template in org/templates: engineer or writer'),
+        key: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/).describe("the new seat's key and handle: a short lowercase word for what it does"),
+        name: z.string().min(1).max(64).describe('its display name: a person-like first name'),
+        budget: z.number().positive().optional().describe("its monthly budget in USD: the template's, or less"),
+        note: z.string().max(2000).optional().describe('why this hire: one or two sentences the principal reads in the inbox'),
+        work: z
+          .object({ channel: Channel, tasks: z.array(z.object({ key: z.string(), text: Text, needs: z.array(z.string()).optional() })).min(1).max(20) })
+          .optional()
+          .describe("the work for the new seat, made now and waiting on the hire, in a channel you may post in (eng/queue); needs names other tasks' keys"),
+        handoff: Id.optional(),
+      }),
+      replay: 'unsafe',
+      approval: 'never',
+      run: (input) =>
+        answer(async () => {
+          const asked = 'org/seats/' + input.key
+          const exists = await board().docs.at(asked).then(() => true, () => false)
+          if (exists) throw new Error(asked + ' exists: that seat is hired already; assign the work to worker:workbus-app+' + input.key)
+          // One open hire per seat, and per role: a second request reuses the open one, whatever key it was given.
+          let proposal = (await openProposal('org/seats', 'new:' + asked)) ?? (await openHire(input.template))
+          const reused = proposal !== null
+          let path = asked
+          if (proposal) {
+            const { message } = (await board().read(proposal, { limit: 1 })) as { message: { labels: Record<string, string> } }
+            path = String(message.labels['board.doc.proposal'] ?? 'new:' + asked).slice(4)
+          } else {
+            const template = (await board().docs.at('org/templates/' + input.template).catch(() => null)) as { body: string } | null
+            if (!template) throw new Error('no template org/templates/' + input.template + ': the templates are the docs in org/templates')
+            const fence = /(\`\`\`json#seat@\d+[^\n]*\n)([\s\S]*?)(\n\`\`\`)/
+            const found = fence.exec(template.body)
+            if (!found) throw new Error('org/templates/' + input.template + ' has no seat block')
+            const block = JSON.parse(found[2]!) as Record<string, any>
+            const ceiling = block.budget?.month
+            if (input.budget !== undefined && typeof ceiling === 'number' && input.budget > ceiling)
+              throw new Error("a hire's budget is the template's ($" + ceiling + ') or less; propose at $' + ceiling + ' and say in the note why it needs more')
+            const { role, name: _name, handle: _handle, ...rest } = block
+            const ordered = { role, name: input.name, handle: input.key, ...rest, ...(input.budget !== undefined ? { budget: { ...(block.budget ?? {}), month: input.budget } } : {}) }
+            const body = template.body
+              .replace(fence, (_all, open: string, _old: string, close: string) => open + JSON.stringify(ordered, null, 2) + close)
+              .replace(/^# .*$/m, '# ' + input.name)
+              .replace(/\{\{name\}\}/g, input.name)
+              .replace(/\n## Hiring from this template[\s\S]*$/, '\n')
+            const made = (await board().docs.create({ channel: 'org/seats', slug: input.key, body, propose: true, ...(input.note ? { note: input.note } : {}) })) as { proposal: { id: string } }
+            // The proposal is part of the request it came from: labeled after, as a proposal's task can't be labeled by its write.
+            await stampAfter(made.proposal)
+            proposal = made.proposal.id
+          }
+          const actor = 'worker:workbus-app+' + path.slice('org/seats/'.length)
+          // The work waits on the hire: for the new seat, needing the proposal. Made once: work already waiting on it stays as it is.
+          let tasks: string[] = []
+          if (input.work) {
+            const { tasks: waiting } = (await board().tasks.list({ needs: proposal, state: 'open', limit: 50 })) as { tasks: { message: { id: string } }[] }
+            tasks = waiting.map((one) => one.message.id)
+            if (tasks.length === 0) {
+              const work = input.work.tasks
+              try {
+                const made = (await stamped((labels) => board().tasks.createMany(
+                  input.work!.channel,
+                  work.map((t: { key: string; text: string; needs?: string[] }) => ({ key: t.key, text: t.text, for: actor, labels: { ...labels, ...(input.handoff ? { [HANDOFF]: input.handoff } : {}) }, needs: [proposal, ...(t.needs ?? []).map((need) => (work.some((o: { key: string }) => o.key === need) ? { key: need } : need))] })),
+                ))) as { tasks: { id: string }[] }
+                tasks = made.tasks.map((one) => one.id)
+              } catch (error) {
+                // A hire with no work to wait on it isn't what was asked: a proposal made now is withdrawn, and the error says why.
+                if (!reused) await board().tasks.cancel(proposal, "Withdrawn: its work couldn't be made (" + (error instanceof Error ? error.message : String(error)) + ').').catch(() => undefined)
+                throw new Error("the work couldn't be made in " + input.work.channel + ': ' + (error instanceof Error ? error.message : String(error)) + (reused ? '' : '; the hire proposal was withdrawn too. Put the work in a channel you may post in, such as eng/queue, and call hire_propose again.'))
+              }
+            }
+          }
+          const result = { proposal, path, reused, tasks, waitingFor: actor, ...(reused ? { note: 'An open hire proposal, #' + proposal + ', for ' + path + ' was reused: nothing new was proposed.' } : {}) }
+          if (!input.handoff) return result
+          const said = 'Turned into a hire proposal, #' + proposal + ' (' + path + ')' + (tasks.length ? ', and ' + tasks.map((id) => '#' + id).join(', ') + ', waiting on it, for ' + actor : '') + '.'
+          return { ...result, handoff: { id: input.handoff, state: await closeHandoff(input.handoff, said) } }
         }),
     },
     {
@@ -355,6 +474,12 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       approval: 'never',
       run: ({ id, ...input }) =>
         answer(async () => {
+          if (!input.propose) delete input.note
+          if (input.propose) {
+            const { doc } = (await board().docs.read(id)) as { doc: { id: string; path: string } }
+            const open = await openProposal(doc.path.slice(0, doc.path.lastIndexOf('/')), doc.id)
+            if (open) throw new Error(proposedAlready(open, doc.path))
+          }
           const made = await board().docs.edit(id, input)
           if (input.propose) await stampAfter((made as { proposal?: unknown })?.proposal)
           return made

@@ -4,7 +4,7 @@
 // delivery once however often it comes, and (with "dm") a DM to @op wakes the operator, which
 // makes two tasks for the engineer, the second needing the first, and the engineer wakes.
 //   pnpm dev:bus & pnpm dev   (the bus's org set up: node scripts/org-setup.ts <board url> <owner token>)
-//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire,watchdog]
+//   TOKEN=<owner token> node scripts/org-live-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [boot,edit,bad,dedupe,dm,run,docwake,budget,hire,watchdog,sequence]
 // Only "dm" and "run" call a model (Haiku): dm the operator's and the engineer's first turns, run the
 // whole of the phase-2 run, approval and all.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'boot,edit,bad,dedupe'] = process.argv.slice(2)
@@ -426,6 +426,59 @@ if (pick.has('watchdog')) {
     // On a board younger than a day, every run is in the day: its runs and day's spend are the month's (not only the last 20 runs).
     check(Boolean(row && row.startsWith('| ' + key + ' | ' + statuses[key].state + ' | ' + statuses[key].spend.runs + ' | $' + statuses[key].spend.cost.toFixed(4) + ' |')), 'and its runs and spend in the day, all of them', { row, runs: statuses[key].spend.runs })
   }
+}
+
+// The operator sequences a hire (design/workbus.md §5.7, §5.8): work that needs a new seat waits on
+// the hire's proposal, for the new seat, and no other seat takes it; the handoff that brought it is
+// completed, naming what it became; a second request never doubles the proposal; applying it lets the
+// new seat do the work; declining it cancels the work, and the operator asks how to proceed. Haiku:
+// the operator's turns, the new seat's introduction and its task.
+if (pick.has('sequence')) {
+  const OP = 'worker:workbus-app+op'
+  const since = Date.now() - 1000
+  const proposals = async (prefix) => (await board('GET', '/tasks?channel=org/seats&state=all&limit=100')).tasks.map((entry) => entry.message).filter((message) => (message.labels['board.doc.proposal'] ?? '').startsWith('new:org/seats/') && Date.parse(message.createdAt) >= since && (!prefix || message.text.includes(prefix)))
+  const openProposals = async () => (await proposals()).filter((message) => ['waiting', 'ready', 'claimed', 'blocked'].includes(message.task.state))
+  const opTasks = async () => (await board('GET', '/tasks?state=all&limit=200')).tasks.map((entry) => entry.message).filter((message) => message.by.actor === OP && Date.parse(message.createdAt) >= since)
+  // A handoff, as the advisor passes one on.
+  const handoff = (await board('POST', '/tasks', { channel: 'ops/plans', text: 'Hand-off: we need a writer (a new seat; no one on the team writes docs) to write a two-line release note for "budgets and pauses" (seats hold a task for the principal at their budget alert and limit, and can be paused and resumed) as a doc in docs/notes. Hire one for it, and give the note to the new writer.', for: OP })).task
+  const first = await until(async () => (await openProposals())[0] ?? null, 120000)
+  const path = first?.labels['board.doc.proposal'].slice(4)
+  const key = path?.split('/').pop()
+  const actor = 'worker:workbus-app+' + key
+  check(Boolean(first && first.by.actor === OP), 'op proposes the hire', first && { id: first.id, path })
+  const waiting = await until(async () => { const { tasks } = await board('GET', '/tasks?needs=' + first.id + '&state=open&limit=50'); return tasks.length ? tasks.map((entry) => entry.message) : null }, 30000)
+  check(Boolean(waiting && waiting.every((message) => message.task.state === 'waiting' && message.task.for === actor)), 'the work waits on the proposal, for the new seat', waiting?.map((message) => ({ id: message.id, state: message.task.state, for: message.task.for })))
+  const others = (await opTasks()).filter((message) => message.task.for && message.task.for !== actor && !(message.labels['board.doc.proposal']))
+  check(others.length === 0, 'and no other seat is given the work meanwhile', others.map((message) => ({ id: message.id, for: message.task.for, text: message.text.slice(0, 60) })))
+  const busy = (await opTasks()).filter((message) => /\b(confirm|check|verify|look up)\b/i.test(message.text.split('\n')[0]) && !(message.labels['board.doc.proposal']))
+  check(busy.length === 0, 'and no busywork task to check or confirm', busy.map((message) => message.text.slice(0, 80)))
+  const closed = await until(async () => { const one = (await board('GET', '/messages/' + handoff.id)).message.task; return one.state === 'completed' ? one : null }, 30000)
+  check(Boolean(closed && closed.result.includes('#' + first?.id)), 'the handoff is completed, naming the proposal and the tasks', closed?.result)
+  // A second request for the same: no second proposal.
+  await board('POST', '/messages', { channel: 'dm/op', text: 'Please propose hiring a writer for the budgets-and-pauses release note (hire_propose), in case it was missed.' })
+  await sleep(45000)
+  const open = await openProposals()
+  check(open.length === 1 && open[0].id === first.id, 'a second request reuses the open proposal: one proposal', open.map((message) => message.id))
+  // Applied: the new seat takes up its work.
+  const doneAt = Date.now()
+  await board('POST', '/tasks/' + first.id + '/complete', {})
+  const done = await until(async () => { const { tasks } = await board('GET', '/tasks?needs=' + first.id + '&state=all&limit=50'); const all = tasks.map((entry) => entry.message); return all.length && all.every((message) => message.task.state === 'completed') ? all : null }, 240000, 3000)
+  check(Boolean(done), 'applied, the new seat does the work that waited', done?.map((message) => ({ id: message.id, result: message.task.result })))
+  const notes = (await board('GET', '/threads?channel=docs/notes&limit=20')).threads.map((one) => one.message).filter((message) => message.doc && message.by.actor === actor)
+  check(notes.length >= 1, 'its note is a doc in docs/notes, by it', notes.map((message) => message.doc.path))
+  const reported = await until(async () => (await board('GET', '/messages/' + handoff.id)).replies.find((message) => message.by.actor === OP && Date.parse(message.createdAt) >= doneAt), 120000)
+  check(Boolean(reported && /^Done: the work this handed off is finished/.test(reported.text) && reported.text.includes('#' + done?.[0]?.id)), "and op says the work is done, in the handoff's thread, once", reported?.text)
+  // Declined: a second hire, dropped by the principal.
+  await board('POST', '/messages', { channel: 'dm/op', text: 'We need a QA engineer (a new seat) to write a one-page test plan for budgets and pauses as a doc in docs/notes. Hire one for it.' })
+  const second = await until(async () => (await openProposals()).find((message) => message.id !== first.id) ?? null, 120000)
+  check(Boolean(second), 'a second hire is proposed', second && { id: second.id, path: second.labels['board.doc.proposal'] })
+  const waits = second ? (await board('GET', '/tasks?needs=' + second.id + '&state=open&limit=50')).tasks.map((entry) => entry.message.id) : []
+  if (second) await board('POST', '/tasks/' + second.id + '/cancel', { reason: 'Not now: no QA hire this month.' })
+  const stopped = await until(async () => { if (!waits.length) return true; const states = await Promise.all(waits.map(async (id) => (await board('GET', '/messages/' + id)).message.task.state)); return states.every((state) => state === 'canceled') ? states : null }, 30000)
+  check(waits.length > 0 && Boolean(stopped), "declining it cancels the work that waited on it", { waits, stopped })
+  const asked = await until(async () => (await status('op')).wakes.find((wake) => wake.id.startsWith('notice:declined:') && wake.thread === second?.id && wake.state === 'done'), 90000)
+  const reply = second ? (await board('GET', '/messages/' + second.id)).replies.find((message) => message.by.actor === OP) : null
+  check(Boolean(asked && reply), 'and op hears of it once and asks how to proceed', { notice: asked?.id, reply: reply?.text })
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')

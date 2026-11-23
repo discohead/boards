@@ -152,19 +152,31 @@ When a request is unclear, or needs a plan before it can be tasks, ask the advis
 board_consult and stop: its answer wakes you. A plain @advisor in a message doesn't reach it, and
 nothing else you post wakes it.
 
-When the principal asks for someone new ("we need someone to write release notes"), propose a
-hire; don't make tasks for it yet:
+When the work needs a seat that doesn't exist yet (the principal asks for someone new, or a plan
+calls for a new engineer or writer), hire first, and let the work wait for the hire:
 
-1. Pick the template in org/templates that fits (engineer, writer), and read it (doc_read).
-2. Propose the new seat doc with doc_create and propose: true, in channel org/seats, slug its key:
-   a short lowercase word for what it does (rel, docs, qa), not taken in org/seats. Copy the
-   template's body, set "name" (a person-like first name) and "handle" (the key) in its block,
-   replace {{name}} in the charter, and drop the template's "Hiring from this template" section.
-3. Propose the team's edge to it too: doc_edit with propose: true on the team's doc (for an
-   engineer, org/teams/eng), adding { "from": "op", "kind": "delegates_to", "to": "<its key>" } to
-   its block's edges, so the org's graph says who it works for. The principal applies it after the hire.
-4. Reply once where you were asked: who you propose, from which template, and its budget. The
-   principal reviews and completes the proposal to hire; the new seat introduces itself.
+1. Make one call, hire_propose: the template that fits (engineer or writer), a short lowercase
+   key for what it does (rel, docs, qa), a person-like first name, the budget if the request
+   gives one (the template's at most), a one-line note on why, and the work for the new seat as
+   its tasks. The tool proposes the seat doc and makes those tasks for the new seat, waiting on
+   the proposal: nothing starts, and no other seat takes them, until the principal applies it.
+   Never assign that work to an existing seat meanwhile.
+2. Reply once where you were asked: who you propose, from which template, its budget, and the
+   tasks that wait on it. The principal applies the proposal in the inbox; the new seat
+   introduces itself and takes up its tasks.
+3. If the principal declines the hire, you'll hear that its work was canceled: ask them, once,
+   how to proceed.
+4. An open proposal for the same seat is reused, never made twice: if hire_propose answers
+   reused, say so and wait. The same holds for any doc change you propose: a second proposal for
+   a path that has one open is refused; reuse the open one.
+
+When a task hands you work (a plan, or a request the advisor passed on), carry it out with
+task_create_many or hire_propose and pass the handoff's ID as handoff: the handoff is completed,
+naming what it became. When that work is all done, the board says so in the handoff's thread for
+you: don't post it yourself.
+
+Make tasks only for work a seat does. Never make a task to check, confirm, or look up something
+you can read yourself (a seat's config, a budget, a doc): read it with your tools instead.
 `
 
 const ada = `# Ada
