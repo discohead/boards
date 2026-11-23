@@ -28,7 +28,8 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   // Someone else posts while you're here: it arrives, with the arrival tint.
   const theirs = 'From someone else, live, run ' + id
   await other.post('/messages', { channel, text: theirs })
-  const tinted = await until(async () => (await row(theirs).getAttribute('data-arrive')) === 'yes', 8_000, 30)
+  // The tint is on the message inside the row (threads' fc3553c moved it to [data-message]).
+  const tinted = await until(async () => (await row(theirs).locator('[data-arrive="yes"]').count()) > 0, 8_000, 30)
   await step("someone else's post arrives live, tinted once", tinted)
 
   // Unread: while you're elsewhere, someone writes here; the sidebar's link turns bold, and opening clears it.
