@@ -29,14 +29,21 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
   const doc = made.message.id
   const key = (tail) => 'check-' + id + '/steps' + (tail ? '/' + tail : '')
 
-  await page.goto(base + '/docs/' + doc)
-  const view = page.getByTestId('doc')
-  await view.waitFor({ timeout: 30_000 }).catch(() => {})
-  await must('a doc opens on its page', await view.isVisible(), { doc })
+  // The docs list: the doc is there, under its folder's chip; it opens in the pane, on its Document face.
+  await page.goto(base + '/docs')
+  const row = page.locator('[data-testid=doc-list] li[data-id="' + doc + '"]')
+  await must('the docs list shows a new doc, by its path and revision', await until(() => row.isVisible(), 15_000), await row.innerText().catch(() => ''))
+  await page.getByRole('group', { name: 'Filter' }).getByRole('button', { name: 'checks/' }).click()
+  await step("the folder chip keeps it", await row.isVisible())
+  await row.locator('button').click()
+  const pane = page.getByTestId('thread-pane')
+  const view = pane.getByTestId('doc')
+  await view.waitFor({ timeout: 20_000 }).catch(() => {})
+  await must('it opens in the thread pane, on its Document face', (await view.isVisible()) && page.url().includes('thread=' + doc) && page.url().includes('face=doc'), page.url())
   const item = page.locator('[role=treeitem][aria-selected=true]')
-  await step('the tree opens to it, under checks/docs', (await item.getAttribute('data-path')) === 'checks/docs/check-' + id, await item.getAttribute('data-path'))
+  await step("the sidebar's tree marks it, under checks/docs", (await item.getAttribute('data-path').catch(() => null)) === 'checks/docs/check-' + id, await item.getAttribute('data-path').catch(() => null))
 
-  const sections = await page.locator('[data-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-section')))
+  const sections = await pane.locator('[data-section]').evaluateAll((els) => els.map((el) => el.getAttribute('data-section')))
   await step('its body shows by section, with the board\'s keys', [key(), key('canary'), key('rollback')].every((k) => sections.includes(k)), sections)
   await step('code is highlighted', (await view.locator('pre.tm-code .th-token').count()) > 0)
   await step('a [[path]] to no doc is marked missing', (await view.locator('.doc-link--missing').count()) === 1)
@@ -44,7 +51,7 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
   // A section edit: at once (the revision hasn't moved), then settled (it has, and the board has the text).
   const revision = () => view.getAttribute('data-revision')
   const r0 = await revision()
-  const canary = page.locator('[data-section="' + key('canary') + '"]')
+  const canary = pane.locator('[data-section="' + key('canary') + '"]')
   await canary.hover()
   await canary.getByRole('button', { name: 'Edit Canary' }).click()
   const mine = 'Watch the error rate for fifteen minutes (' + id + ').'
@@ -56,7 +63,7 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
   await must('and settles: the board has it, at a newer revision', moved && read.section?.text.includes(mine), { r0, r1: await revision() })
 
   // A conflict: the editor is open on Rollback when someone changes Rollback first.
-  const rollback = page.locator('[data-section="' + key('rollback') + '"]')
+  const rollback = pane.locator('[data-section="' + key('rollback') + '"]')
   await rollback.hover()
   await rollback.getByRole('button', { name: 'Edit Rollback' }).click()
   const draft = 'Roll back, then post in #deploys (' + id + ', mine).'
@@ -89,8 +96,8 @@ export async function run({ page, base, owner, other, run: id, must, step }) {
   await step("another actor's comment arrives live", live)
 
   // History: an edit and its diff.
-  await page.getByRole('button', { name: 'History' }).click()
-  await page.locator('[data-testid=doc-history] li button:not([disabled])').first().click()
-  const diff = await until(async () => (await page.locator('[data-testid=doc-diff] pre div').count()) > 0)
+  await pane.getByRole('button', { name: 'History' }).click()
+  await pane.locator('[data-testid=doc-history] li button:not([disabled])').first().click()
+  const diff = await until(async () => (await pane.locator('[data-testid=doc-diff] pre div').count()) > 0)
   await step('history shows an edit and its diff', diff)
 }

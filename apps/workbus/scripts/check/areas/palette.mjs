@@ -7,7 +7,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   const doc = (await owner.post('/docs', { channel: 'checks/docs', slug: 'palette-' + id, body: '# Palette ' + id + '\n\nFound by the palette.\n' })).message
   const found = (await other.post('/messages', { channel, text: 'Is the palette search current? ' + id })).message
   await page.goto(base + '/')
-  await page.getByRole('navigation', { name: 'Workbus' }).waitFor({ timeout: 30_000 })
+  await page.getByTestId('sidebar').waitFor({ timeout: 30_000 })
   const palette = page.getByTestId('palette')
   // ⌘K, again until it opens: the shortcut is registered once the page has hydrated.
   const open = async () => {
@@ -19,6 +19,14 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
     }, 15_000, 0)
   }
 
+  // The sidebar's "Search or ask" opens it too.
+  await until(async () => {
+    await page.getByTestId('sidebar').getByRole('button', { name: /Search or ask/ }).click()
+    return palette.isVisible()
+  }, 10_000, 300)
+  await step('the sidebar\'s "Search or ask" opens the palette', await palette.isVisible())
+  await page.keyboard.press('Escape')
+
   // From a text field: a Mod chord fires while typing.
   const field = page.locator('input, textarea').first()
   if (await field.count()) await field.focus()
@@ -29,7 +37,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   const docItem = page.locator('[cmdk-item]', { hasText: 'checks/docs/palette-' + id }).first()
   await step('typing finds a doc', await until(() => docItem.isVisible(), 5_000))
   await docItem.click()
-  await step('choosing it opens the doc', await until(() => page.url().includes('/docs/' + doc.id), 5_000), page.url())
+  await step('choosing it opens the doc, in the pane', await until(() => page.url().includes('thread=' + doc.id) && page.url().includes('face=doc'), 5_000), page.url())
 
   await open()
   // The board's text filter matches a run of text: this run's question, by its tail.
