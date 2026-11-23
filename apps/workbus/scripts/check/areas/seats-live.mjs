@@ -34,15 +34,25 @@ export async function run({ page, base, owner, run: id, step, must }) {
   // One live run: the principal asks the operator, the operator gives Ada a task, Ada's exec is held.
   const holdsBefore = new Set(before.holds.map((hold) => hold.task))
   const asked = (await owner.post('/messages', { channel: 'dm/op', text: 'Make one task in eng/queue for @ada: run one exec whose module returns the string ' + id + ' (export default () => "' + id + '"), then complete the task with what it returned. Nothing else.' })).message.id
+  // Ada's states as her Seat reports them (GET /api/seats/ada through the browser context's own
+  // request client, which a navigation doesn't hold up), every 250 ms, and as the sidebar shows them.
   const states = []
-  const watch = setInterval(async () => {
-    const shown = await seatRow('ada').getAttribute('data-state').catch(() => null)
-    if (shown && states.at(-1) !== shown) states.push(shown)
-  }, 250)
+  const shown = []
+  let sampling = true
+  const sample = (async () => {
+    while (sampling) {
+      const state = await page.context().request.get(base + '/api/seats/ada', { timeout: 2_000 }).then((answer) => answer.json()).then((body) => body.state).catch(() => null)
+      if (state && states.at(-1) !== state) states.push(state)
+      const dom = await seatRow('ada').getAttribute('data-state', { timeout: 200 }).catch(() => null)
+      if (dom && shown.at(-1) !== dom) shown.push(dom)
+      await new Promise((resolve) => setTimeout(resolve, 250))
+    }
+  })()
+  const watch = { stop: async () => ((sampling = false), await sample) }
   try {
     let hold = null
     await must('Ada\'s exec is held for approval', await until(async () => (hold = (await status('ada')).holds.find((one) => one.state === 'held' && !holdsBefore.has(one.task))), 240_000, 2_000), { asked })
-    await step('her state shows waiting', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 15_000), states)
+    await step('her state shows waiting', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'waiting', 15_000), { seat: states, sidebar: shown })
     await page.goto(base + '/')
     await hydrated(page)
     const item = page.locator('[data-testid=inbox] [data-item="' + hold.task + '"]')
@@ -64,15 +74,18 @@ export async function run({ page, base, owner, run: id, step, must }) {
       return (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task?.state === 'completed'
     }, 240_000, 2_000)
     await step('her work completes', done, { task: (await owner.get('/messages/' + hold.thread + '?limit=1')).message.task, moreApprovals: extra })
-    await step('and she is active again', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 60_000), states)
-    await step('her state went waiting, then working, then active', states.join(' ').includes('waiting') && states.indexOf('working', states.lastIndexOf('waiting')) > 0 && states.at(-1) === 'active', states)
+    await step('and she is active again', await until(async () => (await seatRow('ada').getAttribute('data-state')) === 'active', 60_000), { seat: states, sidebar: shown })
+    // Her Seat's own sequence, sampled every 250 ms; the sidebar polls every 4 s, so it can miss a short working.
+    await watch.stop()
+    const from = states.lastIndexOf('waiting')
+    await step('her Seat went waiting, then working, then active', from >= 0 && states.indexOf('working', from) > from && states.at(-1) === 'active', { seat: states, sidebar: shown })
     const after = await status('ada')
     await seatRow('ada').click()
     await until(() => seat.isVisible(), 10_000)
     await step('her page lists the new runs', after.runs.length > before.runs.length && (await until(async () => (await rows.count()) === after.runs.length)), { before: before.runs.length, after: after.runs.length })
     await step('and her spend went up by their cost', (after.spend?.cost ?? 0) > (before.spend?.cost ?? 0) && (await until(async () => Math.abs(Number(await page.getByTestId('spend').getAttribute('data-cost')) - after.spend.cost) < 1e-9)), { before: before.spend?.cost, after: after.spend?.cost })
   } finally {
-    clearInterval(watch)
+    await watch.stop()
   }
   // Nothing this run made is left ready.
   const made = async () => (await owner.get('/tasks?channel=eng/&state=open&limit=200')).tasks.map((row) => row.message).filter((message) => Number(message.id) > Number(asked))
