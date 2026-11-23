@@ -75,6 +75,27 @@ export type BoardToolsOptions = {
   beforeComplete?: (task: string) => Promise<unknown>
   /** An escalation to a seat: held by the Seat as the app, so the seat it's for can answer it (a hold by a seat's claim is the principal's alone). */
   escalate?: (task: string, reason: string, kind?: string) => Promise<unknown>
+  /** The principal's request the running operation belongs to: every message, task, doc, and proposal it makes carries it as org.request. */
+  request?: () => string | null
+  /** Labels a message with a request as the app, for what the seat makes where it may post but not label (a proposal in org/). */
+  stamp?: (id: string, request: string) => Promise<unknown>
+}
+
+/** The label of the principal's request a seat's writes belong to (seats/seat.ts requestOf). */
+export const REQUEST = 'org.request'
+
+/** Every message or task ID in a write's answer: what it made, to label. */
+function madeIds(value: unknown): string[] {
+  const out = new Set<string>()
+  const visit = (node: unknown, depth: number) => {
+    if (!node || typeof node !== 'object' || depth > 3) return
+    if (Array.isArray(node)) return node.forEach((one) => visit(one, depth + 1))
+    const record = node as Record<string, unknown>
+    if (typeof record.id === 'string' && /^\d+$/.test(record.id) && ('channel' in record || 'task' in record || 'state' in record)) out.add(record.id)
+    for (const key of ['message', 'task', 'tasks', 'proposal', 'doc']) if (key in record) visit(record[key], depth + 1)
+  }
+  visit(value, 0)
+  return [...out]
 }
 
 /** The board tools, over the seat's Board, shaped by its edges (§4.5). */
@@ -90,6 +111,33 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
     return { text: 'You may assign tasks only to ' + allowed.join(' or ') + ': set "for" to ' + (allowed.length === 1 ? 'it' : 'one of them') + ' on every task.', isError: true }
   }
   const claimed = (id: string) => board().tasks.claim({ id }, { token: claimToken() })
+  const request = () => options.request?.() ?? null
+  const stampOf = (): Record<string, string> => {
+    const id = request()
+    return id ? { [REQUEST]: id } : {}
+  }
+  /**
+   * A write that carries the request's label. Where the seat may post but not label (org/), the board
+   * refuses the label: it's made without, then labeled by the seat's Seat, as the app.
+   */
+  async function stamped<T>(write: (labels: Record<string, string>) => Promise<T>): Promise<T> {
+    const labels = stampOf()
+    if (!Object.keys(labels).length) return write({})
+    try {
+      return await write(labels)
+    } catch (error) {
+      if (!/label/i.test(String(error)) || !options.stamp) throw error
+      const made = await write({})
+      for (const id of madeIds(made)) await options.stamp(id, labels[REQUEST]!)
+      return made
+    }
+  }
+  /** Labels what a write made after it (a proposal's task, whose labels the write can't set), as the seat or else its Seat. */
+  async function stampAfter(made: unknown): Promise<void> {
+    const id = request()
+    if (!id) return
+    for (const one of madeIds(made)) await board().label(one, { set: { [REQUEST]: id } }).catch(() => options.stamp?.(one, id))
+  }
   const tools: Tool<any>[] = [
     {
       name: 'board_post',
@@ -97,7 +145,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       input: z.object({ channel: Channel, text: Text }),
       replay: 'unsafe',
       approval: 'never',
-      run: ({ channel, text }) => answer(() => board().post(channel, text)),
+      run: ({ channel, text }) => answer(() => stamped((labels) => board().post(channel, { text, labels }))),
     },
     {
       name: 'board_reply',
@@ -105,7 +153,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       input: z.object({ id: Id, text: Text }),
       replay: 'unsafe',
       approval: 'never',
-      run: ({ id, text }) => answer(() => board().reply(id, text)),
+      run: ({ id, text }) => answer(() => stamped((labels) => board().reply(id, { text, labels }))),
     },
     {
       name: 'board_read',
@@ -143,7 +191,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       input: z.object({ channel: Channel, text: Text, needs: z.array(Id).optional(), for: z.string().optional() }),
       replay: 'unsafe',
       approval: 'never',
-      run: async (input) => refused([input.for]) ?? answer(() => board().tasks.create(input)),
+      run: async (input) => refused([input.for]) ?? answer(() => stamped((labels) => board().tasks.create({ ...input, labels }))),
     },
     {
       name: 'task_create_many',
@@ -156,7 +204,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       approval: 'never',
       run: async ({ channel, tasks }) =>
         refused(tasks.map((t: { for?: string }) => t.for)) ??
-        answer(() => board().tasks.createMany(channel, tasks.map((t: { key: string; text: string; needs?: string[]; for?: string }) => ({ ...t, needs: t.needs?.map((need) => (tasks.some((o: { key: string }) => o.key === need) ? { key: need } : need)) })))),
+        answer(() => stamped((labels) => board().tasks.createMany(channel, tasks.map((t: { key: string; text: string; needs?: string[]; for?: string }) => ({ ...t, labels, needs: t.needs?.map((need) => (tasks.some((o: { key: string }) => o.key === need) ? { key: need } : need)) }))))),
     },
     {
       name: 'task_claim',
@@ -225,7 +273,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       run: async ({ to, question, re }, context) => {
         const target = seat()?.consults?.find((one) => one.key === to || one.handle === to.replace(/^@/, ''))
         if (!target) return { text: 'You consult only ' + (seat()?.consults?.map((one) => '@' + one.handle).join(', ') || 'no one') + '.', isError: true }
-        const message = { text: '@[' + target.actor + '] ' + unmention(question, target), labels: { [CONSULT]: target.key } }
+        const message = { text: '@[' + target.actor + '] ' + unmention(question, target), labels: { [CONSULT]: target.key, ...stampOf() } }
         const thread = re ?? context.thread
         const where = (await board().read(thread, { limit: 1 }).catch(() => null)) as { message?: { channel?: string } } | null
         // A DM is the seat's alone: the seat it consults couldn't read it, so the consult starts a thread where both can.
@@ -246,7 +294,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
         const consult = asked?.message?.id === id ? asked?.message : asked?.replies?.find((reply) => reply.id === id)
         const asker = me?.consultedBy?.find((one) => one.actor === consult?.by?.actor)
         if (!me || !asker) return { text: '#' + id + " isn't a consult from a seat that consults you" + (me?.consultedBy?.length ? ' (' + me.consultedBy.map((one) => '@' + one.handle).join(', ') + ')' : '') + '.', isError: true }
-        return answer(() => board().reply(id, { text: '@[' + asker.actor + '] ' + unmention(text, asker), labels: { [ANSWER]: asker.key } }))
+        return answer(() => board().reply(id, { text: '@[' + asker.actor + '] ' + unmention(text, asker), labels: { [ANSWER]: asker.key, ...stampOf() } }))
       },
     },
     {
@@ -285,7 +333,13 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       input: z.object({ channel: Channel, slug: z.string(), body: z.string(), propose: z.boolean().optional(), note: z.string().optional() }),
       replay: 'unsafe',
       approval: 'never',
-      run: (input) => answer(() => board().docs.create(input)),
+      run: (input) =>
+        answer(async () => {
+          const made = await stamped((labels) => board().docs.create({ ...input, labels }))
+          // A proposal's task is the proposal itself: it carries the request too.
+          if (input.propose) await stampAfter((made as { proposal?: unknown })?.proposal)
+          return made
+        }),
     },
     {
       name: 'doc_edit',
@@ -299,7 +353,12 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
       }),
       replay: 'unsafe',
       approval: 'never',
-      run: ({ id, ...input }) => answer(() => board().docs.edit(id, input)),
+      run: ({ id, ...input }) =>
+        answer(async () => {
+          const made = await board().docs.edit(id, input)
+          if (input.propose) await stampAfter((made as { proposal?: unknown })?.proposal)
+          return made
+        }),
     },
     {
       name: 'board_follow',

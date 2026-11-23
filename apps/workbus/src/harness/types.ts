@@ -55,7 +55,15 @@ export type SubmitOptions = {
   whenBusy?: 'followUp' | 'steer'
   /** The board task this wake-up is about, if any: the gateway's task metadata on each of its calls. */
   task?: string
+  /**
+   * The principal's request this wake-up belongs to (org.request on everything the operation makes):
+   * the label it already carries, or a person's message, which starts one (a reply in a thread
+   * whose session has one continues it). null: none (a seat's own schedule); absent: the session's.
+   */
+  request?: RequestHint | null
 }
+
+export type RequestHint = { id: string; via: 'label' | 'person'; reply: boolean }
 
 export type Receipt = { operationId: string; session: string; accepted: boolean }
 
