@@ -15,7 +15,7 @@ import { Status } from '@/thread/status'
 import { Body } from '@/thread/body'
 import { ThreadShortcuts } from '@/command/ThreadShortcuts'
 import { useAddFaces } from '@/thread/add-faces'
-import { named, summaryOf } from '@/data/text'
+import { handleOf, named, summaryOf } from '@/data/text'
 import { useActorNames } from '@/task/actors'
 import { useOpenThread } from './open-thread.ts'
 import type { Face } from '../routes/__root.tsx'
@@ -58,7 +58,7 @@ function Pane({ id }: { id: string }) {
         <div data-testid="thread-facts" className="mb-[17px] flex flex-wrap items-center gap-2 font-mono text-mono-ui text-muted-foreground">
           {shown?.state === 'held' ? <span data-held><HeldPill>Held for you</HeldPill></span> : null}
           {shown && shown.state !== 'held' ? <span data-state={shown.state}><TaskState state={shown.state} {...(shown.waitsOn?.length ? { label: 'waits on #' + shown.waitsOn.join(', #') } : shown.word !== shown.state ? { label: shown.word } : {})} muted={shown.word === 'canceled'} /></span> : null}
-          {root ? <><Avatar kind={root.author?.kind !== undefined && root.author.kind !== 'person' ? 'agent' : 'person'} initials={(root.author?.name ?? root.by.actor.replace(/^.*:/, '')).slice(0, 2).toUpperCase()} size="xs" /><span>@{root.author?.handle ?? root.by.actor.replace(/^.*:/, '')}</span></> : null}
+          {root ? <><Avatar kind={root.author?.kind !== undefined && root.author.kind !== 'person' ? 'agent' : 'person'} initials={(root.author?.name ?? handleOf(bus.actors, root.by.actor)).slice(0, 2).toUpperCase()} size="xs" /><span>@{root.author?.handle ?? handleOf(bus.actors, root.by.actor)}</span></> : null}
           {labels.map(([key, value]) => (
             <Label key={key} name={key} value={value} />
           ))}

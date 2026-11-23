@@ -2,6 +2,7 @@
 // its own and commentable, with its comments under it. A section edit shows at once and settles on
 // its echo; if someone changed that section first, the board refuses it and the view shows both
 // texts, keeping the editor's. History lists the edits, and each shows what it changed.
+import { handleOf } from '@/data/text'
 import { useEffect, useMemo, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { History, MessageSquare, Pencil } from 'lucide-react'
@@ -217,9 +218,9 @@ function Comment({ comment, detached = false }: { comment: Message; detached?: b
   return (
     <div className={cn('mb-3 text-ui', comment.pending && 'opacity-60')} data-testid="comment" data-pending={comment.pending ? 'yes' : undefined}>
       <p className="flex items-center gap-2 text-small text-muted-foreground">
-        <Avatar size="xs" kind={author && author.kind !== 'person' ? 'agent' : 'person'} initials={(author?.name ?? comment.by.actor.replace(/^.*:/, '')).slice(0, 2).toUpperCase()} />
+        <Avatar size="xs" kind={author && author.kind !== 'person' ? 'agent' : 'person'} initials={(author?.name ?? handleOf(bus.actors, comment.by.actor)).slice(0, 2).toUpperCase()} />
         <span className="font-medium text-foreground">{author?.name ?? comment.by.actor}</span>
-        <span className="font-mono">@{author?.handle ?? comment.by.actor.replace(/^.*:/, '')}</span>
+        <span className="font-mono">@{author?.handle ?? handleOf(bus.actors, comment.by.actor)}</span>
         <span className="ml-auto font-mono">{comment.pending ? 'sending…' : new Date(comment.createdAt).toLocaleTimeString([], { hour12: false }) + ' · #' + comment.id}</span>
         {detached && <> · on “{comment.labels['board.doc.section']}”</>}
       </p>
