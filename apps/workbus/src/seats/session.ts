@@ -15,6 +15,7 @@ import { boardTools, seatBoard } from '../harness/board.ts'
 import type { PiTool } from '@cloudflare/computer/tools/pi-ai'
 
 import { computerTools, type WorkspaceStub } from '../harness/computer.ts'
+import { webTools } from '../harness/web.ts'
 import { Approval, compile, gate, gatewayLog, meter, systemPrompt, type Hold } from '../harness/pi.ts'
 import type { Outcome, Receipt, SeatRef, SessionEvent, SubmitOptions, Tool, ToolAnswer, TranscriptMessage, Turn, Usage } from '../harness/types.ts'
 
@@ -122,6 +123,7 @@ export class Session extends Agent<Env> {
         }),
       )
     if (seat.tools.includes('computer') && this.#declared) tools.push(...computerTools(this.#declared, this.#workspace(seat)))
+    if (seat.tools.includes('web')) tools.push(...webTools({ seat: seat.key, egress: this.ctx.exports.Egress({ props: { seat: seat.key, mode: 'web' } }), ai: this.env.AI, browser: this.env.BROWSER as never, gateway: GATEWAY }))
     return tools
   }
 

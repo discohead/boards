@@ -3,8 +3,8 @@
 // sessions, its tools, and its run records see only these types; pi.ts maps them onto Pi.
 import type { z } from 'zod'
 
-/** The tool tiers a seat doc grants (§5.4). Phase 2 builds board and computer. */
-export type ToolTier = 'board' | 'computer'
+/** The tool tiers a seat doc grants (§5.4). Phase 2 builds board and computer; phase 3, web. */
+export type ToolTier = 'board' | 'computer' | 'web'
 
 /** A seat, as a session needs it: who it is, what it may do, and what its prompt is made of. */
 export type SeatRef = {

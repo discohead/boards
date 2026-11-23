@@ -1,6 +1,8 @@
 // The app Worker's entry: Start's handler behind an Access check, and the app's Durable Objects
 // and entrypoints as named exports (design/workbus.md §9.1, §10.1): Seat and Session, the seats'
 // runtime, and Wake, the bus's sink for their wakes and the reconciler's.
+import type { EgressMode } from './egress/policy.ts'
+import { webTools } from './harness/web.ts'
 import handler from '@tanstack/react-start/server-entry'
 import { getAgentByName } from 'agents'
 
@@ -15,6 +17,7 @@ export { Seat } from './seats/seat.ts'
 export { Session } from './seats/session.ts'
 export { SeatWorkspace } from './seats/workspace.ts'
 export { Wake } from './seats/wake.ts'
+export { Egress } from './egress/egress.ts'
 
 /** Once per isolate: the org seeded, the reconciler's wake set, and a first pass (org/boot.ts). */
 let booting: Promise<unknown> | null = null
@@ -36,6 +39,8 @@ export default {
     // The dev doors don't boot, so a check sees what the reconciler's wake does on its own.
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/session') return devSession(request, env)
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/seat') return devSeat(request, env)
+    if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/egress') return devEgress(request, ctx)
+    if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/web') return devWeb(request, env, ctx)
     ctx.waitUntil(bootOnce(env))
     const seat = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})$/.exec(new URL(request.url).pathname)?.[1]
     if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
@@ -71,6 +76,25 @@ async function resendRuns(env: Env, key: string, since: string | null): Promise<
   const stub = env.SEAT.getByName(key) as unknown as { status(): Promise<{ runtime: unknown }>; resendRuns(since?: string): Promise<{ marked: number; sent: number }> }
   if (!(await stub.status()).runtime) return Response.json({ error: 'no seat ' + key }, { status: 404 })
   return Response.json(await stub.resendRuns(since ?? undefined))
+}
+
+/** vite dev only: one request through the egress, as a seat would send it. POST { seat, mode, url, method?, headers? }. */
+async function devEgress(request: Request, ctx: ExecutionContext): Promise<Response> {
+  const { seat, mode, url, method = 'GET', headers = {} } = (await request.json()) as { seat: string; mode: EgressMode; url: string; method?: string; headers?: Record<string, string> }
+  const response = await ctx.exports.Egress({ props: { seat, mode } }).fetch(url, { method, headers, redirect: 'manual' })
+  const body = await response.text()
+  return Response.json({ status: response.status, location: response.headers.get('location'), refused: response.headers.get('x-workbus-egress') === 'refused', body: body.slice(0, 300), bytes: body.length })
+}
+
+/** vite dev only: a web tool's call, as a seat's session runs it. POST { seat, tool: 'web_fetch' | 'web_search', input }. */
+async function devWeb(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  const { seat, tool, input } = (await request.json()) as { seat: string; tool: string; input: unknown }
+  const tools = webTools({ seat, egress: ctx.exports.Egress({ props: { seat, mode: 'web' } }), ai: env.AI, browser: env.BROWSER as never, gateway: 'workbus' })
+  const found = tools.find((candidate) => candidate.name === tool)
+  if (!found) return Response.json({ error: 'no tool ' + tool }, { status: 404 })
+  const started = Date.now()
+  const result = await found.run(found.input.parse(input), { seat: { key: seat } as never, thread: 'dev', callId: 'dev-' + crypto.randomUUID(), signal: AbortSignal.timeout(60_000) })
+  return Response.json({ ms: Date.now() - started, ...result })
 }
 
 /** vite dev only: a Seat's methods, a boot, or a reconcile pass, for checks. POST { seat, call: 'status', args }, or { call: 'boot' | 'reconcile' }. */

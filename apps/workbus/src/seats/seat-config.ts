@@ -6,7 +6,7 @@ import type { SchemaError } from '@/org/schema-check'
 export const PERMISSIONS = ['read', 'post', 'react', 'label', 'edit', 'sync', 'manage'] as const
 export type Permission = (typeof PERMISSIONS)[number]
 /** The tools a seat doc may name today (org/rules.ts TOOLS). */
-export const KNOWN_TOOLS = ['board', 'computer']
+export const KNOWN_TOOLS = ['board', 'computer', 'web']
 /** 'owned' (the state changes of tasks the seat made, #20) is seat@2's: a block that uses it is written as a seat@2. */
 export const SIMPLE_WAKES = ['mention', 'follow', 'assigned', 'owned', 'dm', 'schedules'] as const
 export const WAKE_KINDS = [...SIMPLE_WAKES, 'ready', 'docs', 'tail', 'dm-all'] as const
