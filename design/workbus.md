@@ -505,6 +505,7 @@ The Ops views (§9.3) and the seats' tools read the same data: `telemetry.sql` (
   - Intent (alpha), which ships agent skills inside npm packages, is a candidate for how `workbus` gives agents its skills.
 - **TanStack AI,** for two jobs (§9.4).
 - **Components:** shadcn/ui, styled with Tailwind, over the TanStack libraries. They're headless, so shadcn/ui draws the tables, forms, and lists they drive.
+- **The design system:** the Workbus design system in `design/system/` (its README, tokens, and components) sets the look; the app's port is in `apps/workbus/src/components/system`.
 
 ### 9.2 Data
 

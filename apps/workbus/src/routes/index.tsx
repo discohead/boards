@@ -2,7 +2,7 @@
 // WORKBUS binding in a server function. The views come in step 4 (design/workbus.md §9.3).
 import { createFileRoute } from '@tanstack/react-router'
 import { createServerFn } from '@tanstack/react-start'
-import { Button } from '@/components/ui/button'
+import { Button, Lockup, SidebarItem } from '@/components/system'
 import { bus } from '@/bus'
 
 const whoami = createServerFn().handler(async () => {
@@ -21,21 +21,21 @@ function Shell() {
   const board = Route.useLoaderData()
   return (
     <div className="flex min-h-svh">
-      <nav className="w-56 shrink-0 border-r bg-sidebar p-3 text-sm">
-        <div className="mb-4 px-2 font-semibold">Workbus</div>
+      <nav className="flex w-sidebar shrink-0 flex-col gap-px border-r border-line bg-sidebar p-2">
+        <div className="px-2 pt-1 pb-3">
+          <Lockup />
+        </div>
         {PLACES.map((place) => (
-          <div key={place} className="rounded-md px-2 py-1.5 text-muted-foreground">
-            {place}
-          </div>
+          <SidebarItem key={place}>{place}</SidebarItem>
         ))}
       </nav>
       <main className="flex-1 p-8">
-        <h1 className="text-xl font-semibold">The shell</h1>
-        <p className="mt-2 max-w-prose text-muted-foreground">Channels, threads, tasks, docs, and the inbox land here next.</p>
-        <pre data-testid="bus" className="mt-6 max-w-2xl overflow-auto rounded-md border bg-muted p-4 text-xs">
+        <h1 className="text-title-xl text-text">The shell</h1>
+        <p className="mt-2 max-w-prose text-doc text-body">Channels, threads, tasks, docs, and the inbox land here next.</p>
+        <pre data-testid="bus" className="mt-6 max-w-2xl overflow-auto rounded-md border border-line bg-raised p-4 font-mono text-code">
           {board.ok ? board.me : 'the bus: ' + board.error}
         </pre>
-        <Button className="mt-6" onClick={() => location.reload()}>
+        <Button variant="primary" className="mt-6" onClick={() => location.reload()}>
           Reload
         </Button>
       </main>
