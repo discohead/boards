@@ -39,6 +39,8 @@ export default {
     ctx.waitUntil(bootOnce(env))
     const seat = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})$/.exec(new URL(request.url).pathname)?.[1]
     if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
+    const resend = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})\/runs\/resend$/.exec(new URL(request.url).pathname)?.[1]
+    if (resend && request.method === 'POST') return resendRuns(env, resend, new URL(request.url).searchParams.get('since'))
     return handler.fetch(request)
   },
 } satisfies ExportedHandler<Env>
@@ -57,6 +59,18 @@ async function seatStatus(env: Env, key: string, path: string | null): Promise<R
   const status = (await (env.SEAT.getByName(key) as unknown as { status(): Promise<{ runtime: unknown }> }).status())
   if (!status.runtime) return Response.json({ error: 'no seat ' + key }, { status: 404 })
   return Response.json(status)
+}
+
+/**
+ * POST /api/seats/<key>/runs/resend[?since=<ISO>], behind Access: the Seat sends its run records to
+ * Basin again (telemetry/totals.ts resend()), for a backfill. Idempotent in effect: Basin counts each
+ * run id once.
+ */
+async function resendRuns(env: Env, key: string, since: string | null): Promise<Response> {
+  if (since !== null && Number.isNaN(Date.parse(since))) return Response.json({ error: 'since is an ISO time' }, { status: 400 })
+  const stub = env.SEAT.getByName(key) as unknown as { status(): Promise<{ runtime: unknown }>; resendRuns(since?: string): Promise<{ marked: number; sent: number }> }
+  if (!(await stub.status()).runtime) return Response.json({ error: 'no seat ' + key }, { status: 404 })
+  return Response.json(await stub.resendRuns(since ?? undefined))
 }
 
 /** vite dev only: a Seat's methods, a boot, or a reconcile pass, for checks. POST { seat, call: 'status', args }, or { call: 'boot' | 'reconcile' }. */
