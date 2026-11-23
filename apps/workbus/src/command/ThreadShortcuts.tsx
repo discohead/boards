@@ -30,7 +30,7 @@ export function ThreadShortcuts({ threadId, onNotice }: { threadId: string; onNo
       if (bus.tasks.has(threadId)) return notice('This thread is a task already.')
       const tx = bus.threadActions.makeTask({ thread: threadId })
       tx.when('settled').then(
-        () => notice('It is a task now.'),
+        () => notice('Made a task. #' + threadId),
         (error: Error) => notice('Not made a task: ' + error.message),
       )
     },
@@ -49,7 +49,7 @@ export function ThreadShortcuts({ threadId, onNotice }: { threadId: string; onNo
     setAssigning(false)
     const tx = bus.threadActions.assign({ task: threadId, for: actor })
     tx.when('settled').then(
-      () => notice(actor ? 'Assigned to ' + (bus.actors.get(actor)?.name ?? actor) + '.' : 'Unassigned.'),
+      () => notice((actor ? 'Assigned to @' + (bus.actors.get(actor)?.handle ?? actor) + '.' : 'Unassigned.') + ' #' + threadId),
       (error: Error) => notice('Not assigned: ' + error.message),
     )
   }
