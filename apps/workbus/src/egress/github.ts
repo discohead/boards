@@ -46,6 +46,23 @@ export async function installationToken(env: GitHubAppEnv, owner: string, name: 
   return body.token
 }
 
+/** The repositories each installation of the app can reach, by full name. The tokens stay here. */
+export async function installedRepositories(env: GitHubAppEnv, fetcher: typeof fetch = fetch): Promise<{ installation: number; account: string; permissions: Record<string, string>; repos: string[] }[]> {
+  const jwt = await appJwt(env)
+  const listed = await fetcher(API + '/app/installations', { headers: headers(jwt) })
+  if (!listed.ok) throw new Error('GitHub App installations: ' + listed.status)
+  const out: { installation: number; account: string; permissions: Record<string, string>; repos: string[] }[] = []
+  for (const installation of (await listed.json()) as { id: number; account: { login: string }; permissions: Record<string, string> }[]) {
+    const minted = await fetcher(API + '/app/installations/' + installation.id + '/access_tokens', { method: 'POST', headers: headers(jwt) })
+    if (!minted.ok) throw new Error('GitHub installation token: ' + minted.status)
+    const { token } = (await minted.json()) as { token: string }
+    const page = await fetcher(API + '/installation/repositories?per_page=100', { headers: headers(token) })
+    const { repositories } = (await page.json()) as { repositories: { full_name: string }[] }
+    out.push({ installation: installation.id, account: installation.account.login, permissions: installation.permissions, repos: repositories.map((repo) => repo.full_name) })
+  }
+  return out
+}
+
 /** The header the token goes in: git's smart HTTP takes Basic, the REST API takes a bearer. */
 export function authorization(host: string, token: string): string {
   return host === 'api.github.com' || host === 'uploads.github.com' ? 'Bearer ' + token : 'Basic ' + btoa('x-access-token:' + token)

@@ -2,6 +2,7 @@
 // and entrypoints as named exports (design/workbus.md §9.1, §10.1): Seat and Session, the seats'
 // runtime, and Wake, the bus's sink for their wakes and the reconciler's.
 import type { EgressMode } from './egress/policy.ts'
+import { installedRepositories } from './egress/github.ts'
 import { webTools } from './harness/web.ts'
 import handler from '@tanstack/react-start/server-entry'
 import { getAgentByName } from 'agents'
@@ -41,6 +42,7 @@ export default {
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/seat') return devSeat(request, env)
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/egress') return devEgress(request, ctx)
     if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/web') return devWeb(request, env, ctx)
+    if (import.meta.env.DEV && new URL(request.url).pathname === '/dev/github') return Response.json(await installedRepositories(env as never))
     ctx.waitUntil(bootOnce(env))
     const seat = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})$/.exec(new URL(request.url).pathname)?.[1]
     if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
