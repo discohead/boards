@@ -30,10 +30,10 @@ function OrgPage() {
             This org doesn't hold to the org-chart profile, and its delegations don't form one ({chart.why}), so there's no chart: the relationships below are the whole graph. org/structure opts in with a <span className="font-mono">json#org@1</span> block, {'{ "profile": "org-chart" }'}.
           </p>
         ) : chart.holds ? (
-          <OrgBox title={org.profile === 'org-chart' ? 'Org chart' : 'Org chart, as the delegations happen to form one'} testid="org-chart">
+          <OrgBox title={org.profile === 'org-chart' ? 'Org chart (enforced: the org holds to the org-chart profile)' : "Org chart (not enforced: this org hasn't opted in)"} testid="org-chart">
             {org.profile === 'org-chart' ? null : (
               <p data-testid="chart-not-opted-in" className="mb-2 text-[12px] text-muted-foreground">
-                The org hasn't opted into the org-chart profile (a <span className="font-mono">json#org@1</span> block in org/structure), so nothing holds it to one: this is how its delegations stand now.
+                Its delegations happen to form a chart today, and nothing keeps them so. org/structure opts in with a <span className="font-mono">json#org@1</span> block, {'{ "profile": "org-chart" }'}; opting in also limits assigning to delegates_to targets.
               </p>
             )}
             <div className="overflow-x-auto py-2">

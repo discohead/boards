@@ -48,11 +48,11 @@ export async function run({ page, base, owner, step, must }) {
   const noChart = page.getByTestId('no-chart')
   const chart = page.getByTestId('org-chart')
   const unlabeled = page.getByTestId('chart-not-opted-in')
-  await step('without the opt-in, a graph that holds is drawn, labeled as not held to it', await until(async () => (await chart.isVisible()) && (await unlabeled.isVisible()) && (await unlabeled.innerText()).includes('json#org@1'), 15_000), await unlabeled.innerText().catch(() => ''))
+  await step('without the opt-in, a graph that holds is drawn as "Org chart (not enforced …)", with how to opt in', await until(async () => (await chart.isVisible()) && (await chart.locator('h3').innerText()).toLowerCase().includes("org chart (not enforced: this org hasn't opted in)") && (await unlabeled.innerText()).includes('json#org@1'), 15_000), await chart.innerText().catch(() => ''))
 
   // Opted in (org/structure gets the block, appended; org-setup registers org@1): the chart, no label.
   await setStructure(without.trimEnd() + '\n\n```json#org@1\n{ "profile": "org-chart" }\n```\n')
-  await must('opted in, the org chart shows, the profile holding, without the label', await until(async () => (await chart.isVisible()) && (await unlabeled.count()) === 0, 20_000))
+  await must('opted in, the org chart shows as enforced, without the not-enforced note', await until(async () => (await chart.isVisible()) && (await unlabeled.count()) === 0 && (await chart.locator('h3').innerText()).toLowerCase().includes('org chart (enforced'), 20_000))
   const order = await chart.locator('[data-chart-seat]').evaluateAll((cards) => cards.map((card) => card.getAttribute('data-chart-seat')))
   await step('advisor at its root, op under it, ada under op', order.join(' ') === 'advisor op ada', order)
   const opCard = chart.locator('[data-chart-seat=op]')
