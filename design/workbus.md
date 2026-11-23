@@ -156,6 +156,7 @@ A seat's config is a block the board checks against a registered schema. A block
   "tools": ["board", "code", "computer"],
   "can": { "eng/": "all", "docs/": ["read"], "org/": ["read", "post"] },
   "wakes": ["mention", "follow", "assigned", { "ready": "eng/queue" }, { "dm": true }],
+  "approve": { "exec": "approval" },
   "sessions": 4,
   "budget": { "month": 50, "alert": 0.8 },
   "state": "active"
@@ -206,11 +207,11 @@ const board = env.WORKBUS.board('bus').as({ key: seat.key, name: 'Ada', handle: 
 
 ### 5.2 The seat runtime
 
-Each seat gets a `Seat` Durable Object (an Agents SDK `Agent`), named by its handle. It holds:
+Each seat gets a `Seat` Durable Object, named by its key (a plain Durable Object: it needs none of an Agent's state sync). It holds:
 
 - **its config,** from the reconciler, and the revision it came from;
 - **its wake queue,** deduplicated by event cursor, as the Factory's is;
-- **its sessions,** one per conversation it works. Each is a sub-agent (`this.subAgent(Session, 'thread-<id>')`, a co-located Facet with its own SQLite) hosting a `PiHarness`. Pi Durable doesn't let a caller choose session IDs, and its docs advise one Durable Object per conversation. A sub-agent per thread gives exactly that, under one seat;
+- **its sessions,** one per conversation it works. Each is its own top-level Durable Object, a `Session` named `<seat>:<thread>`, hosting a `PiHarness`. Pi Durable doesn't let a caller choose session IDs, and its docs advise one Durable Object per conversation. It isn't a sub-agent: a Facet can't set alarms, and the harness's lifecycle needs one;
 - **its state:** `active`, `working`, `waiting`, `paused`, or `over_budget`;
 - **its spend** this period, from its run records (§8.2).
 
@@ -266,7 +267,7 @@ Each tier is a capability a seat doc grants:
 | --- | --- |
 | `board` | the seat's narrowed `Board`: post, reply, read, search, tasks and claims, docs, follows, schedules. Every seat has it |
 | `code` | Code Mode: a script in a Dynamic Worker whose `env` is the seat's `Board` and the bindings it's granted, with `globalOutbound: null` |
-| `computer` | a `@cloudflare/computer` workspace in the session's SQLite: files, git, and `exec` in a Dynamic Worker |
+| `computer` | a `@cloudflare/computer` workspace per seat, in its own Durable Object (`SeatWorkspace`, shared by the seat's sessions): files, git, and `exec` in a Dynamic Worker. It runs one call at a time, so two sessions never interleave writes, and git in the workspace keeps history; branches per task can come later |
 | `sandbox` | a Linux container (Sandbox SDK 1.0), started on demand, for builds and tests |
 | `browser` | Browser Rendering |
 | `web` | search and fetch, through the egress gateway |
@@ -296,7 +297,7 @@ Only its wake rules wake a seat, and each rule is data in its seat doc:
 | schedules | the check-ins it set itself (`by=@seat`, with a schedule) |
 | edges | whatever its edges add (§4.5) |
 
-Each seat's rules are one wake (design/registered-watchers.md): a registered watcher the reconciler sets as the seat (`board.as(seat).narrow(can).setWake(handle, { sink: 'wake', rules, revision })`), matched by the Ledger as the seat, private channels and narrowing included, and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. It's one wake per seat holding all its rules, not one watcher per rule: an event that several rules match (a mention in a thread the seat follows) is delivered once, with `rules: [...]` naming each. The `assigned` rule also delivers the answer to a hold the seat placed (`task.unblocked` with its `decision`), so a seat parked on an approval wakes when the principal decides. The user chose to build these first (§14, question 2), so there's no interim config watcher sending all of the org's events to `Wake`.
+Each seat's rules are one wake (design/registered-watchers.md): a registered watcher the reconciler sets as the seat (`board.as(seat).narrow(can).setWake('seat.' + key, { sink: 'wake', rules, revision })`), matched by the Ledger as the seat, private channels and narrowing included, and delivered by a Mailbox to the app's `Wake` entrypoint, in order per thread. It's one wake per seat holding all its rules, not one watcher per rule: an event that several rules match (a mention in a thread the seat follows) is delivered once, with `rules: [...]` naming each. The `assigned` rule also delivers the answer to a hold the seat placed (`task.unblocked` with its `decision`), so a seat parked on an approval wakes when the principal decides. The user chose to build these first (§14, question 2), so there's no interim config watcher sending all of the org's events to `Wake`.
 
 ### 5.6 Models and money
 
@@ -362,7 +363,7 @@ Each item opens in the thread pane and is answered there. An approval is a task 
 
 ### 6.2 Approvals for side effects
 
-Some tools have an `approval` that names a kind: send an email, spend money, deploy to production, post outside the org. Such a tool holds a task for the principal before it runs, and the seat's session parks on that task and goes on with other work. The principal may make a kind automatic for a seat. Deletes, spending, and permission changes are the exceptions and always ask, following Cloudflare OS's `autoApprovable` rule.
+Some tools have an `approval` that names a kind: send an email, spend money, deploy to production, post outside the org. A seat doc can put any tool behind one too, with `approve: { <tool>: <kind> }` (`{ "exec": "approval" }`). Such a call holds a new task for the principal before it runs (blocked, with that kind, in the thread's channel), and the session parks on it; the seat goes on with other work. The principal's answer (`unblock` with a `decision`) reaches the seat through its `assigned` rule, and the `Seat` hands it to the parked session, which runs the call or tells the model it was denied. The principal may make a kind automatic for a seat. Deletes, spending, and permission changes are the exceptions and always ask, following Cloudflare OS's `autoApprovable` rule.
 
 ## 7. Apps
 

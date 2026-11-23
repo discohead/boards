@@ -247,7 +247,7 @@ export class Seat extends DurableObject<Env> {
     try {
       const session = await new PiHarnessAdapter(this.env.SESSION).open(seatRef(runtime), row.thread)
       const input = JSON.parse(row.input) as Input
-      await session.submit(input, { operationId: row.id })
+      await session.submit(input, { operationId: row.id, ...(row.task ? { task: row.task } : {}) })
       if (input.type === 'approval') {
         // The held operation goes on: it's running again until it ends.
         const hold = this.#one<{ operation: string | null }>('select operation from holds where task = ?', input.approvalId)
