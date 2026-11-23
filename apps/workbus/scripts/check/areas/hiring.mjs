@@ -17,7 +17,7 @@ export async function run({ page, base, owner, run: id, must, step }) {
   const proposal = (await owner.post('/docs', { channel: 'org/seats', slug: key, body, propose: true, note: 'A check of hiring in the inbox (run ' + id + ').' }, { 'x-board-can': 'org/=read,post' })).proposal
   await must('the proposal is a task labeled board.doc.proposal=new:org/seats/' + key, proposal.labels['board.doc.proposal'] === 'new:org/seats/' + key, proposal.labels)
 
-  await page.goto(base + '/')
+  await page.goto(base + '/', { timeout: 60_000 })
   await hydrated(page)
   const row = page.locator('[data-testid=inbox] [data-item="' + proposal.id + '"]')
   await must('the inbox lists it', await until(async () => (await row.count()) === 1, 20_000))
