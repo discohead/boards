@@ -6,6 +6,7 @@ import { HeadContent, Outlet, Scripts, createRootRoute, useLocation, useSearch }
 import { firstPages } from '../first-pages.ts'
 import { BusProvider } from '../db.tsx'
 import { Sidebar } from '../shell/sidebar.tsx'
+import { useInbox } from '../inbox/use-inbox.ts'
 import { ThreadPane } from '../shell/thread-pane.tsx'
 import { TopBar } from '../shell/top-bar.tsx'
 import type { Me } from '../data/index.ts'
@@ -67,7 +68,7 @@ function Frame() {
   return (
     <BusProvider state={state} me={me} token={first?.token ?? null}>
       <div className="flex h-svh overflow-hidden">
-        <Sidebar />
+        <InboxSidebar />
         <main className="flex min-w-0 flex-1 flex-col">
           <TopBar title={titleOf(pathname)} />
           <div data-testid="workspace" className="flex min-h-0 flex-1">
@@ -90,4 +91,10 @@ function titleOf(pathname: string): string {
   if (channel) return decodeURIComponent(channel)
   const first = pathname.split('/')[1] ?? ''
   return ({ '': 'Inbox', 'my-work': 'My work', tasks: 'Tasks', docs: 'Docs', settings: 'Settings' } as Record<string, string>)[first] ?? 'Workbus'
+}
+
+/** The sidebar, with the inbox's count: what's waiting on the principal. */
+function InboxSidebar() {
+  const { items } = useInbox()
+  return <Sidebar inboxCount={items.length} />
 }
