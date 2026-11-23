@@ -3,6 +3,7 @@
 // runtime, or the reasons a doc can't apply. Nothing here touches the board, so it's checked in
 // node (scripts/org-check.ts) as well as through the real reconciler.
 
+import { backstopNeeded } from './gateway.ts'
 /** A doc in org/, as its root's message view gives it. */
 export type OrgDoc = { id: string; channel: string; slug: string; title: string; revision: number; text: string; blocks: { schema: string; version: number; data: unknown }[] }
 
@@ -61,7 +62,8 @@ export type SeatRuntime = {
 }
 
 export type Problem = { doc: string; path: string; revision: number; why: string }
-export type Plan = { seats: SeatRuntime[]; problems: Problem[] }
+/** What applies but an owner should know: said in the doc's thread, once per revision. */
+export type Plan = { seats: SeatRuntime[]; problems: Problem[]; notices: Problem[] }
 
 /** The tools a seat doc may name today (§5.4), and those the design names that aren't built yet. */
 export const TOOLS = ['board', 'computer']
@@ -231,7 +233,13 @@ export function plan(docs: OrgDoc[], holds: Record<string, Permission[]>): Plan 
       doc: doc.id,
     })
   }
-  return { seats: out.sort((a, b) => (a.key < b.key ? -1 : 1)), problems }
+  const notices: Problem[] = []
+  for (const seat of out) {
+    const why = backstopNeeded(seat.key, seat.budget.month)
+    const doc = seatDocs.find((one) => one.slug === seat.key)
+    if (why && doc) notices.push({ doc: doc.id, path: pathOf(doc), revision: doc.revision, why })
+  }
+  return { seats: out.sort((a, b) => (a.key < b.key ? -1 : 1)), problems, notices }
 }
 
 const list = (items: string[]) => (items.length <= 2 ? items.join(' and ') : items.slice(0, -1).join(', ') + ', and ' + items.at(-1))
