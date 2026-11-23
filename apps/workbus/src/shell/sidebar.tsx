@@ -11,6 +11,8 @@ import { DocsTree } from '@/docs/DocsTree'
 import { useDisplayNames } from './display-name.ts'
 import { Avatar, Kbd, Lockup, SidebarGroup, SidebarItem } from '@/components/system'
 import { MentionCount, NewChannel, useChannelCounts } from './channel-list.tsx'
+import { seatInitials, useSeats } from '@/seats/use-seats'
+import type { SeatView } from '@/seats/views'
 
 const icon = (Icon: LucideIcon) => <Icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-muted-foreground" />
 
@@ -35,6 +37,11 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const pathname = useLocation({ select: (location) => location.pathname })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
   const { dms, loose, teams } = arrange(channels)
+  const { seats } = useSeats()
+  // The operator's DM is always there, the one door to the org; a seat's DM shows once it has a channel.
+  const operator = seats.find((seat) => seat.role === 'operator')
+  const dmPaths = [...new Set([...(operator ? ['dm/' + operator.key] : []), ...dms.map((channel) => channel.path)])]
+  const seatOfDm = (path: string) => seats.find((seat) => 'dm/' + seat.key === path)
   const me = bus.runtime.me
   const name = useDisplayNames()(me.actor, me.name ?? me.handle ?? '')
   const at = (path: string) => pathname === path
@@ -48,6 +55,21 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         <SidebarItem asChild child={child} active={at('/c/' + channel.path)} unread={unread && !count?.mentions} icon={channel.path.startsWith('dm/') ? MessageSquare : Hash} className={unread ? 'font-semibold text-text' : undefined}>
           <Link to="/c/$" params={{ _splat: channel.path }} data-channel={channel.path} data-unread={unread ? 'yes' : undefined}>
             <span className="truncate">{label}</span>
+            <MentionCount count={count} />
+          </Link>
+        </SidebarItem>
+      </li>
+    )
+  }
+  // A seat's DM: its square avatar, its name, and @handle at the end (or the unread dot).
+  const dmLink = (path: string, seat: SeatView) => {
+    const count = counts.get(path)
+    const unread = (count?.unread ?? 0) > 0 || (count?.mentions ?? 0) > 0
+    return (
+      <li key={path}>
+        <SidebarItem asChild active={at('/c/' + path)} unread={unread && !count?.mentions} meta={unread ? undefined : '@' + seat.handle} avatar={{ kind: 'agent', initials: seatInitials(seat), name: seat.name }} className={unread ? 'font-semibold text-text' : undefined}>
+          <Link to="/c/$" params={{ _splat: path }} data-channel={path} data-seat={seat.key} data-unread={unread ? 'yes' : undefined}>
+            <span className="truncate">{seat.name}</span>
             <MentionCount count={count} />
           </Link>
         </SidebarItem>
@@ -77,10 +99,15 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         </button>
         {place('/', 'Inbox', Inbox, inboxCount)}
         {place('/my-work', 'My work', CircleDot)}
-        {dms.length ? (
+        {dmPaths.length ? (
           <>
             <SidebarGroup>Direct messages</SidebarGroup>
-            <ul data-testid="dms">{dms.map((channel) => channelLink(channel, channel.path.slice(3)))}</ul>
+            <ul data-testid="dms">
+              {dmPaths.map((path) => {
+                const seat = seatOfDm(path)
+                return seat ? dmLink(path, seat) : channelLink(dms.find((channel) => channel.path === path)!, path.slice(3))
+              })}
+            </ul>
           </>
         ) : null}
         {teams.length ? <SidebarGroup>Teams</SidebarGroup> : null}
@@ -101,6 +128,22 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
           </div>
         </div>
         <ul data-testid="channels">{loose.map((channel) => channelLink(channel, channel.path))}</ul>
+        {seats.length ? (
+          <>
+            <SidebarGroup>Seats</SidebarGroup>
+            <ul data-testid="seats">
+              {seats.map((seat) => (
+                  <li key={seat.key}>
+                    <SidebarItem asChild active={at('/seats/' + seat.key)} {...(seat.state === 'retired' ? { meta: 'off' } : { state: seat.state })} avatar={{ kind: 'agent', initials: seatInitials(seat), name: seat.name }}>
+                      <Link to="/seats/$key" params={{ key: seat.key }} data-seat={seat.key} data-state={seat.state}>
+                        <span className="truncate">{seat.name}</span>
+                      </Link>
+                    </SidebarItem>
+                  </li>
+                ))}
+            </ul>
+          </>
+        ) : null}
         <SidebarGroup>Workspace</SidebarGroup>
         {inert('Org & seats', Network)}
         {place('/docs', 'Docs', FileText)}

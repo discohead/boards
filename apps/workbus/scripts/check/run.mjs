@@ -14,11 +14,14 @@
 // https://workbus.dev/b/bus locally too. The other actor: ROLE=member node scripts/issuer.mjs token checker https://workbus.dev/b/bus
 //
 // Flags: --out <dir> (screenshots; default ./check-shots), --only a,b (areas), --chrome <path>
-// (a Chrome to use instead of playwright's cached Chromium), --board <name> (default bus).
+// (a Chrome to use instead of playwright's cached Chromium), --board <name> (default bus). seats-run
+// calls Haiku (a seat's approval, end to end), so only --only seats-run runs it.
 import { parseArgs } from 'node:util'
 import { actor, browser, recorder, Stop } from './lib.mjs'
 
-const AREAS = ['signin', 'channels', 'thread', 'tasks', 'docs', 'inbox', 'palette']
+const AREAS = ['signin', 'channels', 'thread', 'tasks', 'docs', 'inbox', 'palette', 'seats']
+// Areas that call a model, run only when --only names them.
+const ASKED = ['seats-run']
 
 const { values } = parseArgs({ options: { base: { type: 'string' }, api: { type: 'string' }, out: { type: 'string', default: 'check-shots' }, only: { type: 'string' }, chrome: { type: 'string' }, board: { type: 'string', default: 'bus' } } })
 if (!values.base) throw new Error('usage: run.mjs --base <app url> [--api <bus host for the other actor>] [--out <dir>] [--only area,...]')
@@ -41,7 +44,7 @@ const record = recorder(values.out)
 const only = values.only ? values.only.split(',') : AREAS
 console.log('checking ' + base + ' as ' + owner.actor + ', with ' + other.actor + ' writing; run ' + run + '; screenshots in ' + values.out)
 
-for (const area of AREAS.filter((name) => only.includes(name))) {
+for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) {
   const module = await import('./areas/' + area + '.mjs')
   const step = (what, ok, detail) => record.step(page, area, what, ok, detail)
   /** A check the area can't go past: on failure the area stops. */
