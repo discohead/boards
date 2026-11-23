@@ -3,7 +3,7 @@
 // state); replying in its thread marks it read up to the reply; ⌘↵ answers a held task (unblock) or
 // applies a proposal. The list never moves the selected item: one that leaves stays, faded, until
 // the selection moves on.
-import { Fragment, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import { createFileRoute } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
 import { useHotkey } from '@tanstack/react-hotkeys'
@@ -23,12 +23,14 @@ import { Clock } from '@/shell/clock'
 export const Route = createFileRoute('/')({ component: Inbox })
 
 type Chip = 'all' | 'held' | 'unread'
-const CHIPS: Record<Chip, Reason['kind'][]> = { all: [], held: ['held'], unread: ['mention', 'reply'] }
+const CHIPS: Record<Chip, Reason['kind'][]> = { all: [], held: ['held'], unread: ['reply'] }
 const CHIP_LABEL: Record<Chip, string> = { all: 'All', held: 'Held', unread: 'Unread' }
 
 function Inbox() {
   const bus = useBus()
   const { items: all, ready, markRead } = useInbox()
+  // What reached me (each item's newest reply): one read, here, not for the sidebar.
+  useEffect(() => void bus.openInbox().catch(() => {}), [bus])
   const name = useActorNames()
   const [chip, setChip] = useState<Chip>('all')
   const items = useMemo(() => all.filter((one) => chip === 'all' || one.reasons.some((reason) => CHIPS[chip].includes(reason.kind))), [all, chip])
@@ -113,7 +115,7 @@ function Inbox() {
                   @{name(whoOf(one))} · {one.channel}
                   <span className="font-sans"> {detail(one, docPath)}</span>
                 </span>
-                {one.reasons.some((reason) => reason.kind === 'reply' || reason.kind === 'mention') && live.has(key) ? (
+                {one.reasons.some((reason) => reason.kind === 'reply') && live.has(key) ? (
                   <Button
                     size="xs"
                     variant="ghost"
@@ -135,11 +137,15 @@ function Inbox() {
   )
 }
 
-const title = (one: InboxItem) => ((one.root?.text ?? '').split('\n')[0] ?? '').replace(/^#+\s*/, '').replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1') || '#' + one.thread
+/** Its thread's first line: the root's, or, when the root isn't in memory, the newest reply's (opening it reads the thread). */
+const title = (one: InboxItem) => {
+  const text = one.root?.text ?? latestOf(one)?.text ?? ''
+  return (text.split('\n')[0] ?? '').replace(/^#+\s*/, '').replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1') || 'Thread #' + one.thread
+}
 
 /** The message that put it here: the newest reply or mention, else its root. */
 const latestOf = (one: InboxItem) => {
-  for (const reason of one.reasons) if ((reason.kind === 'reply' || reason.kind === 'mention') && reason.latest) return reason.latest
+  for (const reason of one.reasons) if (reason.kind === 'reply' && reason.latest) return reason.latest
   return one.root
 }
 const whenOf = (one: InboxItem) => latestOf(one)?.createdAt ?? new Date(0).toISOString()
@@ -167,7 +173,7 @@ const plain = (text: string) => text.replace(/@\[[^\]]*:([^\]:]+)\]/g, '@$1').sp
 
 /** The kind of an item, as the prototype's inbox row draws it: the system's Kind, plain (its icon and word). A plain reply has no system kind. */
 function ItemKind({ reason }: { reason: Reason }) {
-  const mention = reason.kind === 'mention' || (reason.kind === 'reply' && reason.mentions > 0)
+  const mention = reason.kind === 'reply' && reason.mentions > 0
   if (reason.kind === 'held') return reason.hold && HELD_KINDS.includes(reason.hold) ? <Kind plain kind={reason.hold as KindName} /> : <Kind plain kind="approval">{reason.hold ?? 'held'}</Kind>
   if (reason.kind === 'proposal') return <Kind plain kind="proposal" />
   if (mention) return <Kind plain kind="mention" />
