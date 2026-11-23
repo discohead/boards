@@ -50,5 +50,7 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await page.keyboard.type('reviewer')
   await page.keyboard.press('Enter')
   await step("A assigns it to one of the owner's profiles", await until(async () => (await taskOf())?.for === owner.actor + '+reviewer'), (await taskOf())?.for)
-  await step('and says so, with the cursor', await until(async () => (await page.getByTestId('notice').innerText().catch(() => '')).includes('#' + root.id), 5_000), await page.getByTestId('notice').innerText().catch(() => ''))
+  // The system's toast: role=status, what happened, and the cursor.
+  const told = page.getByRole('status').filter({ hasText: 'Assigned to' })
+  await step('and says so in a toast, with the cursor', await until(async () => (await told.last().innerText()).includes('#' + root.id), 5_000), await told.last().innerText().catch(() => ''))
 }
