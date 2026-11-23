@@ -1,6 +1,7 @@
 // A Session: one seat working one thread (design/workbus.md §5.2). A top-level Durable Object named
 // "<seat>:<thread>" (not a sub-agent: a facet can't set alarms, and Pi's wake needs one), hosting one
-// PiHarness and, in the same SQLite, the seat's computer Workspace. The Seat routes wake-ups here
+// PiHarness; its computer tools work in the seat's own SeatWorkspace (seats/workspace.ts), shared by
+// every thread the seat works. The Seat routes wake-ups here
 // through the seam (harness/pi.ts's PiHarnessAdapter); this object holds no secret, and its board
 // tools hold only the seat's narrowed Board.
 import { createRegistry, Harness, type ToolRegistration } from '@earendil-works/pi-durable'
@@ -11,7 +12,9 @@ import { createAI } from 'agents/models/pi-ai'
 
 import { BOARD } from '../board.ts'
 import { boardTools, seatBoard } from '../harness/board.ts'
-import { computerTools, workspace } from '../harness/computer.ts'
+import type { PiTool } from '@cloudflare/computer/tools/pi-ai'
+
+import { computerTools, type WorkspaceStub } from '../harness/computer.ts'
 import { Approval, compile, gate, gatewayLog, meter, systemPrompt, type Hold } from '../harness/pi.ts'
 import type { Outcome, Receipt, SeatRef, SessionEvent, SubmitOptions, Tool, ToolAnswer, TranscriptMessage, Turn, Usage } from '../harness/types.ts'
 
@@ -32,11 +35,11 @@ function newToken(): string {
 const iso = (ms: number | null) => (ms === null ? null : new Date(ms).toISOString())
 
 export class Session extends Agent<Env> {
-  readonly space = workspace(this.ctx.storage, this.env.LOADER)
   readonly registry = createRegistry()
   readonly harness = new PiHarness({
     // pi opens when the object starts, maybe before configure(): the seat's parts install once it has one.
     harness: async ({ storage, context, onWake }) => {
+      await this.#prepare()
       this.#install()
       this.#models.setProvider(this.#ai(this.#configured()).provider)
       const session = this
@@ -107,13 +110,25 @@ export class Session extends Agent<Env> {
   #tools(seat: SeatRef): Tool<any>[] {
     const tools: Tool<any>[] = []
     if (seat.tools.includes('board')) tools.push(...boardTools(() => seatBoard(this.env.WORKBUS, BOARD, this.#seat()), () => this.#claimToken()))
-    if (seat.tools.includes('computer')) tools.push(...computerTools(this.space))
+    if (seat.tools.includes('computer') && this.#declared) tools.push(...computerTools(this.#declared, this.#workspace(seat)))
     return tools
   }
 
   #byName = new Map<string, Tool<unknown>>()
 
   /** Installs (or replaces, in place) the seat's extension: its prompt, its tools, the gate, and the meter. */
+  /** The seat's workspace: one per seat key, whatever the thread. */
+  #workspace(seat: SeatRef): WorkspaceStub {
+    return this.env.WORKSPACE.getByName(seat.key) as unknown as WorkspaceStub
+  }
+
+  /** The computer tools' declarations, read once from the seat's workspace. */
+  #declared: PiTool[] | null = null
+  async #prepare() {
+    const seat = this.#configured()
+    if (!this.#declared && seat?.tools.includes('computer')) this.#declared = await this.#workspace(seat).declare()
+  }
+
   #install() {
     const seat = this.#configured()
     const tools = seat ? this.#tools(seat) : []
@@ -188,6 +203,7 @@ export class Session extends Agent<Env> {
     if (before && JSON.parse(before.seat).revision === seat.revision) return
     this.sql`INSERT OR REPLACE INTO wb_seat (k, seat) VALUES ('seat', ${JSON.stringify(seat)})`
     this.#models.setProvider(this.#ai(seat).provider)
+    await this.#prepare()
     this.#install()
   }
 
@@ -299,7 +315,7 @@ export class Session extends Agent<Env> {
       pending: await this.harness.pending(),
       operations: this.sql`SELECT id, kind, resumes, started, ended FROM wb_ops ORDER BY started`,
       approvals: this.sql`SELECT id, call, tool, kind, state, op FROM wb_approvals ORDER BY at`,
-      files: await this.space.fs.readdir('/workspace').catch(() => []),
+      files: this.#configured()?.tools.includes('computer') ? await (this.#workspace(this.#seat()) as unknown as { files(): Promise<unknown[]> }).files() : [],
     }
   }
 }

@@ -1,12 +1,12 @@
-// The computer tier (§5.4): a @cloudflare/computer Workspace in the session's own SQLite, with
-// files, git, and exec, which runs JavaScript in a Dynamic Worker minted through LOADER with no
-// network. The tools are computer's own (createPiTools), each paired with its execute and put
-// behind the seam, as the Agents SDK's pi example does.
+// The computer tier (§5.4): a @cloudflare/computer Workspace with files, git, and exec, which runs
+// JavaScript in a Dynamic Worker minted through LOADER with no network. The workspace is the seat's,
+// not a thread's: it lives in the seat's SeatWorkspace object (seats/workspace.ts), and each of the
+// seat's Sessions reaches it over RPC. The tools are computer's own (createPiTools), put behind the seam.
 import { Workspace, type DurableObjectStorageLike } from '@cloudflare/computer'
 import { CodemodeBackend } from '@cloudflare/computer/backends/codemode'
 import { createGitClient } from '@cloudflare/computer/git'
 import { createGitModule } from '@cloudflare/computer/modules/git'
-import { createPiTools } from '@cloudflare/computer/tools/pi-ai'
+import { createPiTools, type PiTool, type PiToolCall, type PiToolResult } from '@cloudflare/computer/tools/pi-ai'
 import { z } from 'zod'
 
 import type { Tool } from './types.ts'
@@ -37,18 +37,30 @@ const REPLAY_SAFE = new Set(['read', 'ls', 'find', 'grep', 'write', 'delete'])
 
 const EXEC = `Run JavaScript in the workspace. \`command\` is the source of an ES module, run in a fresh sandboxed isolate with no network. If it default-exports a function, that is called with \`input\` and its return value comes back as \`result\`; console.log and console.error go to stdout and stderr. There is no shell and no npm. Its imports: node:fs/promises (the workspace's files, async: readFile(path, "utf8"), writeFile, mkdir, rm, readdir, stat), codemode:git (status, diff, log on a repository under /workspace), and relative .js files in the workspace. Prefer the read, write, and edit tools for plain file changes.`
 
-export function computerTools(space: Workspace): Tool<any>[] {
+/** computer's tools over one workspace: their declarations, and one execute that runs a call. */
+export function workspaceTools(space: Workspace): { tools: PiTool[]; execute: (call: PiToolCall) => Promise<PiToolResult> } {
   const { tools, execute } = createPiTools({ workspace: space, exec: { backends: { codemode: { description: 'Runs ES module source in a sandboxed isolate.' } } } })
-  return tools.map((declared): Tool<any> => ({
-    name: declared.name,
-    description: declared.name === 'exec' ? EXEC : declared.description,
+  return { tools: tools.map((tool) => (tool.name === 'exec' ? { ...tool, description: EXEC } : tool)), execute: (call) => execute(call) }
+}
+
+/** A workspace as a session reaches it: the seat's SeatWorkspace, over RPC. */
+export type WorkspaceStub = {
+  declare(): Promise<PiTool[]>
+  execute(call: PiToolCall): Promise<PiToolResult>
+}
+
+/** The computer tools, as the seam's, each call run by the seat's workspace. */
+export function computerTools(declared: readonly PiTool[], space: WorkspaceStub): Tool<any>[] {
+  return declared.map((tool): Tool<any> => ({
+    name: tool.name,
+    description: tool.description,
     // computer validates its own arguments, against the schema it declares.
     input: z.any(),
-    schema: declared.parameters,
-    replay: REPLAY_SAFE.has(declared.name) ? 'safe' : 'unsafe',
+    schema: tool.parameters,
+    replay: REPLAY_SAFE.has(tool.name) ? 'safe' : 'unsafe',
     approval: 'never',
     async run(input, context) {
-      const result = await execute({ id: context.callId, name: declared.name, arguments: input }, { abortSignal: context.signal })
+      const result = await space.execute({ id: context.callId, name: tool.name, arguments: input })
       const text = result.content.map((part) => (part.type === 'text' ? part.text : '[' + part.mimeType + ' image]')).join('\n')
       return { text, isError: result.isError }
     },

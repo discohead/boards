@@ -3,7 +3,7 @@
 // app's /dev/session door (vite dev only) as a Seat would, and reads the bus to see what landed.
 //   pnpm dev:bus & pnpm dev        (or the same on other ports)
 //   TOKEN=$(cd ../../packages/workbus && node scripts/issuer.mjs token jared https://workbus.dev/b/bus | tail -1)
-//   node scripts/session-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [turn,board,computer,approve,deny]
+//   node scripts/session-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [turn,board,tasks,computer,shared,approve,deny]
 // Each check makes one to three tiny model calls.
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only] = process.argv.slice(2)
 const token = process.env.TOKEN
@@ -120,6 +120,42 @@ if (!pick || pick.has('computer')) {
   check(ran && JSON.parse(ran.message.text).result === n * 7, 'exec ran the file in a Dynamic Worker: its result is ' + n * 7, ran?.message.text)
 }
 
+if (!pick || pick.has('shared')) {
+  // The workspace is the seat's: one thread writes a module, another thread of the same seat runs it, and another seat sees nothing.
+  const n = 100 + Math.floor(Math.random() * 900)
+  const path = '/workspace/shared-' + run + '.js'
+  const one = 'shared-a-' + run
+  const two = 'shared-b-' + run
+  await session('ada', one, 'configure', ada(['computer']))
+  await session('ada', one, 'submit', turn('Use write to create ' + path + ' containing: export default () => ' + n + ' + 1. Answer "written".'), { operationId: 'cursor-1' })
+  const wrote = await session('ada', one, 'wait', 'cursor-1', 120000)
+  check(wrote.usage.tools.some((tool) => tool.name === 'write' && tool.ok), 'one thread writes the module', wrote.usage.tools)
+  await session('ada', two, 'configure', ada(['computer']))
+  await session('ada', two, 'submit', turn('Use exec with command: import f from "' + path + '"; export default () => f(). Answer with only the result.'), { operationId: 'cursor-1' })
+  await session('ada', two, 'wait', 'cursor-1', 120000)
+  const ran = (await transcript('ada', two)).find((e) => e.type === 'message' && e.message.tool?.name === 'exec' && e.message.tool.ok)
+  check(ran && JSON.parse(ran.message.text).result === n + 1, "another thread of the seat runs it: its result is " + (n + 1), ran?.message.text)
+  const bob = { ...ada(['computer']), key: 'bob', name: 'Bob', handle: 'bob' }
+  const three = 'shared-c-' + run
+  await session('bob', three, 'configure', bob)
+  await session('bob', three, 'submit', turn('Use read on ' + path + '. If it fails, answer "missing".'), { operationId: 'cursor-1' })
+  const other = await session('bob', three, 'wait', 'cursor-1', 120000)
+  const files = (await session('bob', three, 'inspect')).files.map((f) => f.name)
+  check(!files.includes('shared-' + run + '.js') && !other.usage.tools.some((tool) => tool.name === 'read' && tool.ok), 'another seat sees nothing of it', { files, tools: other.usage.tools, text: other.text })
+}
+
+if (!pick || pick.has('serial')) {
+  // No model: five read-wait-append calls at once on one seat's workspace each see the last one's write.
+  const seat = 'serial-' + run
+  const path = '/workspace/count.txt'
+  await session(seat, 'x', 'workspace.execute', { id: 'w0', name: 'write', arguments: { path, content: '' } })
+  const append = (i) => session(seat, 'x', 'workspace.execute', { id: 'e' + i, name: 'exec', arguments: { command: "import { readFile, writeFile } from 'node:fs/promises'; export default async () => { const t = await readFile('" + path + "', 'utf8'); await new Promise((r) => setTimeout(r, 200)); await writeFile('" + path + "', t + 'x'); return t.length }" } })
+  await Promise.all([0, 1, 2, 3, 4].map(append))
+  const read = await session(seat, 'x', 'workspace.execute', { id: 'r', name: 'read', arguments: { path } })
+  const text = read.content.map((part) => part.text).join('')
+  check(/xxxxx/.test(text) && !/xxxxxx/.test(text), "the workspace runs one call at a time: five appends at once leave five x's", text)
+}
+
 const gated = ada(['board', 'computer'], { approve: { exec: 'approval' } })
 
 if (!pick || pick.has('approve')) {
@@ -135,8 +171,15 @@ if (!pick || pick.has('approve')) {
   const yes = held && (await session('ada', t, 'submit', { type: 'approval', approvalId: held.id, approved: true }, { operationId: 'cursor-2' }))
   const twice = held && (await session('ada', t, 'submit', { type: 'approval', approvalId: held.id, approved: false }, { operationId: 'cursor-3' }))
   check(yes?.accepted === true && twice?.accepted === false, 'the answer is taken once', { yes, twice })
-  const answered = await session('ada', t, 'wait', 'cursor-1', 120000)
-  check(answered.status === 'done' && answered.usage.tools.some((tool) => tool.name === 'exec' && tool.ok), 'approved, exec runs and the run answers', { text: answered.text, tools: answered.usage.tools })
+  // The model may call exec again after the first runs: each call asks, so approve any more until the run answers.
+  let answered = null
+  for (let i = 0; i < 6 && !answered; i++) {
+    answered = await session('ada', t, 'wait', 'cursor-1', 20000).catch(() => null)
+    if (answered) break
+    const more = (await session('ada', t, 'inspect')).approvals.filter((a) => a.state === 'held')
+    for (const a of more) await session('ada', t, 'submit', { type: 'approval', approvalId: a.id, approved: true }, { operationId: 'cursor-more-' + a.id })
+  }
+  check(answered?.status === 'done' && answered.usage.tools.some((tool) => tool.name === 'exec' && tool.ok), 'approved, exec runs and the run answers', { text: answered?.text, tools: answered?.usage.tools })
 }
 
 if (!pick || pick.has('deny')) {
