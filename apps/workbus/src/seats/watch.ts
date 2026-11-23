@@ -140,9 +140,9 @@ export class Watch extends DurableObject<Env> {
     const keys = (await readOrg(bus())).filter((doc) => doc.channel === 'org/seats').map((doc) => doc.slug).sort()
     return Promise.all(
       keys.map(async (key) => {
-        const status = (await (this.env.SEAT.getByName(key) as unknown as { status(): Promise<any> }).status()) as any
-        const day = (status.runs as { cost: number; ended: string }[]).filter((run) => Date.parse(run.ended) >= since)
-        return { key, state: String(status.state), runs: day.length, day: day.reduce((sum, run) => sum + run.cost, 0), month: status.spend?.cost ?? 0, budget: status.runtime?.budget?.month ?? null, status }
+        const stub = this.env.SEAT.getByName(key) as unknown as { status(): Promise<any>; spentSince(since: string): Promise<{ runs: number; cost: number }> }
+        const [status, day] = await Promise.all([stub.status(), stub.spentSince(new Date(since).toISOString())])
+        return { key, state: String(status.state), runs: day.runs, day: day.cost, month: status.spend?.cost ?? 0, budget: status.runtime?.budget?.month ?? null, status }
       }),
     )
   }

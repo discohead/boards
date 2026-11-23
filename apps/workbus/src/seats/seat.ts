@@ -20,7 +20,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'watchdog-2026-11-23.1'
+export const SEAT_CODE = 'watchdog-2026-11-23.2'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -382,6 +382,12 @@ export class Seat extends DurableObject<Env> {
     } catch (error) {
       console.error('seat ' + runtime.key + ': answering budget task #' + task + ' failed', error)
     }
+  }
+
+  /** Its runs that ended at or after since, and what they cost: the brief's day (watch.ts). */
+  async spentSince(since: string): Promise<{ runs: number; cost: number }> {
+    const row = this.#one<{ runs: number; cost: number | null }>("select count(*) as runs, sum(cost) as cost from telemetry_runs where json_extract(record, '$.ended') >= ?", since)
+    return { runs: row?.runs ?? 0, cost: row?.cost ?? 0 }
   }
 
   /** This month's spend, in USD, from its runs. */

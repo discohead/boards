@@ -397,7 +397,7 @@ if (pick.has('watchdog')) {
   const notices = await opNotices()
   check(notices.filter((wake) => wake.thread === expiring.id).length === 1 && notices.filter((wake) => wake.thread === failing.id).length === 1, 'each reaches it once', notices.map((wake) => wake.id))
   // A run past its limit: a long task for ada.
-  const long = (await board('POST', '/tasks', { channel: 'eng/queue', text: 'Write a 400-word story about a lighthouse keeper into story.txt in your workspace, in four separate writes of about 100 words each (write, then read, then write again), then complete this task.', for: 'worker:workbus-app+ada' })).task
+  const long = (await board('POST', '/tasks', { channel: 'eng/queue', text: 'Write a 400-word story about a lighthouse keeper into story.txt in your workspace, in four separate writes of about 100 words each (write, then read, then write again), using only the write and read tools (never exec), then complete this task.', for: 'worker:workbus-app+ada' })).task
   const stopped = await until(async () => (await status('ada')).wakes.find((wake) => wake.thread === long.id && wake.state === 'failed' && /stalled/.test(wake.error ?? '')), 120000, 1000)
   check(Boolean(stopped), "ada's run past its limit is stopped", stopped)
   const said = await until(async () => (await board('GET', '/messages/' + long.id)).replies.find((message) => message.by.actor === 'worker:workbus-app+ada' && /I stopped this run/.test(message.text)), 30000)
@@ -423,6 +423,8 @@ if (pick.has('watchdog')) {
   for (const key of ['op', 'ada']) {
     const row = text.split('\n').find((line) => line.startsWith('| ' + key + ' |'))
     check(Boolean(row && row.includes('$' + statuses[key].spend.cost.toFixed(4))), 'its seats table has ' + key + "'s spend this month, as its Seat has it", { row, seat: statuses[key].spend.cost })
+    // On a board younger than a day, every run is in the day: its runs and day's spend are the month's (not only the last 20 runs).
+    check(Boolean(row && row.startsWith('| ' + key + ' | ' + statuses[key].state + ' | ' + statuses[key].spend.runs + ' | $' + statuses[key].spend.cost.toFixed(4) + ' |')), 'and its runs and spend in the day, all of them', { row, runs: statuses[key].spend.runs })
   }
 }
 
