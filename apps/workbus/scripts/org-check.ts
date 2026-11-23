@@ -69,7 +69,7 @@ check('edit in org/ is refused: a seat proposes', () => {
 })
 
 check('a tool not built, or not a tool, is refused; the operator keeps to board', () => {
-  assert.match(why(replace(seed(), 'org/seats/ada', (data) => data.tools.push('sandbox')))[0]!, /the sandbox tool isn't built yet/)
+  assert.match(why(replace(seed(), 'org/seats/ada', (data) => data.tools.push('browser')))[0]!, /the browser tool isn't built yet/)
   assert.match(why(replace(seed(), 'org/seats/ada', (data) => data.tools.push('hammer')))[0]!, /hammer isn't a tool/)
   assert.match(why(replace(seed(), 'org/seats/ada', (data) => (data.tools = ['computer'])))[0]!, /every seat has the board tool/)
   assert.match(why(replace(seed(), 'org/seats/op', (data) => data.tools.push('computer')))[0]!, /the operator only orchestrates/)

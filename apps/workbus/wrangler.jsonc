@@ -33,6 +33,16 @@
     ]
   },
   "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Seat", "Session", "SeatWorkspace"] }],
+  // The sandbox tier (§5.4): a Session may start one Linux container, its own, basic size (1/4 vCPU,
+  // 1 GiB, 4 GB), asleep after 5 idle minutes; no Internet of its own, only HTTP(S) through the egress.
+  "containers": [
+    {
+      "class_name": "Session",
+      "scheduling_policy": "durable_object",
+      // The size is the Session's to choose when it starts one (instance: 'basic').
+      "images": { "sandbox": { "dockerfile": "./sandbox/Dockerfile" } }
+    }
+  ],
   // Run records (src/telemetry/): the stream runs_v1, into the Iceberg table telemetry.runs_v1 in the
   // bucket workbus-telemetry (design/workbus.md §8.1). Its schema is src/telemetry/runs_v1.schema.json.
   "pipelines": [{ "stream": "9f6075496bea44d488f44b0ee429d5f0", "binding": "RUNS" }],

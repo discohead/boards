@@ -15,8 +15,12 @@ import { boardTools, seatBoard } from '../harness/board.ts'
 import type { PiTool } from '@cloudflare/computer/tools/pi-ai'
 
 import { computerTools, type WorkspaceStub } from '../harness/computer.ts'
+import { INSTANCE, SessionSandbox, sandboxTools, type Listed, type WorkspaceSync } from '../harness/sandbox.ts'
 import { Approval, compile, gate, gatewayLog, meter, systemPrompt, type Hold } from '../harness/pi.ts'
 import type { Outcome, Receipt, SeatRef, SessionEvent, SubmitOptions, Tool, ToolAnswer, TranscriptMessage, Turn, Usage } from '../harness/types.ts'
+
+/** The egress entrypoint (scout's, src/egress/): every request a sandbox makes goes through it. */
+const EGRESS = 'Egress'
 
 /** Every seat runs Haiku during development (§5.6), through the org's gateway, on its BYOK key. */
 export const MODEL = 'anthropic/claude-haiku-5.5'
@@ -75,6 +79,8 @@ export class Session extends Agent<Env> {
     this.sql`CREATE TABLE IF NOT EXISTS wb_ops (id TEXT PRIMARY KEY, kind TEXT NOT NULL, resumes TEXT, task TEXT, started INTEGER NOT NULL, ended INTEGER)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_responses (id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, model TEXT, input INTEGER, output INTEGER, cache_read INTEGER, cache_write INTEGER, cost REAL, log TEXT, at INTEGER NOT NULL)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_tools (call TEXT PRIMARY KEY, op TEXT, name TEXT NOT NULL, started INTEGER, ended INTEGER, ok INTEGER)`
+    this.sql`CREATE TABLE IF NOT EXISTS wb_sandbox_files (path TEXT PRIMARY KEY, size INTEGER NOT NULL, mtime INTEGER NOT NULL)`
+    this.sql`CREATE TABLE IF NOT EXISTS wb_sandbox (id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT, started INTEGER NOT NULL, ms INTEGER NOT NULL, command_ms INTEGER NOT NULL, at INTEGER NOT NULL)`
     this.sql`CREATE TABLE IF NOT EXISTS wb_approvals (id TEXT PRIMARY KEY, call TEXT NOT NULL UNIQUE, pi_task TEXT NOT NULL, op TEXT, tool TEXT NOT NULL, kind TEXT NOT NULL, args TEXT NOT NULL, state TEXT NOT NULL, at INTEGER NOT NULL)`
   }
 
@@ -122,7 +128,55 @@ export class Session extends Agent<Env> {
         }),
       )
     if (seat.tools.includes('computer') && this.#declared) tools.push(...computerTools(this.#declared, this.#workspace(seat)))
+    if (seat.tools.includes('sandbox') && this.ctx.container)
+      tools.push(
+        ...sandboxTools(async (command, timeoutS) => {
+          const result = await this.#sandbox().run(command, timeoutS)
+          const op = await this.#running()
+          this.sql`INSERT INTO wb_sandbox (op, started, ms, command_ms, at) VALUES (${op}, ${result.started ? 1 : 0}, ${result.ms}, ${result.commandMs}, ${Date.now()})`
+          return result
+        }),
+      )
     return tools
+  }
+
+  /** Stops the session's container (a check's stand-in for sleeping): the next command starts one again. */
+  async sandboxReset() {
+    if (this.ctx.container?.running) await this.ctx.container.destroy()
+  }
+
+  /** One sandbox command as the tool runs it, for checks (vite dev's /dev/session door): its sync and its output. */
+  async sandbox(command: string, timeoutS = 120) {
+    return this.#sandbox().run(command, timeoutS)
+  }
+
+  /** The session's sandbox (harness/sandbox.ts): its container, through the egress, synced with the seat's workspace. */
+  #box: SessionSandbox | null = null
+  #sandbox(): SessionSandbox {
+    if (this.#box) return this.#box
+    const container = this.ctx.container
+    if (!container) throw new Error('this deployment has no sandbox container')
+    const seat = this.#seat()
+    const exports = (this.ctx as unknown as { exports: Record<string, (options: { props: unknown }) => Fetcher> }).exports
+    const manifest = {
+      all: () => new Map(this.sql<Listed>`SELECT path, size, mtime FROM wb_sandbox_files`.map((row) => [row.path, row]) as [string, Listed][]),
+      set: (files: Listed[]) => {
+        for (const file of files) this.sql`INSERT OR REPLACE INTO wb_sandbox_files (path, size, mtime) VALUES (${file.path}, ${file.size}, ${file.mtime})`
+      },
+      remove: (paths: string[]) => {
+        for (const path of paths) this.sql`DELETE FROM wb_sandbox_files WHERE path = ${path}`
+      },
+      clear: () => void this.sql`DELETE FROM wb_sandbox_files`,
+    }
+    this.#box = new SessionSandbox(
+      container,
+      // Every request it makes is the egress's to decide, and to log, as this seat and thread.
+      () => exports[EGRESS]!({ props: { seat: seat.key, thread: this.thread } }),
+      () => this.env.WORKSPACE.getByName(seat.key) as unknown as WorkspaceSync,
+      manifest,
+      { seat: seat.key, thread: this.thread },
+    )
+    return this.#box
   }
 
   #byName = new Map<string, Tool<unknown>>()
@@ -273,6 +327,7 @@ export class Session extends Agent<Env> {
     const op = this.sql<{ started: number; ended: number | null }>`SELECT started, ended FROM wb_ops WHERE id = ${operationId}`[0]
     const responses = !measured ? [] : this.sql<{ model: string | null; input: number; output: number; cache_read: number; cache_write: number; cost: number; log: string | null }>`SELECT model, input, output, cache_read, cache_write, cost, log FROM wb_responses WHERE op = ${operationId} ORDER BY id`
     const tools = !measured ? [] : this.sql<{ name: string; started: number | null; ended: number | null; ok: number | null }>`SELECT name, started, ended, ok FROM wb_tools WHERE op = ${operationId} ORDER BY started`
+    const boxes = !measured ? [] : this.sql<{ started: number; ms: number; command_ms: number }>`SELECT started, ms, command_ms FROM wb_sandbox WHERE op = ${operationId}`
     const sum = (key: 'input' | 'output' | 'cache_read' | 'cache_write' | 'cost') => responses.reduce((total, r) => total + (r[key] ?? 0), 0)
     const now = Date.now()
     return {
@@ -284,6 +339,7 @@ export class Session extends Agent<Env> {
       logs: responses.flatMap((r) => (r.log ? [r.log] : [])),
       started: iso(op?.started ?? now)!,
       ended: iso(op?.ended ?? null),
+      ...(boxes.length ? { sandbox: { instance: INSTANCE, calls: boxes.length, starts: boxes.filter((box) => box.started).length, ms: boxes.reduce((total, box) => total + box.ms, 0), commandMs: boxes.reduce((total, box) => total + box.command_ms, 0) } } : {}),
     }
   }
 

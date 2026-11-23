@@ -8,6 +8,12 @@ import type { PiTool, PiToolCall, PiToolResult } from '@cloudflare/computer/tool
 
 import { workspace, workspaceTools } from '../harness/computer.ts'
 
+/** A file as a sandbox syncs it. */
+export type Listed = { path: string; size: number; mtime: number }
+/** What a sandbox doesn't sync: dependencies it installs itself, and caches. */
+export const SYNC_SKIP = ['**/node_modules', '**/.cache', '**/.npm']
+export const SYNC_MAX_FILES = 5000
+
 export class SeatWorkspace extends DurableObject<Env> {
   readonly space = workspace(this.ctx.storage, this.env.LOADER)
   readonly tools = workspaceTools(this.space)
@@ -23,6 +29,55 @@ export class SeatWorkspace extends DurableObject<Env> {
     const run = this.#last.then(() => this.tools.execute(call))
     this.#last = run.catch(() => undefined)
     return run
+  }
+
+  // -- what a sandbox syncs (harness/sandbox.ts) ------------------------------------------------
+
+  /** Runs fn after every call before it has ended, as execute does. */
+  #serial<T>(fn: () => Promise<T>): Promise<T> {
+    const run = this.#last.then(fn)
+    this.#last = run.catch(() => undefined)
+    return run
+  }
+
+  /** Every file under root but what skip leaves out (globs, as find takes them), with its size and mtime. */
+  listing(root = '/workspace', skip: string[] = SYNC_SKIP): Promise<Listed[]> {
+    return this.#serial(async () => {
+      await this.space.fs.mkdir(root, { recursive: true })
+      const found = await this.space.fs.find(root, '**', { exclude: skip, limit: SYNC_MAX_FILES + 1 })
+      const files = found.filter((entry) => entry.type === 'file')
+      if (files.length > SYNC_MAX_FILES) throw new Error('the workspace has more than ' + SYNC_MAX_FILES + ' files to sync (outside node_modules): too many for a sandbox')
+      const out: Listed[] = []
+      for (const entry of files) {
+        const stat = await this.space.fs.stat(entry.path).catch(() => null)
+        if (stat?.isFile) out.push({ path: entry.path, size: stat.size, mtime: stat.mtime })
+      }
+      return out
+    })
+  }
+
+  /** Files' bytes, by path. */
+  readFiles(paths: string[]): Promise<{ path: string; data: Uint8Array }[]> {
+    return this.#serial(async () => {
+      const out: { path: string; data: Uint8Array }[] = []
+      for (const path of paths) out.push({ path, data: new Uint8Array(await new Response(await this.space.fs.readFile(path)).arrayBuffer()) })
+      return out
+    })
+  }
+
+  /** Writes files (making their directories), and removes paths: what a sandbox's command changed. Answers each written file's listing. */
+  applyFiles(written: { path: string; data: Uint8Array }[], removed: string[] = []): Promise<Listed[]> {
+    return this.#serial(async () => {
+      const out: Listed[] = []
+      for (const { path, data } of written) {
+        await this.space.fs.mkdir(path.slice(0, path.lastIndexOf('/')) || '/', { recursive: true })
+        await this.space.fs.writeFile(path, data)
+        const stat = await this.space.fs.stat(path)
+        out.push({ path, size: stat.size, mtime: stat.mtime })
+      }
+      for (const path of removed) await this.space.fs.rm(path, { force: true })
+      return out
+    })
   }
 
   /** What's in a directory of the workspace, for checks and the Seat's views. */

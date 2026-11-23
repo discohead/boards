@@ -14,6 +14,7 @@ import { seatOf } from './seats/wake.ts'
 export { Seat } from './seats/seat.ts'
 export { Session } from './seats/session.ts'
 export { SeatWorkspace } from './seats/workspace.ts'
+export { Egress } from './egress/index.ts'
 export { Wake } from './seats/wake.ts'
 
 /** Once per isolate: the org seeded, the reconciler's wake set, and a first pass (org/boot.ts). */

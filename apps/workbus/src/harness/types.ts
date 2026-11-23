@@ -4,7 +4,7 @@
 import type { z } from 'zod'
 
 /** The tool tiers a seat doc grants (§5.4). Phase 2 builds board and computer. */
-export type ToolTier = 'board' | 'computer'
+export type ToolTier = 'board' | 'computer' | 'sandbox' | 'web'
 
 /** A seat, as a session needs it: who it is, what it may do, and what its prompt is made of. */
 export type SeatRef = {
@@ -72,6 +72,8 @@ export type Usage = {
   logs: string[]
   started: string
   ended: string | null
+  /** The sandbox's part (harness/sandbox.ts): its calls, the container starts among them, their time in all and the commands' alone. */
+  sandbox?: { instance: string; calls: number; starts: number; ms: number; commandMs: number }
 }
 
 export type Outcome = {
