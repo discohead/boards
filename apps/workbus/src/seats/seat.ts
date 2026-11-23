@@ -64,6 +64,7 @@ export function seatRef(runtime: SeatRuntime): SeatRef {
     revision: String(runtime.configRevision),
     ...(Object.keys(runtime.approve ?? {}).length ? { approve: runtime.approve } : {}),
     ...(runtime.automatic?.length ? { automatic: runtime.automatic } : {}),
+    ...(runtime.assigns ? { assigns: runtime.assigns } : {}),
   }
 }
 

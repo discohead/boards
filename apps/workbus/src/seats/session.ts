@@ -109,7 +109,7 @@ export class Session extends Agent<Env> {
   /** The seat's tools, by its tiers. */
   #tools(seat: SeatRef): Tool<any>[] {
     const tools: Tool<any>[] = []
-    if (seat.tools.includes('board')) tools.push(...boardTools(() => seatBoard(this.env.WORKBUS, BOARD, this.#seat()), () => this.#claimToken()))
+    if (seat.tools.includes('board')) tools.push(...boardTools(() => seatBoard(this.env.WORKBUS, BOARD, this.#seat()), () => this.#claimToken(), () => this.#configured()?.assigns))
     if (seat.tools.includes('computer') && this.#declared) tools.push(...computerTools(this.#declared, this.#workspace(seat)))
     return tools
   }
