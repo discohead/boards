@@ -9,6 +9,7 @@ import { Activity, CircleDot, FileText, Hash, Inbox, LayoutGrid, MessageSquare, 
 import { useBus, type Channel } from '@/data'
 import { DocsTree } from '@/docs/DocsTree'
 import { Avatar, Kbd, Lockup, SidebarGroup, SidebarItem } from '@/components/system'
+import { MentionCount, NewChannel, useChannelCounts } from './channel-list.tsx'
 
 const icon = (Icon: LucideIcon) => <Icon size={16} strokeWidth={1.5} aria-hidden className="shrink-0 text-muted-foreground" />
 
@@ -36,15 +37,22 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const me = bus.runtime.me
   const name = me.name ?? me.handle ?? ''
   const at = (path: string) => pathname === path
-  const channelLink = (channel: Channel, label: string, child = false) => (
-    <li key={channel.path}>
-      <SidebarItem asChild child={child} active={at('/c/' + channel.path)} icon={channel.path.startsWith('dm/') ? MessageSquare : Hash}>
-        <Link to="/c/$" params={{ _splat: channel.path }}>
-          <span className="truncate">{label}</span>
-        </Link>
-      </SidebarItem>
-    </li>
-  )
+  // Unread roots make a channel bold with a dot; mentions show as a count instead, in the held color.
+  const counts = useChannelCounts()
+  const channelLink = (channel: Channel, label: string, child = false) => {
+    const count = counts.get(channel.path)
+    const unread = (count?.unread ?? 0) > 0 || (count?.mentions ?? 0) > 0
+    return (
+      <li key={channel.path}>
+        <SidebarItem asChild child={child} active={at('/c/' + channel.path)} unread={unread && !count?.mentions} icon={channel.path.startsWith('dm/') ? MessageSquare : Hash} className={unread ? 'font-semibold text-text' : undefined}>
+          <Link to="/c/$" params={{ _splat: channel.path }} data-channel={channel.path} data-unread={unread ? 'yes' : undefined}>
+            <span className="truncate">{label}</span>
+            <MentionCount count={count} />
+          </Link>
+        </SidebarItem>
+      </li>
+    )
+  }
   const place = (to: '/' | '/my-work' | '/docs' | '/tasks' | '/settings', label: string, Icon: LucideIcon, count?: number) => (
     <SidebarItem asChild icon={Icon} active={to === '/' ? at('/') : pathname.startsWith(to)} {...(count ? { count } : {})}>
       <Link to={to}>{label}</Link>
@@ -71,7 +79,7 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
         {dms.length ? (
           <>
             <SidebarGroup>Direct messages</SidebarGroup>
-            <ul>{dms.map((channel) => channelLink(channel, channel.path.slice(3)))}</ul>
+            <ul data-testid="dms">{dms.map((channel) => channelLink(channel, channel.path.slice(3)))}</ul>
           </>
         ) : null}
         {teams.length ? <SidebarGroup>Teams</SidebarGroup> : null}
@@ -85,7 +93,12 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
             </li>
           ))}
         </ul>
-        {loose.length ? <SidebarGroup>Channels</SidebarGroup> : null}
+        <div className="relative flex items-center">
+          <SidebarGroup>Channels</SidebarGroup>
+          <div className="mt-3 ml-auto pr-1">
+            <NewChannel />
+          </div>
+        </div>
         <ul data-testid="channels">{loose.map((channel) => channelLink(channel, channel.path))}</ul>
         <SidebarGroup>Workspace</SidebarGroup>
         {inert('Org & seats', Network)}

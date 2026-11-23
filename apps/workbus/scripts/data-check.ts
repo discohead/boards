@@ -36,12 +36,12 @@ const quick = await readFirstPages(createRuntime('server', { url, token, fetch: 
 const names = quick.state.collections.map((chunk) => chunk.collectionId)
 check(quick.late && !names.includes('actors') && names.includes('threads'), 'first pages at a deadline: what was read, without the late one', names)
 const full = await readFirstPages(createRuntime('server', { url, token }))
-check(!full.late && full.state.collections.length === 7 && full.state.collections.every((chunk) => Number.isInteger((chunk.syncMeta as { cursor: number }).cursor)), 'first pages in time: all seven, each with its cursor', full.state.collections.map((chunk) => chunk.collectionId + '@' + (chunk.syncMeta as { cursor: number }).cursor))
+check(!full.late && full.state.collections.length === 8 && full.state.collections.every((chunk) => Number.isInteger((chunk.syncMeta as { cursor: number }).cursor)), 'first pages in time: all eight, each with its cursor', full.state.collections.map((chunk) => chunk.collectionId + '@' + (chunk.syncMeta as { cursor: number }).cursor))
 
 const KEEP = 40
 const bus = busOf(liveDb({ url, token, keep: KEEP }))
 await bus.runtime.shared.get('me')
-await Promise.all([bus.channels, bus.threads, bus.messages, bus.tasks, bus.docs, bus.actors, bus.follows, bus.bodies].map((collection) => collection.preload()))
+await Promise.all([bus.channels, bus.threads, bus.messages, bus.tasks, bus.docs, bus.actors, bus.follows, bus.bodies, bus.unread].map((collection) => collection.preload()))
 const feed = bus.runtime.feed!
 check(bus.runtime.me.actor === 'workbus:user:jared' && Array.isArray(bus.runtime.me.can?.['*']), 'who I am, with what I may do', bus.runtime.me.can)
 check(bus.threads.status === 'ready', 'collections ready', { threads: bus.threads.size, messages: bus.messages.size, tasks: bus.tasks.size, docs: bus.docs.size, actors: bus.actors.size, follows: bus.follows.size, feedAt: feed.cursor })
@@ -72,7 +72,8 @@ const settled = [...bus.messages.values()].filter((message) => message.text === 
 check(settled.length === 1 && !settled[0]!.pending && /^\d+$/.test(settled[0]!.id), 'it settles as one row with the board ID', { id: settled[0]?.id, ms: Date.now() - before })
 check(feed.cursor! >= settled[0]!.version && Date.now() - before < 5000, 'on its echo: the feed had reached its event, well before the fallback', { feed: feed.cursor, event: settled[0]?.version })
 const way = bus.actions.settledBy.get(optimistic!.id)
-check(way === (process.env.EXPECT_CLIENT_ID ? 'clientId' : 'cursor'), 'settled by ' + (process.env.EXPECT_CLIENT_ID ? 'its client ID' : 'the cursor (this board carries no client IDs)'), way)
+// The framework carries client IDs since #4; NO_CLIENT_IDS=1 checks the fallback on a board built before it.
+check(way === (process.env.NO_CLIENT_IDS ? 'cursor' : 'clientId'), 'settled by ' + (process.env.NO_CLIENT_IDS ? 'the cursor (this board carries no client IDs)' : 'its client ID'), way)
 check(!bus.messages.has(optimistic!.id) && bus.threads.has(settled[0]!.id) && !bus.threads.has(optimistic!.id), 'the pending row and thread are gone, the board one is there')
 
 // 4. A refused write rolls back: a reply to a thread that isn't there.
@@ -142,6 +143,56 @@ await feed.reached(after.message.version)
 const gone = !bus.messages.has(reply.message.id)
 await bus.openThread(posted.message.id)
 check(gone && bus.messages.has(reply.message.id), 'a closed thread can go, and opening it reads it back', { wentFirst: gone })
+
+{
+// 10. Read state (src/data/unread.ts): another person's root counts in its channel, a mention once
+// more, and marking read zeroes it here and on the board.
+const room = 'reads-' + Date.now().toString(36)
+await bus.actions.createChannel(room)
+check(bus.channels.has(room), 'a new channel is in channels at once')
+const channelRow = () => bus.unread.get('channel:' + room)
+wb('post', room, 'a root by someone else')
+check((await until(bus.unread, () => (channelRow()?.unread ?? 0) === 1)) >= 0, "another person's root counts in its channel", channelRow())
+wb('post', room, 'hey @jared')
+check((await until(bus.unread, () => (channelRow()?.unread ?? 0) === 2 && channelRow()?.mentions === 1)) >= 0, 'a mention counts once more', channelRow())
+await bus.actions.markRead({ channel: room })
+check(channelRow()?.unread === 0 && channelRow()?.mentions === 0, 'marking read zeroes it here')
+const unreadNow = await bus.runtime.client.get<{ channels: { channel: string }[] }>('/unread')
+check(!unreadNow.channels.some((row) => row.channel === room), 'and on the board', unreadNow.channels)
+const ownRoot = await bus.runtime.client.post<{ message: Message }>('/messages', { channel: room, text: 'my own root' })
+const threadRow = () => bus.unread.get('thread:' + ownRoot.message.id)
+wb('reply', ownRoot.message.id, 'a reply in my thread')
+check((await until(bus.unread, () => threadRow()?.unread === 1)) >= 0, 'a reply in a thread I follow counts in its thread', threadRow())
+await bus.actions.markRead({ thread: ownRoot.message.id })
+check(threadRow()?.unread === 0, 'and marking the thread read zeroes it')
+
+// 11. Thread writes (src/data/thread-actions.ts): react, delete, and write it up, each optimistic or settled on its echo.
+const reactTx = bus.actions.react({ id: ownRoot.message.id, emoji: 'eyes' })
+check((bus.messages.get(ownRoot.message.id)?.reactions as Record<string, string[]>)?.eyes?.includes(bus.runtime.me.actor) === true, 'a reaction shows at once')
+await reactTx.when('settled')
+check((bus.messages.get(ownRoot.message.id)?.reactions as Record<string, string[]>)?.eyes?.length === 1, 'and settles as the board has it', bus.messages.get(ownRoot.message.id)?.reactions)
+await bus.actions.react({ id: ownRoot.message.id, emoji: 'eyes', remove: true }).when('settled')
+check(!(bus.messages.get(ownRoot.message.id)?.reactions as Record<string, string[]>)?.eyes, 'taking it away too')
+const refused = bus.actions.react({ id: ownRoot.message.id, emoji: 'Not An Emoji' })
+const rolled = await refused.when('settled').then(() => false, (error) => error instanceof BusRefusal)
+check(rolled && !(bus.messages.get(ownRoot.message.id)?.reactions as Record<string, string[]>)?.['Not An Emoji'], 'a refused reaction rolls back')
+await bus.actions.writeUp({ re: ownRoot.message.id, slug: 'written-' + ownRoot.message.id })
+check(bus.messages.get(ownRoot.message.id)?.doc?.path?.endsWith('written-' + ownRoot.message.id) === true, 'write it up: the root gains a body, in place', bus.messages.get(ownRoot.message.id)?.doc?.path)
+const doomed = await bus.runtime.client.post<{ message: Message }>('/messages', { channel: room, text: 'doomed' })
+await feed.reached(doomed.message.version)
+const removeTx = bus.actions.remove({ id: doomed.message.id })
+check(bus.messages.get(doomed.message.id)?.deleted === true && bus.threads.get(doomed.message.id)?.root.deleted === true, 'a delete shows at once, in the thread list too')
+await removeTx.when('settled')
+check(bus.messages.get(doomed.message.id)?.deleted === true, 'and settles')
+
+// 12. Older pages: openChannel(path, { before }) reads the page before a channel's newest.
+const long = 'pages-' + Date.now().toString(36)
+for (let i = 0; i < 55; i++) await bus.runtime.client.post('/messages', { channel: long, text: 'page root ' + i })
+const newest = await bus.openChannel(long)
+check(newest.older !== null && newest.more, 'a channel opens at its newest 50, with a page before', newest)
+const before = await bus.openChannel(long, { before: newest.older! })
+check(before.older === null && [...bus.threads.values()].some((thread) => thread.root.text === 'page root 0'), 'the page before has its first root, and nothing before it', before)
+}
 
 console.log(failures ? failures + ' failed' : 'all passed')
 feed.close()

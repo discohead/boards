@@ -27,6 +27,12 @@ export type BusRuntime = {
   open: Set<string>
   /** How many messages to keep beyond open threads' (MESSAGES_KEPT by default). */
   keep: number
+  /** Whether the caller follows a thread (from the follows collection, once it's there). */
+  following: (thread: string) => boolean
+  /** The read state's refresh (GET /unread again), once the browser's read state is running. */
+  unread: { refresh: () => Promise<void>; soon: () => void } | null
+  /** Channels shown in a view: their newest messages stay in memory. */
+  viewing: Set<string>
   /**
    * Resolves once the page has hydrated (BusProvider calls markHydrated in an effect). Until then
    * the collections hold the server's rows and take nothing from the feed or their own reads, so

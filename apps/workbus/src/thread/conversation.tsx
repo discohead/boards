@@ -1,77 +1,87 @@
-// The thread pane's conversation: the root and its replies, live, and the composer. A stub in the
-// prototype's shape (name, @handle, time · #cursor; "Posting as"); the thread pane's owner builds it
-// out with designer's Message.
-import { useEffect, useRef, useState } from 'react'
+// The thread pane's conversation (design/workbus.md §4.1): the root and its replies, live, a box to
+// reply in, and follow or unfollow. Opening it marks the thread read, and so does each reply that
+// comes while it's open and the tab is visible. A new reply moves the list only when you're at its
+// bottom.
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { useLiveQuery } from '@tanstack/react-db'
 import { eq, or } from '@tanstack/db'
-import { useBus, type Message as BoardMessage } from '@/data'
-import { Button } from '@/components/ui/button'
-import { useClockText } from '@/shell/clock'
-import { Kbd, Message } from '@/components/system'
-
-const initials = (name: string) => name.split(/[\s._-]+/).map((part) => part[0] ?? '').join('').slice(0, 2).toUpperCase() || '?'
-
-function Row({ message, arrive }: { message: BoardMessage; arrive: boolean }) {
-  const handle = message.author?.handle ?? message.by.actor.replace(/^.*:/, '')
-  const name = message.author?.name ?? handle
-  const time = useClockText(message.createdAt, true)
-  return (
-    <li data-id={message.id} data-pending={message.pending ? 'yes' : undefined}>
-      <Message author={{ name, handle: '@' + handle, initials: initials(name), kind: message.author?.kind !== undefined && message.author.kind !== 'person' ? 'agent' : 'person' }} time={time} {...(message.pending ? { pending: true } : { cursor: '#' + message.id })} arrive={arrive}>
-        <p className="whitespace-pre-wrap">{message.text}</p>
-      </Message>
-    </li>
-  )
-}
+import { useBus } from '@/data'
+import { threadKey } from '@/data/unread'
+import { Composer } from '@/channel/composer'
+import { MessageItem } from '@/channel/message'
 
 export function Conversation({ id }: { id: string }) {
   const bus = useBus()
-  const { data: messages } = useLiveQuery({ query: (q) => q.from({ message: bus.messages }).where(({ message }) => or(eq(message.id, id), eq(message.re, id))).orderBy(({ message }) => message.createdAt, 'asc') })
-  // What was here when the thread opened; anything someone else adds after gets the arrival tint once.
-  const seen = useRef<Set<string> | null>(null)
-  if (seen.current === null) seen.current = new Set(messages.map((message) => message.id))
+  const { data: messages } = useLiveQuery({ query: (q) => q.from({ message: bus.messages }).where(({ message }) => or(eq(message.id, id), eq(message.re, id))) })
+  const sorted = [...messages].sort((a, b) => (a.re === null ? -1 : b.re === null ? 1 : (a.pending ? Infinity : Number(a.id)) - (b.pending ? Infinity : Number(b.id))))
+  const root = sorted.find((message) => message.re === null)
+  const replies = sorted.filter((message) => message.re !== null && !(message.deleted && !message.text))
+  const { data: follows } = useLiveQuery({ query: (q) => q.from({ follow: bus.follows }).where(({ follow }) => eq(follow.thread, id)) })
+  const following = follows.length > 0
+  const { data: counts } = useLiveQuery({ query: (q) => q.from({ row: bus.unread }).where(({ row }) => eq(row.key, threadKey(id))) })
+  const unread = (counts[0]?.unread ?? 0) + (counts[0]?.mentions ?? 0)
   useEffect(() => {
-    const timer = setTimeout(() => messages.forEach((message) => seen.current!.add(message.id)), 300)
-    return () => clearTimeout(timer)
-  }, [messages])
-  const [text, setText] = useState('')
-  const send = () => {
-    if (!text.trim()) return
-    bus.actions.post({ re: id, text })
-    setText('')
+    if (bus.unread.status !== 'ready') return
+    const mark = () => {
+      if (document.visibilityState === 'visible') void bus.actions.markRead({ thread: id })
+    }
+    if (unread > 0 || counts.length === 0) mark()
+    document.addEventListener('visibilitychange', mark)
+    return () => document.removeEventListener('visibilitychange', mark)
+  }, [bus, id, unread, bus.unread.status])
+
+  const list = useRef<HTMLOListElement>(null)
+  const atBottom = useRef(true)
+  const lastKey = replies.at(-1)?.pending ?? replies.at(-1)?.id
+  useLayoutEffect(() => {
+    const scroller = list.current?.closest('[data-pane-scroll]')
+    if (!scroller) return
+    if (atBottom.current || replies.at(-1)?.pending) scroller.scrollTop = scroller.scrollHeight
+  }, [lastKey])
+  useEffect(() => {
+    const scroller = list.current?.closest('[data-pane-scroll]')
+    if (!scroller) return
+    const onScroll = () => (atBottom.current = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 60)
+    scroller.addEventListener('scroll', onScroll)
+    return () => scroller.removeEventListener('scroll', onScroll)
+  }, [])
+
+  const [editing, setEditing] = useState<string | null>(null)
+  const editLast = () => {
+    const mine = [...replies].reverse().find((message) => message.by.actor === bus.runtime.me.actor && !message.deleted && !message.pending)
+    if (mine) setEditing(mine.id)
   }
   return (
     <section aria-label="Conversation" className="flex min-h-0 flex-1 flex-col">
-      <ol data-testid="conversation" className="min-h-0 flex-1 overflow-y-auto py-3">
-        {messages.map((message) => (
-          <Row key={message.id} message={message} arrive={!seen.current!.has(message.id) && !message.pending && message.by.actor !== bus.runtime.me.actor} />
-        ))}
+      <div className="flex shrink-0 items-center gap-2 px-4 pt-3 pb-1">
+        <h2 className="text-xs font-medium text-muted-foreground">
+          {replies.length} {replies.length === 1 ? 'reply' : 'replies'}
+        </h2>
+        <button type="button" onClick={() => bus.actions.follow({ thread: id, on: !following })} aria-pressed={following} data-testid="follow" className="ml-auto rounded-md border px-2 py-0.5 text-xs hover:bg-accent">
+          {following ? 'Following' : 'Follow'}
+        </button>
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto pb-2" data-pane-scroll>
+      <ol ref={list} data-testid="conversation">
+        {root ? (
+          <li key={root.id} data-id={root.id} className="border-b pb-2">
+            <MessageItem message={root} editing={editing === root.id} onEditing={(on) => setEditing(on ? root.id : null)} />
+          </li>
+        ) : null}
+        {replies.map((message, at) => {
+          const previous = at > 0 ? replies[at - 1]! : null
+          const grouped = previous !== null && !previous.deleted && previous.by.actor === message.by.actor && Date.parse(message.createdAt) - Date.parse(previous.createdAt) < 5 * 60_000
+          return (
+            <li key={message.pending ?? message.id} data-id={message.id} data-pending={message.pending ? 'yes' : undefined}>
+              <MessageItem message={message} grouped={grouped} editing={editing === message.id} onEditing={(on) => setEditing(on ? message.id : null)} />
+            </li>
+          )
+        })}
       </ol>
-      <form
-        className="m-4 mt-0 rounded-md border px-3 py-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          send()
-        }}
-      >
-        <textarea
-          aria-label="Reply"
-          rows={1}
-          value={text}
-          placeholder="Reply to thread…"
-          onChange={(event) => setText(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) (event.preventDefault(), send())
-          }}
-          className="w-full resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-        />
-        <div className="flex items-center justify-between font-mono text-xs text-muted-foreground">
-          <span>Posting as @{bus.runtime.me.handle ?? ''}</span>
-          <Button size="sm" variant="outline" type="submit">
-            Send <Kbd className="ml-1">⌘↵</Kbd>
-          </Button>
-        </div>
-      </form>
+      </div>
+      <div className="shrink-0 px-4 pt-2 pb-4">
+        <Composer place={'thread:' + id} label="Reply" placeholder="Reply…" onSend={(text) => bus.actions.post({ re: id, text })} onEditLast={editLast} />
+      </div>
     </section>
   )
 }
