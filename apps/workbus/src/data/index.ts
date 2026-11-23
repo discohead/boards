@@ -9,6 +9,8 @@ import { BusClient, BusRefusal, type BusOptions } from './client.ts'
 import { Feed } from './feed.ts'
 import { actors, bodies, channels, docs, FIRST_PAGES, MESSAGES_KEPT, follows, messages, tasks, threadOf, threads, type BusUtils, type ThreadEntry } from './collections.ts'
 import { busActions } from './actions.ts'
+import { taskActions } from './task-actions.ts'
+import { inboxReads } from './inbox.ts'
 import { runtimeOf, type BusMode, type BusRuntime, type Me } from './runtime.ts'
 import type { Actor, Channel, Doc, DocBody, Follow, Message, Thread } from './types.ts'
 
@@ -81,6 +83,8 @@ function makeBus(db: DbClient) {
     bodies: db.collection(bodies),
   } as unknown as BusCollections
   const actions = busActions(db, runtime, c)
+  const taskWrites = taskActions(db, runtime, c)
+  const inbox = inboxReads(runtime, c)
 
   /** Open a thread: its replies, read now (up to 500) and kept in memory while it's open. */
   const openThread = async (id: string) => {
@@ -113,7 +117,7 @@ function makeBus(db: DbClient) {
     if (!had || Number(had.revision) <= Number(page.doc.revision)) c.bodies.utils.rows.apply([{ id, revision: page.doc.revision, body: page.body }])
     return page
   }
-  return { db, runtime, ...c, actions, openChannel, openThread, closeThread, openDoc }
+  return { db, runtime, ...c, actions: { ...actions, task: taskWrites }, ...inbox, openChannel, openThread, closeThread, openDoc }
 }
 
 /** The collections and writes of db (one set per DbClient). */

@@ -192,7 +192,7 @@ export const tasks = feedCollection<Message>({
   // cursor, not the board's, so the board's is read first: events after it replay idempotently.
   load: async (runtime) => {
     const before = await now(runtime)
-    const [open, recent] = await Promise.all(['open&limit=500', 'all&limit=100'].map((query) => runtime.client.get<Page<'tasks', { message: Message }>>('/tasks?state=' + query)))
+    const [open, recent] = await Promise.all(['open&limit=500', 'all&latest=true&limit=100'].map((query) => runtime.client.get<Page<'tasks', { message: Message }>>('/tasks?state=' + query)))
     const byId = new Map([...recent!.tasks, ...open!.tasks].map((entry) => [entry.message.id, entry.message]))
     return { rows: [...byId.values()], cursor: before }
   },
