@@ -29,11 +29,11 @@ import { DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMe
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow as Tr } from '@/components/ui/table'
 import { cn } from '@/lib/utils'
 import { useOpenThread } from '@/shell/open-thread'
-import { typedText } from '@/thread/mentions'
 import { holdSelected } from './hold.ts'
-import { taskState, useBus, type ShownState } from '@/data'
+import { taskState, type ShownState } from '@/data'
 import { assigneeOf, holdOf, shownLabels, SHOWN, SHOWN_LABEL, stateOf, type Task, type TaskState } from './model.ts'
 import { useActorNames } from './actors.ts'
+import { named, summaryOf } from '@/data/text'
 import { BoardCard, IssueRow, Kind, Label, TaskState as TaskGlyph, type KindName } from '@/components/system'
 import { useActorKinds } from './actors.ts'
 
@@ -110,7 +110,6 @@ const COLUMN_OF = { state: 'state', owner: 'owner', assignee: 'assignee', channe
 
 /** Task rows from tasks, named. */
 export function useTaskRows(tasks: Task[]): TaskRow[] {
-  const bus = useBus()
   const name = useActorNames()
   return useMemo(
     () =>
@@ -118,7 +117,7 @@ export function useTaskRows(tasks: Task[]): TaskRow[] {
         const assignee = assigneeOf(task) ?? ''
         return {
           id: task.id,
-          title: (typedText(task.text, bus.actors).split('\n')[0] ?? '').replace(/^#+\s*/, '') || '(no text)',
+          title: summaryOf(task.text, named(name)) || '(no text)',
           state: stateOf(task),
           shown: taskState(task.task).state,
           word: taskState(task.task).waitsOn?.length ? 'waits on ' + taskState(task.task).waitsOn!.map((id) => '#' + id).join(' ') : taskState(task.task).word,

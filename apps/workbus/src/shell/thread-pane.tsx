@@ -15,6 +15,8 @@ import { Status } from '@/thread/status'
 import { Body } from '@/thread/body'
 import { ThreadShortcuts } from '@/command/ThreadShortcuts'
 import { useAddFaces } from '@/thread/add-faces'
+import { named, summaryOf } from '@/data/text'
+import { useActorNames } from '@/task/actors'
 import { useOpenThread } from './open-thread.ts'
 import type { Face } from '../routes/__root.tsx'
 
@@ -38,7 +40,8 @@ function Pane({ id }: { id: string }) {
   const open: Face = faces.some((tab) => tab.id === face) ? face! : 'conversation'
   const replies = useLiveQuery({ query: (q) => q.from({ thread: bus.threads }).where(({ thread }) => eq(thread.id, id)) }).data[0]?.replies
   const shown = root?.task ? taskState(root.task) : null
-  const title = root?.doc?.title ?? root?.text.split('\n')[0]?.replace(/^#+\s*/, '') ?? ''
+  const name = useActorNames()
+  const title = root?.doc?.title ?? (root ? summaryOf(root.text, named(name)) : '')
   const labels = Object.entries(root?.labels ?? {}).filter(([key]) => !key.startsWith('board.'))
   return (
     <aside aria-label="Thread" data-testid="thread-pane" className="flex min-w-0 flex-1 flex-col">

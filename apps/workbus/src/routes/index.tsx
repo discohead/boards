@@ -10,6 +10,7 @@ import { useHotkey } from '@tanstack/react-hotkeys'
 import { MessageSquareIcon } from 'lucide-react'
 import { Kbd, Kind, type KindName } from '@/components/system'
 import { useBus } from '@/data'
+import { named, summaryOf } from '@/data/text'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import { useOpenThread } from '@/shell/open-thread'
@@ -18,7 +19,6 @@ import { holdSelected } from '@/task/hold'
 import type { InboxItem, Reason } from '@/inbox/items'
 import { useInbox } from '@/inbox/use-inbox'
 import { DateBar, ListPane } from '@/shell/list-pane'
-import { typedText } from '@/thread/mentions'
 import { Clock } from '@/shell/clock'
 
 export const Route = createFileRoute('/')({ component: Inbox })
@@ -110,11 +110,11 @@ function Inbox() {
                   <Clock at={whenOf(one)} />
                 </span>
               </div>
-              <div className={cn('truncate', live.has(key) && 'font-medium')}>{title(one, bus.actors)}</div>
+              <div className={cn('truncate', live.has(key) && 'font-medium')}>{title(one, named(name))}</div>
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
                   @{name(whoOf(one))} · {one.channel}
-                  <span className="font-sans"> {detail(one, docPath, bus.actors)}</span>
+                  <span className="font-sans"> {detail(one, docPath, named(name))}</span>
                 </span>
                 {one.reasons.some((reason) => reason.kind === 'reply') && live.has(key) ? (
                   <Button
@@ -139,10 +139,8 @@ function Inbox() {
 }
 
 /** Its thread's first line: the root's, or, when the root isn't in memory, the newest reply's (opening it reads the thread). */
-const title = (one: InboxItem, actors: Actors) => {
-  const text = typedText(one.root?.text ?? latestOf(one)?.text ?? '', actors)
-  return (text.split('\n')[0] ?? '').replace(/^#+\s*/, '') || 'Thread #' + one.thread
-}
+type Actors = ReturnType<typeof named>
+const title = (one: InboxItem, actors: Actors) => summaryOf(one.root?.text ?? latestOf(one)?.text ?? '', actors) || 'Thread #' + one.thread
 
 /** The message that put it here: the newest reply or mention, else its root. */
 const latestOf = (one: InboxItem) => {
@@ -166,13 +164,10 @@ function detail(one: InboxItem, docPath: (id: string) => string, actors: Actors)
   for (const reason of one.reasons) {
     if (reason.kind === 'held') return '· ' + reason.reason
     if (reason.kind === 'proposal') return '· proposes a change to ' + docPath(reason.doc)
-    if (reason.kind === 'reply' && reason.latest) return '· ' + plain(reason.latest.text, actors) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
+    if (reason.kind === 'reply' && reason.latest) return '· ' + summaryOf(reason.latest.text, actors) + (reason.unread > 1 ? ' (' + reason.unread + ' new)' : '')
   }
   return ''
 }
-/** A message's first line, its mentions as their handles (@[<actor ID>] → @handle). */
-const plain = (text: string, actors: Actors) => typedText(text, actors).split('\n')[0]!
-type Actors = Parameters<typeof typedText>[1]
 
 /** The kind of an item, as the prototype's inbox row draws it: the system's Kind, plain (its icon and word). A plain reply has no system kind. */
 function ItemKind({ reason }: { reason: Reason }) {
