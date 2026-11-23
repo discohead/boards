@@ -87,6 +87,31 @@ describe('read state', () => {
     expect(counts.threads.has(root)).toBe(false)
   })
 
+  it('a root that mentions you is an item in your threads: reading it, or its channel, clears the mention', async () => {
+    const name = freshBoard('reads-root-mention')
+    await meet(name, 'jared', 'ada')
+    await mark(name, 'jared', { channel: 'hello' })
+    const asks = await post(name, 'ada', { channel: 'ops', text: '@jared can you look at the deploy plan?' })
+    await post(name, 'ada', { channel: 'ops', text: 'A plain thread.' })
+    const counts = await unread(name, 'jared')
+    expect(counts.threads.get(asks)).toMatchObject({ channel: 'ops', unread: 1, mentions: 1, read: String(Number(asks) - 1) })
+    expect(counts.channels.get('ops')).toMatchObject({ unread: 2, mentions: 1 })
+    // Reading the thread clears its mention from the channel; the channel's two threads stay unread.
+    expect(await mark(name, 'jared', { thread: asks })).toMatchObject({ unread: 0, mentions: 0 })
+    expect(await channel(name, 'jared', 'ops')).toMatchObject({ unread: 2, mentions: 0 })
+    // Marked back to before it, it's unread again.
+    expect(await mark(name, 'jared', { thread: asks, upto: String(Number(asks) - 1) })).toMatchObject({ unread: 1, mentions: 1 })
+    // Reading the channel reads its roots' mentions too, and a reply after still counts.
+    expect(await mark(name, 'jared', { channel: 'ops' })).toMatchObject({ unread: 0, mentions: 0 })
+    expect((await unread(name, 'jared')).threads.has(asks)).toBe(false)
+    expect(await mark(name, 'jared', { channel: 'ops', upto: String(Number(asks) - 1) })).toMatchObject({ unread: 2, mentions: 1 })
+    expect(await thread(name, 'jared', asks)).toMatchObject({ unread: 1, mentions: 1 })
+    // Deleted, it counts nowhere.
+    expect((await as(name, 'ada', 'POST', '/messages/' + asks + '/delete', {})).status).toBe(200)
+    expect((await unread(name, 'jared')).threads.has(asks)).toBe(false)
+    expect(await channel(name, 'jared', 'ops')).toMatchObject({ unread: 1, mentions: 0 })
+  })
+
   it('on a doc, a comment counts in the discussions you follow, not in others', async () => {
     const name = freshBoard('reads-doc')
     await meet(name, 'jared', 'ada', 'bob')
@@ -172,8 +197,9 @@ describe('read state', () => {
     await mark(name, 'jared', { channel: 'docs' })
     expect((await as(name, 'ada', 'POST', '/docs/' + doc + '/move', { channel: 'docs' })).status).toBe(200)
     expect(await channel(name, 'jared', 'drafts')).toMatchObject({ unread: 0, mentions: 0 })
-    // Older than jared's cursor in docs: read there.
-    expect(await channel(name, 'jared', 'docs')).toMatchObject({ unread: 0, mentions: 0 })
+    // Older than jared's cursor in docs: read there, but its mention is on its thread, unread, and moved with it.
+    expect(await channel(name, 'jared', 'docs')).toMatchObject({ unread: 0, mentions: 1 })
+    expect((await unread(name, 'jared')).threads.get(doc)?.channel).toBe('docs')
     expect(await channel(name, 'bob', 'docs')).toMatchObject({ unread: 2 })
     expect(await channel(name, 'ada', 'docs')).toMatchObject({ unread: 0 })
     expect((await as(name, 'ada', 'POST', '/docs/' + doc + '/move', { channel: 'drafts' })).status).toBe(200)

@@ -8,8 +8,10 @@ What's unread for an actor is what reached it since it last read, and it didn't 
 - in a **thread** it follows, the replies that reached it (design/follows.md) after its cursor for
   that thread.
 
-A mention is unread the same way: a root that mentions the actor counts in its channel, a reply in
-its thread. A channel's mention count adds its threads'. Deleted messages never count. Slack works
+A mention is unread the same way, on its thread: a root that mentions the actor gives it a thread
+row from just before the root (unread 1, mentions 1), so the inbox lists it with a cursor, and a reply
+that mentions it counts on its thread. A channel's mention count is its threads'. Reading the
+thread clears it, and so does reading the channel past the root. Deleted messages never count. Slack works
 this way: a reply bolds the thread, not the channel, and a mention shows on both.
 
 This reverses design/follows.md's "not doing": the app needs read state (design/workbus.md §9.3, §11).
@@ -21,8 +23,8 @@ it is in the log, and marking something read writes no event.
 
 | Table | Row | Holds |
 | --- | --- | --- |
-| `read_channels` | (channel, actor) | `seq`, the cursor; `before`, live roots at or before it; `own`, the actor's live roots after it; `mentions`, live roots after it that mention the actor |
-| `read_threads` | (actor, thread) | `seq`; `unread` and `mentions`, the live replies after it that reached the actor |
+| `read_channels` | (channel, actor) | `seq`, the cursor; `before`, live roots at or before it; `own`, the actor's live roots after it |
+| `read_threads` | (actor, thread) | `seq`; `unread` and `mentions`, the live messages after it that reached the actor: its replies, and the root when it mentions the actor |
 | `read_gone` | channel | roots deleted there |
 
 A channel's unread count is its live roots, less `before` and `own`. Its live roots are
@@ -40,13 +42,17 @@ the archive's faults like any write.
 ## Changes that move counts
 
 - **Post.** A root raises its channel's live roots and its author's `own`, and each actor it
-  mentions gets a mention. A reply raises each follower's `unread` (and `mentions` for each it
+  mentions (that may hold rows there) gets a thread row from just before it, unread 1, mentions 1. A reply raises each follower's `unread` (and `mentions` for each it
   mentions).
 - **Delete.** A root raises `read_gone`; for each row in its channel, `before` drops when the root
-  is at or before the cursor, else `own` or `mentions` drops if it counted there. A reply drops
+  is at or before the cursor, else `own` drops if it was the actor's; a thread row it
+  counted on drops it too. A reply drops
   `unread` and `mentions` for each actor it reached (its posted event's followers) whose cursor is
   before it.
-- **Doc move.** As a delete from the old channel and a post into the new one; thread rows follow.
+- **Doc move.** As a delete from the old channel and a post into the new one; thread rows, and
+  the mentions on them, follow.
+- **Marking a channel read** reads the roots that mention the actor up to the point, on their
+  threads; marking it back before one makes it unread again.
 - **Edits** change nothing: who a message mentioned and reached is fixed when it's posted, as
   follows are.
 - **Unfollow** marks the thread read: what the follow brought stops, and so does its count.

@@ -40,8 +40,8 @@ function reach(ctx: Pick<Ctx, 'sql'>, id: number): { followers: string[]; mentio
 const liveRoots = (ctx: Pick<Ctx, 'sql'>, channel: string) =>
   ctx.sql.one<{ n: number }>('select coalesce((select threads from channels where path = ?), 0) - coalesce((select n from read_gone where channel = ?), 0) as n', channel, channel)!.n
 
-/** Adds one to an actor's own roots or mentions in a channel, after its cursor (a row from nothing when it has none). */
-function bumpChannel(ctx: Pick<Ctx, 'sql' | 'now'>, channel: string, actor: string, column: 'own' | 'mentions', id: number) {
+/** Adds one to an actor's own roots in a channel, after its cursor (a row from nothing when it has none). */
+function bumpChannel(ctx: Pick<Ctx, 'sql' | 'now'>, channel: string, actor: string, column: 'own', id: number) {
   ctx.sql.run(
     'insert into read_channels (channel, actor, seq, ' + column + ', at) values (?, ?, 0, 1, ?) on conflict (channel, actor) do update set ' + column + ' = ' + column + ' + (seq < ?)',
     channel, actor, ctx.now, id,
@@ -70,7 +70,8 @@ hooks.posted = (ctx, row) => {
   const ids = mentionIds(row.text)
   if (row.re === null) {
     if (!row.blind || !ctx.board.partiesOf(row.channel)) bumpChannel(ctx, row.channel, row.actor, 'own', row.id)
-    for (const actor of followers) if (ids.has(actor)) bumpChannel(ctx, row.channel, actor, 'mentions', row.id)
+    // A root that mentions someone is an item in their threads, with a cursor: its mention counts there.
+    for (const actor of followers) if (ids.has(actor)) rootMentions(ctx, actor, row)
     return
   }
   // A reply's author could read where it wrote: in a private channel, the board now knows it.
@@ -84,11 +85,18 @@ hooks.posted = (ctx, row) => {
   }
 }
 
+/** A root that mentions an actor counts on its thread for it, from just before the root: unread, and a mention. */
+function rootMentions(ctx: Pick<Ctx, 'sql' | 'now'>, actor: string, row: Pick<MessageRow, 'id' | 'channel'>) {
+  ctx.sql.run(
+    'insert into read_threads (actor, root, channel, seq, unread, mentions, at) values (?, ?, ?, ?, 1, 1, ?) on conflict (actor, root) do update set seq = min(seq, excluded.seq), unread = unread + 1, mentions = mentions + 1',
+    actor, row.id, row.channel, row.id - 1, ctx.now,
+  )
+}
+
 /** A root leaves a channel's count (deleted, or moved out): every row there moves with it. */
-function rootLeaves(ctx: Ctx, row: MessageRow, channel: string, reached: ReturnType<typeof reach>) {
+function rootLeaves(ctx: Ctx, row: MessageRow, channel: string) {
   ctx.sql.run('update read_channels set before = before - 1 where channel = ? and seq >= ?', channel, row.id)
   ctx.sql.run('update read_channels set own = own - 1 where channel = ? and actor = ? and seq < ?', channel, row.actor, row.id)
-  for (const actor of reached?.mentioned ?? []) if (actor !== row.actor) ctx.sql.run('update read_channels set mentions = mentions - 1 where channel = ? and actor = ? and seq < ?', channel, actor, row.id)
 }
 
 // A delete: a root leaves its channel's live roots; a reply leaves the counts of those it reached.
@@ -99,7 +107,9 @@ hooks.deleting = (ctx, row) => {
   const reached = reach(ctx, row.id)
   if (row.re === null) {
     ctx.sql.run('insert into read_gone (channel, n) values (?, 1) on conflict (channel) do update set n = n + 1', row.channel)
-    rootLeaves(ctx, row, row.channel, reached)
+    rootLeaves(ctx, row, row.channel)
+    // Its mentions leave the threads they counted on, where the root is still unread.
+    for (const actor of reached?.mentioned ?? []) if (actor !== row.actor) ctx.sql.run('update read_threads set unread = unread - 1, mentions = mentions - 1 where actor = ? and root = ? and seq < ?', actor, row.id, row.id)
     return
   }
   for (const actor of reached?.followers ?? []) {
@@ -113,11 +123,10 @@ hooks.deleting = (ctx, row) => {
 const docMoved = hooks.docMoved
 hooks.docMoved = (ctx, row, from, to) => {
   docMoved(ctx, row, from, to)
-  const reached = reach(ctx, row.id)
-  rootLeaves(ctx, row, from, reached)
+  rootLeaves(ctx, row, from)
   ctx.sql.run('update read_channels set before = before + 1 where channel = ? and seq >= ?', to, row.id)
   bumpChannel(ctx, to, row.actor, 'own', row.id)
-  for (const actor of reached?.mentioned ?? []) if (actor !== row.actor) bumpChannel(ctx, to, actor, 'mentions', row.id)
+  // Its mentions are on its thread's rows, which go with it.
   ctx.sql.run('update read_threads set channel = ? where root = ?', to, row.id)
 }
 
@@ -179,7 +188,7 @@ function markChannel(ctx: Ctx, channel: string, upto: string | undefined) {
   const live = liveRoots(ctx, channel)
   let after = 0
   let own = 0
-  let mentions = 0
+  const mentioning: MessageRow[] = []
   if (upto !== undefined) {
     const hot = ctx.sql.all<MessageRow>('select * from messages where channel = ? and id > ? order by id limit ?', channel, seq, READ_REACH + 1)
     const archived = hooks.archivedRoots(ctx, channel, seq, READ_REACH + 1)
@@ -190,13 +199,20 @@ function markChannel(ctx: Ctx, channel: string, upto: string | undefined) {
       after++
       if (root.actor === actor) own++
       // Only a root that mentions the actor now, or was edited since, can have mentioned it when posted.
-      else if ((root.edited_at !== null || mentionIds(root.text).has(actor)) && reach(ctx, root.id)?.mentioned.has(actor)) mentions++
+      else if ((root.edited_at !== null || mentionIds(root.text).has(actor)) && reach(ctx, root.id)?.mentioned.has(actor)) mentioning.push(root)
     }
   }
   ctx.sql.run(
-    'insert into read_channels (channel, actor, seq, before, own, mentions, at) values (?, ?, ?, ?, ?, ?, ?) on conflict (channel, actor) do update set seq = excluded.seq, before = excluded.before, own = excluded.own, mentions = excluded.mentions, at = excluded.at',
-    channel, actor, seq, live - after, own, mentions, ctx.now,
+    'insert into read_channels (channel, actor, seq, before, own, mentions, at) values (?, ?, ?, ?, ?, 0, ?) on conflict (channel, actor) do update set seq = excluded.seq, before = excluded.before, own = excluded.own, mentions = 0, at = excluded.at',
+    channel, actor, seq, live - after, own, ctx.now,
   )
+  // Reading a channel reads the roots in it that mention the actor, up to the point; after it, they're unread again.
+  ctx.sql.run('update read_threads set seq = root, unread = unread - 1, mentions = mentions - 1, at = ? where actor = ? and channel = ? and seq < root and root <= ?', ctx.now, actor, channel, seq)
+  for (const root of mentioning) {
+    const thread = ctx.sql.one<{ seq: number }>('select seq from read_threads where actor = ? and root = ?', actor, root.id)
+    if (!thread || thread.seq >= root.id) rootMentions(ctx, actor, root)
+  }
+  const mentions = ctx.sql.one<{ n: number }>('select coalesce(sum(mentions), 0) as n from read_threads where actor = ? and channel = ?', actor, channel)!.n
   return { channel, unread: after - own, mentions, read: ref(seq) }
 }
 
@@ -211,6 +227,7 @@ function markThread(ctx: Ctx, id: string, upto: string | undefined) {
   if (upto !== undefined) {
     const replies = ctx.sql.all<MessageRow>('select * from messages where thread = ? and re is not null and id > ? order by id limit ?', root.id, seq, READ_REACH + 1)
     if (replies.length > READ_REACH) throw tooFar()
+    if (seq < root.id && !root.deleted && root.actor !== actor && reach(ctx, root.id)?.mentioned.has(actor)) unread++, mentions++
     for (const reply of replies) {
       if (reply.deleted || reply.actor === actor) continue
       const reached = reach(ctx, reply.id)
