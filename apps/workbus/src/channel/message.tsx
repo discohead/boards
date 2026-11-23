@@ -90,14 +90,14 @@ export function MessageItem({ message, grouped, thread, replies = [], onOpenThre
   }
   if (message.deleted)
     return (
-      <div data-id={message.id} data-deleted="yes" className="flex gap-2 px-4 py-1 text-sm italic text-muted-foreground">
+      <div data-message={message.id} data-deleted="yes" className="flex gap-2 px-4 py-1 text-sm italic text-muted-foreground">
         <span className="w-8 shrink-0" />
         This message was deleted.
         {thread && thread.replies > 0 ? <ThreadLine thread={thread} replies={replies} onOpen={onOpenThread} unread={unreadReplies} /> : null}
       </div>
     )
   return (
-    <div data-id={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className={cn('group relative flex gap-2 px-4 text-[13px] leading-[18px] hover:bg-accent', grouped ? 'py-0.5' : 'pt-2 pb-0.5', message.pending && 'text-muted-foreground', arrive && 'animate-arrive')}>
+    <div data-message={message.id} data-pending={message.pending ? 'yes' : undefined} data-arrive={arrive ? 'yes' : undefined} className={cn('group relative flex gap-2 px-4 text-[13px] leading-[18px] hover:bg-accent', grouped ? 'py-0.5' : 'pt-2 pb-0.5', message.pending && 'text-muted-foreground', arrive && 'animate-arrive')}>
       {grouped ? <When iso={message.createdAt} className="invisible w-7 shrink-0 text-right font-mono text-[10px] leading-[18px] tabular-nums text-muted-foreground group-hover:visible" /> : <Avatar actor={message.by.actor} />}
       <div className="min-w-0 flex-1">
         {grouped ? null : (

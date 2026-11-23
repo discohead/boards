@@ -108,6 +108,11 @@ export function ChannelView({ channel }: { channel: string }) {
     return at > 0 && Date.now() - at < 1000
   }
 
+  // Thread dots show after hydration: an open thread marks itself read meanwhile (the route's code
+  // can hydrate after the pane's), and the first render must match the server's.
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+
   const [editing, setEditing] = useState<string | null>(null)
   const editLast = () => {
     const mine = [...items].reverse().find((item) => item.root.by.actor === bus.runtime.me.actor && !item.root.deleted && !item.root.pending)
@@ -133,7 +138,7 @@ export function ChannelView({ channel }: { channel: string }) {
               grouped={item.grouped}
               thread={item.thread}
               replies={repliesOf.get(item.thread.id)}
-              unreadReplies={unreadOf.get(item.thread.id)}
+              unreadReplies={mounted ? unreadOf.get(item.thread.id) : undefined}
               arrive={arrived(item)}
               onOpenThread={() => open(item.thread.id)}
               editing={editing === item.root.id}
@@ -211,19 +216,21 @@ function History({ items, hasOlder, loading, onOlder, render, opened }: { items:
       <div ref={scroller} className="h-full overflow-y-auto" data-testid="history" data-opened={opened ?? undefined}>
         {hasOlder || loading ? <div className="py-2 text-center text-xs text-muted-foreground">{loading ? 'Loading older threads…' : ' '}</div> : <ChannelStart empty={items.length === 0} />}
         {mounted ? (
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
+          <ul style={{ height: virtualizer.getTotalSize(), position: 'relative' }} data-testid="threads">
             {virtual.map((row) => (
-              <div key={row.key} data-index={row.index} ref={virtualizer.measureElement} className="hover:z-10 focus-within:z-10 has-[[role=menu]]:z-20 has-[[role=alertdialog]]:z-20" style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: 'translateY(' + row.start + 'px)' }}>
+              <li key={row.key} data-index={row.index} data-id={items[row.index]!.root.id} data-pending={items[row.index]!.root.pending ? 'yes' : undefined} ref={virtualizer.measureElement} className="hover:z-10 focus-within:z-10 has-[[role=menu]]:z-20 has-[[role=alertdialog]]:z-20" style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: 'translateY(' + row.start + 'px)' }}>
                 {render(items[row.index]!)}
-              </div>
+              </li>
             ))}
-          </div>
+          </ul>
         ) : (
-          <div data-testid="threads">
+          <ul data-testid="threads">
             {items.slice(-FIRST).map((item) => (
-              <div key={item.key}>{render(item)}</div>
+              <li key={item.key} data-id={item.root.id} data-pending={item.root.pending ? 'yes' : undefined}>
+                {render(item)}
+              </li>
             ))}
-          </div>
+          </ul>
         )}
         <div className="h-2" />
       </div>
