@@ -332,7 +332,7 @@ function checkSeat(doc: OrgDoc, block: SeatBlock, holds: Record<string, Permissi
     if (!TOOLS.includes(tool)) return tool + " isn't a tool: a seat's tools are " + list(TOOLS)
   }
   if (block.role === 'operator' && block.tools.some((tool) => tool !== 'board')) return 'the operator only orchestrates: its only tool is board (§5.8)'
-  if (block.role === 'advisor' && block.tools.some((tool) => tool !== 'board')) return "the advisor thinks with the principal and doesn't do the work: its only tool is board (web comes later) (§5.9)"
+  if (block.role === 'advisor' && block.tools.some((tool) => tool !== 'board' && tool !== 'web')) return "the advisor thinks with the principal and doesn't do the work: its tools are board and web (§5.9)"
   for (const [pattern, grant] of Object.entries(block.can)) {
     if (!validPattern(pattern)) return 'its can names ' + pattern + ', which is neither *, a channel, nor a channel and its subtree (eng/)'
     const has = atPattern(holds, pattern)

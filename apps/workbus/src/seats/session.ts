@@ -15,10 +15,20 @@ import { boardTools, seatBoard } from '../harness/board.ts'
 import type { PiTool } from '@cloudflare/computer/tools/pi-ai'
 
 import { computerTools, type WorkspaceStub } from '../harness/computer.ts'
-import { INSTANCE, SessionSandbox, sandboxTools, type Listed, type WorkspaceSync } from '../harness/sandbox.ts'
+import { INSTANCE, SLEEP_MS, SessionSandbox, sandboxTools, type Listed, type WorkspaceSync } from '../harness/sandbox.ts'
 import { webTools } from '../harness/web.ts'
 import { Approval, compile, gate, gatewayLog, meter, systemPrompt, type Hold } from '../harness/pi.ts'
 import type { Outcome, Receipt, SeatRef, SessionEvent, SubmitOptions, Tool, ToolAnswer, TranscriptMessage, Turn, Usage } from '../harness/types.ts'
+
+/**
+ * A container's billable time in one operation: from its first sandbox call to the operation's end,
+ * and for a container the operation started, the idle minutes before it sleeps (the most it runs
+ * unused). An estimate: the platform doesn't report a container's active time per session.
+ */
+function containerMs(boxes: { started: number; ms: number; at: number }[], end: number): number {
+  const first = Math.min(...boxes.map((box) => box.at - box.ms))
+  return Math.max(0, end - first) + boxes.filter((box) => box.started).length * SLEEP_MS
+}
 
 /** The egress entrypoint (scout's, src/egress/): every request a sandbox makes goes through it. */
 const EGRESS = 'Egress'
@@ -329,7 +339,7 @@ export class Session extends Agent<Env> {
     const op = this.sql<{ started: number; ended: number | null }>`SELECT started, ended FROM wb_ops WHERE id = ${operationId}`[0]
     const responses = !measured ? [] : this.sql<{ model: string | null; input: number; output: number; cache_read: number; cache_write: number; cost: number; log: string | null }>`SELECT model, input, output, cache_read, cache_write, cost, log FROM wb_responses WHERE op = ${operationId} ORDER BY id`
     const tools = !measured ? [] : this.sql<{ name: string; started: number | null; ended: number | null; ok: number | null }>`SELECT name, started, ended, ok FROM wb_tools WHERE op = ${operationId} ORDER BY started`
-    const boxes = !measured ? [] : this.sql<{ started: number; ms: number; command_ms: number }>`SELECT started, ms, command_ms FROM wb_sandbox WHERE op = ${operationId}`
+    const boxes = !measured ? [] : this.sql<{ started: number; ms: number; command_ms: number; at: number }>`SELECT started, ms, command_ms, at FROM wb_sandbox WHERE op = ${operationId}`
     const sum = (key: 'input' | 'output' | 'cache_read' | 'cache_write' | 'cost') => responses.reduce((total, r) => total + (r[key] ?? 0), 0)
     const now = Date.now()
     return {
@@ -337,7 +347,11 @@ export class Session extends Agent<Env> {
       steps: responses.length,
       tokens: { input: sum('input'), output: sum('output'), cacheRead: sum('cache_read'), cacheWrite: sum('cache_write') },
       cost: sum('cost'),
-      tools: tools.map((t) => ({ name: t.name, ms: t.started !== null && t.ended !== null ? t.ended - t.started : 0, ok: t.ok === 1 })),
+      tools: [
+        ...tools.map((t) => ({ name: t.name, ms: t.started !== null && t.ended !== null ? t.ended - t.started : 0, ok: t.ok === 1 })),
+        // The container's time in this operation, for its cost (runs_v1 has no column of its own: summed ms × the basic rate).
+        ...(boxes.length ? [{ name: 'sandbox:' + INSTANCE, ms: containerMs(boxes, op?.ended ?? now), ok: true }] : []),
+      ],
       logs: responses.flatMap((r) => (r.log ? [r.log] : [])),
       started: iso(op?.started ?? now)!,
       ended: iso(op?.ended ?? null),

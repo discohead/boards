@@ -13,7 +13,7 @@ export type RunStream = { send(rows: RunRow[]): Promise<void> }
 /** A budget period: the calendar month, in UTC, that a run ended in. */
 export const periodOf = (iso: string) => iso.slice(0, 7)
 
-export type Spend = { seat: string; period: string; runs: number; cost: number; tokens: { input: number; output: number; cacheRead: number; cacheWrite: number } }
+export type Spend = { seat: string; period: string; runs: number; cost: number; tokens: { input: number; output: number; cacheRead: number; cacheWrite: number }; sandbox: { ms: number } }
 
 export class Totals {
   readonly sql: Sql
@@ -53,7 +53,10 @@ export class Totals {
     const [row] = this.sql.exec(`SELECT count(*) AS runs, coalesce(sum(cost), 0) AS cost, coalesce(sum(input), 0) AS input,
       coalesce(sum(output), 0) AS output, coalesce(sum(cache_read), 0) AS cache_read, coalesce(sum(cache_write), 0) AS cache_write
       FROM telemetry_runs WHERE seat = ? AND period = ?`, seat, period).toArray()
-    return { seat, period, runs: Number(row.runs), cost: Number(row.cost), tokens: { input: Number(row.input), output: Number(row.output), cacheRead: Number(row.cache_read), cacheWrite: Number(row.cache_write) } }
+    // Container time rides in each run's tools[] as sandbox:<instance> (harness/sandbox.ts), apart from the model's cost.
+    const [box] = this.sql.exec(`SELECT coalesce(sum(json_extract(t.value, '$.ms')), 0) AS ms FROM telemetry_runs, json_each(telemetry_runs.record, '$.tools') AS t
+      WHERE seat = ? AND period = ? AND json_extract(t.value, '$.name') LIKE 'sandbox:%'`, seat, period).toArray()
+    return { seat, period, runs: Number(row.runs), cost: Number(row.cost), tokens: { input: Number(row.input), output: Number(row.output), cacheRead: Number(row.cache_read), cacheWrite: Number(row.cache_write) }, sandbox: { ms: Number(box?.ms ?? 0) } }
   }
 
   /** Every period this seat has runs in, newest first. */

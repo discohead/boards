@@ -30,6 +30,7 @@ pnpm dev:bus                                        # the bus on 127.0.0.1:8832
 pnpm dev                                            # the app on 127.0.0.1:8831; /b/* goes to the bus
 (cd ../../packages/workbus && node scripts/issuer.mjs token jared https://workbus.dev/b/bus)   # a token
 pnpm typecheck && pnpm build
+node scripts/sandbox-check.mjs              # the sandbox tier, with Docker running (GITHUB_REPO=owner/name for the private clone)
 TOKEN=<that token> node scripts/session-check.mjs   # a seat's Session end to end, with real Haiku (a few cents' worth)
 WORKBUS_OWNER_TOKEN=<that token> WORKBUS_OTHER_TOKEN=<a member's> node scripts/check/run.mjs --base http://127.0.0.1:8831   # the browser suite
 #   --only seats: the seat views; --only org: the org views and the seat config form; --only seats-run: a seat's approval end to end, with Haiku (under a cent)
