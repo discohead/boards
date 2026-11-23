@@ -249,6 +249,15 @@ export class Seat extends DurableObject<Env> {
     return { queued: result.rowsWritten > 0 }
   }
 
+  /** The brief now, as its schedule would write it (POST /api/briefs): for the principal who wants one before 07:00. */
+  async briefNow(): Promise<{ written: string | null }> {
+    const runtime = this.runtime
+    if (!runtime || runtime.role !== 'operator') return { written: null }
+    const at = new Date().toISOString()
+    await this.#brief(runtime, { cursor: 'now', type: 'message.posted', createdAt: at, message: null })
+    return { written: BRIEFS + '/' + at.slice(0, 10) }
+  }
+
   /** Writes the daily brief, ops/briefs/<date>, as the operator: the watchdog's facts, in its own words (watch.ts). */
   async #brief(runtime: SeatRuntime, event: Delivered): Promise<void> {
     const now = event.createdAt ? Date.parse(event.createdAt) : Date.now()
@@ -257,7 +266,7 @@ export class Seat extends DurableObject<Env> {
       const body = await (this.env.WATCH.getByName('bus') as unknown as { brief(until: number, date: string): Promise<string> }).brief(now, date)
       const board = seatBoard(bus(), runtime)
       await board.docs.create({ channel: BRIEFS, slug: date, body, id: 'brief-' + date })
-      await board.reply(String(event.message.re ?? event.message.id), { text: 'Today\'s brief: [[' + BRIEFS + '/' + date + ']]', id: 'brief-reply-' + date })
+      if (event.message) await board.reply(String(event.message.re ?? event.message.id), { text: 'Today\'s brief: [[' + BRIEFS + '/' + date + ']]', id: 'brief-reply-' + date })
     } catch (error) {
       console.error('seat ' + runtime.key + ': the brief for ' + date + ' failed', error)
     }
