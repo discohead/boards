@@ -9,6 +9,7 @@ import { authorOf, iso, keyOf, type Caller, type Facet, type Principal, type Pro
 import { eventView } from './feed.ts'
 import { compile, matches as facetMatches, type Compiled } from './messages.ts'
 import { DDL } from './schema.ts'
+import { archives, archivedIn } from './channels.ts'
 import { contextFor, hooks, op, type Ctx, type EventRow, type Mount } from './ops.ts'
 import { parseWatcherTail, sha256 } from './watchers.ts'
 
@@ -171,11 +172,13 @@ export function matchWake(board: Ctx['board'], mount: Mount, sub: Wake, rows: Ev
   const id = wakeId(sub.owner, sub.key)
   const out: WakeMatch[] = []
   const nothing: Compiled = { criteria: false, labels: [] }
+  const patterns = archives(ctx)
   for (const row of rows) {
     if (!WAKE_EVENTS.has(row.type) || row.message === null) continue
     const facets = JSON.parse(row.facets) as { before: Facet | null; after: Facet | null } | null
     const concerned = facets ? (facets.after ?? facets.before) : null
-    if (!facets || !concerned || !ctx.access.readable(concerned.channel)) continue
+    // Nothing in an archived channel (channels.ts) wakes anyone: not its cleanup's deletes, not a task there.
+    if (!facets || !concerned || !ctx.access.readable(concerned.channel) || archivedIn(ctx, patterns, concerned.channel)) continue
     const payload = JSON.parse(row.payload) as Record<string, unknown>
     const by = (payload.by as { actor?: string } | undefined)?.actor ?? null
     const own = by === ctx.actor.id

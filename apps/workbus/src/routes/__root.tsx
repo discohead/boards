@@ -112,7 +112,7 @@ function titleOf(pathname: string): string {
   const channel = /^\/c\/(.+)$/.exec(pathname)?.[1]
   if (channel) return decodeURIComponent(channel)
   const first = pathname.split('/')[1] ?? ''
-  return ({ '': 'Inbox', 'my-work': 'My work', tasks: 'Tasks', docs: 'Docs', settings: 'Settings' } as Record<string, string>)[first] ?? 'Workbus'
+  return ({ '': 'Inbox', 'my-work': 'My work', tasks: 'Tasks', docs: 'Docs', settings: 'Settings', archived: 'Archived' } as Record<string, string>)[first] ?? 'Workbus'
 }
 
 /** The sidebar, with the inbox's count: what's waiting on the principal. */

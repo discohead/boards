@@ -5,7 +5,7 @@
 // system's SidebarItem.
 import { Link, useLocation } from '@tanstack/react-router'
 import { useLiveQuery } from '@tanstack/react-db'
-import { Activity, CircleDot, FileText, Hash, Inbox, LayoutGrid, MessageSquare, Network, Search, Settings, SquareCheck, Users, type LucideIcon } from 'lucide-react'
+import { Activity, Archive, CircleDot, FileText, Hash, Inbox, LayoutGrid, MessageSquare, Network, Search, Settings, SquareCheck, Users, type LucideIcon } from 'lucide-react'
 import { useBus, type Channel } from '@/data'
 import { DocsTree } from '@/docs/DocsTree'
 import { useDisplayNames } from './display-name.ts'
@@ -36,7 +36,9 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
   const bus = useBus()
   const pathname = useLocation({ select: (location) => location.pathname })
   const { data: channels } = useLiveQuery({ query: (q) => q.from({ channel: bus.channels }).orderBy(({ channel }) => channel.path, 'asc') })
-  const { dms, loose, teams } = arrange(channels)
+  // Archived channels (issue #15) stay out of the sidebar: /archived lists them.
+  const { dms, loose, teams } = arrange(channels.filter((channel) => !channel.archived))
+  const archived = channels.filter((channel) => channel.archived).length
   const { seats } = useSeats()
   // The built-in seats' DMs are always there, the doors to the org (the operator's, then the advisor's); another seat's DM shows once it has a channel.
   const builtIn = ['operator', 'advisor'].flatMap((role) => seats.filter((seat) => seat.role === role))
@@ -128,6 +130,11 @@ export function Sidebar({ inboxCount }: { inboxCount?: number }) {
           </div>
         </div>
         <ul data-testid="channels">{loose.map((channel) => channelLink(channel, channel.path))}</ul>
+        {archived ? (
+          <SidebarItem asChild icon={Archive} active={at('/archived')} meta={String(archived)} className="text-muted-foreground">
+            <Link to="/archived" data-testid="archived-link">Archived</Link>
+          </SidebarItem>
+        ) : null}
         {seats.length ? (
           <>
             <SidebarGroup>Seats</SidebarGroup>

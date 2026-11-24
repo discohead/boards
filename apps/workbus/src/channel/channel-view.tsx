@@ -8,8 +8,9 @@ import { useLiveQuery } from '@tanstack/react-db'
 import { eq } from '@tanstack/db'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { useHotkey } from '@tanstack/react-hotkeys'
-import { Hash, MessageSquare } from 'lucide-react'
-import { Kbd, NewEventsPill } from '@/components/system'
+import { Archive, Hash, MessageSquare, MoreHorizontal } from 'lucide-react'
+import { Button, Kbd, Menu, NewEventsPill, toast } from '@/components/system'
+import { Button as IconButton } from '@/components/ui/button'
 import { useBus, type Message, type Thread } from '@/data'
 import { useOpenThread } from '@/shell/open-thread'
 import { channelKey } from '@/data/unread'
@@ -29,6 +30,9 @@ const order = (thread: Thread) => (thread.root.pending ? Number.MAX_SAFE_INTEGER
 export function ChannelView({ channel }: { channel: string }) {
   const requestRoots = useRequestRoots(channel)
   const bus = useBus()
+  // Archived (issue #15): read-only here, with Unarchive in place of the composer.
+  const { data: rows } = useLiveQuery({ query: (q) => q.from({ row: bus.channels }).where(({ row }) => eq(row.path, channel)) })
+  const archived = rows[0]?.archived ?? null
   const { open, thread: openId } = useOpenThread()
   const { data: threads } = useLiveQuery({ query: (q) => q.from({ thread: bus.threads }).where(({ thread }) => eq(thread.channel, channel)) })
   // A root as the messages collection has it carries a write that hasn't settled yet (an edit, a reaction).
@@ -156,6 +160,7 @@ export function ChannelView({ channel }: { channel: string }) {
           <Kbd>J</Kbd>
           <Kbd>K</Kbd> move <Kbd className="ml-2">↵</Kbd> open
         </span>
+        <ChannelMenu channel={channel} archived={archived} />
       </header>
       <History
         key={channel}
@@ -183,9 +188,13 @@ export function ChannelView({ channel }: { channel: string }) {
         opened={openId}
         selectedIndex={selectedIndex}
       />
+      {archived ? (
+        <ArchivedBar channel={channel} archived={archived} />
+      ) : (
       <div className="shrink-0 px-4 pb-4">
         <Composer place={'channel:' + channel} label={'Message #' + channel} placeholder={'Message #' + channel} onSend={(text) => bus.actions.post({ channel, text })} onEditLast={editLast} autoFocus />
       </div>
+      )}
     </div>
   )
 }
@@ -288,4 +297,41 @@ function History({ items, hasOlder, loading, onOlder, render, opened, selectedIn
 
 function ChannelStart({ empty }: { empty: boolean }) {
   return <div className="px-4 pt-6 pb-2 text-sm text-muted-foreground">{empty ? 'Nothing here yet. Start a thread below.' : 'This is the start of the channel.'}</div>
+}
+
+type Archived = { pattern: string; at: string; by: string }
+
+/** Archiving needs manage there: the board refuses anyone else, and the toast says why. */
+function useArchiving(channel: string) {
+  const bus = useBus()
+  const done = (what: string) => () => toast({ children: what })
+  const failed = (what: string) => (error: Error) => toast({ children: what + ': ' + error.message, tone: 'danger' })
+  return {
+    archive: () => void bus.actions.archiveChannel(channel).then(done('Archived #' + channel + '.'), failed('Not archived')),
+    unarchive: (pattern: string) =>
+      void bus.actions.unarchiveChannel(pattern).then((answer) => (answer.still ? toast({ children: '#' + channel + ' is still archived with ' + answer.still.pattern + '.', tone: 'danger' }) : toast({ children: 'Unarchived ' + (pattern === channel ? '#' + channel : pattern) + '.' })), failed('Not unarchived')),
+  }
+}
+
+function ChannelMenu({ channel, archived }: { channel: string; archived: Archived | null }) {
+  const { archive, unarchive } = useArchiving(channel)
+  const items = archived ? [{ label: archived.pattern === channel ? 'Unarchive channel' : 'Unarchive ' + archived.pattern, icon: Archive, onSelect: () => unarchive(archived.pattern) }] : [{ label: 'Archive channel', icon: Archive, onSelect: archive }]
+  return (
+    <div className="ml-3">
+      <Menu align="end" items={items} trigger={<IconButton variant="ghost" size="icon-sm" aria-label="Channel menu" data-testid="channel-menu"><MoreHorizontal size={16} strokeWidth={1.5} aria-hidden /></IconButton>} />
+    </div>
+  )
+}
+
+function ArchivedBar({ channel, archived }: { channel: string; archived: Archived }) {
+  const { unarchive } = useArchiving(channel)
+  return (
+    <div data-testid="archived-bar" className="flex shrink-0 items-center gap-3 border-t border-line bg-sidebar px-4 py-3 text-sm text-muted-foreground">
+      <Archive size={16} strokeWidth={1.5} aria-hidden />
+      <span>{archived.pattern === channel ? 'This channel is archived.' : 'Archived with ' + archived.pattern + '.'} Nothing new is posted here until it's unarchived.</span>
+      <Button size="sm" variant="secondary" className="ml-auto" onClick={() => unarchive(archived.pattern)}>
+        Unarchive
+      </Button>
+    </div>
+  )
 }

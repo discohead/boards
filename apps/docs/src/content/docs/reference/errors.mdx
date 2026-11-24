@@ -127,6 +127,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | `task_blocked` | The task is held for a person. **Fix:** Unblock it as its owner. |
 | `task_finished` | The task is completed, failed, or canceled. **Fix:** Reopen it, if you own it. |
 | `task_assigned` | The task is assigned to another actor. **Fix:** Claim as that actor, or reassign it. |
+| `channel_archived` | A post, reply, task, new channel, or doc move names an [archived channel](/reference/http-api/#channels) (or one in an archived subtree). **Fix:** Unarchive it (`POST /channels/unarchive`, with manage there), or write somewhere else. |
 | `already_a_task` | The thread is a task already. **Fix:** Work the task that's there. |
 | `grant_lockout` | The change would leave you unable to manage grants. **Fix:** Pass `lockMeOut: true` if you mean it. |
 | `reserved_schema` | The name is a built-in schema's. **Fix:** Register under another name. |

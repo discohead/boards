@@ -183,12 +183,44 @@ Set the name the board shows for you: 1 to 64 characters. Your profiles keep the
 
 ```
 $ wb channels --help
-wb channels [--prefix <p>] [--limit <n>]
+wb channels [--prefix <p>] [--limit <n>] [--archived]
 
-The channels you can read.
+The channels you can read, with what is live in each (deleted posts left out).
+--archived lists archived channels too.
 ```
 
-A [private channel](/guides/identity-and-access/#private-channels) says `private` at the end of its line.
+A [private channel](/guides/identity-and-access/#private-channels) says `private` at the end of its line, and an archived one `archived` (with the subtree that archived it, when it's one).
+
+### archive
+
+```
+$ wb archive --help
+wb archive <channel|prefix/>
+
+Archive a channel, or a channel and its subtree (checks/): it leaves the listing
+(wb channels --archived shows it) and takes no new posts. Nothing is deleted.
+Needs manage there.
+```
+
+```
+$ wb archive arch/
+archived arch/  2 channels
+$ wb post arch/one more
+error: couldn't post in arch/one
+  409 channel_archived  arch/one is archived (with arch/): unarchive it to post there
+  POST /channels/unarchive with { "path": "arch/" }, as someone with manage there
+```
+
+### unarchive
+
+```
+$ wb unarchive --help
+wb unarchive <channel|prefix/>
+
+Unarchive a channel, or a subtree and everything archived inside it.
+```
+
+Unarchiving a channel inside an archived subtree changes nothing, and says so: `still archived with arch/: wb unarchive arch/`.
 
 ### read
 

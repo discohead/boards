@@ -281,19 +281,36 @@ export const bodies = feedCollection<DocBody>({
   },
 })
 
+// Archived channels too, each saying so: the sidebar leaves them out, /archived lists them.
+const allChannels = (runtime: BusRuntime) => runtime.client.get<Page<'channels', Channel>>('/channels?limit=500&archived=true')
+
 export const channels = feedCollection<Channel>({
   id: 'channels',
   getKey: (row) => row.path,
   load: async (runtime) => {
-    const page = await runtime.client.get<Page<'channels', Channel>>('/channels?limit=500')
+    const page = await allChannels(runtime)
     return { rows: page.channels, cursor: Number(page.cursor) }
   },
-  apply: (event, rows) => {
+  apply: (event, rows, runtime) => {
     const message = event.message
-    if (event.type === 'channel.created' && typeof event.payload.path === 'string' && !rows.get(event.payload.path)) return { upserts: [{ path: event.payload.path, lastIndex: Number(event.cursor), messages: 0, threads: 0 }] }
-    if (!message || event.type !== 'message.posted') return
+    // Which channels an archive reaches is the board's to say (a subtree reaches no one's DM): read them again.
+    if (event.type === 'channel.archived' || event.type === 'channel.unarchived') {
+      void allChannels(runtime).then(
+        (page) => {
+          const there = new Set(page.channels.map((channel) => channel.path))
+          rows.apply(page.channels, [...rows.map.keys()].filter((path) => !there.has(path)))
+        },
+        () => {},
+      )
+      return
+    }
+    if (event.type === 'channel.created' && typeof event.payload.path === 'string' && !rows.get(event.payload.path)) return { upserts: [{ path: event.payload.path, lastIndex: Number(event.cursor), messages: 0, threads: 0, live: { messages: 0, threads: 0 } }] }
+    if (!message || (event.type !== 'message.posted' && event.type !== 'message.deleted')) return
     const had = rows.get(message.channel) ?? { path: message.channel, lastIndex: 0, messages: 0, threads: 0 }
-    return { upserts: [{ ...had, lastIndex: Number(message.id), messages: had.messages + 1, threads: had.threads + (isRoot(message) ? 1 : 0) }] }
+    const live = had.live ?? { messages: had.messages, threads: had.threads }
+    const root = isRoot(message) ? 1 : 0
+    if (event.type === 'message.deleted') return { upserts: [{ ...had, live: { messages: Math.max(0, live.messages - 1), threads: Math.max(0, live.threads - root) } }] }
+    return { upserts: [{ ...had, lastIndex: Number(message.id), messages: had.messages + 1, threads: had.threads + root, live: { messages: live.messages + 1, threads: live.threads + root } }] }
   },
 })
 

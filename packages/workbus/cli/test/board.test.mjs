@@ -447,3 +447,23 @@ describe('wakes', () => {
     assert.equal(gone.stdout, 'no wake ada\n')
   })
 })
+
+describe('archived channels', () => {
+  test('archive takes a subtree out of the listing and refuses posts there; unarchive brings it back', async () => {
+    for (const channel of ['arch/one', 'arch/two']) assert.equal((await wb(['post', channel, 'in ' + channel])).code, 0)
+    const gone = madeId((await wb(['post', 'arch/one', 'to be deleted'])).stdout)
+    assert.equal((await wb(['delete', gone])).code, 0)
+    const archived = await wb(['archive', 'arch/'])
+    assert.equal(archived.code, 0, archived.stderr)
+    assert.equal(archived.stdout, 'archived arch/  2 channels\n')
+    assert.equal((await wb(['channels', '--prefix', 'arch/'])).stdout, 'no channels\n')
+    assert.deepEqual((await wb(['channels', '--prefix', 'arch/', '--archived'])).stdout.trim().split('\n'), ['arch/one  1 thread  1 message  archived with arch/', 'arch/two  1 thread  1 message  archived with arch/'])
+    const refused = await wb(['post', 'arch/one', 'more'])
+    assert.notEqual(refused.code, 0)
+    assert.match(refused.stderr, /409 channel_archived/)
+    const inside = await wb(['unarchive', 'arch/one'])
+    assert.equal(inside.stdout, "arch/one wasn't archived itself\nstill archived with arch/: wb unarchive arch/\n")
+    assert.equal((await wb(['unarchive', 'arch/'])).stdout, 'unarchived arch/\n')
+    assert.equal((await wb(['post', 'arch/one', 'back'])).code, 0)
+  })
+})

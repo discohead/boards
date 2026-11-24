@@ -116,5 +116,12 @@ export function busActions(db: DbClient, runtime: BusRuntime, c: BusCollections)
     },
   })
 
-  return { post, edit, follow, createDoc, settledBy, setName }
+  /**
+   * Archive or unarchive a channel or a subtree (checks/). Not optimistic: the board decides what an
+   * archive reaches, and its channel.archived event reads the channels again.
+   */
+  const archiveChannel = (path: string) => client.post<{ archived: { pattern: string }; channels: number; changed: boolean }>('/channels/archive', { path })
+  const unarchiveChannel = (path: string) => client.post<{ unarchived: string[]; changed: boolean; still?: { pattern: string } }>('/channels/unarchive', { path })
+
+  return { post, edit, follow, createDoc, settledBy, setName, archiveChannel, unarchiveChannel }
 }

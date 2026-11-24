@@ -66,4 +66,5 @@ export type DocBody = { id: string; revision: string; body: string }
 
 export type Follow = { thread: string; discussion: string | null; channel: string; cause: string; at: string }
 
-export type Channel = { path: string; lastIndex: number; messages: number; threads: number }
+/** live leaves out deleted posts; archived says what archived it (a channel or a subtree), when it's archived. */
+export type Channel = { path: string; lastIndex: number; messages: number; threads: number; live?: { messages: number; threads: number }; private?: boolean; archived?: { pattern: string; at: string; by: string } }

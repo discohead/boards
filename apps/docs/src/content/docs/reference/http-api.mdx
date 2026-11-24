@@ -208,6 +208,16 @@ curl "$WORKBUS_URL/messages" \
 
 ## Channels
 
+Each channel counts `messages` and `threads` ever written there, as protocol v1 does, and `live` beside them: the same with deleted posts left out, so an emptied channel reads as empty.
+
+An owner (manage there) archives a channel (`eng`) or a subtree (`checks/`, the channel and everything under it, including channels made there later) with `POST /channels/archive`, and unarchives it with `POST /channels/unarchive`. Each is an event (`channel.archived`, `channel.unarchived`, in the feed with `all=true`), and nothing is deleted. An archived channel:
+
+- leaves `GET /channels` (`archived=true` lists it, saying what archived it) and `GET /unread`;
+- refuses new posts, replies, tasks, and docs moved into it with 409 `channel_archived`; a sync's imports still land, and reads, edits, deletes, and task changes work as before;
+- hands out no task from `POST /tasks/claim`, wakes no one's [wake](/guides/watchers/#wakes), and ends a schedule that would post there (`canceled.reason: archived`).
+
+A subtree reaches a [private channel](/guides/identity-and-access/#private-channels) only when the subtree has that channel's parties: archiving `dm/` archives no one's DM. Archiving a channel isn't [archival](/guides/archival/), which moves cold history to R2. Not part of protocol v1.
+
 <ApiGroup tag="channels" />
 
 ## Messages
