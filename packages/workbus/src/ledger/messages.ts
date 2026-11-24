@@ -82,9 +82,9 @@ export function ensureChannel(ctx: Pick<Ctx, 'sql'>, path: string, at: number) {
 type Named = { id: string; handle: string; name: string; kind: string }
 
 /** The actors a caller sees: everyone for a reader of every channel; else who wrote where it reads, and itself. */
-export function visibleActors(ctx: Ctx): Named[] {
-  // An actor an owner hid (#16) isn't offered: not listed, not settled to.
-  const all = ctx.sql.all<Named>('select id, handle, name, kind from actors where id not in (select actor from hidden_actors)')
+export function visibleActors(ctx: Ctx, withHidden = false): Named[] {
+  // An actor an owner hid (#16) isn't offered: not listed, not settled to (GET /actors?hidden=true lists it, marked).
+  const all = ctx.sql.all<Named>(withHidden ? 'select id, handle, name, kind from actors' : 'select id, handle, name, kind from actors where id not in (select actor from hidden_actors)')
   const everywhere = ctx.access.everywhere('read')
   if (everywhere && !ctx.access.hides) return all
   const channels = ctx.sql.all<{ channel: string; actor: string }>('select distinct channel, actor from messages union select channel, actor from cold_authors')
@@ -637,8 +637,10 @@ op('actors', (ctx, query: { hidden?: boolean | string } = {}) => {
   const actors = ids.map((row) => ({ id: row.id, ...ctx.board.actorView(ctx.board.actor(row.id))! })).sort((a, b) => a.handle.localeCompare(b.handle))
   // ?hidden=true: the hidden ones too, marked, for an owner to show again.
   if (query.hidden === true || query.hidden === 'true') {
+    // The hidden ones the caller would see were they not hidden: an app finding which keys and handles have been used.
+    const could = new Set(visibleActors(ctx, true).map((actor) => actor.id))
     const hidden = ctx.sql.all<{ actor: string; by: string; at: number }>('select actor, by, at from hidden_actors order by at')
-    const shown = hidden.filter((row) => ctx.access.everywhere('manage') || visible.has(row.actor))
+    const shown = hidden.filter((row) => could.has(row.actor))
     return { actors: [...actors, ...shown.flatMap((row) => { const view = ctx.board.actorView(ctx.board.actor(row.actor)); return view ? [{ id: row.actor, ...view, hidden: { by: row.by, at: iso(row.at) } }] : [] })], cursor: ref(ctx.board.head) }
   }
   return { actors, cursor: ref(ctx.board.head) }

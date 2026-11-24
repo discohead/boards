@@ -82,6 +82,9 @@ describe('hidden actors', () => {
     const ids = async (query = '') => ((await api(name, 'GET', '/actors' + query)).body.actors as { id: string; hidden?: unknown }[]).map((one) => one.id + (one.hidden ? ' (hidden)' : ''))
     expect(await ids()).not.toContain('worker:workbus-app+docs')
     expect(await ids('?hidden=true')).toContain('worker:workbus-app+docs (hidden)')
+    // The app (no manage) still sees it with ?hidden=true: which keys and handles have been used.
+    const asApp = ((await api(name, 'GET', '/actors?hidden=true', undefined, await bearer(name, 'workbus-app', { kind: 'workload' }))).body.actors as { id: string; hidden?: unknown }[]).map((one) => one.id + (one.hidden ? ' (hidden)' : ''))
+    expect(asApp).toContain('worker:workbus-app+docs (hidden)')
     // Its past message keeps its author.
     expect((await api(name, 'GET', '/messages/' + said)).body.message.author).toMatchObject({ name: 'Dana', handle: 'docs' })
     // @docs settles to no one while it's hidden, and the handle is free for another seat.

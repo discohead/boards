@@ -51,6 +51,29 @@ export async function run({ page, base, board, owner, run: id, step, must, chann
     return !read.message.deleted && read.replies.find((one) => one.id === loneReply)?.deleted === true
   }, 10_000))
 
+  // A hire proposal with work waiting on it, deleted as moderation: not a decline. The watchdog
+  // doesn't cancel the work or tell the operator (no post in the thread, nothing queued for op), and
+  // the Done of a handoff never comes from moderated tasks.
+  const op = await actor('op', { api: base + '/b/' + board, headers: { authorization: 'Bearer ' + appToken, 'x-board-profile': 'op' } })
+  const seatKey = 'hire' + key.slice(3)
+  const seatBody = '# Hire ' + seatKey + '\n\n\u0060\u0060\u0060json#seat@1\n' + JSON.stringify({ role: 'engineer', name: 'Hire', handle: seatKey, tools: ['board'], can: { 'eng/': ['read', 'post'] }, wakes: ['assigned'], state: 'paused' }, null, 2) + '\n\u0060\u0060\u0060\n\n## Charter\n\nNone.\n'
+  const hire = (await op.post('/docs', { channel: 'org/seats', slug: seatKey, body: seatBody, propose: true, note: 'a hire to moderate away' })).proposal.id
+  const waiting = (await op.post('/tasks', { channel: 'eng/queue', text: 'work that waits on the hire ' + id, needs: [hire] })).task.id
+  const handoff = (await op.post('/messages', { channel: channel, text: 'a handoff ' + id })).message.id
+  const handed = (await op.post('/tasks', { channel: 'eng/queue', text: 'handed off work ' + id, labels: { 'org.handoff': handoff } })).task.id
+  const opQueue = async () => (await (await page.context().request.get(base + '/api/seats/op')).json()).wakes?.length ?? 0
+  const queued = await opQueue()
+  await owner.post('/messages/' + hire + '/delete', {})
+  await owner.post('/messages/' + handed + '/delete', {})
+  await page.waitForTimeout(8_000)
+  const hireThread = await owner.get('/messages/' + hire)
+  const handoffThread = await owner.get('/messages/' + handoff)
+  await step('a hire proposal deleted as moderation: its waiting work is left alone, not canceled as declined', (await owner.get('/messages/' + waiting + '?limit=1')).message.task.state === 'waiting')
+  await step('no post from the watchdog in its thread, nothing queued for op', hireThread.replies.length === 0 && (await opQueue()) === queued, { replies: hireThread.replies.map((one) => one.text.slice(0, 60)), queued, now: await opQueue() })
+  await step("a handoff whose task was moderated away gets no 'Done' post", handoffThread.replies.length === 0, handoffThread.replies.map((one) => one.text.slice(0, 60)))
+  await owner.post('/messages/' + waiting + '/delete', {}).catch(() => {})
+  await owner.post('/messages/' + handoff + '/delete', {}).catch(() => {})
+
   // The owner's own: the plain confirm.
   await page.goto(base + '/c/' + channel)
   await hydrated(page)
