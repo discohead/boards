@@ -5,6 +5,7 @@ import { wirePermissions } from './access.ts'
 import { hooks, op, viewOptions, type Ctx } from './ops.ts'
 import { json } from './sql.ts'
 import { isEmail, mentionTerms, mentionTokens, rewriteHandles, term, under } from './text.ts'
+import { archives, archivedIn, archivedView, liveCounts, refuseArchived } from './channels.ts'
 
 export const MESSAGE_TEXT_MAX = 10_000
 const UUID_V8 = /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -197,6 +198,8 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
     const found = replay(ctx, key, channel, root?.id ?? null, replyTo, author)
     if (found) return { row: found, replayed: true }
   }
+  // An archived channel takes no new posts; a sync's imports still land, its platform being the source.
+  if (!imported.from) refuseArchived(ctx, channel)
   if (body.after !== undefined && root) {
     const after = /^[1-9]\d{0,15}$/.test(body.after) ? ctx.board.message(Number(body.after)) : null
     if (!after || after.thread !== root.id) throw new WorkbusError(400, 'invalid_after', 'after names no message in #' + root.id + "'s thread")
@@ -431,14 +434,20 @@ op('label', (ctx, body: { id: string; set?: Record<string, string>; unset?: stri
 // -- channels ------------------------------------------------------------------------------------
 
 // A private channel (design/private-channels.md) says so to its parties, the only ones who list it.
-const channelView = (ctx: Ctx, row: { path: string; last: number; messages: number; threads: number }) => ({ path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads, ...(ctx.board.partiesOf(row.path) ? { private: true } : {}) })
+// messages and threads count every post ever written there; live leaves out what was deleted (channels.ts).
+// An archived channel says what archived it, and lists only when asked for (archived=true).
+const channelView = (ctx: Ctx, row: { path: string; last: number; messages: number; threads: number }, patterns = archives(ctx)) => {
+  const archived = archivedIn(ctx, patterns, row.path)
+  return { path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads, live: liveCounts(ctx, row), ...(ctx.board.partiesOf(row.path) ? { private: true } : {}), ...(archived ? { archived: archivedView(archived) } : {}) }
+}
 
-op('channels', (ctx, query: { prefix?: string; after?: string; limit?: number }) => {
+op('channels', (ctx, query: { prefix?: string; after?: string; limit?: number; archived?: boolean }) => {
   const limit = query.limit ?? 100
+  const patterns = archives(ctx)
   const rows = ctx.sql.all<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path > ? order by path', query.after ?? '')
-  const readable = rows.filter((row) => (query.prefix === undefined || row.path.startsWith(query.prefix)) && ctx.access.readable(row.path))
+  const readable = rows.filter((row) => (query.prefix === undefined || row.path.startsWith(query.prefix)) && ctx.access.readable(row.path) && (query.archived === true || !archivedIn(ctx, patterns, row.path)))
   const page = readable.slice(0, limit)
-  return { channels: page.map((row) => channelView(ctx, row)), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
+  return { channels: page.map((row) => channelView(ctx, row, patterns)), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
 }, { read: true })
 
 op('createChannel', (ctx, { path }: { path: string }) => {
@@ -446,6 +455,7 @@ op('createChannel', (ctx, { path }: { path: string }) => {
   authorize(ctx.access, 'post', path)
   const there = ctx.sql.one<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path = ?', path)
   if (there) return { channel: channelView(ctx, there), created: false }
+  refuseArchived(ctx, path)
   ctx.board.seen(ctx.actor, ctx.now)
   ensureChannel(ctx, path, ctx.now)
   ctx.board.append('channel.created', { channel: path, by: ctx.author }, { at: ctx.now })

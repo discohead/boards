@@ -10,6 +10,7 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as ArchivedRouteImport } from './routes/archived'
 import { Route as DocsRouteImport } from './routes/docs'
 import { Route as MyWorkRouteImport } from './routes/my-work'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -25,6 +26,11 @@ import { Route as OrgTeamsSlugRouteImport } from './routes/org.teams.$slug'
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ArchivedRoute = ArchivedRouteImport.update({
+  id: '/archived',
+  path: '/archived',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DocsRoute = DocsRouteImport.update({
@@ -85,6 +91,7 @@ const OrgTeamsSlugRoute = OrgTeamsSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/archived': typeof ArchivedRoute
   '/docs': typeof DocsRouteWithChildren
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
@@ -99,6 +106,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/archived': typeof ArchivedRoute
   '/docs': typeof DocsRouteWithChildren
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
@@ -114,6 +122,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/archived': typeof ArchivedRoute
   '/docs': typeof DocsRouteWithChildren
   '/my-work': typeof MyWorkRoute
   '/settings': typeof SettingsRoute
@@ -130,6 +139,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/archived'
     | '/docs'
     | '/my-work'
     | '/settings'
@@ -144,6 +154,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/archived'
     | '/docs'
     | '/my-work'
     | '/settings'
@@ -158,6 +169,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/archived'
     | '/docs'
     | '/my-work'
     | '/settings'
@@ -173,6 +185,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  ArchivedRoute: typeof ArchivedRoute
   DocsRoute: typeof DocsRouteWithChildren
   MyWorkRoute: typeof MyWorkRoute
   SettingsRoute: typeof SettingsRoute
@@ -192,6 +205,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/archived': {
+      id: '/archived'
+      path: '/archived'
+      fullPath: '/archived'
+      preLoaderRoute: typeof ArchivedRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/docs': {
@@ -286,6 +306,7 @@ const DocsRouteWithChildren = DocsRoute._addFileChildren(DocsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  ArchivedRoute: ArchivedRoute,
   DocsRoute: DocsRouteWithChildren,
   MyWorkRoute: MyWorkRoute,
   SettingsRoute: SettingsRoute,

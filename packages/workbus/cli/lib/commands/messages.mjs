@@ -44,14 +44,14 @@ export const name = {
 }
 
 export const channels = {
-  usage: 'wb channels [--prefix <p>] [--limit <n>]\n\nThe channels you can read.',
-  flags: { prefix: 'string', limit: 'string' },
+  usage: 'wb channels [--prefix <p>] [--limit <n>] [--archived]\n\nThe channels you can read, with what is live in each (deleted posts left out).\n--archived lists archived channels too.',
+  flags: { prefix: 'string', limit: 'string', archived: 'bool' },
   async run(ctx) {
     const limit = count(ctx.flags.limit, '--limit')
     const found = []
     let after
     for (;;) {
-      const page = await ctx.board().request("couldn't list channels", 'GET', '/channels', { query: { prefix: ctx.flags.prefix, after, limit: limit ? Math.min(limit - found.length, 500) : 500 } })
+      const page = await ctx.board().request("couldn't list channels", 'GET', '/channels', { query: { prefix: ctx.flags.prefix, after, limit: limit ? Math.min(limit - found.length, 500) : 500, ...(ctx.flags.archived ? { archived: 'true' } : {}) } })
       found.push(...page.channels)
       after = page.next ?? null
       if (!after || (limit && found.length >= limit)) break
@@ -59,7 +59,10 @@ export const channels = {
     if (ctx.json) return ctx.emit({ channels: found, next: after ?? null })
     if (!found.length) return ctx.print(['no channels'])
     const plural = (n, one) => n + ' ' + one + (n === 1 ? '' : 's')
-    ctx.print(columns(found.map((channel) => [channel.path, channel.threads === undefined ? '' : plural(channel.threads, 'thread'), channel.messages === undefined ? '' : plural(channel.messages, 'message'), ...(channel.private ? ['private'] : [])])))
+    // Live counts where the board gives them: an emptied channel reads as empty.
+    const threads = (channel) => channel.live?.threads ?? channel.threads
+    const messages = (channel) => channel.live?.messages ?? channel.messages
+    ctx.print(columns(found.map((channel) => [channel.path, threads(channel) === undefined ? '' : plural(threads(channel), 'thread'), messages(channel) === undefined ? '' : plural(messages(channel), 'message'), ...(channel.private ? ['private'] : []), ...(channel.archived ? ['archived' + (channel.archived.pattern !== channel.path ? ' with ' + channel.archived.pattern : '')] : [])])))
   },
 }
 
@@ -306,5 +309,29 @@ export const typing = {
     if (ctx.json) return ctx.emit({ targets: answer.targets ?? [] })
     const targets = answer.targets ?? []
     ctx.print(targets.length ? targets.map((target) => 'typing in ' + target) : ['no synced thread shows typing for ' + ref(id)])
+  },
+}
+
+export const archive = {
+  usage: 'wb archive <channel|prefix/>\n\nArchive a channel, or a channel and its subtree (checks/): it leaves the listing\n(wb channels --archived shows it) and takes no new posts. Nothing is deleted.\nNeeds manage there.',
+  flags: {},
+  async run(ctx) {
+    const path = required(ctx.positionals[0], 'a channel or a prefix/', 'wb archive')
+    const answer = await ctx.board().request("couldn't archive " + path, 'POST', '/channels/archive', { body: { path } })
+    if (ctx.json) return ctx.emit(answer)
+    ctx.print([(answer.changed ? 'archived ' : 'already archived ') + path + (path.endsWith('/') ? '  ' + answer.channels + ' channel' + (answer.channels === 1 ? '' : 's') : '')])
+  },
+}
+
+export const unarchive = {
+  usage: 'wb unarchive <channel|prefix/>\n\nUnarchive a channel, or a subtree and everything archived inside it.',
+  flags: {},
+  async run(ctx) {
+    const path = required(ctx.positionals[0], 'a channel or a prefix/', 'wb unarchive')
+    const answer = await ctx.board().request("couldn't unarchive " + path, 'POST', '/channels/unarchive', { body: { path } })
+    if (ctx.json) return ctx.emit(answer)
+    const lines = [answer.changed ? 'unarchived ' + answer.unarchived.join(', ') : path + " wasn't archived itself"]
+    if (answer.still) lines.push('still archived with ' + answer.still.pattern + ': wb unarchive ' + answer.still.pattern)
+    ctx.print(lines)
   },
 }

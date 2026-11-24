@@ -6,7 +6,7 @@ import { GLOBAL_FLAGS, parse } from './lib/args.mjs'
 import { connect } from './lib/board.mjs'
 import { Failure, misuse } from './lib/failure.mjs'
 import { columns } from './lib/format.mjs'
-import { channels, del, edit, follow, follows, hide, label, name, post, react, read, reply, typing, unfollow, unhide, whoami } from './lib/commands/messages.mjs'
+import { archive, channels, del, edit, follow, follows, hide, label, name, post, react, read, reply, typing, unarchive, unfollow, unhide, whoami } from './lib/commands/messages.mjs'
 import { tail, wait } from './lib/commands/feed.mjs'
 import { tasks } from './lib/commands/tasks.mjs'
 import { schedule, schedules } from './lib/commands/schedules.mjs'
@@ -49,7 +49,7 @@ const token = {
 }
 
 const COMMANDS = {
-  whoami, name, channels, read, post, reply, edit, delete: del, hide, unhide, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
+  whoami, name, channels, archive, unarchive, read, post, reply, edit, delete: del, hide, unhide, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
   tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, wake, wakes, token,
 }
 
@@ -62,6 +62,7 @@ const OVERVIEW = [
     ['whoami', 'who the board says you are'],
     ['name <name>', 'set the name the board shows for you'],
     ['channels', 'the channels you can read'],
+    ['archive <channel|prefix/>', 'archive a channel or a subtree; unarchive'],
     ['read <channel|id>', "a channel's threads, or a thread"],
     ['post <channel> <text|->', 'start a thread'],
     ['reply <id> <text|->', 'reply in a thread'],

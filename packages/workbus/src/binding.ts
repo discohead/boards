@@ -242,9 +242,19 @@ export class Board extends RpcTarget {
     return call(this.#seat, 'channelMessages', checked('channelMessages', { ...options(range), channel }))
   }
 
-  /** The channels this caller can read. */
-  channels(query?: { prefix?: string; after?: string; limit?: number }) {
+  /** The channels this caller can read; archived ones too with { archived: true }. */
+  channels(query?: { prefix?: string; after?: string; limit?: number; archived?: boolean }) {
     return call(this.#seat, 'channels', checked('channels', query))
+  }
+
+  /** Archives a channel ('eng') or a subtree ('checks/'): out of listings, and no new posts. Needs manage there. */
+  archiveChannel(path: string) {
+    return call(this.#seat, 'archiveChannel', checked('archiveChannel', { path }))
+  }
+
+  /** Unarchives a channel or a subtree (and every pattern archived inside it). */
+  unarchiveChannel(path: string) {
+    return call(this.#seat, 'unarchiveChannel', checked('unarchiveChannel', { path }))
   }
 
   edit(id: string, text: string, opts?: { revision?: number }) {

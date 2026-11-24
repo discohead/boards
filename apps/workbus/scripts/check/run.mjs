@@ -19,7 +19,7 @@
 import { parseArgs } from 'node:util'
 import { actor, browser, recorder, Stop } from './lib.mjs'
 
-const AREAS = ['signin', 'channels', 'thread', 'tasks', 'docs', 'inbox', 'palette', 'seats', 'org']
+const AREAS = ['signin', 'channels', 'thread', 'tasks', 'docs', 'inbox', 'palette', 'seats', 'org', 'archive']
 // Areas that call a model, run only when --only names them.
 const ASKED = ['seats-run', 'seats-live', 'hiring', 'requests', 'requests-run', 'proposal-card', 'moderation']
 

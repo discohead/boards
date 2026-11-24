@@ -10,6 +10,7 @@ import { TIMERS } from './ops.ts'
 import { checkClientId, compile, matches, postMessage, refuseReserved, writeTerms, type Mentioned } from './messages.ts'
 import { hooks, op, viewOf, viewOptions, type Ctx } from './ops.ts'
 import { DDL } from './schema.ts'
+import { archives, archivedIn } from './channels.ts'
 import { json } from './sql.ts'
 
 // The task's view after each of its events: what a feed shows, and the stored order of its needs.
@@ -648,8 +649,10 @@ op('claimReadyTask', (ctx, body: ClaimReady) => {
   const owners = distinct([ctx.caller.principal.id, ...from])
   const range = subtree ? '(t.channel = ? or substr(t.channel, 1, ?) = ?)' : 't.channel = ?'
   const rangeArgs = subtree ? [path, path.length + 1, path + '/'] : [path]
+  const patterns = archives(ctx)
   const fits = (root: number, channel: string): Task | null => {
-    if (!ctx.access.can('label', channel)) return null
+    // A queue that's archived (channels.ts) hands out nothing.
+    if (!ctx.access.can('label', channel) || archivedIn(ctx, patterns, channel)) return null
     const row = ctx.board.message(root)
     if (!row || row.deleted) return null
     const labels = json<Record<string, string>>(row.labels, {})

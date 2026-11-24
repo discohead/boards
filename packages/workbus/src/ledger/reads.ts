@@ -11,6 +11,7 @@ import { cursorOf, ref, type MessageRow } from './core.ts'
 import { hooks, op, type Ctx } from './ops.ts'
 import { DDL } from './schema.ts'
 import { mentionTerms } from './text.ts'
+import { archives, archivedIn } from './channels.ts'
 
 DDL.push(
   'create table if not exists read_channels (channel text not null, actor text not null, seq integer not null, before integer not null default 0, own integer not null default 0, mentions integer not null default 0, at integer not null, primary key (channel, actor)) strict, without rowid',
@@ -159,8 +160,10 @@ op('unread', (ctx, query: { channel?: string }) => {
     actor,
   )
   const channels: Record<string, unknown>[] = []
+  const patterns = archives(ctx)
   for (const row of rows) {
-    if (!inScope(scope, row.path) || !ctx.access.readable(row.path)) continue
+    // An archived channel (channels.ts) counts as nothing unread: it's out of the way until it's back.
+    if (!inScope(scope, row.path) || !ctx.access.readable(row.path) || archivedIn(ctx, patterns, row.path)) continue
     const unread = Math.max(0, row.live - (row.before ?? 0) - (row.own ?? 0))
     const mentions = Math.max(0, row.mentions ?? 0) + (threadMentions.get(row.path) ?? 0)
     if (unread === 0 && mentions === 0 && row.path !== scope) continue

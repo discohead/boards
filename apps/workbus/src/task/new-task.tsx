@@ -13,7 +13,8 @@ export function NewTask({ channel }: { channel?: string }) {
   const [open, setOpen] = useState(false)
   const [text, setText] = useState('')
   const [where, setWhere] = useState(channel ?? '')
-  const target = where || channel || channels[0]?.path || ''
+  const live = channels.filter((one) => !one.archived)
+  const target = where || channel || live[0]?.path || ''
   return (
     <DropdownMenu open={open} onOpenChange={setOpen}>
       <DropdownMenuTrigger asChild>
@@ -36,7 +37,7 @@ export function NewTask({ channel }: { channel?: string }) {
           <input autoFocus aria-label="Task title" placeholder="What needs doing" value={text} onChange={(event) => setText(event.target.value)} onKeyDown={(event) => event.stopPropagation()} className="h-7 rounded-sm border bg-background px-2 text-sm" />
           <div className="flex items-center gap-2">
             <select aria-label="Channel" value={target} onChange={(event) => setWhere(event.target.value)} className="h-7 min-w-0 flex-1 rounded-sm border bg-background px-1 font-mono text-xs">
-              {channels.map((one) => (
+              {live.map((one) => (
                 <option key={one.path} value={one.path}>
                   {one.path}
                 </option>

@@ -54,7 +54,7 @@ const { z } = await import(pathToFileURL(join(SRC, '..', 'node_modules', 'zod', 
 
 const DOMAINS = [
   ['board', 'Board', 'Discovery, who you are, and who is on the board.'],
-  ['channels', 'Channels', 'The channels a caller can read, and making one.'],
+  ['channels', 'Channels', 'The channels a caller can read, making one, and archiving one.'],
   ['messages', 'Messages', 'Posting, replying, and changing a message.'],
   ['threads', 'Threads', 'A thread read whole, and threads found by filters.'],
   ['events', 'Events', 'The feed: every event, in order, as a page, a held wait, or a stream.'],
@@ -77,7 +77,7 @@ const DOMAINS = [
 
 const DOMAIN = {
   discovery: 'board', openapi: 'board', avatar: 'board', me: 'board', setName: 'board', actors: 'board', hideActor: 'board',
-  channels: 'channels', createChannel: 'channels',
+  channels: 'channels', createChannel: 'channels', archiveChannel: 'channels', unarchiveChannel: 'channels',
   channelMessages: 'messages', post: 'messages', posted: 'messages', edit: 'messages', delete: 'messages', react: 'messages', label: 'messages', typing: 'messages',
   message: 'threads', threads: 'threads',
   events: 'events',
@@ -109,6 +109,8 @@ const SUMMARY = {
   hideActor: "Hide an actor from the board's lists and @mention settling, or show it again (manage at *). Its messages keep their author; it shows again if it writes.",
   channels: 'The channels this caller can read, a page at a time.',
   createChannel: 'Makes an empty channel. 201 when it is new, 200 when it was there.',
+  archiveChannel: 'Archives a channel (eng) or a subtree (checks/): out of GET /channels and unread, and no new posts there (409 channel_archived). Needs manage where it reaches.',
+  unarchiveChannel: 'Unarchives a channel or a subtree, and every pattern archived inside it; still says what wider pattern archives it yet.',
   channelMessages: "One channel's messages, oldest first.",
   post: 'Starts a thread in a channel, or replies in one (re).',
   posted: 'A post by the client ID it was written with.',
@@ -340,6 +342,13 @@ await call('deleteWake', { params: { key: 'ada' } })
 
 await call('createChannel', { body: { path: 'deploys' }, expect: 201 }).catch(() => call('createChannel', { body: { path: 'deploys' } }))
 await call('channels')
+
+// Archiving: a channel made for it, archived, listed with archived=true, refused a post, and back.
+await call('post', { body: { channel: 'ops/old', text: 'the last word here' }, keep: false })
+await call('archiveChannel', { body: { path: 'ops/old' } })
+await call('channels', { query: { archived: 'true', prefix: 'ops/' }, keep: false })
+await call('post', { body: { channel: 'ops/old', text: 'one more' }, expect: 409 })
+await call('unarchiveChannel', { body: { path: 'ops/old' } })
 const posted = await call('post', { body: { channel: 'deploys', text: 'v42 is live on production', labels: { env: 'production' }, id: 'deploy-v42' } })
 const root = posted.message.id
 await call('posted', { params: { id: 'deploy-v42' } })

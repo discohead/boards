@@ -33,7 +33,7 @@ type Spec = {
 }
 /** Who made it: enough to act as them again at each send. Never a token. */
 type Creator = { author: Author; principal: Principal; profile: Profile | null; narrow: Record<string, Grant> | null; actor: ActorRecord }
-type Canceled = { by: Author; reason: 'canceled' | 'thread_deleted' | 'dropped' | 'revoked' }
+type Canceled = { by: Author; reason: 'canceled' | 'thread_deleted' | 'dropped' | 'revoked' | 'archived' }
 type ScheduleRow = { id: number; spec: string; creator: string; channel: string; re: number | null; n: number; next: number | null; state: 'pending' | 'done' | 'canceled'; canceled: string | null; last: number | null; at: number }
 
 type Schedule = { id: number; spec: Spec; creator: Creator; channel: string; re: number | null; n: number; next: number | null; state: ScheduleRow['state']; canceled: Canceled | null; last: number | null; at: number }
@@ -246,6 +246,8 @@ TIMERS.send = (ctx, timerRef) => {
     posted = postMessage(as, body, { schedule: { id: schedule.id, n }, settle: false, checkBlocks: false, clientKey: sendKey(schedule.id, n) }).row
   } catch (error) {
     if (refused(error)) return finish(ctx, schedule, { by: BOARD_SCHEDULE, reason: 'revoked' })
+    // Its channel was archived (channels.ts): it posts nothing there again.
+    if ((error as { code?: unknown })?.code === 'channel_archived') return finish(ctx, schedule, { by: BOARD_SCHEDULE, reason: 'archived' })
     throw error instanceof WorkbusError ? error : Object.assign(new Error('schedule send failed'), { cause: error })
   }
   const next = nextAfter(spec, n, due, ctx.now)
