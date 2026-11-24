@@ -43,6 +43,17 @@ export async function run({ page, base, owner, other, run: id, channel, must, st
   await step('opening the channel clears it', await until(async () => (await link.getAttribute('data-unread')) === null))
   const listed = async () => (await owner.get('/unread')).channels.some((row) => row.channel === channel && row.unread + row.mentions > 0)
   await step('and the board has it read: GET /unread lists it no more', await until(async () => !(await listed())))
+  // The mark holds against a count asked for before it, and doesn't freeze the row: a post after it is unread.
+  // Away by the sidebar, not a reload, so the row is still the one the mark made.
+  await page.getByTestId('sidebar').locator('a[href="/docs"]').first().click()
+  await page.waitForURL(/\/docs/)
+  await other.post('/messages', { channel, text: 'Written after you read it, run ' + id })
+  const again = await until(async () => (await link.getAttribute('data-unread')) === 'yes')
+  // And it stays so once GET /unread answers (asked for a moment after the post's event).
+  await page.waitForTimeout(1_500)
+  await step('a post after the mark makes it unread again, and it stays unread', again && (await link.getAttribute('data-unread')) === 'yes', await link.getAttribute('class').catch(() => ''))
+  await page.goto(base + '/c/' + channel)
+  await hydrated(page)
 
   // Scrolled up: new posts gather behind the pill, and the pill takes you to them.
   await hydrated(page)
