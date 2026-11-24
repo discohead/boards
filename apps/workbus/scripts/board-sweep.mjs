@@ -167,7 +167,7 @@ async function seatCount(app, key) {
   const response = await fetch(app + '/api/seats/' + key, { headers })
   if (!response.ok) throw new Error('GET /api/seats/' + key + ' answered ' + response.status)
   const status = await response.json()
-  return { runs: status.spend?.runs ?? 0, wakes: Object.values(status.queue ?? {}).reduce((sum, n) => sum + Number(n), 0), state: status.state ?? null, code: status.code ?? null }
+  return { runs: status.spend?.runs ?? 0, wakes: Object.values(status.queue ?? {}).reduce((sum, n) => sum + Number(n), 0), state: status.state ?? null, code: status.code ?? null, ever: status.ever?.runs ?? null, cost: status.ever?.cost ?? status.ever?.usd ?? null }
 }
 
 /** A seat doc's json#seat block, its state set: the body, or null when it has no such block. */
