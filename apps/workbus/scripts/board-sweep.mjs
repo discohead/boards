@@ -5,7 +5,8 @@
 //
 //   WORKBUS_ACCESS_TOKEN=$(cloudflared access token -app=https://workbus.dev) \
 //     node apps/workbus/scripts/board-sweep.mjs --plan [--out plan.json] [--board https://workbus.dev/b/bus]
-//   WORKBUS_ACCESS_TOKEN=… node apps/workbus/scripts/board-sweep.mjs --apply plan.json [--board …]
+//   WORKBUS_ACCESS_TOKEN=… node apps/workbus/scripts/board-sweep.mjs --apply plan.json --canary <id> [--canary-only] [--canary-wait 30]
+//     [--settle 20] [--pause] [--app <app origin>] [--board …]
 //
 // The owner is the caller (the Access token, sent as cf-access-token; never printed). A local board
 // takes WORKBUS_OWNER_TOKEN instead (a bearer token). --plan only reads. --apply reads each item
@@ -15,7 +16,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { parseArgs } from 'node:util'
 import { ROUTES } from './check/cleanup.mjs'
 
-const { values } = parseArgs({ options: { plan: { type: 'boolean' }, apply: { type: 'string' }, out: { type: 'string', default: 'board-sweep-plan.json' }, board: { type: 'string', default: 'https://workbus.dev/b/bus' }, app: { type: 'string' }, 'no-pause': { type: 'boolean' }, settle: { type: 'string', default: '20' } } })
+const { values } = parseArgs({ options: { plan: { type: 'boolean' }, apply: { type: 'string' }, out: { type: 'string', default: 'board-sweep-plan.json' }, board: { type: 'string', default: 'https://workbus.dev/b/bus' }, app: { type: 'string' }, pause: { type: 'boolean' }, settle: { type: 'string', default: '20' }, canary: { type: 'string' }, 'no-canary': { type: 'boolean' }, 'canary-only': { type: 'boolean' }, 'canary-wait': { type: 'string', default: '30' } } })
 if (!values.plan && !values.apply) throw new Error('usage: board-sweep.mjs --plan [--out plan.json] | --apply plan.json  [--board <board url>]')
 const board = values.board.replace(/\/+$/, '')
 const access = process.env.WORKBUS_ACCESS_TOKEN
@@ -139,10 +140,19 @@ async function plan() {
 // -- applying a reviewed plan ------------------------------------------------------------------
 //
 // Safeguards: the sweep must wake no seat and cost nothing, and the watchdog must post nothing.
+// - Every delete is moderation (#26): a root takes its replies in one write, and its message.deleted
+//   says moderation: true, which wakes no wake and no watcher. A message of the caller's own is
+//   moderation only with { moderation: true }, where the board's delete takes it; where it doesn't,
+//   the sweep refuses to delete one (a plain delete is news to the seats in its channel).
+// - The channels to archive are archived first: nothing in an archived channel wakes anyone. A DM is
+//   archived by its own path (a subtree never reaches a private channel).
+// - A canary goes first (--canary <id>, a DELETE thread with replies): its message.deleted must say
+//   moderation: true, its replies must be gone, and after --canary-wait seconds no Seat may have
+//   moved. Only then the rest.
 // - Each kept seat's Seat is read before (GET <app>/api/seats/<key>: its runs and its wakes, of any
-//   state), after every few actions, and at the end; if either moved, it stops there.
-// - The seats are paused for the sweep (their seat docs' state), so nothing that does wake can run,
-//   and put back as they were only if nothing moved. --no-pause leaves them be.
+//   state), after every 10 actions, and at the end; if either moved, it stops there.
+// - --pause pauses the seats for the sweep (their seat docs' state), and puts them back only if
+//   nothing moved. It's off by default: moderation wakes no one, and a pause is itself a doc edit.
 // - After a settle (--settle, seconds), the board's events since the start must hold no post by the
 //   app or a seat (a watchdog note, a seat's reply).
 // - Everything done, skipped, or already gone is logged, id by id, to <plan>.applied-<time>.json.
@@ -158,7 +168,7 @@ async function seatCount(app, key) {
   const response = await fetch(app + '/api/seats/' + key, { headers })
   if (!response.ok) throw new Error('GET /api/seats/' + key + ' answered ' + response.status)
   const status = await response.json()
-  return { runs: status.spend?.runs ?? 0, wakes: Object.values(status.queue ?? {}).reduce((sum, n) => sum + Number(n), 0), state: status.state ?? null }
+  return { runs: status.spend?.runs ?? 0, wakes: Object.values(status.queue ?? {}).reduce((sum, n) => sum + Number(n), 0), state: status.state ?? null, code: status.code ?? null }
 }
 
 /** A seat doc's json#seat block, its state set: the body, or null when it has no such block. */
@@ -179,20 +189,41 @@ async function setState(key, state) {
   return next.was
 }
 
+/** The board's events after a cursor, every page. */
+async function eventsAfter(cursor) {
+  const out = []
+  for (let after = cursor; ; ) {
+    const page = await get('/events?after=' + after)
+    out.push(...page.events)
+    if (!page.events.length || page.cursor === after) return out
+    after = page.cursor
+  }
+}
+
 async function apply(path) {
   const reviewed = JSON.parse(readFileSync(path, 'utf8'))
   if (reviewed.board !== board) throw new Error('the plan is for ' + reviewed.board + ', not ' + board)
   const app = (values.app ?? new URL(board).origin).replace(/\/+$/, '')
   const spec = await get('/openapi.json')
-  const ops = new Map(Object.entries(spec.paths).flatMap(([route, methods]) => Object.values(methods).map((op) => [op.operationId, route])))
+  const ops = new Map(Object.entries(spec.paths).flatMap(([route, methods]) => Object.values(methods).map((op) => [op.operationId, { route, op }])))
   const missing = Object.values(NEEDS).filter((name) => !ops.has(name))
   if (missing.length) throw new Error('the board has no ' + missing.join(', ') + ' yet: apply waits for #26, #15, and #16 to be live')
+  // Whether the board's delete takes { moderation: true }, for a message of the caller's own.
+  const deleteBody = ops.get(NEEDS.delete).op.requestBody?.content?.['application/json']?.schema
+  const ownModeration = Boolean(deleteBody?.properties?.moderation)
+  const me = (await get('/me')).actor
 
-  const seats = reviewed.items.filter((i) => i.kind === 'actor' && i.action === 'KEEP' && i.id.startsWith(APP + '+')).map((i) => i.id.slice(APP.length + 1))
-  const log = { plan: path, board, app, started: new Date().toISOString(), seats: { before: {}, after: {} }, paused: {}, deleted: [], archived: [], hidden: [], gone: [], skipped: [], stopped: null, appPosts: [] }
+  const items = reviewed.items
+  const threads = items.filter((i) => i.kind === 'thread' && i.action === 'DELETE')
+  const canary = values.canary ? threads.find((i) => i.id === String(values.canary).replace(/^#/, '')) : null
+  if (values.canary && !canary) throw new Error('the canary #' + values.canary + ' is no DELETE thread in the plan')
+  if (canary && !(canary.replies > 0)) throw new Error('the canary #' + canary.id + ' has no replies: pick one with replies')
+  if (!canary && !values['no-canary']) throw new Error('--canary <id> (a DELETE thread with replies) goes first; --no-canary to go without one')
+
+  const seats = items.filter((i) => i.kind === 'actor' && i.action === 'KEEP' && i.id.startsWith(APP + '+')).map((i) => i.id.slice(APP.length + 1))
+  const log = { plan: path, board, app, me, ownModeration, started: new Date().toISOString(), seats: { before: {}, after: {} }, paused: {}, canary: null, archived: [], deleted: [], hidden: [], gone: [], skipped: [], stopped: null, appPosts: [] }
   const logPath = path.replace(/\.json$/, '') + '.applied-' + log.started.replace(/[:.]/g, '-') + '.json'
   const save = () => writeFileSync(logPath, JSON.stringify(log, null, 2) + '\n')
-  for (const key of seats) log.seats.before[key] = await seatCount(app, key)
   const moved = async () => {
     for (const key of seats) {
       const now = await seatCount(app, key)
@@ -201,65 +232,107 @@ async function apply(path) {
     }
     return null
   }
+  const stop = (why) => Object.assign(new Error(why), { stop: true })
   const cursor = (await get('/events?last=1')).cursor
-  if (!values['no-pause']) for (const key of seats) log.paused[key] = await setState(key, 'paused')
-  // The pause is itself a doc edit: what it changes in a Seat is the baseline.
+  if (values.pause) for (const key of seats) log.paused[key] = await setState(key, 'paused')
   for (const key of seats) log.seats.before[key] = await seatCount(app, key)
   save()
 
+  let archivedNow = new Set()
   let actions = 0
   const watch = async () => {
+    save()
     if (++actions % 10) return
     const why = await moved()
-    if (why) throw Object.assign(new Error('a seat moved: ' + why), { stop: true })
+    if (why) throw stop('a seat moved: ' + why)
   }
-  try {
-    for (const item of reviewed.items.filter((i) => i.kind === 'thread' && i.action === 'DELETE')) {
-      const now = await get('/messages/' + item.id + '?limit=500').catch(() => null)
-      if (!now || now.message.deleted) {
-        log.gone.push('#' + item.id)
-        continue
-      }
-      if (now.message.channel !== item.channel || now.message.version !== item.version || now.replies.length !== item.replies) {
-        log.skipped.push({ id: '#' + item.id, why: 'changed since the plan' })
-        continue
-      }
-      for (const reply of now.replies.filter((r) => !r.deleted).reverse()) await call('POST', '/messages/' + reply.id + '/delete', {}).catch(() => {})
-      await call('POST', '/messages/' + item.id + '/delete', {})
-      log.deleted.push('#' + item.id)
-      await watch()
+  /** One thread, by moderation: its root, which takes its replies (more than the board takes in one write: the replies first). */
+  const remove = async (item) => {
+    const now = await get('/messages/' + item.id + '?limit=500').catch(() => null)
+    if (!now || now.message.deleted) return log.gone.push('#' + item.id), null
+    if (now.message.id !== item.id || now.message.channel !== item.channel || now.message.version !== item.version || now.replies.filter((r) => !r.deleted).length !== item.replies) {
+      log.skipped.push({ id: '#' + item.id, why: 'changed since the plan' })
+      return null
     }
-    const channels = new Set((await get('/channels')).channels.map((c) => c.path))
-    for (const item of reviewed.items.filter((i) => i.kind === 'channel' && i.action === 'ARCHIVE')) {
+    const live = [now.message, ...now.replies].filter((m) => !m.deleted)
+    const own = live.filter((m) => m.by?.actor === me)
+    // In an archived channel nothing wakes anyone: there a message of the caller's own may go by its author's delete.
+    const quiet = archivedNow.has(item.channel)
+    if (own.length && !ownModeration && !quiet) {
+      log.skipped.push({ id: '#' + item.id, why: 'has messages of ' + me + "'s own (" + own.map((m) => '#' + m.id).join(', ') + "): the board's delete can't make them moderation" })
+      return null
+    }
+    const body = ownModeration ? { moderation: true } : {}
+    // An author's delete takes only its own message: there the replies go first, one by one.
+    if (own.length && !ownModeration) {
+      let count = 0
+      for (const reply of now.replies.filter((r) => !r.deleted).reverse()) count += (await call('POST', '/messages/' + reply.id + '/delete', {})).deleted ?? 1
+      count += (await call('POST', '/messages/' + item.id + '/delete', {})).deleted ?? 1
+      log.deleted.push({ id: '#' + item.id, channel: item.channel, messages: count, by: 'author, in an archived channel' })
+      return { deleted: count }
+    }
+    let answer = await call('POST', '/messages/' + item.id + '/delete', body).catch((error) => error)
+    if (answer instanceof Error && /413|thread_too_large/.test(answer.message)) {
+      for (const reply of now.replies.filter((r) => !r.deleted).reverse()) await call('POST', '/messages/' + reply.id + '/delete', body)
+      answer = await call('POST', '/messages/' + item.id + '/delete', body)
+    }
+    if (answer instanceof Error) throw answer
+    log.deleted.push({ id: '#' + item.id, channel: item.channel, messages: answer.deleted ?? null })
+    return answer
+  }
+
+  try {
+    // The canary: one thread with replies, then its event, its replies, and every Seat, after a wait.
+    if (canary) {
+      const at = (await get('/events?last=1')).cursor
+      const answer = await remove(canary)
+      if (!answer) throw stop('the canary #' + canary.id + ' was not deleted: ' + JSON.stringify(log.skipped.at(-1) ?? log.gone.at(-1)))
+      const events = (await eventsAfter(at)).filter((e) => e.type === 'message.deleted')
+      const root = events.find((e) => String(e.payload?.id ?? e.message?.id) === canary.id)
+      const plain = events.filter((e) => e.payload?.moderation !== true).map((e) => '#' + (e.payload?.id ?? e.message?.id))
+      const after = await get('/messages/' + canary.id + '?limit=500').catch(() => null)
+      const left = after ? after.replies.filter((r) => !r.deleted).map((r) => '#' + r.id) : []
+      await sleep(Number(values['canary-wait']) * 1000)
+      const why = await moved()
+      log.canary = { id: '#' + canary.id, channel: canary.channel, deleted: answer.deleted, moderation: root?.payload?.moderation ?? null, plain, events: events.length, repliesLeft: left, rootDeleted: after ? Boolean(after.message.deleted) : true, moved: why }
+      save()
+      console.log('canary ' + JSON.stringify(log.canary))
+      if (!root || root.payload?.moderation !== true || plain.length) throw stop('the canary: ' + (root ? 'deletes without moderation: true: ' + (plain.join(', ') || '#' + canary.id) : 'no message.deleted for #' + canary.id))
+      if (left.length || !log.canary.rootDeleted) throw stop('the canary: ' + (left.length ? 'replies left ' + left.join(', ') : 'its root is still there'))
+      if (why) throw stop('the canary: a seat moved: ' + why)
+      if (values['canary-only']) throw stop('--canary-only: stopped after the canary, as asked')
+    }
+    // Archive first: nothing in an archived channel wakes anyone, and deletes there still work.
+    const channels = new Set((await get('/channels?archived=true')).channels.filter((c) => !c.archived).map((c) => c.path))
+    for (const item of items.filter((i) => i.kind === 'channel' && i.action === 'ARCHIVE')) {
       if (!channels.has(item.path)) {
         log.gone.push(item.path)
         continue
       }
-      await call('POST', ops.get(NEEDS.archive), { path: item.path })
+      await call('POST', ops.get(NEEDS.archive).route, { path: item.path })
       log.archived.push(item.path)
       await watch()
     }
+    archivedNow = new Set((await get('/channels?archived=true')).channels.filter((c) => c.archived).map((c) => c.path))
+    for (const item of threads.filter((i) => i !== canary)) {
+      if (await remove(item)) await watch()
+    }
     const actors = new Set((await get('/actors')).actors.map((a) => a.id))
-    for (const item of reviewed.items.filter((i) => i.kind === 'actor' && i.action === 'HIDE')) {
+    for (const item of items.filter((i) => i.kind === 'actor' && i.action === 'HIDE')) {
       if (!actors.has(item.id)) {
         log.gone.push(item.id)
         continue
       }
-      await call('POST', ops.get(NEEDS.hide), { actor: item.id, hidden: true })
+      await call('POST', ops.get(NEEDS.hide).route, { actor: item.id, hidden: true })
       log.hidden.push(item.id)
       await watch()
     }
     await sleep(Number(values.settle) * 1000)
     const why = await moved()
-    if (why) throw Object.assign(new Error('a seat moved: ' + why), { stop: true })
+    if (why) throw stop('a seat moved: ' + why)
     // Nothing the app or a seat posted since the start: no watchdog note, no seat's reply.
-    for (let after = cursor; ; ) {
-      const page = await get('/events?after=' + after)
-      for (const event of page.events) if (event.type === 'message.posted' && String(event.message?.by?.actor ?? '').startsWith(APP)) log.appPosts.push({ id: event.message.id, by: event.message.by.actor, text: String(event.message.text).slice(0, 120) })
-      if (!page.events.length || page.cursor === after) break
-      after = page.cursor
-    }
-    if (log.appPosts.length) throw Object.assign(new Error('the app or a seat posted during the sweep: ' + log.appPosts.map((p) => '#' + p.id).join(', ')), { stop: true })
+    for (const event of await eventsAfter(cursor)) if (event.type === 'message.posted' && String(event.message?.by?.actor ?? '').startsWith(APP)) log.appPosts.push({ id: event.message.id, by: event.message.by.actor, text: String(event.message.text).slice(0, 120) })
+    if (log.appPosts.length) throw stop('the app or a seat posted during the sweep: ' + log.appPosts.map((p) => '#' + p.id).join(', '))
   } catch (error) {
     log.stopped = error.message
   } finally {
@@ -269,7 +342,7 @@ async function apply(path) {
     log.ended = new Date().toISOString()
     save()
   }
-  console.log((log.stopped ? 'STOPPED: ' + log.stopped + ' (the seats stay paused)\n' : '') + 'deleted ' + log.deleted.length + ', archived ' + log.archived.length + ', hidden ' + log.hidden.length + ', already gone ' + log.gone.length + ', skipped ' + log.skipped.length + '\nseats before ' + JSON.stringify(log.seats.before) + '\nseats after  ' + JSON.stringify(log.seats.after) + '\nlog: ' + logPath)
+  console.log((log.stopped ? 'STOPPED: ' + log.stopped + (Object.keys(log.paused).length ? ' (the seats stay paused)' : '') + '\n' : '') + 'deleted ' + log.deleted.length + ' threads (' + log.deleted.reduce((n, d) => n + (d.messages ?? 0), 0) + ' messages), archived ' + log.archived.length + ', hidden ' + log.hidden.length + ', already gone ' + log.gone.length + ', skipped ' + log.skipped.length + '\nseats before ' + JSON.stringify(log.seats.before) + '\nseats after  ' + JSON.stringify(log.seats.after) + '\nlog: ' + logPath)
   if (log.stopped) process.exitCode = 1
 }
 
