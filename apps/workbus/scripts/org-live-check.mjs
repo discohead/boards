@@ -1,3 +1,4 @@
+import { busClient, cleaner } from './check/cleanup.mjs'
 // The org on a real bus and app (design/workbus.md §4.4, §4.5, §5.2, §5.5): seeding is idempotent,
 // an edit to a seat doc re-reconciles through the reconciler's wake (the seat's wake updates once,
 // by revision), a bad edit gets one reply in its thread and changes nothing, a Seat takes a
@@ -16,6 +17,7 @@ const access = process.env.ACCESS_TOKEN
 if (!token && !access) throw new Error('set TOKEN (a board token) or ACCESS_TOKEN (an Access token for the app)')
 const auth = access ? { 'cf-access-token': access } : { authorization: 'Bearer ' + token }
 const live = Boolean(access)
+const clean = cleaner({ owner: busClient(bus + '/b/bus', auth) }).guard()
 const pick = new Set(only.split(','))
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
@@ -29,7 +31,7 @@ async function board(method, path, body) {
   const response = await fetch(bus + '/b/bus' + path, { method, headers: { ...auth, ...(body ? { 'content-type': 'application/json' } : {}) }, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
-  return answer
+  return method === 'POST' ? clean.note(path, answer, { request: path === '/messages' }) : answer
 }
 /** A seat's status: live through the app's API, in dev through its door. */
 async function status(key) {
@@ -521,5 +523,8 @@ if (pick.has('letgo')) {
   check(again.already === true && JSON.stringify(again.retired) === JSON.stringify(status?.retired), 'letting it go again says it was already, and changes nothing', again)
 }
 
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 console.log(failures ? failures + ' failed' : 'all passed')
 process.exitCode = failures ? 1 : 0

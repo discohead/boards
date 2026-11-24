@@ -7,6 +7,7 @@
 // ports on 127.0.0.1 only, removed after); or, with the servers running already,
 //   node scripts/session-check.mjs http://127.0.0.1:8831 http://127.0.0.1:8832 [parts]
 // Each check makes one to three tiny model calls.
+import { busClient, cleaner } from './check/cleanup.mjs'
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only] = process.argv.slice(2)
 const token = process.env.TOKEN
 if (!token) throw new Error('set TOKEN: a board token for the bus (see the top of this file)')
@@ -27,13 +28,16 @@ async function session(seat, thread, call, ...args) {
   return body
 }
 
+const clean = cleaner({ owner: busClient(bus + '/b/bus', { authorization: 'Bearer ' + token }) }).guard()
+clean.marker(run)
 async function board(path, body) {
   const response = await fetch(bus + '/b/bus' + path, {
     method: body ? 'POST' : 'GET',
     headers: { authorization: 'Bearer ' + token, ...(body ? { 'content-type': 'application/json' } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   })
-  return response.json()
+  const answer = await response.json()
+  return body ? clean.note(path, answer) : answer
 }
 
 /** The session's transcript as the seam's events, read for a moment. */
@@ -220,6 +224,9 @@ if (!pick || pick.has('deny')) {
   check(/denied/.test(result?.message.text ?? ''), 'the model reads that the principal denied it', result?.message.text)
 }
 
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)

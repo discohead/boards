@@ -9,6 +9,7 @@
 //   TOKEN=<owner token> node scripts/request-check.mjs [app] [bus] [unit,flow,schedule]
 import { requestOf, REQUEST } from '../src/seats/request.ts'
 import { boardTools } from '../src/harness/board.ts'
+import { busClient, cleaner } from './check/cleanup.mjs'
 
 const [app = 'http://127.0.0.1:8831', bus = 'http://127.0.0.1:8832', only = 'unit'] = process.argv.slice(2)
 const pick = new Set(only.split(','))
@@ -70,11 +71,12 @@ if (pick.has('unit')) {
 }
 
 const owner = { authorization: 'Bearer ' + process.env.TOKEN, 'content-type': 'application/json' }
+const clean = cleaner({ owner: busClient(bus + '/b/bus', owner) }).guard()
 async function board(method, path, body) {
   const response = await fetch(bus + '/b/bus' + path, { method, headers: owner, ...(body ? { body: JSON.stringify(body) } : {}) })
   const answer = await response.json()
   if (!response.ok) throw new Error(method + ' ' + path + ': ' + response.status + ' ' + JSON.stringify(answer))
-  return answer
+  return method === 'POST' ? clean.note(path, answer, { request: path === '/messages' }) : answer
 }
 async function until(fn, ms) {
   const end = Date.now() + ms
@@ -152,6 +154,9 @@ if (pick.has('schedule')) {
   check(Boolean(brief?.written) && doc && !doc.labels?.[REQUEST], 'the brief its schedule writes carries no request', { brief, labels: doc?.labels })
 }
 
+// What this run made goes again (scripts/check/cleanup.mjs), unless KEEP is set: it says what it
+// couldn't. On a failure or Ctrl-C, clean.guard() runs it too.
+await clean.finish()
 if (failures) {
   console.log(failures + ' failed')
   process.exit(1)
