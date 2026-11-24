@@ -7,10 +7,11 @@ import { boardTools, type SeatBoard } from '../src/harness/board.ts'
 
 const WRITER = '# Writer\n\n\u0060\u0060\u0060json#seat@2\n' + JSON.stringify({ role: 'writer', tools: ['board'], can: { 'docs/': 'all' }, wakes: ['assigned'], budget: { month: 5, alert: 0.8 } }, null, 2) + '\n\u0060\u0060\u0060\n\n## Charter\n\nYou are {{name}}.\n\n## Hiring from this template\n\nnotes\n'
 
-function stand(options: { actors: { id: string; handle: string }[]; seats: string[]; open?: { id: string; label: string; text: string }[] }) {
+function stand(options: { actors: { id: string; handle: string }[]; hidden?: { id: string; handle: string }[]; seats: string[]; open?: { id: string; label: string; text: string }[] }) {
   const made: { docs: unknown[]; tasks: unknown[] } = { docs: [], tasks: [] }
   const board = {
-    actors: async () => ({ actors: options.actors }),
+    // As GET /actors answers: hidden actors (#16) only with ?hidden=true.
+    actors: async (query?: { hidden?: boolean }) => ({ actors: [...options.actors, ...(query?.hidden ? (options.hidden ?? []).map((one) => ({ ...one, hidden: { by: 'workbus:user:jared', at: '' } })) : [])] }),
     docs: {
       at: async (path: string) => {
         if (path === 'org/templates/writer') return { body: WRITER }
@@ -34,6 +35,13 @@ function stand(options: { actors: { id: string; handle: string }[]; seats: strin
   return { made, hire: async (input: Record<string, unknown>) => { const result = await tool.run(input as never, {} as never); return result.isError ? { error: result.text } : JSON.parse(result.text) } }
 }
 const work = { channel: 'eng/queue', tasks: [{ key: 'note', text: 'Write the note.' }] }
+
+{
+  // A let-go seat an owner hid (#16) is left out of plain GET /actors: hire_propose asks for the hidden ones too.
+  const { hire } = stand({ actors: [], hidden: [{ id: 'worker:workbus-app+docs', handle: 'docs' }], seats: [] })
+  const answer = await hire({ template: 'writer', key: 'docs', name: 'Nora', work })
+  assert.equal(answer.path, 'org/seats/docs-2', "a hidden let-go seat's key is skipped too")
+}
 
 {
   const { made, hire } = stand({ actors: [{ id: 'worker:workbus-app+docs', handle: 'docs' }, { id: 'worker:workbus-app+docs-2', handle: 'docs-2' }], seats: [] })

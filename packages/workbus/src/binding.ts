@@ -289,8 +289,8 @@ export class Board extends RpcTarget {
   }
 
   /** The board's actors (people, Workers, and their profiles), with their handles and names: GET /actors. */
-  actors() {
-    return call(this.#seat, 'actors', checked('actors', undefined))
+  actors(query?: { hidden?: boolean }) {
+    return call(this.#seat, 'actors', checked('actors', query))
   }
 
   /** Every unread count at once: channels with new threads or mentions, followed threads with new replies (GET /unread). */
