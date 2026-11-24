@@ -108,6 +108,16 @@ jobs:
         run: pnpm --filter ./apps/workbus typecheck
       - name: Build
         run: pnpm --filter ./apps/workbus build
+      # The node-only checks: a stand-in board or node:sqlite, no bus, no model, no containers; seconds.
+      - name: Node checks
+        working-directory: apps/workbus
+        run: |
+          set -e
+          for check in unread-check hire-check org-check seat-check hold-check egress-check telemetry-check; do
+            echo "::group::$check"
+            node scripts/$check.ts
+            echo "::endgroup::"
+          done
 
   docs:
     runs-on: ubuntu-latest
