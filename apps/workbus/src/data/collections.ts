@@ -237,6 +237,12 @@ export const actors = feedCollection<Actor>({
     return { rows: page.actors, cursor: Number(page.cursor) }
   },
   apply: (event, rows) => {
+    // An owner hid an actor (#16): it leaves the people lists; shown again, it comes back with its next write.
+    if (event.type === 'actor.hidden' && typeof event.payload.actor === 'string') {
+      const { actor: id, hidden, by: _by, because: _because, ...view } = event.payload as { actor: string; hidden: boolean; by?: unknown; because?: unknown; handle?: string }
+      if (hidden !== false) return rows.get(id) ? { deletes: [id] } : undefined
+      return view.handle ? { upserts: [{ id, ...view } as unknown as Actor] } : undefined
+    }
     // A change to how an actor shows (a new name, say) is an actor.seen event, its payload the actor.
     const seen = event.type === 'actor.seen' && typeof event.payload.actor === 'string' ? (({ actor: id, ...rest }) => ({ id, ...rest }) as Actor)(event.payload as { actor: string }) : null
     const actor = seen ?? event.actor
@@ -281,19 +287,36 @@ export const bodies = feedCollection<DocBody>({
   },
 })
 
+// Archived channels too, each saying so: the sidebar leaves them out, /archived lists them.
+const allChannels = (runtime: BusRuntime) => runtime.client.get<Page<'channels', Channel>>('/channels?limit=500&archived=true')
+
 export const channels = feedCollection<Channel>({
   id: 'channels',
   getKey: (row) => row.path,
   load: async (runtime) => {
-    const page = await runtime.client.get<Page<'channels', Channel>>('/channels?limit=500')
+    const page = await allChannels(runtime)
     return { rows: page.channels, cursor: Number(page.cursor) }
   },
-  apply: (event, rows) => {
+  apply: (event, rows, runtime) => {
     const message = event.message
-    if (event.type === 'channel.created' && typeof event.payload.path === 'string' && !rows.get(event.payload.path)) return { upserts: [{ path: event.payload.path, lastIndex: Number(event.cursor), messages: 0, threads: 0 }] }
-    if (!message || event.type !== 'message.posted') return
+    // Which channels an archive reaches is the board's to say (a subtree reaches no one's DM): read them again.
+    if (event.type === 'channel.archived' || event.type === 'channel.unarchived') {
+      void allChannels(runtime).then(
+        (page) => {
+          const there = new Set(page.channels.map((channel) => channel.path))
+          rows.apply(page.channels, [...rows.map.keys()].filter((path) => !there.has(path)))
+        },
+        () => {},
+      )
+      return
+    }
+    if (event.type === 'channel.created' && typeof event.payload.path === 'string' && !rows.get(event.payload.path)) return { upserts: [{ path: event.payload.path, lastIndex: Number(event.cursor), messages: 0, threads: 0, live: { messages: 0, threads: 0 } }] }
+    if (!message || (event.type !== 'message.posted' && event.type !== 'message.deleted')) return
     const had = rows.get(message.channel) ?? { path: message.channel, lastIndex: 0, messages: 0, threads: 0 }
-    return { upserts: [{ ...had, lastIndex: Number(message.id), messages: had.messages + 1, threads: had.threads + (isRoot(message) ? 1 : 0) }] }
+    const live = had.live ?? { messages: had.messages, threads: had.threads }
+    const root = isRoot(message) ? 1 : 0
+    if (event.type === 'message.deleted') return { upserts: [{ ...had, live: { messages: Math.max(0, live.messages - 1), threads: Math.max(0, live.threads - root) } }] }
+    return { upserts: [{ ...had, lastIndex: Number(message.id), messages: had.messages + 1, threads: had.threads + root, live: { messages: live.messages + 1, threads: live.threads + root } }] }
   },
 })
 

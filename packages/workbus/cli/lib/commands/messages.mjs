@@ -44,14 +44,14 @@ export const name = {
 }
 
 export const channels = {
-  usage: 'wb channels [--prefix <p>] [--limit <n>]\n\nThe channels you can read.',
-  flags: { prefix: 'string', limit: 'string' },
+  usage: 'wb channels [--prefix <p>] [--limit <n>] [--archived]\n\nThe channels you can read, with what is live in each (deleted posts left out).\n--archived lists archived channels too.',
+  flags: { prefix: 'string', limit: 'string', archived: 'bool' },
   async run(ctx) {
     const limit = count(ctx.flags.limit, '--limit')
     const found = []
     let after
     for (;;) {
-      const page = await ctx.board().request("couldn't list channels", 'GET', '/channels', { query: { prefix: ctx.flags.prefix, after, limit: limit ? Math.min(limit - found.length, 500) : 500 } })
+      const page = await ctx.board().request("couldn't list channels", 'GET', '/channels', { query: { prefix: ctx.flags.prefix, after, limit: limit ? Math.min(limit - found.length, 500) : 500, ...(ctx.flags.archived ? { archived: 'true' } : {}) } })
       found.push(...page.channels)
       after = page.next ?? null
       if (!after || (limit && found.length >= limit)) break
@@ -59,7 +59,10 @@ export const channels = {
     if (ctx.json) return ctx.emit({ channels: found, next: after ?? null })
     if (!found.length) return ctx.print(['no channels'])
     const plural = (n, one) => n + ' ' + one + (n === 1 ? '' : 's')
-    ctx.print(columns(found.map((channel) => [channel.path, channel.threads === undefined ? '' : plural(channel.threads, 'thread'), channel.messages === undefined ? '' : plural(channel.messages, 'message'), ...(channel.private ? ['private'] : [])])))
+    // Live counts where the board gives them: an emptied channel reads as empty.
+    const threads = (channel) => channel.live?.threads ?? channel.threads
+    const messages = (channel) => channel.live?.messages ?? channel.messages
+    ctx.print(columns(found.map((channel) => [channel.path, threads(channel) === undefined ? '' : plural(threads(channel), 'thread'), messages(channel) === undefined ? '' : plural(messages(channel), 'message'), ...(channel.private ? ['private'] : []), ...(channel.archived ? ['archived' + (channel.archived.pattern !== channel.path ? ' with ' + channel.archived.pattern : '')] : [])])))
   },
 }
 
@@ -179,16 +182,40 @@ export const edit = {
 }
 
 export const del = {
-  usage: 'wb delete <id> [--revision <n>]\n\nDelete a message you wrote. It stays as a tombstone.',
+  usage: [
+    'wb delete <id> [--revision <n>]',
+    '',
+    'Delete a message you wrote. It stays as a tombstone. With manage in its channel you may',
+    "delete anyone's, as moderation; a thread's root takes its replies with it.",
+  ].join('\n'),
   flags: { revision: 'string' },
   async run(ctx) {
     const id = idOf(required(ctx.positionals[0], 'a message ID', 'wb delete'))
     const revision = count(ctx.flags.revision, '--revision')
-    await ctx.board().request("couldn't delete " + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/delete', { body: revision ? { revision } : {} })
-    if (ctx.json) return ctx.emit({ deleted: id })
-    ctx.print(['deleted ' + ref(id)])
+    const answer = await ctx.board().request("couldn't delete " + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/delete', { body: revision ? { revision } : {} })
+    if (ctx.json) return ctx.emit({ deleted: id, ...(answer?.deleted !== undefined ? { count: answer.deleted } : {}) })
+    ctx.print(['deleted ' + ref(id) + (answer?.deleted > 1 ? ' and its ' + (answer.deleted - 1) + ' ' + (answer.deleted === 2 ? 'reply' : 'replies') + ', as moderation' : answer?.deleted === 1 ? ', as moderation' : '')])
   },
 }
+
+/** Hide an actor from the board's lists and mentions, or show it again (an owner's: manage at *). */
+function hiding(hidden) {
+  const verb = hidden ? 'hide' : 'unhide'
+  return {
+    usage: hidden
+      ? "wb hide <actor id>\n\nHide an actor: it leaves the board's actor list and mention settling, and its claimed\nhandle is free. Its messages keep their author. Writing again shows it again. Needs manage at *."
+      : 'wb unhide <actor id>\n\nShow a hidden actor again.',
+    flags: {},
+    async run(ctx) {
+      const actor = required(ctx.positionals[0], 'an actor ID', 'wb ' + verb)
+      await ctx.board().request("couldn't " + verb + ' ' + actor, 'POST', '/actors/hide', { body: { actor, hidden } })
+      if (ctx.json) return ctx.emit({ actor, hidden })
+      ctx.print([(hidden ? 'hid ' : 'showed ') + actor])
+    },
+  }
+}
+export const hide = hiding(true)
+export const unhide = hiding(false)
 
 /** A short name as the board takes it: eyes, :eyes:, or Thumbs_Up all read as their name. */
 function emojiOf(input) {
@@ -282,5 +309,29 @@ export const typing = {
     if (ctx.json) return ctx.emit({ targets: answer.targets ?? [] })
     const targets = answer.targets ?? []
     ctx.print(targets.length ? targets.map((target) => 'typing in ' + target) : ['no synced thread shows typing for ' + ref(id)])
+  },
+}
+
+export const archive = {
+  usage: 'wb archive <channel|prefix/>\n\nArchive a channel, or a channel and its subtree (checks/): it leaves the listing\n(wb channels --archived shows it) and takes no new posts. Nothing is deleted.\nNeeds manage there.',
+  flags: {},
+  async run(ctx) {
+    const path = required(ctx.positionals[0], 'a channel or a prefix/', 'wb archive')
+    const answer = await ctx.board().request("couldn't archive " + path, 'POST', '/channels/archive', { body: { path } })
+    if (ctx.json) return ctx.emit(answer)
+    ctx.print([(answer.changed ? 'archived ' : 'already archived ') + path + (path.endsWith('/') ? '  ' + answer.channels + ' channel' + (answer.channels === 1 ? '' : 's') : '')])
+  },
+}
+
+export const unarchive = {
+  usage: 'wb unarchive <channel|prefix/>\n\nUnarchive a channel, or a subtree and everything archived inside it.',
+  flags: {},
+  async run(ctx) {
+    const path = required(ctx.positionals[0], 'a channel or a prefix/', 'wb unarchive')
+    const answer = await ctx.board().request("couldn't unarchive " + path, 'POST', '/channels/unarchive', { body: { path } })
+    if (ctx.json) return ctx.emit(answer)
+    const lines = [answer.changed ? 'unarchived ' + answer.unarchived.join(', ') : path + " wasn't archived itself"]
+    if (answer.still) lines.push('still archived with ' + answer.still.pattern + ': wb unarchive ' + answer.still.pattern)
+    ctx.print(lines)
   },
 }

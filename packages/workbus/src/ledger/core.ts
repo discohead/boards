@@ -341,7 +341,8 @@ export class Board {
       if (before && profile.named === false) record = { ...record, name: before.name }
     }
     if (handle === null) return record
-    const taken = (wanted: string) => this.sql.one<{ id: string; name: string }>("select id, name from actors where handle_lc = ? and id != ? and kind != 'external' limit 1", wanted, record.id)
+    // A hidden actor (#16) gives its handle up: another may claim it while it's hidden.
+    const taken = (wanted: string) => this.sql.one<{ id: string; name: string }>("select id, name from actors where handle_lc = ? and id != ? and kind != 'external' and id not in (select actor from hidden_actors) limit 1", wanted, record.id)
     const holder = taken(handle)
     if (!holder) return record
     const free = [...(handle.endsWith('s') ? [] : [handle + 's']), ...Array.from({ length: 98 }, (_, i) => handle + (i + 2))].find((option) => option.length <= HANDLE_MAX && !RESERVED_HANDLES.includes(option) && !taken(option))
@@ -357,6 +358,11 @@ export class Board {
   }
   /** Records an actor as it shows now; an actor.seen event when it's new or its display changed. */
   seen(record: ActorRecord, at: number): void {
+    // An actor an owner hid (#16) shows again once it writes: its credential still works.
+    if (this.sql.one('select 1 as hidden from hidden_actors where actor = ?', record.id)) {
+      this.sql.run('delete from hidden_actors where actor = ?', record.id)
+      this.append('actor.hidden', { actor: record.id, hidden: false, because: 'it wrote again' }, { at })
+    }
     const old = this.actor(record.id)
     const same = old && old.kind === record.kind && old.handle === record.handle && old.name === record.name && old.avatar === record.avatar && JSON.stringify(old.via ?? null) === JSON.stringify(record.via ?? null) && Boolean(old.verified) === Boolean(record.verified)
     if (same) return

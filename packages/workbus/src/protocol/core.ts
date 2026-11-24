@@ -52,9 +52,15 @@ export const DisplayName = z
   .refine((value) => value.length >= 1 && [...value].length <= 64, 'a display name is 1 to 64 characters')
   .refine((value) => !/\p{Cc}/u.test(value), 'a display name has no control characters')
 route({ name: 'setName', method: 'PATCH', path: '/me', body: z.strictObject({ name: DisplayName }) })
-route({ name: 'actors', method: 'GET', path: '/actors' })
-route({ name: 'channels', method: 'GET', path: '/channels', query: ChannelsQuery })
+route({ name: 'actors', method: 'GET', path: '/actors', query: z.strictObject({ hidden: QueryBool.optional() }) })
+route({ name: 'hideActor', method: 'POST', path: '/actors/hide', body: z.strictObject({ actor: z.string().min(1).max(300), hidden: z.boolean().optional() }) })
+// archived=true lists archived channels too, each saying what archived it (issue #15; not in protocol v1).
+route({ name: 'channels', method: 'GET', path: '/channels', query: ChannelsQuery.extend({ archived: QueryBool.optional() }) })
 route({ name: 'createChannel', method: 'POST', path: '/channels', body: z.strictObject({ path: ChannelPath }), status: 'created' })
+// A channel (eng) or a subtree (checks/): archiving takes it out of listings and refuses posts there; unarchiving brings it back.
+const ArchivePath = z.strictObject({ path: z.string().min(1).max(501) })
+route({ name: 'archiveChannel', method: 'POST', path: '/channels/archive', body: ArchivePath })
+route({ name: 'unarchiveChannel', method: 'POST', path: '/channels/unarchive', body: ArchivePath })
 route({ name: 'channelMessages', method: 'GET', path: '/messages', query: z.strictObject({ channel: ChannelPath, after: Ref.optional(), limit: QueryInt(1, 500).optional() }) })
 route({ name: 'message', method: 'GET', path: '/messages/:id', query: z.strictObject({ after: Ref.optional(), limit: QueryInt(1, 500).optional() }) })
 route({

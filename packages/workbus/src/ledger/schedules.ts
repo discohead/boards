@@ -222,6 +222,25 @@ const refused = (error: unknown) => {
   return status === 403 || status === 404
 }
 
+/**
+ * A firing into an archived channel, skipped: it posts nothing and counts for nothing (n stays). A
+ * repeating schedule goes on to its next time; a one-time one waits, pending, armed again when its
+ * channel is unarchived (hooks.unarchived), when it posts.
+ */
+function skip(ctx: Ctx, schedule: Schedule, due: number) {
+  if (schedule.spec.every === null) return
+  const next = nextAfter(schedule.spec, schedule.n, due, ctx.now)
+  ctx.sql.run('update schedules set next = ?, state = ? where id = ?', next ?? due, next === null ? 'done' : 'pending', schedule.id)
+  if (next !== null) ctx.timer('send', String(schedule.id), next)
+}
+
+// Unarchived: each pending schedule there is armed again for its next time (now, for one that waited).
+hooks.unarchived = (ctx, patterns) => {
+  const within = (pattern: string, channel: string) => (pattern.endsWith('/') ? channel === pattern.slice(0, -1) || channel.startsWith(pattern) : channel === pattern)
+  for (const row of ctx.sql.all<{ id: number; channel: string; next: number }>("select id, channel, next from schedules where state = 'pending' and next is not null"))
+    if (patterns.some((pattern) => within(pattern, row.channel))) ctx.timer('send', String(row.id), Math.max(row.next, ctx.now))
+}
+
 TIMERS.send = (ctx, timerRef) => {
   const schedule = load(ctx, Number(timerRef))
   if (!schedule || schedule.state !== 'pending' || schedule.next === null) return
@@ -246,6 +265,8 @@ TIMERS.send = (ctx, timerRef) => {
     posted = postMessage(as, body, { schedule: { id: schedule.id, n }, settle: false, checkBlocks: false, clientKey: sendKey(schedule.id, n) }).row
   } catch (error) {
     if (refused(error)) return finish(ctx, schedule, { by: BOARD_SCHEDULE, reason: 'revoked' })
+    // Its channel is archived (channels.ts): this firing is skipped, and the schedule stays as it was.
+    if ((error as { code?: unknown })?.code === 'channel_archived') return skip(ctx, schedule, due)
     throw error instanceof WorkbusError ? error : Object.assign(new Error('schedule send failed'), { cause: error })
   }
   const next = nextAfter(spec, n, due, ctx.now)

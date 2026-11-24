@@ -101,7 +101,9 @@ class Board extends RpcTarget {
   posted(clientId: string): Promise<{ message: Message }>                         // GET /posts/{id}
   threads(query?: ThreadsQuery): Promise<ThreadsPage>                             // GET /threads
   messages(channel: string, range?: { after?: string; limit?: number }): Promise<{ messages: Message[]; cursor: string }>
-  channels(query?: { prefix?: string; after?: string; limit?: number }): Promise<ChannelsPage>
+  channels(query?: { prefix?: string; after?: string; limit?: number; archived?: boolean }): Promise<ChannelsPage>
+  archiveChannel(path: string)                                                    // POST /channels/archive: a channel, or a subtree (checks/)
+  unarchiveChannel(path: string)                                                  // POST /channels/unarchive
   edit(id: string, text: string, opts?: { revision?: number })
   delete(id: string, opts?: { revision?: number })
   react(id: string, emoji: string, opts?: { remove?: boolean })

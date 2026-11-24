@@ -13,6 +13,7 @@ import { Avatar as SystemAvatar, Message as SystemMessage } from '@/components/s
 import { REACTIONS, Reaction } from './reactions.tsx'
 import { initialsFor, nameInitials } from '@/seats/initials'
 import { RequestLink } from '@/requests/timeline'
+import { can } from '@/task/model'
 
 /** A name's initials, for an avatar (seats/initials.ts). */
 export const initialsOf = nameInitials
@@ -64,6 +65,9 @@ export function MessageItem({ message, request, grouped, thread, replies = [], o
   const names = useDisplayNames()
   const me = bus.runtime.me.actor
   const mine = message.by.actor === me
+  // Moderation (#26): an owner (manage in the channel, as themselves) may delete anyone's message;
+  // a thread's root takes its replies with it.
+  const moderates = !mine && !message.deleted && !me.includes('+') && can(bus.runtime.me.can, 'manage', message.channel)
   const [picking, setPicking] = useState(false)
   const [confirming, setConfirming] = useState(false)
   // A menu opens upward when there's room above, so the list's bottom edge never cuts it off.
@@ -155,6 +159,10 @@ export function MessageItem({ message, request, grouped, thread, replies = [], o
                 <Trash2 size={16} strokeWidth={1.5} />
               </Tool>
             </>
+          ) : moderates ? (
+            <Tool label="Delete as moderation" onClick={opening(setConfirming)}>
+              <Trash2 size={16} strokeWidth={1.5} />
+            </Tool>
           ) : null}
           {picking ? (
             <div className={cn('absolute right-0 z-20', up ? 'bottom-full mb-1' : 'top-full mt-1') + ' grid w-48 grid-cols-6 gap-1 rounded-md border bg-popover p-1 shadow-md'} role="menu" aria-label="Reactions">
@@ -166,8 +174,8 @@ export function MessageItem({ message, request, grouped, thread, replies = [], o
             </div>
           ) : null}
           {confirming ? (
-            <div className={cn('absolute right-0 z-20', up ? 'bottom-full mb-1' : 'top-full mt-1') + ' w-56 rounded-md border bg-popover p-2 text-sm shadow-md'} role="alertdialog" aria-label="Delete this message?">
-              <p>Delete this message?</p>
+            <div data-testid="delete-confirm" className={cn('absolute right-0 z-20', up ? 'bottom-full mb-1' : 'top-full mt-1') + ' w-64 rounded-md border bg-popover p-2 text-sm shadow-md'} role="alertdialog" aria-label="Delete this message?">
+              <p>{mine ? 'Delete this message?' : message.re === null ? 'Delete this thread, as moderation? Its replies go with it, and the log keeps that you did it.' : 'Delete this message, as moderation? The log keeps that you did it.'}</p>
               <div className="mt-2 flex justify-end gap-2">
                 <button type="button" className="rounded px-2 py-0.5 text-xs" onClick={() => setConfirming(false)} autoFocus>
                   Cancel

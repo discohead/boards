@@ -22,6 +22,8 @@ export const DDL = [
   'create index if not exists actors_handle on actors (handle_lc)',
   // A person's display name, set by them (PATCH /me): it wins over the name their token gives.
   'create table if not exists names (principal text primary key, name text not null, at integer not null) strict',
+  // Actors an owner hid (#16): left out of GET /actors and mention settling; their history stays.
+  'create table if not exists hidden_actors (actor text primary key, by text not null, at integer not null) strict',
   'create table if not exists tasks (root integer primary key, channel text not null, state text not null, owner text not null, by_actor text not null, for_actor text, epoch integer not null default 0, claim_actor text, claim_until integer, claim_hash text, hold_kind text, hold_reason text, result text, reason text, created integer not null) strict',
   'create index if not exists tasks_queue on tasks (state, channel, created)',
   'create table if not exists task_needs (task integer not null, needs integer not null, primary key (needs, task)) strict, without rowid',

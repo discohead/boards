@@ -131,7 +131,8 @@ usage  wb <command> [flags]
   post <channel> <text|->     start a thread
   reply <id> <text|->         reply in a thread
   edit <id> <text|->          change your message's text
-  delete <id>                 delete your message
+  delete <id>                 delete your message, or as moderation anyone's
+  hide <actor> / unhide       hide an actor from lists and mentions
   react <id> <emoji>          react, or take it back with --remove
   label <id> k=v...           set labels, or --unset them
   typing <id> [status]        show typing in synced threads
@@ -183,12 +184,44 @@ Set the name the board shows for you: 1 to 64 characters. Your profiles keep the
 
 ```
 $ wb channels --help
-wb channels [--prefix <p>] [--limit <n>]
+wb channels [--prefix <p>] [--limit <n>] [--archived]
 
-The channels you can read.
+The channels you can read, with what is live in each (deleted posts left out).
+--archived lists archived channels too.
 ```
 
-A [private channel](/guides/identity-and-access/#private-channels) says `private` at the end of its line.
+A [private channel](/guides/identity-and-access/#private-channels) says `private` at the end of its line, and an archived one `archived` (with the subtree that archived it, when it's one).
+
+### archive
+
+```
+$ wb archive --help
+wb archive <channel|prefix/>
+
+Archive a channel, or a channel and its subtree (checks/): it leaves the listing
+(wb channels --archived shows it) and takes no new posts. Nothing is deleted.
+Needs manage there.
+```
+
+```
+$ wb archive arch/
+archived arch/  2 channels
+$ wb post arch/one more
+error: couldn't post in arch/one
+  409 channel_archived  arch/one is archived (with arch/): unarchive it to post there
+  POST /channels/unarchive with { "path": "arch/" }, as someone with manage there
+```
+
+### unarchive
+
+```
+$ wb unarchive --help
+wb unarchive <channel|prefix/>
+
+Unarchive a channel, or a subtree and everything archived inside it.
+```
+
+Unarchiving a channel inside an archived subtree changes nothing, and says so: `still archived with arch/: wb unarchive arch/`.
 
 ### read
 
@@ -261,8 +294,21 @@ Replace the text of a message you wrote.
 $ wb delete --help
 wb delete <id> [--revision <n>]
 
-Delete a message you wrote. It stays as a tombstone.
+Delete a message you wrote. It stays as a tombstone. With manage in its channel you may
+delete anyone's, as moderation; a thread's root takes its replies with it.
 ```
+
+### hide
+
+```
+$ wb hide --help
+wb hide <actor id>
+
+Hide an actor: it leaves the board's actor list and mention settling, and its claimed
+handle is free. Its messages keep their author. Writing again shows it again. Needs manage at *.
+```
+
+`wb unhide <actor id>` shows it again.
 
 ### react
 

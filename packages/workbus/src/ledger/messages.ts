@@ -5,6 +5,7 @@ import { wirePermissions } from './access.ts'
 import { hooks, op, viewOptions, type Ctx } from './ops.ts'
 import { json } from './sql.ts'
 import { isEmail, mentionTerms, mentionTokens, rewriteHandles, term, under } from './text.ts'
+import { archives, archivedIn, archivedView, liveCounts, refuseArchived } from './channels.ts'
 
 export const MESSAGE_TEXT_MAX = 10_000
 const UUID_V8 = /^[0-9a-f]{8}-[0-9a-f]{4}-8[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
@@ -82,8 +83,9 @@ export function ensureChannel(ctx: Pick<Ctx, 'sql'>, path: string, at: number) {
 type Named = { id: string; handle: string; name: string; kind: string }
 
 /** The actors a caller sees: everyone for a reader of every channel; else who wrote where it reads, and itself. */
-export function visibleActors(ctx: Ctx): Named[] {
-  const all = ctx.sql.all<Named>('select id, handle, name, kind from actors')
+export function visibleActors(ctx: Ctx, withHidden = false): Named[] {
+  // An actor an owner hid (#16) isn't offered: not listed, not settled to (GET /actors?hidden=true lists it, marked).
+  const all = ctx.sql.all<Named>(withHidden ? 'select id, handle, name, kind from actors' : 'select id, handle, name, kind from actors where id not in (select actor from hidden_actors)')
   const everywhere = ctx.access.everywhere('read')
   if (everywhere && !ctx.access.hides) return all
   const channels = ctx.sql.all<{ channel: string; actor: string }>('select distinct channel, actor from messages union select channel, actor from cold_authors')
@@ -196,6 +198,8 @@ export function postMessage(ctx: Ctx, body: Posting, imported: Imported = {}): {
     const found = replay(ctx, key, channel, root?.id ?? null, replyTo, author)
     if (found) return { row: found, replayed: true }
   }
+  // An archived channel takes no new posts; a sync's imports still land, its platform being the source.
+  if (!imported.from) refuseArchived(ctx, channel)
   if (body.after !== undefined && root) {
     const after = /^[1-9]\d{0,15}$/.test(body.after) ? ctx.board.message(Number(body.after)) : null
     if (!after || after.thread !== root.id) throw new WorkbusError(400, 'invalid_after', 'after names no message in #' + root.id + "'s thread")
@@ -265,14 +269,17 @@ op('posted', (ctx, { id }: { id: string }) => {
   return { message: postedView(ctx, row) }
 }, { read: true })
 
+/** Whether the caller wrote a message: its principal as itself, or the profile that wrote it. */
+const mineOf = (ctx: Ctx, row: MessageRow) => row.principal === ctx.author.principal && (ctx.author.profile === null || row.profile === ctx.author.profile)
+
 /** The author's own message, or the error that says it isn't (404 when unreadable, 403 when someone else's). */
 function own(ctx: Ctx, id: string, verb: 'edit' | 'delete'): MessageRow {
   const row = /^[1-9]\d{0,15}$/.test(id) ? ctx.board.message(Number(id)) : null
   if (!row) throw notFound('message not found: #' + id, 'message_not_found')
   const readable = ctx.access.readable(row.channel)
-  const mine = row.principal === ctx.author.principal && (ctx.author.profile === null || row.profile === ctx.author.profile)
+  const mine = mineOf(ctx, row)
   if (!readable && !(mine && row.blind)) throw notFound('message not found: #' + id, 'message_not_found')
-  if (!mine) throw forbidden('only the author can ' + verb + ' a message')
+  if (!mine) throw forbidden(verb === 'delete' ? 'only its author, or manage in ' + row.channel + ' (moderation), can delete a message' : 'only the author can ' + verb + ' a message')
   authorize(ctx.access, 'post', row.channel)
   return row
 }
@@ -306,18 +313,46 @@ op('edit', (ctx, { id, text, revision }: { id: string; text: string; revision?: 
 })
 
 /** Tombstones a message: in the caller's transaction, with whatever its task and thread need. */
-export function deleteMessage(ctx: Ctx, row: MessageRow, by: By, from: string | null = null) {
+export function deleteMessage(ctx: Ctx, row: MessageRow, by: By, from: string | null = null, moderation = false) {
   hooks.deleting(ctx, row)
-  if (row.re === null) hooks.rootDeleted(ctx, row.id)
+  if (row.re === null) hooks.rootDeleted(ctx, row.id, moderation)
   const before = ctx.board.facet(row.id)
   const seq = ctx.board.reserve()
   ctx.sql.run("update messages set deleted = 1, text = '', text_lower = '', labels = '{}', reactions = '{}', attachments = null, links = null, version = ?, revision = ? where id = ?", seq, seq, row.id)
   writeTerms(ctx, { id: row.id, thread: row.thread, text: '', deleted: 1, labels: {} })
   if (row.re !== null) refreshThread(ctx, row.thread)
-  ctx.board.append('message.deleted', { id: row.id, thread: row.thread_key, by, from }, { at: ctx.now, message: row.id, thread: row.thread, before, seq })
+  ctx.board.append('message.deleted', { id: row.id, thread: row.thread_key, by, from, ...(moderation ? { moderation: true } : {}) }, { at: ctx.now, message: row.id, thread: row.thread, before, seq })
+}
+
+/** The most replies a moderation delete of a thread's root takes with it in one write. */
+export const MODERATION_THREAD_MAX = 2000
+
+/**
+ * Moderation (#26): someone with manage in a message's channel, as themselves (no profile), may
+ * delete any message there, not only their own. Each delete is a message.deleted like any other, saying who deleted it and that it
+ * was moderation. A thread's root takes its replies with it, in this one write; a task's root is
+ * canceled as any deleted root is, so it leaves lists, the inbox, and what wakes seats.
+ */
+function moderate(ctx: Ctx, row: MessageRow): { ok: true; deleted: number } {
+  ctx.board.seen(ctx.actor, ctx.now)
+  let deleted = 0
+  if (row.re === null) {
+    const replies = ctx.sql.all<MessageRow>('select * from messages where thread = ? and re is not null and deleted = 0 order by id', row.id)
+    if (replies.length > MODERATION_THREAD_MAX) throw new WorkbusError(413, 'thread_too_large', '#' + row.id + ' has ' + replies.length + ' replies: delete some of them first, up to ' + MODERATION_THREAD_MAX + ' go with their root in one write')
+    for (const reply of replies) deleteMessage(ctx, reply, ctx.author, null, true), deleted++
+  }
+  if (!row.deleted) deleteMessage(ctx, row, ctx.author, null, true), deleted++
+  return { ok: true, deleted }
 }
 
 op('delete', (ctx, { id, revision }: { id: string; revision?: number }) => {
+  // Not the author's: as moderation, with manage in its channel (#26), a doc's root and its thread included.
+  const found = /^[1-9]\d{0,15}$/.test(id) ? ctx.board.message(Number(id)) : null
+  // Moderation is the principal's own, never a profile's: a profile changes only its own messages.
+  if (found && ctx.author.profile === null && ctx.access.readable(found.channel) && !mineOf(ctx, found) && ctx.access.can('manage', found.channel)) {
+    if (revision !== undefined && revision !== found.revision) throw conflict('revision_conflict', '#' + found.id + (found.deleted ? ' was deleted' : ' was edited') + ' since revision ' + revision)
+    return moderate(ctx, found)
+  }
   // A doc is shared: whoever may edit it may delete it, not only who wrote it first.
   const doc = /^[1-9]\d{0,15}$/.test(id) && hooks.docRoot(ctx, Number(id)) ? ctx.board.readable(id, ctx.access) : null
   if (doc) authorize(ctx.access, 'edit', doc.channel)
@@ -399,14 +434,20 @@ op('label', (ctx, body: { id: string; set?: Record<string, string>; unset?: stri
 // -- channels ------------------------------------------------------------------------------------
 
 // A private channel (design/private-channels.md) says so to its parties, the only ones who list it.
-const channelView = (ctx: Ctx, row: { path: string; last: number; messages: number; threads: number }) => ({ path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads, ...(ctx.board.partiesOf(row.path) ? { private: true } : {}) })
+// messages and threads count every post ever written there; live leaves out what was deleted (channels.ts).
+// An archived channel says what archived it, and lists only when asked for (archived=true).
+const channelView = (ctx: Ctx, row: { path: string; last: number; messages: number; threads: number }, patterns = archives(ctx)) => {
+  const archived = archivedIn(ctx, patterns, row.path)
+  return { path: row.path, lastIndex: row.last, messages: row.messages, threads: row.threads, live: liveCounts(ctx, row), ...(ctx.board.partiesOf(row.path) ? { private: true } : {}), ...(archived ? { archived: archivedView(archived) } : {}) }
+}
 
-op('channels', (ctx, query: { prefix?: string; after?: string; limit?: number }) => {
+op('channels', (ctx, query: { prefix?: string; after?: string; limit?: number; archived?: boolean }) => {
   const limit = query.limit ?? 100
+  const patterns = archives(ctx)
   const rows = ctx.sql.all<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path > ? order by path', query.after ?? '')
-  const readable = rows.filter((row) => (query.prefix === undefined || row.path.startsWith(query.prefix)) && ctx.access.readable(row.path))
+  const readable = rows.filter((row) => (query.prefix === undefined || row.path.startsWith(query.prefix)) && ctx.access.readable(row.path) && (query.archived === true || !archivedIn(ctx, patterns, row.path)))
   const page = readable.slice(0, limit)
-  return { channels: page.map((row) => channelView(ctx, row)), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
+  return { channels: page.map((row) => channelView(ctx, row, patterns)), cursor: ref(ctx.board.head), next: readable.length > limit ? page.at(-1)!.path : null }
 }, { read: true })
 
 op('createChannel', (ctx, { path }: { path: string }) => {
@@ -414,6 +455,7 @@ op('createChannel', (ctx, { path }: { path: string }) => {
   authorize(ctx.access, 'post', path)
   const there = ctx.sql.one<{ path: string; last: number; messages: number; threads: number }>('select path, last, messages, threads from channels where path = ?', path)
   if (there) return { channel: channelView(ctx, there), created: false }
+  refuseArchived(ctx, path)
   ctx.board.seen(ctx.actor, ctx.now)
   ensureChannel(ctx, path, ctx.now)
   ctx.board.append('channel.created', { channel: path, by: ctx.author }, { at: ctx.now })
@@ -599,12 +641,40 @@ op('threads', (ctx, query: Filters & { after?: string; before?: string; limit?: 
 
 // -- who ------------------------------------------------------------------------------------
 
-op('actors', (ctx) => {
+op('actors', (ctx, query: { hidden?: boolean | string } = {}) => {
   const visible = new Set(visibleActors(ctx).map((actor) => actor.id))
   const ids = ctx.sql.all<{ id: string }>('select id from actors').filter((row) => visible.has(row.id))
   const actors = ids.map((row) => ({ id: row.id, ...ctx.board.actorView(ctx.board.actor(row.id))! })).sort((a, b) => a.handle.localeCompare(b.handle))
+  // ?hidden=true: the hidden ones too, marked, for an owner to show again.
+  if (query.hidden === true || query.hidden === 'true') {
+    // The hidden ones the caller would see were they not hidden: an app finding which keys and handles have been used.
+    const could = new Set(visibleActors(ctx, true).map((actor) => actor.id))
+    const hidden = ctx.sql.all<{ actor: string; by: string; at: number }>('select actor, by, at from hidden_actors order by at')
+    const shown = hidden.filter((row) => could.has(row.actor))
+    return { actors: [...actors, ...shown.flatMap((row) => { const view = ctx.board.actorView(ctx.board.actor(row.actor)); return view ? [{ id: row.actor, ...view, hidden: { by: row.by, at: iso(row.at) } }] : [] })], cursor: ref(ctx.board.head) }
+  }
   return { actors, cursor: ref(ctx.board.head) }
 }, { read: true })
+
+/**
+ * Hide an actor, or show it again (#16): an owner's (manage everywhere). A hidden actor leaves GET
+ * /actors and mention settling, and gives its claimed handle up; its past messages keep their author,
+ * since the log is append-only. Writing again shows it again (Board.seen). An actor.hidden event says so.
+ */
+op('hideActor', (ctx, { actor, hidden = true }: { actor: string; hidden?: boolean }) => {
+  if (!ctx.access.everywhere('manage')) throw forbidden("this token can't hide actors: it needs manage at *")
+  const record = ctx.board.actor(actor)
+  if (!record) throw notFound('no actor ' + actor, 'actor_not_found')
+  if (actor === ctx.actor.id) throw badRequest("you can't hide yourself")
+  const was = Boolean(ctx.sql.one('select 1 as hidden from hidden_actors where actor = ?', actor))
+  if (was !== hidden) {
+    if (hidden) ctx.sql.run('insert into hidden_actors (actor, by, at) values (?, ?, ?)', actor, ctx.actor.id, ctx.now)
+    else ctx.sql.run('delete from hidden_actors where actor = ?', actor)
+    // Shown again, the event carries how it shows, as actor.seen does, for a client's people list.
+    ctx.board.append('actor.hidden', { actor, hidden, by: ctx.author, ...(hidden ? {} : ctx.board.actorView(record)!) }, { at: ctx.now })
+  }
+  return { actor: actor, hidden, ...ctx.board.actorView(record)! }
+})
 
 /** A can as the protocol shows it: * first, then patterns sorted, each only where it differs from what's above it. */
 export function canonicalCan(given: Record<string, string[]>): Record<string, string[]> {

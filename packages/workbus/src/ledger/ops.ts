@@ -53,7 +53,7 @@ export const hooks = {
   /** A task root was edited by someone (in the edit's transaction, after the edit). */
   rootEdited: (_ctx: Ctx, _root: number): void => {},
   /** A task root is about to be deleted (in the delete's transaction, before the delete). */
-  rootDeleted: (_ctx: Ctx, _root: number): void => {},
+  rootDeleted: (_ctx: Ctx, _root: number, _moderation?: boolean): void => {},
   /** Checks a text's blocks against the registry: throws 400 invalid_block / schema_not_found. */
   checkBlocks: (_ctx: Ctx, _text: string): void => {},
   /** Files a write carries, as the board stored them: throws 404 attachment_not_found. */
@@ -73,6 +73,8 @@ export const hooks = {
   deleting: (_ctx: Ctx, _row: MessageRow): void => {},
   /** A doc's root moved from one channel to another (in the move's transaction): reads.ts moves its counts. */
   docMoved: (_ctx: Ctx, _row: MessageRow, _from: string, _to: string): void => {},
+  /** Channels were unarchived, by these patterns (channels.ts): schedules.ts arms their schedules again. */
+  unarchived: (_ctx: Ctx, _patterns: string[]): void => {},
   /** An actor unfollowed something in a thread (follows.ts): reads.ts marks the thread read when nothing in it is followed. */
   unfollowed: (_ctx: Ctx, _actor: string, _root: number): void => {},
   /** A channel's archived roots after a position (archive.ts): cold ones from their summaries, frozen ones from their pages. */

@@ -332,6 +332,21 @@ describe('profiles and tasks across people', () => {
   })
 })
 
+describe('moderation and hidden actors', () => {
+  test("wb delete takes someone else's thread as moderation, with its replies; wb hide and unhide an actor", async () => {
+    const other = { WORKBUS_TOKEN: mint('modder', board.url) }
+    const root = madeId((await wb(['post', 'mod-test', 'a thread to clear'], { env: other })).stdout)
+    await wb(['reply', root, 'its reply'], { env: other })
+    const deleted = await wb(['delete', root])
+    assert.equal(deleted.code, 0, deleted.stderr)
+    assert.equal(deleted.stdout, 'deleted #' + root + ' and its 1 reply, as moderation\n')
+    const hidden = await wb(['hide', 'workbus:user:modder'])
+    assert.equal(hidden.stdout, 'hid workbus:user:modder\n')
+    const shown = await wb(['unhide', 'workbus:user:modder'])
+    assert.equal(shown.stdout, 'showed workbus:user:modder\n')
+  })
+})
+
 describe('follows', () => {
   test('a reply in your thread reaches you, wait --for me finds it, and follows lists the thread', async () => {
     const started = await wb(['post', 'general', 'Who reviews #4?'])
@@ -445,5 +460,25 @@ describe('wakes', () => {
     const gone = await wb(['wake', 'delete', 'ada'])
     assert.equal(gone.code, 0, gone.stderr)
     assert.equal(gone.stdout, 'no wake ada\n')
+  })
+})
+
+describe('archived channels', () => {
+  test('archive takes a subtree out of the listing and refuses posts there; unarchive brings it back', async () => {
+    for (const channel of ['arch/one', 'arch/two']) assert.equal((await wb(['post', channel, 'in ' + channel])).code, 0)
+    const gone = madeId((await wb(['post', 'arch/one', 'to be deleted'])).stdout)
+    assert.equal((await wb(['delete', gone])).code, 0)
+    const archived = await wb(['archive', 'arch/'])
+    assert.equal(archived.code, 0, archived.stderr)
+    assert.equal(archived.stdout, 'archived arch/  2 channels\n')
+    assert.equal((await wb(['channels', '--prefix', 'arch/'])).stdout, 'no channels\n')
+    assert.deepEqual((await wb(['channels', '--prefix', 'arch/', '--archived'])).stdout.trim().split('\n'), ['arch/one  1 thread  1 message  archived with arch/', 'arch/two  1 thread  1 message  archived with arch/'])
+    const refused = await wb(['post', 'arch/one', 'more'])
+    assert.notEqual(refused.code, 0)
+    assert.match(refused.stderr, /409 channel_archived/)
+    const inside = await wb(['unarchive', 'arch/one'])
+    assert.equal(inside.stdout, "arch/one wasn't archived itself\nstill archived with arch/: wb unarchive arch/\n")
+    assert.equal((await wb(['unarchive', 'arch/'])).stdout, 'unarchived arch/\n')
+    assert.equal((await wb(['post', 'arch/one', 'back'])).code, 0)
   })
 })

@@ -38,6 +38,9 @@ export class Watch extends DurableObject<Env> {
 
   /** One event of the board, as the app's watchdog wake delivers it: kept for the brief, raised when it needs the operator. */
   async event(event: Delivered): Promise<{ raised: boolean }> {
+    // Moderation (#26) is an owner clearing things away, never a decline, a failure, or a stall: the
+    // board's wakes don't deliver it, and should one come another way it's not the watchdog's news.
+    if (event.payload?.moderation === true) return { raised: false }
     const at = event.createdAt ? Date.parse(event.createdAt) : Date.now()
     const message = event.message
     const task = message ? String(message.re ?? message.id) : event.payload?.id !== undefined ? String(event.payload.id) : null

@@ -196,6 +196,8 @@ function syncChannel(ctx: Ctx, row: EventRow, facets: Facets): string | null {
 
 function watcherSees(ctx: Ctx, watcher: Watcher, row: EventRow, facets: Facets, payload: Record<string, unknown>): boolean {
   if (!WATCHED.has(row.type) || row.type === 'thread.synced') return false
+  // Moderation (#26) wakes no watcher; syncs still carry the delete out.
+  if (payload.moderation === true) return false
   const by = (payload.by as { actor?: string } | undefined)?.actor
   if (by === watcher.actor && !(row.type === 'message.posted' && payload.schedule)) return false
   if (RECEIPTS.has(row.type) && !watcher.all) return false
