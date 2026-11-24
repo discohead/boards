@@ -140,10 +140,9 @@ async function plan() {
 // -- applying a reviewed plan ------------------------------------------------------------------
 //
 // Safeguards: the sweep must wake no seat and cost nothing, and the watchdog must post nothing.
-// - Every delete is moderation (#26): a root takes its replies in one write, and its message.deleted
-//   says moderation: true, which wakes no wake and no watcher. A message of the caller's own is
-//   moderation only with { moderation: true }, where the board's delete takes it; where it doesn't,
-//   the sweep refuses to delete one (a plain delete is news to the seats in its channel).
+// - Every delete is moderation (#26), the caller's own messages too ({ moderation: true }, #42): a root
+//   takes its replies in one write, and its message.deleted says moderation: true, which wakes no wake
+//   and no watcher. A delete the board answers without a count was a plain one: the sweep stops there.
 // - The channels to archive are archived first: nothing in an archived channel wakes anyone. A DM is
 //   archived by its own path (a subtree never reaches a private channel).
 // - A canary goes first (--canary <id>, a DELETE thread with replies): its message.deleted must say
@@ -208,9 +207,6 @@ async function apply(path) {
   const ops = new Map(Object.entries(spec.paths).flatMap(([route, methods]) => Object.values(methods).map((op) => [op.operationId, { route, op }])))
   const missing = Object.values(NEEDS).filter((name) => !ops.has(name))
   if (missing.length) throw new Error('the board has no ' + missing.join(', ') + ' yet: apply waits for #26, #15, and #16 to be live')
-  // Whether the board's delete takes { moderation: true }, for a message of the caller's own.
-  const deleteBody = ops.get(NEEDS.delete).op.requestBody?.content?.['application/json']?.schema
-  const ownModeration = Boolean(deleteBody?.properties?.moderation)
   const me = (await get('/me')).actor
 
   const items = reviewed.items
@@ -221,7 +217,7 @@ async function apply(path) {
   if (!canary && !values['no-canary']) throw new Error('--canary <id> (a DELETE thread with replies) goes first; --no-canary to go without one')
 
   const seats = items.filter((i) => i.kind === 'actor' && i.action === 'KEEP' && i.id.startsWith(APP + '+')).map((i) => i.id.slice(APP.length + 1))
-  const log = { plan: path, board, app, me, ownModeration, started: new Date().toISOString(), seats: { before: {}, after: {} }, paused: {}, canary: null, archived: [], deleted: [], hidden: [], gone: [], skipped: [], stopped: null, appPosts: [] }
+  const log = { plan: path, board, app, me, started: new Date().toISOString(), seats: { before: {}, after: {} }, paused: {}, canary: null, archived: [], deleted: [], hidden: [], gone: [], skipped: [], stopped: null, appPosts: [] }
   const logPath = path.replace(/\.json$/, '') + '.applied-' + log.started.replace(/[:.]/g, '-') + '.json'
   const save = () => writeFileSync(logPath, JSON.stringify(log, null, 2) + '\n')
   const moved = async () => {
@@ -238,7 +234,6 @@ async function apply(path) {
   for (const key of seats) log.seats.before[key] = await seatCount(app, key)
   save()
 
-  let archivedNow = new Set()
   let actions = 0
   const watch = async () => {
     save()
@@ -254,29 +249,17 @@ async function apply(path) {
       log.skipped.push({ id: '#' + item.id, why: 'changed since the plan' })
       return null
     }
-    const live = [now.message, ...now.replies].filter((m) => !m.deleted)
-    const own = live.filter((m) => m.by?.actor === me)
-    // In an archived channel nothing wakes anyone: there a message of the caller's own may go by its author's delete.
-    const quiet = archivedNow.has(item.channel)
-    if (own.length && !ownModeration && !quiet) {
-      log.skipped.push({ id: '#' + item.id, why: 'has messages of ' + me + "'s own (" + own.map((m) => '#' + m.id).join(', ') + "): the board's delete can't make them moderation" })
-      return null
-    }
-    const body = ownModeration ? { moderation: true } : {}
-    // An author's delete takes only its own message: there the replies go first, one by one.
-    if (own.length && !ownModeration) {
-      let count = 0
-      for (const reply of now.replies.filter((r) => !r.deleted).reverse()) count += (await call('POST', '/messages/' + reply.id + '/delete', {})).deleted ?? 1
-      count += (await call('POST', '/messages/' + item.id + '/delete', {})).deleted ?? 1
-      log.deleted.push({ id: '#' + item.id, channel: item.channel, messages: count, by: 'author, in an archived channel' })
-      return { deleted: count }
-    }
+    // Every delete asks for moderation (#26, #42: the caller's own messages too). The board answers a
+    // moderation delete with how many it deleted; a plain delete (no count) would wake the seats in
+    // its channel, so the sweep stops on one.
+    const body = { moderation: true }
     let answer = await call('POST', '/messages/' + item.id + '/delete', body).catch((error) => error)
     if (answer instanceof Error && /413|thread_too_large/.test(answer.message)) {
       for (const reply of now.replies.filter((r) => !r.deleted).reverse()) await call('POST', '/messages/' + reply.id + '/delete', body)
       answer = await call('POST', '/messages/' + item.id + '/delete', body)
     }
     if (answer instanceof Error) throw answer
+    if (typeof answer?.deleted !== 'number') throw stop('#' + item.id + ': the board took a plain delete (no count in ' + JSON.stringify(answer) + '), not moderation')
     log.deleted.push({ id: '#' + item.id, channel: item.channel, messages: answer.deleted ?? null })
     return answer
   }
@@ -313,7 +296,6 @@ async function apply(path) {
       log.archived.push(item.path)
       await watch()
     }
-    archivedNow = new Set((await get('/channels?archived=true')).channels.filter((c) => c.archived).map((c) => c.path))
     for (const item of threads.filter((i) => i !== canary)) {
       if (await remove(item)) await watch()
     }
