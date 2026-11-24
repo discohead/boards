@@ -75,7 +75,7 @@ route({
 route({ name: 'post', method: 'POST', path: '/messages', body: PostBody, status: 201 })
 route({ name: 'posted', method: 'GET', path: '/posts/:id' })
 route({ name: 'edit', method: 'POST', path: '/messages/:id/edit', body: z.object({ text: SentText, revision: z.number().int().min(1).optional() }) })
-route({ name: 'delete', method: 'POST', path: '/messages/:id/delete', body: z.object({ revision: z.number().int().min(1).optional() }), optionalBody: true })
+route({ name: 'delete', method: 'POST', path: '/messages/:id/delete', body: z.object({ revision: z.number().int().min(1).optional(), moderation: z.boolean().optional() }), optionalBody: true })
 route({ name: 'react', method: 'POST', path: '/messages/:id/reactions', body: z.object({ emoji: Emoji, remove: z.boolean().optional() }) })
 route({
   name: 'label',

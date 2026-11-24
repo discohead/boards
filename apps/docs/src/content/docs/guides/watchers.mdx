@@ -168,6 +168,8 @@ The caller that sets a wake is whole: its principal, its profile, and its narrow
 | `'schedules'` | a message its own schedule posted |
 | `{ tail: '…' }` | what a [tail](#tail-expressions) matches, `me` being the wake's caller |
 
+A deleted message doesn't wake `'dm'`, `'follow'`, or `'assigned'`; a task's deleted root still comes as its `task.canceled`, which `'assigned'` and `'owned'` hear. A `tail` matches a delete as its expression says, and `docs` a doc root's. A delete as moderation (`moderation: true`) wakes no rule.
+
 An event several rules match is delivered once, and `context.rules` names each. `POST /wakes` is an upsert by `key` (unique per principal): the same content again is `changed: false`, a `revision` older than the one it holds is `stale: true` and changes nothing, and the same revision with other rules is 409 `revision_conflict`. A new wake starts at the head; a changed one keeps its place. `GET /wakes` lists the principal's (every one, with manage at `*`), and `POST /wakes/:key/delete` removes one and what its Mailbox still holds. The CLI has `wb wake set`, `wb wake delete`, and `wb wakes`.
 
 ## Tail expressions

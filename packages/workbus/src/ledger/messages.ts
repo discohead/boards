@@ -345,11 +345,15 @@ function moderate(ctx: Ctx, row: MessageRow): { ok: true; deleted: number } {
   return { ok: true, deleted }
 }
 
-op('delete', (ctx, { id, revision }: { id: string; revision?: number }) => {
+op('delete', (ctx, { id, revision, moderation }: { id: string; revision?: number; moderation?: boolean }) => {
   // Not the author's: as moderation, with manage in its channel (#26), a doc's root and its thread included.
+  // The author's own, too, when asked for (moderation: true): its replies go with it, and nothing wakes.
   const found = /^[1-9]\d{0,15}$/.test(id) ? ctx.board.message(Number(id)) : null
   // Moderation is the principal's own, never a profile's: a profile changes only its own messages.
-  if (found && ctx.author.profile === null && ctx.access.readable(found.channel) && !mineOf(ctx, found) && ctx.access.can('manage', found.channel)) {
+  const moderates = Boolean(found && ctx.author.profile === null && ctx.access.readable(found.channel) && ctx.access.can('manage', found.channel))
+  if (moderation === true && found && ctx.access.readable(found.channel) && !moderates)
+    throw forbidden('moderation takes manage in ' + found.channel + ', as yourself (not a profile)')
+  if (found && moderates && (moderation === true || !mineOf(ctx, found))) {
     if (revision !== undefined && revision !== found.revision) throw conflict('revision_conflict', '#' + found.id + (found.deleted ? ' was deleted' : ' was edited') + ' since revision ' + revision)
     return moderate(ctx, found)
   }

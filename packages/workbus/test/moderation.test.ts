@@ -70,6 +70,74 @@ describe('moderation', () => {
     // Again is a no-op: nothing left to delete.
     expect((await api(name, 'POST', '/messages/' + task + '/delete', {}, who.owner)).body).toEqual({ ok: true, deleted: 0 })
   })
+
+  it("an owner moderates their own thread when asked (moderation: true): its replies go too, each as moderation, and it wakes no one", async () => {
+    const name = freshBoard('moderation-own')
+    const who = await callers(name)
+    expect((await api(name, 'POST', '/wakes', { key: 'ada', sink: 'wake', rules: { dm: 'dm', assigned: 'assigned', follow: 'follow' } }, who.ada)).status).toBe(201)
+    await post(name, who.ada, { channel: 'general', text: 'ada, on the board' })
+    // The owner's own task, in ada's DM, for ada, with ada's reply and the owner's.
+    const made = await api(name, 'POST', '/tasks', { channel: 'dm/ada', text: 'a test task in a DM', for: ADA }, who.owner)
+    expect(made.status, JSON.stringify(made.body)).toBe(201)
+    const task = made.body.task.id as string
+    await post(name, who.ada, { re: task, text: 'on it' })
+    await post(name, who.owner, { re: task, text: 'thanks, ada' })
+    await until(() => wokenFor(name, 'ada').some((entry) => entry.event.message?.text === 'thanks, ada'), "the owner's reply")
+    // Asking for moderation takes manage, as oneself: the owner's profile is refused (and a member can't read ada's DM).
+    expect((await api(name, 'POST', '/messages/' + task + '/delete', { moderation: true }, who.ownerAsProfile)).status).toBe(403)
+    expect((await api(name, 'POST', '/messages/' + task + '/delete', { moderation: true }, who.member)).status).toBe(404)
+    // A member asking to moderate their own message, without manage, is refused, and it stays.
+    const theirs = await post(name, who.member, { channel: 'general', text: "a member's own" })
+    expect((await api(name, 'POST', '/messages/' + theirs + '/delete', { moderation: true }, who.member)).status).toBe(403)
+    expect((await api(name, 'GET', '/messages/' + theirs)).body.message.deleted).toBe(false)
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const before = wokenFor(name, 'ada').length
+    expect((await api(name, 'POST', '/messages/' + task + '/delete', { moderation: true }, who.owner)).body).toEqual({ ok: true, deleted: 3 })
+    const thread = (await api(name, 'GET', '/messages/' + task)).body
+    expect([thread.message.deleted, ...thread.replies.map((one: { deleted: boolean }) => one.deleted)]).toEqual([true, true, true])
+    expect(thread.message.task.state).toBe('canceled')
+    const events = (await api(name, 'GET', '/events?all=true&last=6')).body.events as { type: string; payload: { moderation?: boolean } }[]
+    const cleared = events.filter((event) => event.type === 'message.deleted' || event.type === 'task.canceled')
+    expect(cleared.map((event) => [event.type, event.payload.moderation])).toEqual([['message.deleted', true], ['message.deleted', true], ['task.canceled', true], ['message.deleted', true]])
+    await new Promise((resolve) => setTimeout(resolve, 800))
+    expect(wokenFor(name, 'ada').slice(before).map((entry) => entry.event.type)).toEqual([])
+  })
+
+  it("without moderation: true, an author's delete is as it was: its replies stay, and it isn't moderation", async () => {
+    const name = freshBoard('moderation-plain')
+    const who = await callers(name)
+    const root = await post(name, who.owner, { channel: 'general', text: 'my thread' })
+    const reply = await post(name, who.ada, { re: root, text: "ada's reply" })
+    expect((await api(name, 'POST', '/messages/' + root + '/delete', {}, who.owner)).body).toEqual({ ok: true })
+    const thread = (await api(name, 'GET', '/messages/' + root)).body
+    expect([thread.message.deleted, thread.replies.find((one: { id: string }) => one.id === reply)?.deleted]).toEqual([true, false])
+    const events = (await api(name, 'GET', '/events?all=true&last=3')).body.events as { type: string; payload: { id: string; moderation?: boolean } }[]
+    expect(events.find((event) => event.type === 'message.deleted' && event.payload.id === root)?.payload.moderation).toBeUndefined()
+  })
+})
+
+describe('a plain delete', () => {
+  it("wakes no dm, follow, or assigned rule; a tail still hears it, and a task's cancel still wakes assigned", async () => {
+    const name = freshBoard('plain-delete')
+    const who = await callers(name)
+    await post(name, who.ada, { channel: 'general', text: 'ada, on the board' })
+    expect((await api(name, 'POST', '/wakes', { key: 'ada', sink: 'wake', rules: { dm: 'dm', follow: 'follow', assigned: 'assigned', any: { tail: '' } } }, who.ada)).status).toBe(201)
+    // The owner's message in ada's DM; the owner's reply in a thread ada follows; the owner's reply in ada's task.
+    const inDm = await post(name, who.owner, { channel: 'dm/ada', text: 'a DM to ada' })
+    const followed = await post(name, who.owner, { channel: 'general', text: 'a thread ada follows' })
+    expect((await api(name, 'POST', '/messages/' + followed + '/follow', {}, who.ada)).status).toBeLessThan(300)
+    const inFollowed = await post(name, who.owner, { re: followed, text: 'a reply in it' })
+    const task = (await api(name, 'POST', '/tasks', { channel: 'eng', text: 'a task for ada', for: ADA }, who.owner)).body.task.id as string
+    const inTask = await post(name, who.owner, { re: task, text: 'a reply in the task' })
+    await until(() => wokenFor(name, 'ada').some((entry) => entry.event.message?.id === inTask), 'the reply in the task')
+    for (const id of [inDm, inFollowed, inTask, task]) expect((await api(name, 'POST', '/messages/' + id + '/delete', {}, who.owner)).body).toEqual({ ok: true })
+    await until(() => wokenFor(name, 'ada').some((entry) => entry.event.type === 'task.canceled'), "the task's cancel")
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const deletes = wokenFor(name, 'ada').filter((entry) => entry.event.type === 'message.deleted')
+    // Only the tail matched each delete: not dm, follow, or assigned.
+    expect(deletes.map((entry) => [entry.event.payload?.id, entry.rules])).toEqual([inDm, inFollowed, inTask, task].map((id) => [id, ['any']]))
+    expect(wokenFor(name, 'ada').find((entry) => entry.event.type === 'task.canceled')?.rules).toEqual(['assigned', 'any'])
+  })
 })
 
 describe('hidden actors', () => {

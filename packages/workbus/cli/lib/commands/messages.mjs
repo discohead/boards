@@ -183,16 +183,17 @@ export const edit = {
 
 export const del = {
   usage: [
-    'wb delete <id> [--revision <n>]',
+    'wb delete <id> [--revision <n>] [--moderation]',
     '',
     'Delete a message you wrote. It stays as a tombstone. With manage in its channel you may',
-    "delete anyone's, as moderation; a thread's root takes its replies with it.",
+    "delete anyone's, as moderation; a thread's root takes its replies with it. --moderation",
+    'deletes your own that way too, so it wakes no one.',
   ].join('\n'),
-  flags: { revision: 'string' },
+  flags: { revision: 'string', moderation: 'bool' },
   async run(ctx) {
     const id = idOf(required(ctx.positionals[0], 'a message ID', 'wb delete'))
     const revision = count(ctx.flags.revision, '--revision')
-    const answer = await ctx.board().request("couldn't delete " + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/delete', { body: revision ? { revision } : {} })
+    const answer = await ctx.board().request("couldn't delete " + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/delete', { body: { ...(revision ? { revision } : {}), ...(ctx.flags.moderation ? { moderation: true } : {}) } })
     if (ctx.json) return ctx.emit({ deleted: id, ...(answer?.deleted !== undefined ? { count: answer.deleted } : {}) })
     ctx.print(['deleted ' + ref(id) + (answer?.deleted > 1 ? ' and its ' + (answer.deleted - 1) + ' ' + (answer.deleted === 2 ? 'reply' : 'replies') + ', as moderation' : answer?.deleted === 1 ? ', as moderation' : '')])
   },

@@ -16,13 +16,13 @@ import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
 import { bus } from '../bus.ts'
 import { BRIEFS, seatBoard } from '../org/reconcile.ts'
 import { budgetStep, budgetText, monthName, nextPeriod, periodOf, usd, type BudgetKind, type BudgetTasks } from './budget.ts'
-import { RUNNING_UNHELD, WAKES_DDL } from './queue.ts'
+import { RUNNING_UNHELD, WAKES_DDL, takesNoTurn } from './queue.ts'
 import { REQUEST, requestOf } from './request.ts'
 import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'deleted-roots-2026-11-24.1'
+export const SEAT_CODE = 'no-turn-for-deletes-2026-11-24.1'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -168,9 +168,8 @@ export class Seat extends DurableObject<Env> {
 
   /** A delivery: queued once per (wake, cursor), then routed. An answer to a hold goes to the session it holds. */
   async wake(event: Delivered, context: DeliveredContext): Promise<{ queued: boolean; thread: string | null; answer?: string }> {
-    // A doc made, edited, or moved is news only to a seat that wakes for docs ({ docs: <channel> }): a
-    // mention or a follow in a doc's body isn't a message to the seat. Comments on a doc are posts, and still wake it.
-    if (event.type.startsWith('doc.') && !context.rules.includes('docs')) return { queued: false, thread: threadOf(event) }
+    // A deleted message, and a doc's change but to a docs rule (queue.ts): acked, and no turn. Comments on a doc are posts, and still wake it.
+    if (takesNoTurn(event, context.rules)) return { queued: false, thread: threadOf(event) }
     // The operator's own daily schedule in ops/briefs: the brief is written from the watchdog's facts, by code, as the operator.
     if (event.type === 'message.posted' && event.message?.schedule && event.message.channel === BRIEFS && this.runtime?.role === 'operator') {
       await this.#brief(this.runtime, event)

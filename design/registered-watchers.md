@@ -114,6 +114,12 @@ left it (`task_views` at the event's position):
 | `'schedules'` | a message its own schedule posted | `--by` itself, with a schedule |
 | `{ tail: <expr> }` | what a tail matches, `me` being the wake's caller | the protocol's watcher filters |
 
+A deleted message (`message.deleted`, moderated or not) doesn't wake `'dm'`, `'follow'`, or
+`'assigned'`: nothing in a conversation is news when a message in it goes. A task's deleted root
+still comes as its `task.canceled`, which `'assigned'` and `'owned'` hear. A `tail` matches a delete
+as its filter says, and `docs` a doc root's, as above. Moderation (`moderation: true`) wakes no rule.
+The app's Seat takes no turn for a deleted message from any rule (queue.ts, `takesNoTurn`).
+
 Edges (§4.5) are what the reconciler adds with these: `consults` widens nothing new (the
 consulted seat's `mention` already covers it), `escalates_to` is a `tail` rule on the target.
 
