@@ -73,6 +73,8 @@ export const hooks = {
   deleting: (_ctx: Ctx, _row: MessageRow): void => {},
   /** A doc's root moved from one channel to another (in the move's transaction): reads.ts moves its counts. */
   docMoved: (_ctx: Ctx, _row: MessageRow, _from: string, _to: string): void => {},
+  /** Channels were unarchived, by these patterns (channels.ts): schedules.ts arms their schedules again. */
+  unarchived: (_ctx: Ctx, _patterns: string[]): void => {},
   /** An actor unfollowed something in a thread (follows.ts): reads.ts marks the thread read when nothing in it is followed. */
   unfollowed: (_ctx: Ctx, _actor: string, _root: number): void => {},
   /** A channel's archived roots after a position (archive.ts): cold ones from their summaries, frozen ones from their pages. */

@@ -2,9 +2,9 @@
 // unarchives it, as events. Archived channels leave GET /channels (unless archived=true) and the
 // unread counts, refuse posts, hand out no tasks, and wake no one; counts carry live beside
 // cumulative; private channels keep their rule.
-import { evictDurableObject, runInDurableObject } from 'cloudflare:test'
+import { evictDurableObject, runDurableObjectAlarm, runInDurableObject } from 'cloudflare:test'
 import { describe, expect, it } from 'vitest'
-import { api, freshBoard, ledgerOf, tokenFor, until } from './helpers.ts'
+import { api, clock, freshBoard, ledgerOf, tokenFor, until } from './helpers.ts'
 import { wokenFor } from './wake.ts'
 
 type Headers = Record<string, string>
@@ -140,7 +140,7 @@ describe('archived channels', () => {
     expect(await events(who.ada)).toHaveLength(1)
   })
 
-  it('wakes no one, hands out no task, counts nothing unread, and ends a schedule there', async () => {
+  it('wakes no one, hands out no task, and counts nothing unread', async () => {
     const name = freshBoard('arch-quiet')
     const who = await callers(name)
     expect((await api(name, 'POST', '/wakes', { key: 'ada', sink: 'wake', rules: { queue: { ready: 'eng/queue' }, follow: 'follow' } }, who.ada)).status).toBe(201)
@@ -151,8 +151,6 @@ describe('archived channels', () => {
     await until(() => wokenFor(name, 'ada').some((entry) => entry.event.message?.text === 'the owner answers'), 'the follow')
     await post(name, who.owner, { channel: 'eng/queue', text: 'something unread for the member' })
     expect((await api(name, 'GET', '/unread', undefined, who.member)).body.channels.map((entry: { channel: string }) => entry.channel)).toEqual(['eng/queue'])
-    const scheduled = await api(name, 'POST', '/schedules', { channel: 'eng/queue', text: 'later', in: '1s' }, who.owner)
-    expect(scheduled.status).toBe(201)
 
     expect((await api(name, 'POST', '/channels/archive', { path: 'eng/' }, who.owner)).status).toBe(200)
     const before = wokenFor(name, 'ada').length
@@ -163,8 +161,41 @@ describe('archived channels', () => {
     expect((await api(name, 'GET', '/messages/' + task, undefined, who.owner)).body.message.task.state).toBe('ready')
     expect((await api(name, 'POST', '/tasks/claim', { channel: 'eng/queue', from: ['workbus:user:jared'] }, who.ada)).body.task).toBeNull()
     expect((await api(name, 'GET', '/unread', undefined, who.member)).body.channels).toEqual([])
-    await until(async () => (await api(name, 'GET', '/schedules?all=true', undefined, who.owner)).body.schedules.some((schedule: { state: string; canceled: { reason: string } | null }) => schedule.state === 'canceled' && schedule.canceled?.reason === 'archived'), 'the schedule ended', 10_000)
     await settle()
     expect(wokenFor(name, 'ada').slice(before)).toEqual([])
+  })
+
+  it('skips a schedule\'s firings there while archived, and unarchiving resumes it as it was', async () => {
+    const time = clock()
+    try {
+      const name = freshBoard('arch-schedule')
+      const runAlarm = () => runDurableObjectAlarm(ledgerOf(name) as unknown as DurableObjectStub)
+      const MINUTE = 60_000
+      await post(name, {}, { channel: 'standup', text: 'the channel' })
+      const repeating = (await api(name, 'POST', '/schedules', { channel: 'standup', text: 'every minute', every: '1m', times: 3 })).body.schedule
+      const once = (await api(name, 'POST', '/schedules', { channel: 'standup', text: 'just once', in: '30s' })).body.schedule
+      expect((await api(name, 'POST', '/channels/archive', { path: 'standup' })).status).toBe(200)
+      const schedule = async (id: string) => (await api(name, 'GET', '/schedules?all=true')).body.schedules.find((one: { id: string }) => one.id === id)
+      const posted = async () => (await api(name, 'GET', '/messages?channel=standup')).body.messages.map((message: { text: string }) => message.text)
+
+      // Past both first times: nothing posted, both still pending, neither firing counted; the repeating one moved on.
+      time.advance(MINUTE + 1000)
+      await runAlarm()
+      expect(await posted()).toEqual(['the channel'])
+      expect(await schedule(repeating.id)).toMatchObject({ state: 'pending', sent: 0, canceled: null, next: new Date(Date.parse(repeating.first) + MINUTE).toISOString() })
+      expect(await schedule(once.id)).toMatchObject({ state: 'pending', sent: 0, canceled: null })
+
+      // Unarchived: the one-time one posts at once, and the repeating one at its next time.
+      expect((await api(name, 'POST', '/channels/unarchive', { path: 'standup' })).status).toBe(200)
+      await runAlarm()
+      expect(await posted()).toEqual(['the channel', 'just once'])
+      expect(await schedule(once.id)).toMatchObject({ state: 'done', sent: 1 })
+      time.advance(MINUTE)
+      await runAlarm()
+      expect(await posted()).toEqual(['the channel', 'just once', 'every minute'])
+      expect(await schedule(repeating.id)).toMatchObject({ state: 'pending', sent: 1 })
+    } finally {
+      time.restore()
+    }
   })
 })

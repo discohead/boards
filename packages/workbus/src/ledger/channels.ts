@@ -131,6 +131,7 @@ op('unarchiveChannel', (ctx, body: { path: string }) => {
       ctx.board.append('channel.unarchived', { channel: known.replace(/\/$/, ''), subtree: known.endsWith('/'), by: ctx.author }, { at: ctx.now })
     }
   }
+  if (removed.length) hooks.unarchived(ctx, removed)
   // What a wider pattern still archives: unarchiving checks/a leaves it archived by checks/.
   const still = archivedBy(ctx, channel)
   return { unarchived: removed.sort(), changed: removed.length > 0, ...(still ? { still: archivedView(still) } : {}) }
