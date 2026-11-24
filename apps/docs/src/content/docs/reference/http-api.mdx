@@ -218,7 +218,7 @@ An owner (manage there) archives a channel (`eng`) or a subtree (`checks/`, the 
 
 - leaves `GET /channels` (`archived=true` lists it, saying what archived it) and `GET /unread`;
 - refuses new posts, replies, tasks, and docs moved into it with 409 `channel_archived`; a sync's imports still land, and reads, edits, deletes, and task changes work as before;
-- hands out no task from `POST /tasks/claim`, wakes no one's [wake](/guides/watchers/#wakes), and ends a schedule that would post there (`canceled.reason: archived`).
+- hands out no task from `POST /tasks/claim`, wakes no one's [wake](/guides/watchers/#wakes), and skips a schedule's firings there: each posts nothing and doesn't count, a repeating schedule goes on to its next time, and a one-time one waits. Unarchiving resumes them as they were (a one-time one that came due meanwhile posts then).
 
 A subtree reaches a [private channel](/guides/identity-and-access/#private-channels) only when the subtree has that channel's parties: archiving `dm/` archives no one's DM. Archiving a channel isn't [archival](/guides/archival/), which moves cold history to R2. Not part of protocol v1.
 
