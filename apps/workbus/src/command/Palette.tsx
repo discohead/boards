@@ -49,7 +49,8 @@ export function Palette({ onCheatSheet }: { onCheatSheet?: () => void }) {
   const { data: threads } = useLiveQuery({ query: (q) => q.from({ thread: bus.threads }) })
   const { data: docs } = useLiveQuery({ query: (q) => q.from({ doc: bus.docs }) })
   const { data: tasks } = useLiveQuery({ query: (q) => q.from({ task: bus.tasks }) })
-  const channels = useMemo(() => [...new Set([...threads.map((t) => t.channel), ...docs.map((d) => d.channel), ...tasks.map((t) => t.channel)])].filter(Boolean).sort(), [threads, docs, tasks])
+  // A deleted thread is in no list here; its channel still is, through the others.
+  const channels = useMemo(() => [...new Set([...threads.filter((t) => !t.root.deleted).map((t) => t.channel), ...docs.map((d) => d.channel), ...tasks.map((t) => t.channel)])].filter(Boolean).sort(), [threads, docs, tasks])
 
   // The search across threads and docs: the board's text filter, a moment after typing stops.
   useEffect(() => {
@@ -80,7 +81,7 @@ export function Palette({ onCheatSheet }: { onCheatSheet?: () => void }) {
     const taskIds = new Set(tasks.map((task) => task.id))
     const results: CommandPaletteItem[] =
       found && found.query === query.trim()
-        ? found.threads.map((message) => ({ label: message.doc?.title ?? firstLine(message.text), path: message.doc?.path ?? '#' + message.id, icon: message.doc ? FileText : Search, onSelect: () => go(message.doc || docIds.has(message.id) ? places.doc(message.id) : places.thread(message.id)) }))
+        ? found.threads.filter((message) => !message.deleted).map((message) => ({ id: 'found:' + message.id, label: message.doc?.title ?? firstLine(message.text), path: message.doc?.path ?? '#' + message.id, icon: message.doc ? FileText : Search, onSelect: () => go(message.doc || docIds.has(message.id) ? places.doc(message.id) : places.thread(message.id)) }))
         : []
     const out = [
       { name: q ? 'Search: “' + query.trim() + '”' : '', items: results },
@@ -88,17 +89,17 @@ export function Palette({ onCheatSheet }: { onCheatSheet?: () => void }) {
         name: 'Actions',
         items: pick(
           [
-            { label: 'Make a task', path: 'action', icon: CheckSquare, onSelect: () => write('task') },
-            { label: 'New post', path: 'action', icon: PenSquare, onSelect: () => write('post') },
-            ...(onCheatSheet ? [{ label: 'Keyboard shortcuts', kbd: '?', icon: Keyboard, onSelect: () => (setOpen(false), onCheatSheet()) }] : []),
+            { id: 'action:task', label: 'Make a task', path: 'action', icon: CheckSquare, onSelect: () => write('task') },
+            { id: 'action:post', label: 'New post', path: 'action', icon: PenSquare, onSelect: () => write('post') },
+            ...(onCheatSheet ? [{ id: 'action:shortcuts', label: 'Keyboard shortcuts', kbd: '?', icon: Keyboard, onSelect: () => (setOpen(false), onCheatSheet()) }] : []),
           ],
           3,
         ),
       },
-      { name: 'Screens', items: pick([...SCREENS.map((screen) => ({ label: screen.label, path: 'screen', icon: screen.icon, onSelect: () => go(screen.to) })), ...channels.map((path) => ({ label: path, path: 'channel', icon: Hash, onSelect: () => go(places.channel(path)) }))], 8) },
-      { name: 'Docs', items: pick(docs.filter((doc) => !isIssue(doc)).map((doc) => ({ label: doc.title, path: doc.path, icon: FileText, onSelect: () => go(places.doc(doc.id)) })), 5) },
-      { name: 'Tasks', items: pick(tasks.filter((task) => !['done', 'canceled', 'failed'].includes(task.task?.state ?? '')).map((task) => ({ label: firstLine(task.text), path: '#' + task.id, task: stateOf(task.task?.state), onSelect: () => go(places.thread(task.id)) })), 5) },
-      { name: 'Threads', items: pick(threads.filter((thread) => !docIds.has(thread.id) && !taskIds.has(thread.id)).map((thread) => ({ label: firstLine(thread.root.text), path: '#' + thread.id, icon: MessageSquare, onSelect: () => go(places.thread(thread.id)) })), 5) },
+      { name: 'Screens', items: pick([...SCREENS.map((screen) => ({ id: 'screen:' + screen.to, label: screen.label, path: 'screen', icon: screen.icon, onSelect: () => go(screen.to) })), ...channels.map((path) => ({ id: 'channel:' + path, label: path, path: 'channel', icon: Hash, onSelect: () => go(places.channel(path)) }))], 8) },
+      { name: 'Docs', items: pick(docs.filter((doc) => !isIssue(doc)).map((doc) => ({ id: 'doc:' + doc.id, label: doc.title, path: doc.path, icon: FileText, onSelect: () => go(places.doc(doc.id)) })), 5) },
+      { name: 'Tasks', items: pick(tasks.filter((task) => !['done', 'canceled', 'failed'].includes(task.task?.state ?? '')).map((task) => ({ id: 'task:' + task.id, label: firstLine(task.text), path: '#' + task.id, task: stateOf(task.task?.state), onSelect: () => go(places.thread(task.id)) })), 5) },
+      { name: 'Threads', items: pick(threads.filter((thread) => !thread.root.deleted && !docIds.has(thread.id) && !taskIds.has(thread.id)).map((thread) => ({ id: 'thread:' + thread.id, label: firstLine(thread.root.text), path: '#' + thread.id, icon: MessageSquare, onSelect: () => go(places.thread(thread.id)) })), 5) },
     ]
     return out.filter((group) => group.items.length > 0)
   }, [query, found, docs, tasks, threads, channels, places, onCheatSheet])

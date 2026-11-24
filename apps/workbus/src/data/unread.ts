@@ -108,7 +108,12 @@ export function readState(runtime: BusRuntime, rows: Rows<Unread>) {
       try {
         const answer = await runtime.client.get<Answer>('/unread')
         await runtime.hydrated
-        const fresh = rowsOf(answer)
+        // An answer asked for before a mark landed is older than it: a row's read only moves forward,
+        // so a row marked read here since keeps its mark (and its zero) over the answer's count.
+        const fresh = rowsOf(answer).map((row) => {
+          const had = rows.get(row.key)
+          return had?.read != null && (row.read === null || Number(had.read) > Number(row.read)) ? { ...row, unread: had.unread, mentions: had.mentions, read: had.read } : row
+        })
         const keys = new Set(fresh.map((row) => row.key))
         rows.apply(fresh, [...rows.map.keys()].filter((key) => !keys.has(key)))
       } finally {
