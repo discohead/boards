@@ -503,6 +503,11 @@ if (pick.has('letgo')) {
   // The route refuses a seat with a doc.
   const refused = await fetch(app + '/api/seats/' + key + '/let-go', { method: 'POST' })
   check(refused.status === 409, 'POST /api/seats/<key>/let-go refuses a seat with a seat doc', refused.status)
+  // Only the owner: a member (the dev door's x-dev-token stands in for their Access login) is refused.
+  if (process.env.MEMBER_TOKEN) {
+    const member = await fetch(app + '/api/seats/' + key + '/let-go', { method: 'POST', headers: { 'x-dev-token': process.env.MEMBER_TOKEN } })
+    check(member.status === 403, 'and refuses a member, whatever the seat', member.status)
+  }
   await board('POST', '/messages/' + doc.id + '/delete', {})
   const gone = await until(async () => !(await board('GET', '/wakes')).wakes.some((wake) => wake.key === 'seat.' + key), 30000)
   check(gone === true, 'deleting its seat doc removes its wake')
@@ -513,7 +518,7 @@ if (pick.has('letgo')) {
   check((await files()).length === 0, 'its workspace is empty')
   check(status?.spend?.runs === undefined ? (await seat({ seat: key, call: 'spentSince', args: ['2000-01-01T00:00:00Z'] })).runs === runs : true, 'its run records stay', { runs })
   const again = await (await fetch(app + '/api/seats/' + key + '/let-go', { method: 'POST' })).json()
-  check(JSON.stringify(again.retired) === JSON.stringify(status?.retired), 'letting it go again changes nothing', again)
+  check(again.already === true && JSON.stringify(again.retired) === JSON.stringify(status?.retired), 'letting it go again says it was already, and changes nothing', again)
 }
 
 console.log(failures ? failures + ' failed' : 'all passed')

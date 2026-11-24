@@ -386,3 +386,14 @@ describe('a proposed new doc in a private channel', () => {
     for (const other of [who.member, who.bob, who.app]) expect((await api(name, 'GET', '/docs?path=dm/ada/zebra-notes', undefined, other)).status).toBe(404)
   })
 })
+
+describe('/me says a person\'s role', () => {
+  it('owner, member, or viewer for a person; none for a Worker', async () => {
+    const name = freshBoard('me-role')
+    const role = async (headers: Headers) => (await api(name, 'GET', '/me', undefined, headers)).body.role
+    expect(await role(await bearer(name, 'jared', { role: 'owner' }))).toBe('owner')
+    expect(await role(await bearer(name, 'mallory', { role: 'member' }))).toBe('member')
+    expect(await role(await bearer(name, 'vic', { role: 'viewer' }))).toBe('viewer')
+    expect(await role(await bearer(name, 'workbus-app', { kind: 'workload' }))).toBeUndefined()
+  })
+})

@@ -22,7 +22,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'let-go-2026-11-24.1'
+export const SEAT_CODE = 'moderation-2026-11-24.1'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -509,9 +509,11 @@ export class Seat extends DurableObject<Env> {
     const holds = this.sql.exec('select task, thread, operation, state from holds order by at desc limit 20').toArray()
     const runs = this.sql.exec<{ record: string }>('select record from telemetry_runs order by rowid desc limit 20').toArray().map((row) => JSON.parse(row.record) as Run)
     const wakes = this.sql.exec('select id, thread, state, attempts, error from wakes order by at desc limit 20').toArray()
-    const spend = runtime ? this.totals.spend(runtime.key) : null
+    // A seat let go keeps its run records: its spend still reads from them, by the key it had.
+    const key = runtime?.key ?? this.ctx.storage.kv.get<string>('key') ?? null
+    const spend = key ? this.totals.spend(key) : null
     const budget = { tasks: this.sql.exec('select task, period, kind, open from budget_tasks order by at desc limit 12').toArray(), error: this.ctx.storage.kv.get('budgetError') ?? null }
-    return { code: SEAT_CODE, retired: this.ctx.storage.kv.get('tornDown') ?? null, seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
+    return { code: SEAT_CODE, retired: this.ctx.storage.kv.get('tornDown') ?? null, seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime?.budget.month ?? null }, ever: key ? await this.spentSince('0000') : null, runs, budget }
   }
 
   #pumping = false

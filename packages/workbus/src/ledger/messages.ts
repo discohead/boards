@@ -697,6 +697,8 @@ op('me', (ctx) => {
     name: actor.name,
     avatar: actor.avatar,
     profile: ctx.author.profile,
+    // A person's role on the board (owner, member, viewer): what an app checks before acting as the owner would.
+    ...(ctx.caller.principal.kind === 'person' && ctx.caller.principal.role ? { role: ctx.caller.principal.role } : {}),
     ...(actor.via ? { via: actor.via } : {}),
     expiresAt: ctx.caller.principal.expiresAt === null ? null : iso(ctx.caller.principal.expiresAt),
     can: canonicalCan(ctx.access.summary()),
