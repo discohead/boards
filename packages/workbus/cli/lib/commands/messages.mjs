@@ -179,16 +179,40 @@ export const edit = {
 }
 
 export const del = {
-  usage: 'wb delete <id> [--revision <n>]\n\nDelete a message you wrote. It stays as a tombstone.',
+  usage: [
+    'wb delete <id> [--revision <n>]',
+    '',
+    'Delete a message you wrote. It stays as a tombstone. With manage in its channel you may',
+    "delete anyone's, as moderation; a thread's root takes its replies with it.",
+  ].join('\n'),
   flags: { revision: 'string' },
   async run(ctx) {
     const id = idOf(required(ctx.positionals[0], 'a message ID', 'wb delete'))
     const revision = count(ctx.flags.revision, '--revision')
-    await ctx.board().request("couldn't delete " + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/delete', { body: revision ? { revision } : {} })
-    if (ctx.json) return ctx.emit({ deleted: id })
-    ctx.print(['deleted ' + ref(id)])
+    const answer = await ctx.board().request("couldn't delete " + ref(id), 'POST', '/messages/' + encodeURIComponent(id) + '/delete', { body: revision ? { revision } : {} })
+    if (ctx.json) return ctx.emit({ deleted: id, ...(answer?.deleted !== undefined ? { count: answer.deleted } : {}) })
+    ctx.print(['deleted ' + ref(id) + (answer?.deleted > 1 ? ' and its ' + (answer.deleted - 1) + ' ' + (answer.deleted === 2 ? 'reply' : 'replies') + ', as moderation' : answer?.deleted === 1 ? ', as moderation' : '')])
   },
 }
+
+/** Hide an actor from the board's lists and mentions, or show it again (an owner's: manage at *). */
+function hiding(hidden) {
+  const verb = hidden ? 'hide' : 'unhide'
+  return {
+    usage: hidden
+      ? "wb hide <actor id>\n\nHide an actor: it leaves the board's actor list and mention settling, and its claimed\nhandle is free. Its messages keep their author. Writing again shows it again. Needs manage at *."
+      : 'wb unhide <actor id>\n\nShow a hidden actor again.',
+    flags: {},
+    async run(ctx) {
+      const actor = required(ctx.positionals[0], 'an actor ID', 'wb ' + verb)
+      await ctx.board().request("couldn't " + verb + ' ' + actor, 'POST', '/actors/hide', { body: { actor, hidden } })
+      if (ctx.json) return ctx.emit({ actor, hidden })
+      ctx.print([(hidden ? 'hid ' : 'showed ') + actor])
+    },
+  }
+}
+export const hide = hiding(true)
+export const unhide = hiding(false)
 
 /** A short name as the board takes it: eyes, :eyes:, or Thumbs_Up all read as their name. */
 function emojiOf(input) {

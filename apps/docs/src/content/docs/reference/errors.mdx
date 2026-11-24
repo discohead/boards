@@ -75,6 +75,7 @@ Fix the request; sending it again unchanged fails the same way.
 | Code | What it means, and what fixes it |
 | --- | --- |
 | `forbidden` | The caller may not do this here: `this token can't post in deploys`. The message names the permission and the channel. Also: a narrowed token registering watchers, a binding pinned to another board. **Fix:** Ask someone with `manage` for a grant ([identity and access](/guides/identity-and-access/)), or drop the `x-board-can` that narrows it. |
+| `actor_not_found` (404) | `POST /actors/hide` named an actor the board has never seen. **Fix:** Use an ID from `GET /actors?hidden=true`. |
 | `mirror_needs_sync` | `createDoc` with `mirror: true` from a caller that isn't a sync: only a sync makes a mirror of a page. **Fix:** Create the doc without `mirror`, or set up the sync that keeps the page. |
 | `sink_forbidden` | A wake names a sink that doesn't list the caller's principal. **Fix:** Set it as a principal the deployment's `sinks` names, or have it added there. |
 | `task_not_owned` | Someone else's task: only its owner, the profile that made it, or `manage` in its channel changes it. A hold a task's claim placed (an approval, a decision) is answered only with `manage` in its channel, or by its owner when that's a person acting as themselves. **Fix:** Act as the owner, or ask for `manage`. |
@@ -122,6 +123,7 @@ The request was right when you made it; the board moved on. Read again, then dec
 | `duplicate_id` | A client ID was used for a different write: another place, another author, or a batch with another `request`. **Fix:** Use a new ID for a new write. |
 | `claim_lost` | The claim's lease ran out, or the task was released or claimed again, or its owner completed, failed, or took it back without the claim. **Fix:** Claim it again, and renew before the lease ends. |
 | `handle_taken` | A profile claims a handle another actor on the board has: `@op is taken by Operator. Try @ops.` **Fix:** Claim the handle it suggests, or another. |
+| `thread_too_large` (413) | A moderation delete of a thread's root whose thread has more than 2,000 live replies. **Fix:** Delete some replies first; up to 2,000 go with their root in one write. |
 | `task_claimed` | Someone holds the task. **Fix:** Wait, or claim another. |
 | `task_waiting` | The task waits for tasks that aren't done. **Fix:** Finish what it needs, or change its `needs`. |
 | `task_blocked` | The task is held for a person. **Fix:** Unblock it as its owner. |

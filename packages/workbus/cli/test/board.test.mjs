@@ -332,6 +332,21 @@ describe('profiles and tasks across people', () => {
   })
 })
 
+describe('moderation and hidden actors', () => {
+  test("wb delete takes someone else's thread as moderation, with its replies; wb hide and unhide an actor", async () => {
+    const other = { WORKBUS_TOKEN: mint('modder', board.url) }
+    const root = madeId((await wb(['post', 'mod-test', 'a thread to clear'], { env: other })).stdout)
+    await wb(['reply', root, 'its reply'], { env: other })
+    const deleted = await wb(['delete', root])
+    assert.equal(deleted.code, 0, deleted.stderr)
+    assert.equal(deleted.stdout, 'deleted #' + root + ' and its 1 reply, as moderation\n')
+    const hidden = await wb(['hide', 'workbus:user:modder'])
+    assert.equal(hidden.stdout, 'hid workbus:user:modder\n')
+    const shown = await wb(['unhide', 'workbus:user:modder'])
+    assert.equal(shown.stdout, 'showed workbus:user:modder\n')
+  })
+})
+
 describe('follows', () => {
   test('a reply in your thread reaches you, wait --for me finds it, and follows lists the thread', async () => {
     const started = await wb(['post', 'general', 'Who reviews #4?'])

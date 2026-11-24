@@ -177,6 +177,8 @@ export function matchWake(board: Ctx['board'], mount: Mount, sub: Wake, rows: Ev
     const concerned = facets ? (facets.after ?? facets.before) : null
     if (!facets || !concerned || !ctx.access.readable(concerned.channel)) continue
     const payload = JSON.parse(row.payload) as Record<string, unknown>
+    // Moderation (#26) wakes no one: an owner clearing a thread isn't news for the seats in it.
+    if (payload.moderation === true) continue
     const by = (payload.by as { actor?: string } | undefined)?.actor ?? null
     const own = by === ctx.actor.id
     const matched = rules.filter(([name, test]) => (!own || sub.rules[name] === 'schedules') && test(row, facets, payload, by)).map(([name]) => name)

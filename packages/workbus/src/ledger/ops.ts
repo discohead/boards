@@ -53,7 +53,7 @@ export const hooks = {
   /** A task root was edited by someone (in the edit's transaction, after the edit). */
   rootEdited: (_ctx: Ctx, _root: number): void => {},
   /** A task root is about to be deleted (in the delete's transaction, before the delete). */
-  rootDeleted: (_ctx: Ctx, _root: number): void => {},
+  rootDeleted: (_ctx: Ctx, _root: number, _moderation?: boolean): void => {},
   /** Checks a text's blocks against the registry: throws 400 invalid_block / schema_not_found. */
   checkBlocks: (_ctx: Ctx, _text: string): void => {},
   /** Files a write carries, as the board stored them: throws 404 attachment_not_found. */

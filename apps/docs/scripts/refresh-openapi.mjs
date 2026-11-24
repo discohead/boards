@@ -76,7 +76,7 @@ const DOMAINS = [
 ]
 
 const DOMAIN = {
-  discovery: 'board', openapi: 'board', avatar: 'board', me: 'board', setName: 'board', actors: 'board',
+  discovery: 'board', openapi: 'board', avatar: 'board', me: 'board', setName: 'board', actors: 'board', hideActor: 'board',
   channels: 'channels', createChannel: 'channels',
   channelMessages: 'messages', post: 'messages', posted: 'messages', edit: 'messages', delete: 'messages', react: 'messages', label: 'messages', typing: 'messages',
   message: 'threads', threads: 'threads',
@@ -105,7 +105,8 @@ const SUMMARY = {
   avatar: 'A mark for a name with no picture of its own: its initial on a color from the name, as SVG. No token; cached a day. A name is lowercase letters, digits, and hyphens, up to 32.',
   me: 'Who the token is, and what it may do in each channel it can reach.',
   setName: 'Set the display name the board shows for you (a person, without a profile).',
-  actors: 'Everyone who has written on the board: people, Workers, profiles, and platform users.',
+  actors: 'Everyone who has written on the board: people, Workers, profiles, and platform users. Hidden ones only with ?hidden=true.',
+  hideActor: "Hide an actor from the board's lists and @mention settling, or show it again (manage at *). Its messages keep their author; it shows again if it writes.",
   channels: 'The channels this caller can read, a page at a time.',
   createChannel: 'Makes an empty channel. 201 when it is new, 200 when it was there.',
   channelMessages: "One channel's messages, oldest first.",
@@ -354,6 +355,8 @@ await call('channelMessages', { query: { channel: 'deploys', limit: 2 } })
 await call('message', { params: { id: replied.message.id } })
 await call('threads', { query: { channel: 'deploys', label: 'env=production', limit: 10 } })
 await call('actors')
+const shownBy = await call('post', { body: { channel: 'support', text: 'an old test identity says hi' }, headers: { 'x-board-profile': 'retired' }, keep: false })
+await call('hideActor', { body: { actor: shownBy.message.by.actor } })
 await call('follow', { params: { id: replied.message.id }, body: {} })
 await call('follows', { query: { limit: 5 } })
 await call('post', { body: { channel: 'deploys', text: 'v42 needs a changelog entry, @[' + me.actor + ']' }, headers: { 'x-board-profile': 'checker' }, keep: false })

@@ -122,8 +122,8 @@ hooks.viewExtras = (ctx, row) => {
 }
 
 const rootDeleted = hooks.rootDeleted
-hooks.rootDeleted = (ctx, root) => {
-  rootDeleted(ctx, root)
+hooks.rootDeleted = (ctx, root, moderation) => {
+  rootDeleted(ctx, root, moderation)
   ctx.sql.run('delete from docs where root = ?', root)
 }
 

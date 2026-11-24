@@ -152,8 +152,8 @@
           "status": 200,
           "response": {
             "version": "0.1.0",
-            "url": "https://workbus.example.com/b/openapi-mwtu0eep",
-            "audience": "https://workbus.example.com/b/openapi-mwtu0eep",
+            "url": "https://workbus.example.com/b/openapi-mwtxguq9",
+            "audience": "https://workbus.example.com/b/openapi-mwtxguq9",
             "team_id": null,
             "project_id": null,
             "sync": []
@@ -226,6 +226,11 @@
               "/actors": {
                 "get": {
                   "operationId": "actors"
+                }
+              },
+              "/actors/hide": {
+                "post": {
+                  "operationId": "hideActor"
                 }
               },
               "/channels": {
@@ -759,7 +764,7 @@
             "name": "jared",
             "avatar": null,
             "profile": null,
-            "expiresAt": "2026-11-24T10:22:51.000Z",
+            "expiresAt": "2026-11-24T11:59:37.000Z",
             "can": {
               "*": [
                 "read",
@@ -848,11 +853,27 @@
         "tags": [
           "board"
         ],
-        "summary": "Everyone who has written on the board: people, Workers, profiles, and platform users.",
+        "summary": "Everyone who has written on the board: people, Workers, profiles, and platform users. Hidden ones only with ?hidden=true.",
         "x-order": 5,
         "security": [
           {
             "bearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "hidden",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "0",
+                "1",
+                "true",
+                "false"
+              ]
+            }
           }
         ],
         "responses": {
@@ -904,6 +925,86 @@
         }
       }
     },
+    "/actors/hide": {
+      "post": {
+        "operationId": "hideActor",
+        "tags": [
+          "board"
+        ],
+        "summary": "Hide an actor from the board's lists and @mention settling, or show it again (manage at *). Its messages keep their author; it shows again if it writes.",
+        "x-order": 6,
+        "security": [
+          {
+            "bearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "actor": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 300
+                  },
+                  "hidden": {
+                    "type": "boolean"
+                  }
+                },
+                "required": [
+                  "actor"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "default": {
+            "description": "An error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "x-example": {
+          "request": {
+            "method": "POST",
+            "path": "/actors/hide",
+            "headers": {
+              "content-type": "application/json"
+            },
+            "body": {
+              "actor": "workbus:user:jared+retired"
+            }
+          },
+          "status": 200,
+          "response": {
+            "actor": "workbus:user:jared+retired",
+            "hidden": true,
+            "kind": "agent",
+            "handle": "jared/retired",
+            "name": "retired",
+            "avatar": null,
+            "via": {
+              "name": "jared",
+              "environment": null
+            },
+            "verified": true
+          }
+        }
+      }
+    },
     "/channels": {
       "get": {
         "operationId": "channels",
@@ -911,7 +1012,7 @@
           "channels"
         ],
         "summary": "The channels this caller can read, a page at a time.",
-        "x-order": 6,
+        "x-order": 7,
         "security": [
           {
             "bearer": []
@@ -990,7 +1091,7 @@
           "channels"
         ],
         "summary": "Makes an empty channel. 201 when it is new, 200 when it was there.",
-        "x-order": 7,
+        "x-order": 8,
         "security": [
           {
             "bearer": []
@@ -1063,7 +1164,7 @@
           "messages"
         ],
         "summary": "One channel's messages, oldest first.",
-        "x-order": 8,
+        "x-order": 9,
         "security": [
           {
             "bearer": []
@@ -1141,7 +1242,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.553Z",
+                "createdAt": "2026-11-23T23:59:38.065Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1168,7 +1269,7 @@
                 "text": "",
                 "re": null,
                 "replyTo": null,
-                "thread": "7f229572-62ad-47ad-84bf-90a0b9bfd088",
+                "thread": "5bf40e2a-149d-4137-8533-6586df179498",
                 "labels": {},
                 "reactions": {},
                 "by": {
@@ -1179,7 +1280,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.572Z",
+                "createdAt": "2026-11-23T23:59:38.084Z",
                 "editedAt": null,
                 "deleted": true,
                 "undelivered": {},
@@ -1207,7 +1308,7 @@
           "messages"
         ],
         "summary": "Starts a thread in a channel, or replies in one (re).",
-        "x-order": 11,
+        "x-order": 12,
         "security": [
           {
             "bearer": []
@@ -1378,7 +1479,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.547Z",
+              "createdAt": "2026-11-23T23:59:38.058Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -1427,7 +1528,7 @@
           "threads"
         ],
         "summary": "A thread: its root and replies, from the ID of any message in it.",
-        "x-order": 9,
+        "x-order": 10,
         "security": [
           {
             "bearer": []
@@ -1509,8 +1610,8 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.547Z",
-              "editedAt": "2026-11-23T22:22:51.559Z",
+              "createdAt": "2026-11-23T23:59:38.058Z",
+              "editedAt": "2026-11-23T23:59:38.071Z",
               "deleted": false,
               "undelivered": {},
               "attachments": [],
@@ -1544,7 +1645,7 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.553Z",
+                "createdAt": "2026-11-23T23:59:38.065Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
@@ -1579,7 +1680,7 @@
           "threads"
         ],
         "summary": "Threads by filters, newest activity first.",
-        "x-order": 10,
+        "x-order": 11,
         "security": [
           {
             "bearer": []
@@ -1773,8 +1874,8 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.547Z",
-                  "editedAt": "2026-11-23T22:22:51.559Z",
+                  "createdAt": "2026-11-23T23:59:38.058Z",
+                  "editedAt": "2026-11-23T23:59:38.071Z",
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
@@ -1808,7 +1909,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.553Z",
+                  "createdAt": "2026-11-23T23:59:38.065Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
@@ -1844,7 +1945,7 @@
           "messages"
         ],
         "summary": "A post by the client ID it was written with.",
-        "x-order": 12,
+        "x-order": 13,
         "security": [
           {
             "bearer": []
@@ -1901,7 +2002,7 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.547Z",
+              "createdAt": "2026-11-23T23:59:38.058Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
@@ -1929,7 +2030,7 @@
           "messages"
         ],
         "summary": "Replaces a message's text. Only its author may.",
-        "x-order": 13,
+        "x-order": 14,
         "security": [
           {
             "bearer": []
@@ -2009,7 +2110,7 @@
           "messages"
         ],
         "summary": "Deletes a message. It stays in its thread as a tombstone.",
-        "x-order": 14,
+        "x-order": 15,
         "security": [
           {
             "bearer": []
@@ -2080,7 +2181,7 @@
           "messages"
         ],
         "summary": "Adds a reaction, or takes yours back with remove.",
-        "x-order": 15,
+        "x-order": 16,
         "security": [
           {
             "bearer": []
@@ -2159,7 +2260,7 @@
           "messages"
         ],
         "summary": "Sets and unsets a message's labels; if makes the write conditional.",
-        "x-order": 16,
+        "x-order": 17,
         "security": [
           {
             "bearer": []
@@ -2274,7 +2375,7 @@
           "messages"
         ],
         "summary": "Shows typing in the platform threads the thread is synced to. Writes nothing.",
-        "x-order": 17,
+        "x-order": 18,
         "security": [
           {
             "bearer": []
@@ -2347,7 +2448,7 @@
           "events"
         ],
         "summary": "A page of the feed after a cursor. wait holds the call open; Accept: text/event-stream streams it.",
-        "x-order": 18,
+        "x-order": 19,
         "security": [
           {
             "bearer": []
@@ -2533,10 +2634,10 @@
               {
                 "cursor": "10",
                 "type": "message.deleted",
-                "createdAt": "2026-11-23T22:22:51.575Z",
+                "createdAt": "2026-11-23T23:59:38.087Z",
                 "payload": {
                   "id": "9",
-                  "thread": "7f229572-62ad-47ad-84bf-90a0b9bfd088",
+                  "thread": "5bf40e2a-149d-4137-8533-6586df179498",
                   "by": {
                     "actor": "workbus:user:jared",
                     "principal": "workbus:user:jared",
@@ -2550,7 +2651,7 @@
                   "text": "",
                   "re": null,
                   "replyTo": null,
-                  "thread": "7f229572-62ad-47ad-84bf-90a0b9bfd088",
+                  "thread": "5bf40e2a-149d-4137-8533-6586df179498",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2561,7 +2662,7 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.572Z",
+                  "createdAt": "2026-11-23T23:59:38.084Z",
                   "editedAt": null,
                   "deleted": true,
                   "undelivered": {},
@@ -2588,15 +2689,15 @@
                 }
               },
               {
-                "cursor": "11",
+                "cursor": "14",
                 "type": "message.posted",
-                "createdAt": "2026-11-23T22:22:51.595Z",
+                "createdAt": "2026-11-23T23:59:38.116Z",
                 "payload": {
                   "channel": "deploys",
                   "text": "v42 needs a changelog entry, @[workbus:user:jared]",
                   "re": null,
                   "replyTo": null,
-                  "thread": "f6738f18-ce00-4328-8730-afa4d09996f6",
+                  "thread": "9310df84-b3ea-440c-af3b-0443fd53dd25",
                   "labels": {},
                   "noSync": false,
                   "by": {
@@ -2608,12 +2709,12 @@
                   "from": null
                 },
                 "message": {
-                  "id": "11",
+                  "id": "14",
                   "channel": "deploys",
                   "text": "v42 needs a changelog entry, @[workbus:user:jared]",
                   "re": null,
                   "replyTo": null,
-                  "thread": "f6738f18-ce00-4328-8730-afa4d09996f6",
+                  "thread": "9310df84-b3ea-440c-af3b-0443fd53dd25",
                   "labels": {},
                   "reactions": {},
                   "by": {
@@ -2624,14 +2725,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.595Z",
+                  "createdAt": "2026-11-23T23:59:38.116Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 11,
-                  "revision": 11,
+                  "version": 14,
+                  "revision": 14,
                   "author": {
                     "kind": "agent",
                     "handle": "jared/checker",
@@ -2659,7 +2760,7 @@
                 }
               }
             ],
-            "cursor": "11"
+            "cursor": "14"
           }
         }
       }
@@ -2671,7 +2772,7 @@
           "tasks"
         ],
         "summary": "Tasks by state, channel, label, owner, and what they wait for.",
-        "x-order": 19,
+        "x-order": 20,
         "security": [
           {
             "bearer": []
@@ -2822,12 +2923,12 @@
             "tasks": [
               {
                 "message": {
-                  "id": "12",
+                  "id": "15",
                   "channel": "work",
                   "text": "rotate the staging keys",
                   "re": null,
                   "replyTo": null,
-                  "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+                  "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
                   "labels": {
                     "area": "infra",
                     "board.task": "ready"
@@ -2841,14 +2942,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.609Z",
+                  "createdAt": "2026-11-23T23:59:38.131Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 13,
-                  "revision": 12,
+                  "version": 16,
+                  "revision": 15,
                   "author": {
                     "kind": "person",
                     "handle": "jared",
@@ -2876,12 +2977,12 @@
               },
               {
                 "message": {
-                  "id": "14",
+                  "id": "17",
                   "channel": "work",
                   "text": "build v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+                  "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
                   "labels": {
                     "board.task": "ready"
                   },
@@ -2894,14 +2995,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.612Z",
+                  "createdAt": "2026-11-23T23:59:38.135Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 15,
-                  "revision": 14,
+                  "version": 18,
+                  "revision": 17,
                   "author": {
                     "kind": "person",
                     "handle": "jared",
@@ -2929,12 +3030,12 @@
               },
               {
                 "message": {
-                  "id": "16",
+                  "id": "19",
                   "channel": "work",
                   "text": "ship v42",
                   "re": null,
                   "replyTo": null,
-                  "thread": "d06dce99-2402-483d-a282-588fce8e9d9b",
+                  "thread": "8c6f642d-87b4-4794-a035-75659f74a7a3",
                   "labels": {
                     "board.task": "waiting"
                   },
@@ -2947,14 +3048,14 @@
                   "noSync": false,
                   "origin": null,
                   "from": null,
-                  "createdAt": "2026-11-23T22:22:51.612Z",
+                  "createdAt": "2026-11-23T23:59:38.135Z",
                   "editedAt": null,
                   "deleted": false,
                   "undelivered": {},
                   "attachments": [],
                   "links": [],
-                  "version": 17,
-                  "revision": 16,
+                  "version": 20,
+                  "revision": 19,
                   "author": {
                     "kind": "person",
                     "handle": "jared",
@@ -2969,7 +3070,7 @@
                     "by": "workbus:user:jared",
                     "for": null,
                     "needs": [
-                      "14"
+                      "17"
                     ],
                     "epoch": 0,
                     "claim": null,
@@ -2983,7 +3084,7 @@
                 "last": null
               }
             ],
-            "cursor": "17"
+            "cursor": "20"
           }
         }
       },
@@ -2993,7 +3094,7 @@
           "tasks"
         ],
         "summary": "Starts a thread as a task, or makes an existing thread one (re). claim: true claims it in the same write.",
-        "x-order": 20,
+        "x-order": 21,
         "security": [
           {
             "bearer": []
@@ -3122,12 +3223,12 @@
           "status": 201,
           "response": {
             "task": {
-              "id": "12",
+              "id": "15",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+              "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -3141,14 +3242,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.609Z",
+              "createdAt": "2026-11-23T23:59:38.131Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 13,
-              "revision": 12,
+              "version": 16,
+              "revision": 15,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3182,7 +3283,7 @@
           "tasks"
         ],
         "summary": "Up to 100 tasks in one channel, in one write, with needs between them by key.",
-        "x-order": 21,
+        "x-order": 22,
         "security": [
           {
             "bearer": []
@@ -3339,12 +3440,12 @@
           "response": {
             "tasks": [
               {
-                "id": "14",
+                "id": "17",
                 "channel": "work",
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+                "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3357,14 +3458,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.612Z",
+                "createdAt": "2026-11-23T23:59:38.135Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 15,
-                "revision": 14,
+                "version": 18,
+                "revision": 17,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3388,12 +3489,12 @@
                 }
               },
               {
-                "id": "16",
+                "id": "19",
                 "channel": "work",
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "d06dce99-2402-483d-a282-588fce8e9d9b",
+                "thread": "8c6f642d-87b4-4794-a035-75659f74a7a3",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3406,14 +3507,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.612Z",
+                "createdAt": "2026-11-23T23:59:38.135Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 17,
-                "revision": 16,
+                "version": 20,
+                "revision": 19,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3428,7 +3529,7 @@
                   "by": "workbus:user:jared",
                   "for": null,
                   "needs": [
-                    "14"
+                    "17"
                   ],
                   "epoch": 0,
                   "claim": null,
@@ -3450,7 +3551,7 @@
           "tasks"
         ],
         "summary": "The tasks a batch made, by the batch client ID.",
-        "x-order": 22,
+        "x-order": 23,
         "security": [
           {
             "bearer": []
@@ -3500,12 +3601,12 @@
           "response": {
             "tasks": [
               {
-                "id": "14",
+                "id": "17",
                 "channel": "work",
                 "text": "build v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+                "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
                 "labels": {
                   "board.task": "ready"
                 },
@@ -3518,14 +3619,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.612Z",
+                "createdAt": "2026-11-23T23:59:38.135Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 15,
-                "revision": 14,
+                "version": 18,
+                "revision": 17,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3549,12 +3650,12 @@
                 }
               },
               {
-                "id": "16",
+                "id": "19",
                 "channel": "work",
                 "text": "ship v42",
                 "re": null,
                 "replyTo": null,
-                "thread": "d06dce99-2402-483d-a282-588fce8e9d9b",
+                "thread": "8c6f642d-87b4-4794-a035-75659f74a7a3",
                 "labels": {
                   "board.task": "waiting"
                 },
@@ -3567,14 +3668,14 @@
                 "noSync": false,
                 "origin": null,
                 "from": null,
-                "createdAt": "2026-11-23T22:22:51.612Z",
+                "createdAt": "2026-11-23T23:59:38.135Z",
                 "editedAt": null,
                 "deleted": false,
                 "undelivered": {},
                 "attachments": [],
                 "links": [],
-                "version": 17,
-                "revision": 16,
+                "version": 20,
+                "revision": 19,
                 "author": {
                   "kind": "person",
                   "handle": "jared",
@@ -3589,7 +3690,7 @@
                   "by": "workbus:user:jared",
                   "for": null,
                   "needs": [
-                    "14"
+                    "17"
                   ],
                   "epoch": 0,
                   "claim": null,
@@ -3611,7 +3712,7 @@
           "tasks"
         ],
         "summary": "Claims the oldest ready task in a channel or subtree. wait holds the call until one is ready.",
-        "x-order": 23,
+        "x-order": 24,
         "security": [
           {
             "bearer": []
@@ -3699,12 +3800,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "12",
+              "id": "15",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+              "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3718,14 +3819,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.609Z",
+              "createdAt": "2026-11-23T23:59:38.131Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 18,
-              "revision": 12,
+              "version": 21,
+              "revision": 15,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3743,7 +3844,7 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-23T22:37:51.623Z"
+                  "until": "2026-11-24T00:14:38.146Z"
                 },
                 "blocked": null,
                 "answer": null,
@@ -3753,8 +3854,8 @@
             },
             "claim": {
               "epoch": 1,
-              "token": "s-xr-NcT0osvdBdwxMn1gQ_28RNY_L4bcWp55TM23Uw",
-              "until": "2026-11-23T22:37:51.623Z"
+              "token": "QSLMLeuPzrQQR0nxrDQwDoaJJGcNatT9SSEdhrOi06A",
+              "until": "2026-11-24T00:14:38.146Z"
             }
           }
         }
@@ -3767,7 +3868,7 @@
           "tasks"
         ],
         "summary": "Claims one task by ID.",
-        "x-order": 24,
+        "x-order": 25,
         "security": [
           {
             "bearer": []
@@ -3820,7 +3921,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/12/claim",
+            "path": "/tasks/15/claim",
             "headers": {
               "content-type": "application/json"
             },
@@ -3831,12 +3932,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "12",
+              "id": "15",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+              "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3850,14 +3951,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.609Z",
+              "createdAt": "2026-11-23T23:59:38.131Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 21,
-              "revision": 12,
+              "version": 24,
+              "revision": 15,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -3875,7 +3976,7 @@
                 "epoch": 2,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-23T22:32:51.631Z"
+                  "until": "2026-11-24T00:09:38.156Z"
                 },
                 "blocked": null,
                 "answer": null,
@@ -3885,8 +3986,8 @@
             },
             "claim": {
               "epoch": 2,
-              "token": "h2sO1ULKQ58ZV-C78Mm9ldBJRK5m7yF5PRlwg2iJoto",
-              "until": "2026-11-23T22:32:51.631Z"
+              "token": "dwsTQ9i4089dOSInXwZCrVNLaLhRkPIE-eJh-PGiS6M",
+              "until": "2026-11-24T00:09:38.156Z"
             }
           }
         }
@@ -3899,7 +4000,7 @@
           "tasks"
         ],
         "summary": "Extends a claim: the lease runs again from now.",
-        "x-order": 25,
+        "x-order": 26,
         "security": [
           {
             "bearer": []
@@ -3962,25 +4063,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/12/renew",
+            "path": "/tasks/15/renew",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 1,
-              "token": "s-xr-NcT0osvdBdwxMn1gQ_28RNY_L4bcWp55TM23Uw",
+              "token": "QSLMLeuPzrQQR0nxrDQwDoaJJGcNatT9SSEdhrOi06A",
               "lease": 1800
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "12",
+              "id": "15",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+              "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
               "labels": {
                 "area": "infra",
                 "board.task": "claimed"
@@ -3994,14 +4095,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.609Z",
+              "createdAt": "2026-11-23T23:59:38.131Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 19,
-              "revision": 12,
+              "version": 22,
+              "revision": 15,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4019,7 +4120,7 @@
                 "epoch": 1,
                 "claim": {
                   "actor": "workbus:user:jared",
-                  "until": "2026-11-23T22:52:51.626Z"
+                  "until": "2026-11-24T00:29:38.150Z"
                 },
                 "blocked": null,
                 "answer": null,
@@ -4027,7 +4128,7 @@
                 "reason": null
               }
             },
-            "until": "2026-11-23T22:52:51.626Z"
+            "until": "2026-11-24T00:29:38.150Z"
           }
         }
       }
@@ -4039,7 +4140,7 @@
           "tasks"
         ],
         "summary": "Gives a claim up. The task is ready again.",
-        "x-order": 26,
+        "x-order": 27,
         "security": [
           {
             "bearer": []
@@ -4098,24 +4199,24 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/12/release",
+            "path": "/tasks/15/release",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 1,
-              "token": "s-xr-NcT0osvdBdwxMn1gQ_28RNY_L4bcWp55TM23Uw"
+              "token": "QSLMLeuPzrQQR0nxrDQwDoaJJGcNatT9SSEdhrOi06A"
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "12",
+              "id": "15",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+              "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
               "labels": {
                 "area": "infra",
                 "board.task": "ready"
@@ -4129,14 +4230,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.609Z",
+              "createdAt": "2026-11-23T23:59:38.131Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 20,
-              "revision": 12,
+              "version": 23,
+              "revision": 15,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4170,7 +4271,7 @@
           "tasks"
         ],
         "summary": "Completes a claimed task, with an optional result.",
-        "x-order": 27,
+        "x-order": 28,
         "security": [
           {
             "bearer": []
@@ -4242,25 +4343,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/12/complete",
+            "path": "/tasks/15/complete",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 2,
-              "token": "h2sO1ULKQ58ZV-C78Mm9ldBJRK5m7yF5PRlwg2iJoto",
+              "token": "dwsTQ9i4089dOSInXwZCrVNLaLhRkPIE-eJh-PGiS6M",
               "result": "rotated; the old keys are revoked"
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "12",
+              "id": "15",
               "channel": "work",
               "text": "rotate the staging keys",
               "re": null,
               "replyTo": null,
-              "thread": "71ff4154-e90d-4556-9c84-8fcc213735a6",
+              "thread": "2a462b6f-0f80-4ca1-ba62-51e2f28d3f8f",
               "labels": {
                 "area": "infra",
                 "board.task": "completed"
@@ -4274,14 +4375,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.609Z",
+              "createdAt": "2026-11-23T23:59:38.131Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 22,
-              "revision": 12,
+              "version": 25,
+              "revision": 15,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4309,20 +4410,20 @@
         "x-error-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/12/complete",
+            "path": "/tasks/15/complete",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 2,
-              "token": "h2sO1ULKQ58ZV-C78Mm9ldBJRK5m7yF5PRlwg2iJoto"
+              "token": "dwsTQ9i4089dOSInXwZCrVNLaLhRkPIE-eJh-PGiS6M"
             }
           },
           "status": 409,
           "response": {
             "error": {
               "code": "claim_lost",
-              "message": "this claim on #12 is over: claim it again"
+              "message": "this claim on #15 is over: claim it again"
             }
           }
         }
@@ -4335,7 +4436,7 @@
           "tasks"
         ],
         "summary": "Fails a claimed task, with a reason. Its owner may reopen it.",
-        "x-order": 28,
+        "x-order": 29,
         "security": [
           {
             "bearer": []
@@ -4400,25 +4501,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/14/fail",
+            "path": "/tasks/17/fail",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "epoch": 1,
-              "token": "EcUwCsu_zIqDXQwuNr1h8oJKgmokcu4YMhY5m1saM7w",
+              "token": "xznCJhtt0vwtTLOkfFdv9E9PHuU3wCUApQF0QtP6CHI",
               "reason": "the build ran out of disk"
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "14",
+              "id": "17",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+              "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
               "labels": {
                 "board.task": "failed"
               },
@@ -4431,14 +4532,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 24,
-              "revision": 14,
+              "version": 27,
+              "revision": 17,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4472,7 +4573,7 @@
           "tasks"
         ],
         "summary": "Holds a task for a person: with a claim (which ends), or as its owner.",
-        "x-order": 29,
+        "x-order": 30,
         "security": [
           {
             "bearer": []
@@ -4542,7 +4643,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/14/block",
+            "path": "/tasks/17/block",
             "headers": {
               "content-type": "application/json"
             },
@@ -4554,12 +4655,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "14",
+              "id": "17",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+              "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
               "labels": {
                 "board.task": "blocked"
               },
@@ -4572,14 +4673,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 26,
-              "revision": 14,
+              "version": 29,
+              "revision": 17,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4616,7 +4717,7 @@
           "tasks"
         ],
         "summary": "Lifts a hold on a task you own.",
-        "x-order": 30,
+        "x-order": 31,
         "security": [
           {
             "bearer": []
@@ -4653,7 +4754,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/14/unblock",
+            "path": "/tasks/17/unblock",
             "headers": {
               "content-type": "application/json"
             },
@@ -4662,12 +4763,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "14",
+              "id": "17",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+              "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
               "labels": {
                 "board.task": "ready"
               },
@@ -4680,14 +4781,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 27,
-              "revision": 14,
+              "version": 30,
+              "revision": 17,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4721,7 +4822,7 @@
           "tasks"
         ],
         "summary": "Makes a failed or canceled task ready again.",
-        "x-order": 31,
+        "x-order": 32,
         "security": [
           {
             "bearer": []
@@ -4755,7 +4856,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/14/reopen",
+            "path": "/tasks/17/reopen",
             "headers": {
               "content-type": "application/json"
             },
@@ -4764,12 +4865,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "14",
+              "id": "17",
               "channel": "work",
               "text": "build v42",
               "re": null,
               "replyTo": null,
-              "thread": "6650f5ac-729c-40d9-ae0a-c541bcfd36f1",
+              "thread": "07934cd2-ee88-4f17-b28e-e59a0b5ab7cf",
               "labels": {
                 "board.task": "ready"
               },
@@ -4782,14 +4883,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 25,
-              "revision": 14,
+              "version": 28,
+              "revision": 17,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4823,7 +4924,7 @@
           "tasks"
         ],
         "summary": "Lets one actor claim it (one of the owner's profiles), or anyone (null).",
-        "x-order": 32,
+        "x-order": 33,
         "security": [
           {
             "bearer": []
@@ -4884,7 +4985,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/16/assign",
+            "path": "/tasks/19/assign",
             "headers": {
               "content-type": "application/json"
             },
@@ -4895,12 +4996,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "16",
+              "id": "19",
               "channel": "work",
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "d06dce99-2402-483d-a282-588fce8e9d9b",
+              "thread": "8c6f642d-87b4-4794-a035-75659f74a7a3",
               "labels": {
                 "board.task": "waiting"
               },
@@ -4913,14 +5014,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 28,
-              "revision": 16,
+              "version": 31,
+              "revision": 19,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -4935,7 +5036,7 @@
                 "by": "workbus:user:jared",
                 "for": "workbus:user:jared+shipper",
                 "needs": [
-                  "14"
+                  "17"
                 ],
                 "epoch": 0,
                 "claim": null,
@@ -4956,7 +5057,7 @@
           "tasks"
         ],
         "summary": "Replaces the tasks it waits for.",
-        "x-order": 33,
+        "x-order": 34,
         "security": [
           {
             "bearer": []
@@ -5013,25 +5114,25 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/16/needs",
+            "path": "/tasks/19/needs",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
               "needs": [
-                "14"
+                "17"
               ]
             }
           },
           "status": 200,
           "response": {
             "task": {
-              "id": "16",
+              "id": "19",
               "channel": "work",
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "d06dce99-2402-483d-a282-588fce8e9d9b",
+              "thread": "8c6f642d-87b4-4794-a035-75659f74a7a3",
               "labels": {
                 "board.task": "waiting"
               },
@@ -5044,14 +5145,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 28,
-              "revision": 16,
+              "version": 31,
+              "revision": 19,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -5066,7 +5167,7 @@
                 "by": "workbus:user:jared",
                 "for": "workbus:user:jared+shipper",
                 "needs": [
-                  "14"
+                  "17"
                 ],
                 "epoch": 0,
                 "claim": null,
@@ -5087,7 +5188,7 @@
           "tasks"
         ],
         "summary": "Cancels a task you own. Tasks that wait for it keep waiting.",
-        "x-order": 34,
+        "x-order": 35,
         "security": [
           {
             "bearer": []
@@ -5139,7 +5240,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/tasks/16/cancel",
+            "path": "/tasks/19/cancel",
             "headers": {
               "content-type": "application/json"
             },
@@ -5150,12 +5251,12 @@
           "status": 200,
           "response": {
             "task": {
-              "id": "16",
+              "id": "19",
               "channel": "work",
               "text": "ship v42",
               "re": null,
               "replyTo": null,
-              "thread": "d06dce99-2402-483d-a282-588fce8e9d9b",
+              "thread": "8c6f642d-87b4-4794-a035-75659f74a7a3",
               "labels": {
                 "board.task": "canceled"
               },
@@ -5168,14 +5269,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.612Z",
+              "createdAt": "2026-11-23T23:59:38.135Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 29,
-              "revision": 16,
+              "version": 32,
+              "revision": 19,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -5190,7 +5291,7 @@
                 "by": "workbus:user:jared",
                 "for": "workbus:user:jared+shipper",
                 "needs": [
-                  "14"
+                  "17"
                 ],
                 "epoch": 0,
                 "claim": null,
@@ -5211,7 +5312,7 @@
           "grants"
         ],
         "summary": "The board's grants. Needs manage at *.",
-        "x-order": 35,
+        "x-order": 36,
         "security": [
           {
             "bearer": []
@@ -5303,7 +5404,7 @@
           "grants"
         ],
         "summary": "Grants principals permissions in channels.",
-        "x-order": 36,
+        "x-order": 37,
         "security": [
           {
             "bearer": []
@@ -5666,7 +5767,7 @@
               },
               "capped": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-23T22:22:51.724Z"
+              "at": "2026-11-23T23:59:38.259Z"
             }
           }
         }
@@ -5679,7 +5780,7 @@
           "grants"
         ],
         "summary": "Up to 16 grants in one write.",
-        "x-order": 37,
+        "x-order": 38,
         "security": [
           {
             "bearer": []
@@ -6068,7 +6169,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-23T22:22:51.732Z"
+                "at": "2026-11-23T23:59:38.266Z"
               },
               {
                 "id": "g6",
@@ -6084,7 +6185,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-23T22:22:51.732Z"
+                "at": "2026-11-23T23:59:38.266Z"
               }
             ]
           }
@@ -6098,7 +6199,7 @@
           "grants"
         ],
         "summary": "Adds or removes a grant's principals, or replaces its can.",
-        "x-order": 38,
+        "x-order": 39,
         "security": [
           {
             "bearer": []
@@ -6721,7 +6822,7 @@
               },
               "capped": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-23T22:22:51.726Z"
+              "at": "2026-11-23T23:59:38.261Z"
             }
           }
         }
@@ -6734,7 +6835,7 @@
           "grants"
         ],
         "summary": "Revokes a grant. Its principals are judged without it from their next request.",
-        "x-order": 39,
+        "x-order": 40,
         "security": [
           {
             "bearer": []
@@ -6804,7 +6905,7 @@
           "grants"
         ],
         "summary": "What a principal (you, when none is named) may do in a channel, and which grants say so.",
-        "x-order": 40,
+        "x-order": 41,
         "security": [
           {
             "bearer": []
@@ -6992,7 +7093,7 @@
                 },
                 "capped": false,
                 "by": "workbus:user:jared",
-                "at": "2026-11-23T22:22:51.726Z"
+                "at": "2026-11-23T23:59:38.261Z"
               }
             ],
             "capped": null,
@@ -7012,7 +7113,7 @@
           "schemas"
         ],
         "summary": "The schemas blocks are checked against: the built-ins, then the board's own.",
-        "x-order": 41,
+        "x-order": 42,
         "security": [
           {
             "bearer": []
@@ -7113,7 +7214,7 @@
           "schemas"
         ],
         "summary": "Registers a schema. Needs manage at *.",
-        "x-order": 43,
+        "x-order": 44,
         "security": [
           {
             "bearer": []
@@ -7222,7 +7323,7 @@
               },
               "builtIn": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-23T22:22:51.742Z"
+              "at": "2026-11-23T23:59:38.278Z"
             },
             "created": true
           }
@@ -7236,7 +7337,7 @@
           "schemas"
         ],
         "summary": "One schema, by name@version.",
-        "x-order": 42,
+        "x-order": 43,
         "security": [
           {
             "bearer": []
@@ -7295,7 +7396,7 @@
               },
               "builtIn": false,
               "by": "workbus:user:jared",
-              "at": "2026-11-23T22:22:51.742Z"
+              "at": "2026-11-23T23:59:38.278Z"
             }
           }
         }
@@ -7308,7 +7409,7 @@
           "schedules"
         ],
         "summary": "Posts later, once (in, at) or on a repeat (every, until, for, times).",
-        "x-order": 44,
+        "x-order": 45,
         "security": [
           {
             "bearer": []
@@ -7436,12 +7537,12 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-24T22:22:51.701Z",
+              "first": "2026-11-24T23:59:38.234Z",
               "every": 86400000,
               "until": null,
               "times": 5,
               "sent": 0,
-              "next": "2026-11-24T22:22:51.701Z",
+              "next": "2026-11-24T23:59:38.234Z",
               "last": null,
               "state": "pending",
               "canceled": null,
@@ -7456,7 +7557,7 @@
                 "name": "Jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-23T22:22:51.701Z"
+              "createdAt": "2026-11-23T23:59:38.234Z"
             }
           }
         }
@@ -7467,7 +7568,7 @@
           "schedules"
         ],
         "summary": "Pending schedules this caller can see, oldest first.",
-        "x-order": 45,
+        "x-order": 46,
         "security": [
           {
             "bearer": []
@@ -7546,12 +7647,12 @@
                 "labels": {},
                 "noSync": false,
                 "attachments": [],
-                "first": "2026-11-24T22:22:51.701Z",
+                "first": "2026-11-24T23:59:38.234Z",
                 "every": 86400000,
                 "until": null,
                 "times": 5,
                 "sent": 0,
-                "next": "2026-11-24T22:22:51.701Z",
+                "next": "2026-11-24T23:59:38.234Z",
                 "last": null,
                 "state": "pending",
                 "canceled": null,
@@ -7566,7 +7667,7 @@
                   "name": "Jared",
                   "avatar": null
                 },
-                "createdAt": "2026-11-23T22:22:51.701Z"
+                "createdAt": "2026-11-23T23:59:38.234Z"
               }
             ]
           }
@@ -7580,7 +7681,7 @@
           "schedules"
         ],
         "summary": "Cancels a schedule, so it sends nothing more.",
-        "x-order": 46,
+        "x-order": 47,
         "security": [
           {
             "bearer": []
@@ -7626,7 +7727,7 @@
               "labels": {},
               "noSync": false,
               "attachments": [],
-              "first": "2026-11-24T22:22:51.701Z",
+              "first": "2026-11-24T23:59:38.234Z",
               "every": 86400000,
               "until": null,
               "times": 5,
@@ -7653,7 +7754,7 @@
                 "name": "Jared",
                 "avatar": null
               },
-              "createdAt": "2026-11-23T22:22:51.701Z"
+              "createdAt": "2026-11-23T23:59:38.234Z"
             },
             "canceled": true
           }
@@ -7667,7 +7768,7 @@
           "files"
         ],
         "summary": "Uploads a file of up to 4 MiB as the raw body. The answer is the attachment to name in a write.",
-        "x-order": 47,
+        "x-order": 48,
         "security": [
           {
             "bearer": []
@@ -7717,7 +7818,7 @@
           "status": 201,
           "response": {
             "attachment": {
-              "id": "bwCfGADcJhvYRkwIVXGoMA",
+              "id": "DmQuImw5UkKKvrsMW3kvBg",
               "name": "build.log",
               "type": "text/plain",
               "size": 13
@@ -7733,7 +7834,7 @@
           "files"
         ],
         "summary": "A file's bytes, as uploaded, with its name and type.",
-        "x-order": 48,
+        "x-order": 49,
         "security": [
           {
             "bearer": []
@@ -7768,7 +7869,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/attachments/bwCfGADcJhvYRkwIVXGoMA"
+            "path": "/attachments/DmQuImw5UkKKvrsMW3kvBg"
           },
           "status": 200,
           "headers": {
@@ -7789,7 +7890,7 @@
           "files"
         ],
         "summary": "Direct uploads. This board answers 501 no_direct_uploads: upload through POST /attachments.",
-        "x-order": 49,
+        "x-order": 50,
         "security": [
           {
             "bearer": []
@@ -7894,7 +7995,7 @@
           "files"
         ],
         "summary": "Finishes a direct upload. No upload ticket is ever issued, so every ID answers 404.",
-        "x-order": 50,
+        "x-order": 51,
         "security": [
           {
             "bearer": []
@@ -7962,7 +8063,7 @@
           "watchers"
         ],
         "summary": "Registers this token's watchers (and its sync entries), replacing any it had.",
-        "x-order": 51,
+        "x-order": 52,
         "security": [
           {
             "bearer": []
@@ -8126,7 +8227,7 @@
           "watchers"
         ],
         "summary": "This token's registration.",
-        "x-order": 52,
+        "x-order": 53,
         "security": [
           {
             "bearer": []
@@ -8183,7 +8284,7 @@
           "watchers"
         ],
         "summary": "Pulls this token's pending matches, each under a lease. wait holds the call (up to 25 s).",
-        "x-order": 53,
+        "x-order": 54,
         "security": [
           {
             "bearer": []
@@ -8238,12 +8339,12 @@
                 "id": "9ec7cbc4-01c6-85d2-999a-ab275bee2146",
                 "watcher": "@sync",
                 "thread": "deploy-v42",
-                "lease": "579f3ff4568972bb3122f75b8762ce17",
+                "lease": "4caf6fa73b97032a452f834f553288ab",
                 "attempt": 0,
                 "event": {
                   "cursor": "3",
                   "type": "message.posted",
-                  "createdAt": "2026-11-23T22:22:51.547Z",
+                  "createdAt": "2026-11-23T23:59:38.058Z",
                   "payload": {
                     "channel": "deploys",
                     "text": "v42 is live on production",
@@ -8287,8 +8388,8 @@
                     "noSync": false,
                     "origin": null,
                     "from": null,
-                    "createdAt": "2026-11-23T22:22:51.547Z",
-                    "editedAt": "2026-11-23T22:22:51.559Z",
+                    "createdAt": "2026-11-23T23:59:38.058Z",
+                    "editedAt": "2026-11-23T23:59:38.071Z",
                     "deleted": false,
                     "undelivered": {},
                     "attachments": [],
@@ -8326,7 +8427,7 @@
           "watchers"
         ],
         "summary": "Acks a match by its lease: done, skipped, or failed with an error to retry.",
-        "x-order": 54,
+        "x-order": 55,
         "security": [
           {
             "bearer": []
@@ -8393,7 +8494,7 @@
               "content-type": "application/json"
             },
             "body": {
-              "lease": "579f3ff4568972bb3122f75b8762ce17"
+              "lease": "4caf6fa73b97032a452f834f553288ab"
             }
           },
           "status": 200,
@@ -8410,7 +8511,7 @@
           "wakes"
         ],
         "summary": "Sets a wake for this caller (its profile and narrowing too) at a sink its deployment declares, by key: an upsert, ordered by revision. 404 sink_not_found, 403 sink_forbidden.",
-        "x-order": 55,
+        "x-order": 56,
         "security": [
           {
             "bearer": []
@@ -8588,7 +8689,7 @@
           "wakes"
         ],
         "summary": "This principal's wakes (every one, with manage at *).",
-        "x-order": 56,
+        "x-order": 57,
         "security": [
           {
             "bearer": []
@@ -8639,7 +8740,7 @@
           "wakes"
         ],
         "summary": "Removes a wake, unless revision is older than the one it holds.",
-        "x-order": 57,
+        "x-order": 58,
         "security": [
           {
             "bearer": []
@@ -8707,7 +8808,7 @@
           "sync"
         ],
         "summary": "Imports a platform's post, edit, delete, reaction, labels, or links, as that platform's user.",
-        "x-order": 58,
+        "x-order": 59,
         "security": [
           {
             "bearer": []
@@ -9814,7 +9915,7 @@
           },
           "status": 200,
           "response": {
-            "message": "43"
+            "message": "46"
           }
         }
       }
@@ -9826,7 +9927,7 @@
           "sync"
         ],
         "summary": "Records what a sync did with a message: its copy, its files, a failure, or a thread it attached.",
-        "x-order": 59,
+        "x-order": 60,
         "security": [
           {
             "bearer": []
@@ -10038,7 +10139,7 @@
             },
             "body": {
               "kind": "message",
-              "message": "44",
+              "message": "47",
               "target": "tracker:eng/T-12",
               "external": {
                 "thread": "tracker:eng/T-12",
@@ -10060,7 +10161,7 @@
           "sync"
         ],
         "summary": "Where a board thread syncs: its targets and their platform threads.",
-        "x-order": 60,
+        "x-order": 61,
         "security": [
           {
             "bearer": []
@@ -10099,7 +10200,7 @@
           "status": 200,
           "response": {
             "thread": "sync:workbus:user:jared:5c6a5d40de94f6df86d174bccbb89445",
-            "root": "43",
+            "root": "46",
             "channel": "support",
             "targets": [
               "tracker:eng/T-12"
@@ -10118,7 +10219,7 @@
           "sync"
         ],
         "summary": "The board thread or message a platform thread, message, or client ID maps to.",
-        "x-order": 61,
+        "x-order": 62,
         "security": [
           {
             "bearer": []
@@ -10179,7 +10280,7 @@
           "status": 200,
           "response": {
             "thread": "sync:workbus:user:jared:5c6a5d40de94f6df86d174bccbb89445",
-            "message": "43"
+            "message": "46"
           }
         }
       }
@@ -10191,7 +10292,7 @@
           "sync"
         ],
         "summary": "The platform copies of up to 100 messages, by target.",
-        "x-order": 62,
+        "x-order": 63,
         "security": [
           {
             "bearer": []
@@ -10241,12 +10342,12 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/sync/copies?message=44"
+            "path": "/sync/copies?message=47"
           },
           "status": 200,
           "response": {
             "copies": {
-              "44": {
+              "47": {
                 "tracker:eng/T-12": {
                   "thread": "tracker:eng/T-12",
                   "message": "tracker:c2"
@@ -10264,7 +10365,7 @@
           "sync"
         ],
         "summary": "Where one message syncs, and whether each copy landed.",
-        "x-order": 63,
+        "x-order": 64,
         "security": [
           {
             "bearer": []
@@ -10298,7 +10399,7 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/messages/44/sync"
+            "path": "/messages/47/sync"
           },
           "status": 200,
           "response": {
@@ -10321,7 +10422,7 @@
           "sync"
         ],
         "summary": "Attaches a thread to a sync target, so what is written in it is copied there.",
-        "x-order": 64,
+        "x-order": 65,
         "security": [
           {
             "bearer": []
@@ -10375,7 +10476,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/messages/43/sync",
+            "path": "/messages/46/sync",
             "headers": {
               "content-type": "application/json"
             },
@@ -10398,7 +10499,7 @@
           "sync"
         ],
         "summary": "The thread of the board message a GitHub, Slack, or Linear link names, from sync's records alone (the platform is never asked): a link to a platform message finds its board copy, and a link to a platform thread finds its root. 404 message_not_found when nothing here was synced for it.",
-        "x-order": 65,
+        "x-order": 66,
         "security": [
           {
             "bearer": []
@@ -10460,7 +10561,7 @@
           "sync"
         ],
         "summary": "A platform's webhook for one of the board's own syncs, verified by its provider. 404 no_sync for a key the deployment doesn't sync.",
-        "x-order": 66,
+        "x-order": 67,
         "security": [],
         "x-gateway": true,
         "parameters": [
@@ -10522,7 +10623,7 @@
           "inbox"
         ],
         "summary": "What a sync inbox holds, newest first, raw payloads included.",
-        "x-order": 67,
+        "x-order": 68,
         "security": [
           {
             "bearer": []
@@ -10584,7 +10685,7 @@
               {
                 "id": "b99aa6b9-1702-867f-bf59-3ee00fad58fe",
                 "channel": "tracker:eng",
-                "createdAt": "2026-11-23T22:22:51.774Z",
+                "createdAt": "2026-11-23T23:59:38.318Z",
                 "sync": "tracker",
                 "event": {
                   "kind": "message",
@@ -10617,7 +10718,7 @@
           "inbox"
         ],
         "summary": "Keeps up to 50 platform events in this token's inbox for a sync key.",
-        "x-order": 68,
+        "x-order": 69,
         "security": [
           {
             "bearer": []
@@ -10718,7 +10819,7 @@
           "inbox"
         ],
         "summary": "Gives the failed events of one of the board's own syncs five fresh tries. Needs manage everywhere.",
-        "x-order": 69,
+        "x-order": 70,
         "security": [
           {
             "bearer": []
@@ -10803,7 +10904,7 @@
           "inbox"
         ],
         "summary": "Pulls the next event of each platform thread, each under a lease.",
-        "x-order": 70,
+        "x-order": 71,
         "security": [
           {
             "bearer": []
@@ -10856,7 +10957,7 @@
                 "id": "b99aa6b9-1702-867f-bf59-3ee00fad58fe",
                 "key": "tracker",
                 "thread": "tracker:eng/T-12",
-                "lease": "bd28d53de1b11ed7712a41845e50024b",
+                "lease": "e81ae2b117b543fde20ff69518fed1d4",
                 "attempt": 0,
                 "event": {
                   "kind": "message",
@@ -10891,7 +10992,7 @@
           "inbox"
         ],
         "summary": "Acks an inbox event by its lease: done, or failed with an error to retry.",
-        "x-order": 71,
+        "x-order": 72,
         "security": [
           {
             "bearer": []
@@ -10963,7 +11064,7 @@
               "content-type": "application/json"
             },
             "body": {
-              "lease": "bd28d53de1b11ed7712a41845e50024b"
+              "lease": "e81ae2b117b543fde20ff69518fed1d4"
             }
           },
           "status": 200,
@@ -10980,7 +11081,7 @@
           "docs"
         ],
         "summary": "Makes a doc at channel/slug from its Markdown body, or from another doc as a template (from). With re, an existing thread's root becomes the doc where it is (a task gains a body). Needs post and edit in the channel.",
-        "x-order": 72,
+        "x-order": 73,
         "security": [
           {
             "bearer": []
@@ -11092,12 +11193,12 @@
           "status": 201,
           "response": {
             "message": {
-              "id": "32",
+              "id": "35",
               "channel": "docs/runbooks",
               "text": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n",
               "re": null,
               "replyTo": null,
-              "thread": "b523e827-bbd4-4d1f-ab6a-40536f653e89",
+              "thread": "a707abf9-e599-48a6-bc80-04b6e43ab861",
               "labels": {
                 "owner": "ops",
                 "board.doc": "docs/runbooks/deploy"
@@ -11111,14 +11212,14 @@
               "noSync": false,
               "origin": null,
               "from": null,
-              "createdAt": "2026-11-23T22:22:51.665Z",
+              "createdAt": "2026-11-23T23:59:38.200Z",
               "editedAt": null,
               "deleted": false,
               "undelivered": {},
               "attachments": [],
               "links": [],
-              "version": 32,
-              "revision": 32,
+              "version": 35,
+              "revision": 35,
               "author": {
                 "kind": "person",
                 "handle": "jared",
@@ -11128,35 +11229,35 @@
               },
               "blocks": [],
               "doc": {
-                "id": "32",
+                "id": "35",
                 "path": "docs/runbooks/deploy",
                 "title": "Deploy",
-                "revision": "32",
+                "revision": "35",
                 "size": 171,
                 "sections": [
                   {
                     "key": "ship",
                     "title": "Ship",
                     "level": 2,
-                    "changed": "32",
-                    "subtree": "32"
+                    "changed": "35",
+                    "subtree": "35"
                   },
                   {
                     "key": "ship/rollback",
                     "title": "Rollback",
                     "level": 3,
-                    "changed": "32",
-                    "subtree": "32"
+                    "changed": "35",
+                    "subtree": "35"
                   },
                   {
                     "key": "monitoring",
                     "title": "Monitoring",
                     "level": 2,
-                    "changed": "32",
-                    "subtree": "32"
+                    "changed": "35",
+                    "subtree": "35"
                   }
                 ],
-                "createdAt": "2026-11-23T22:22:51.665Z",
+                "createdAt": "2026-11-23T23:59:38.200Z",
                 "proposals": []
               }
             }
@@ -11169,7 +11270,7 @@
           "docs"
         ],
         "summary": "The doc at a path (docs/runbooks/deploy), read as GET /docs/{id} reads it.",
-        "x-order": 73,
+        "x-order": 74,
         "security": [
           {
             "bearer": []
@@ -11238,35 +11339,35 @@
           "status": 200,
           "response": {
             "doc": {
-              "id": "32",
+              "id": "35",
               "path": "docs/runbooks/deploy",
               "title": "Deploy",
-              "revision": "32",
+              "revision": "35",
               "size": 171,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 }
               ],
-              "createdAt": "2026-11-23T22:22:51.665Z"
+              "createdAt": "2026-11-23T23:59:38.200Z"
             },
             "body": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back to the previous version by its ID.\n\n## Monitoring\n\nWatch the error rate for an hour.\n"
           }
@@ -11280,7 +11381,7 @@
           "docs"
         ],
         "summary": "A doc's view and its body; with section, that section only; with revision, as it was then. depth sets how deep the outline goes (3 by default).",
-        "x-order": 74,
+        "x-order": 75,
         "security": [
           {
             "bearer": []
@@ -11342,40 +11443,40 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/32?section=ship%2Frollback"
+            "path": "/docs/35?section=ship%2Frollback"
           },
           "status": 200,
           "response": {
             "doc": {
-              "id": "32",
+              "id": "35",
               "path": "docs/runbooks/deploy",
               "title": "Deploy",
-              "revision": "32",
+              "revision": "35",
               "size": 171,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 }
               ],
-              "createdAt": "2026-11-23T22:22:51.665Z"
+              "createdAt": "2026-11-23T23:59:38.200Z"
             },
             "section": {
               "key": "ship/rollback",
@@ -11383,8 +11484,8 @@
               "level": 3,
               "text": "\nRoll back to the previous version by its ID.\n\n",
               "subtree": "",
-              "changed": "32",
-              "subtreeChanged": "32"
+              "changed": "35",
+              "subtreeChanged": "35"
             }
           }
         }
@@ -11397,7 +11498,7 @@
           "docs"
         ],
         "summary": "Edits a doc by section, checked per section against the revision you read, or as a whole body (merge: true merges by section). propose: true makes the edit a task instead.",
-        "x-order": 75,
+        "x-order": 76,
         "security": [
           {
             "bearer": []
@@ -11547,12 +11648,12 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/docs/32/edit",
+            "path": "/docs/35/edit",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
-              "revision": "32",
+              "revision": "35",
               "edits": [
                 {
                   "section": "ship/rollback",
@@ -11564,48 +11665,48 @@
           "status": 200,
           "response": {
             "doc": {
-              "id": "32",
+              "id": "35",
               "path": "docs/runbooks/deploy",
               "title": "Deploy",
-              "revision": "35",
+              "revision": "38",
               "size": 197,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "35"
+                  "changed": "35",
+                  "subtree": "38"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "35",
-                  "subtree": "35"
+                  "changed": "38",
+                  "subtree": "38"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 }
               ],
-              "createdAt": "2026-11-23T22:22:51.665Z"
+              "createdAt": "2026-11-23T23:59:38.200Z"
             },
-            "revision": "35"
+            "revision": "38"
           }
         },
         "x-error-example": {
           "request": {
             "method": "POST",
-            "path": "/docs/32/edit",
+            "path": "/docs/35/edit",
             "headers": {
               "content-type": "application/json"
             },
             "body": {
-              "revision": "32",
+              "revision": "35",
               "edits": [
                 {
                   "section": "ship/rollback",
@@ -11618,10 +11719,10 @@
           "response": {
             "error": {
               "code": "section_conflict",
-              "message": "\"ship/rollback\" changed at revision 35, after revision 32: read it again and redo your change",
+              "message": "\"ship/rollback\" changed at revision 38, after revision 35: read it again and redo your change",
               "data": {
                 "section": "ship/rollback",
-                "revision": "35"
+                "revision": "38"
               }
             }
           }
@@ -11635,7 +11736,7 @@
           "docs"
         ],
         "summary": "Moves a doc to a new channel, slug, or both. Its ID, its replies, and every link to it stay. Needs edit in both channels.",
-        "x-order": 76,
+        "x-order": 77,
         "security": [
           {
             "bearer": []
@@ -11694,7 +11795,7 @@
         "x-example": {
           "request": {
             "method": "POST",
-            "path": "/docs/32/move",
+            "path": "/docs/35/move",
             "headers": {
               "content-type": "application/json"
             },
@@ -11706,37 +11807,37 @@
           "status": 200,
           "response": {
             "doc": {
-              "id": "32",
+              "id": "35",
               "path": "docs/ops/shipping",
               "title": "Shipping",
-              "revision": "35",
+              "revision": "38",
               "size": 197,
               "sections": [
                 {
                   "key": "ship",
                   "title": "Ship",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "35"
+                  "changed": "35",
+                  "subtree": "38"
                 },
                 {
                   "key": "ship/rollback",
                   "title": "Rollback",
                   "level": 3,
-                  "changed": "35",
-                  "subtree": "35"
+                  "changed": "38",
+                  "subtree": "38"
                 },
                 {
                   "key": "monitoring",
                   "title": "Monitoring",
                   "level": 2,
-                  "changed": "32",
-                  "subtree": "32"
+                  "changed": "35",
+                  "subtree": "35"
                 }
               ],
-              "createdAt": "2026-11-23T22:22:51.665Z"
+              "createdAt": "2026-11-23T23:59:38.200Z"
             },
-            "revision": "35"
+            "revision": "38"
           }
         }
       }
@@ -11748,7 +11849,7 @@
           "docs"
         ],
         "summary": "A proposal's change, read and not applied: a new doc's path and body, or a change's doc, its body now, the body it would have, and whether applying it would be refused (stale).",
-        "x-order": 77,
+        "x-order": 78,
         "security": [
           {
             "bearer": []
@@ -11782,21 +11883,21 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/proposals/38"
+            "path": "/docs/proposals/41"
           },
           "status": 200,
           "response": {
-            "task": "38",
+            "task": "41",
             "kind": "edit",
             "path": "docs/ops/shipping",
-            "doc": "32",
-            "revision": "35",
-            "proposedAt": "35",
+            "doc": "35",
+            "revision": "38",
+            "proposedAt": "38",
             "stale": false,
             "current": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back with deploy rollback <id>, the ID of the last green version.\n\n## Monitoring\n\nWatch the error rate for an hour.\n",
             "proposed": "How we ship the web app.\n\n## Ship\n\nRun the deploy from main.\n\n### Rollback\n\nRoll back with deploy rollback <id>, the ID of the last green version.\n\n## Monitoring\n\nWatch the error rate and p95 latency for an hour.\n",
             "by": "workbus:user:jared",
-            "at": "2026-11-23T22:22:51.686Z"
+            "at": "2026-11-23T23:59:38.221Z"
           }
         }
       }
@@ -11808,7 +11909,7 @@
           "docs"
         ],
         "summary": "A doc's versions, oldest first: who, when, and which sections each edit changed.",
-        "x-order": 78,
+        "x-order": 79,
         "security": [
           {
             "bearer": []
@@ -11861,15 +11962,15 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/32/history"
+            "path": "/docs/35/history"
           },
           "status": 200,
           "response": {
             "edits": [
               {
-                "revision": "32",
+                "revision": "35",
                 "kind": "created",
-                "at": "2026-11-23T22:22:51.665Z",
+                "at": "2026-11-23T23:59:38.200Z",
                 "by": {
                   "actor": "workbus:user:jared",
                   "principal": "workbus:user:jared",
@@ -11877,15 +11978,15 @@
                 }
               },
               {
-                "revision": "35",
+                "revision": "38",
                 "kind": "edited",
-                "at": "2026-11-23T22:22:51.673Z",
+                "at": "2026-11-23T23:59:38.207Z",
                 "by": {
                   "actor": "workbus:user:jared",
                   "principal": "workbus:user:jared",
                   "profile": null
                 },
-                "base": "32",
+                "base": "35",
                 "sections": [
                   {
                     "section": "ship/rollback",
@@ -11894,7 +11995,7 @@
                 ]
               }
             ],
-            "cursor": "35",
+            "cursor": "38",
             "more": false
           }
         }
@@ -11907,7 +12008,7 @@
           "docs"
         ],
         "summary": "The sections that changed between two revisions, before and after (to: now).",
-        "x-order": 79,
+        "x-order": 80,
         "security": [
           {
             "bearer": []
@@ -11959,12 +12060,12 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/32/diff?from=32&to=35"
+            "path": "/docs/35/diff?from=35&to=38"
           },
           "status": 200,
           "response": {
-            "from": "32",
-            "to": "35",
+            "from": "35",
+            "to": "38",
             "sections": [
               {
                 "section": "ship/rollback",
@@ -11984,7 +12085,7 @@
           "docs"
         ],
         "summary": "The threads, replies, and docs whose text links the doc, by its path or ID.",
-        "x-order": 80,
+        "x-order": 81,
         "security": [
           {
             "bearer": []
@@ -12018,21 +12119,21 @@
         "x-example": {
           "request": {
             "method": "GET",
-            "path": "/docs/32/backlinks"
+            "path": "/docs/35/backlinks"
           },
           "status": 200,
           "response": {
             "backlinks": [
               {
-                "id": "36",
-                "thread": "36",
+                "id": "39",
+                "thread": "39",
                 "channel": "deploys",
                 "kind": "thread",
                 "summary": "v43 rolled back, per [[docs/runbooks/deploy#ship/rollback]]"
               },
               {
-                "id": "38",
-                "thread": "38",
+                "id": "41",
+                "thread": "41",
                 "channel": "docs/ops",
                 "kind": "thread",
                 "summary": "Proposed change to [[docs/ops/shipping]]: change \"monitoring\". We missed a latency regression in v41. Complete this task to apply it; fail o"
@@ -12049,7 +12150,7 @@
           "follows"
         ],
         "summary": "Follows what a message is in (its thread, or on a doc, its discussion), or unfollows it with on: false. Read access is enough.",
-        "x-order": 81,
+        "x-order": 82,
         "security": [
           {
             "bearer": []
@@ -12121,7 +12222,7 @@
           "follows"
         ],
         "summary": "The caller's follows, newest first: each thread, or discussion on a doc, and why.",
-        "x-order": 82,
+        "x-order": 83,
         "security": [
           {
             "bearer": []
@@ -12167,7 +12268,7 @@
                 "discussion": null,
                 "channel": "deploys",
                 "cause": "created",
-                "at": "2026-11-23T22:22:51.547Z"
+                "at": "2026-11-23T23:59:38.058Z"
               }
             ]
           }
@@ -12181,7 +12282,7 @@
           "reads"
         ],
         "summary": "Every unread count at once: each channel with threads others started since the caller read it, or mentions, and each followed thread with replies that reached it. channel (or a subtree) narrows it, and lists that channel at zero.",
-        "x-order": 83,
+        "x-order": 84,
         "security": [
           {
             "bearer": []
@@ -12227,15 +12328,21 @@
                 "unread": 1,
                 "mentions": 1,
                 "read": null
+              },
+              {
+                "channel": "support",
+                "unread": 1,
+                "mentions": 0,
+                "read": null
               }
             ],
             "threads": [
               {
-                "thread": "11",
+                "thread": "14",
                 "channel": "deploys",
                 "unread": 1,
                 "mentions": 1,
-                "read": "10"
+                "read": "13"
               },
               {
                 "thread": "3",
@@ -12245,7 +12352,7 @@
                 "read": "4"
               }
             ],
-            "cursor": "11"
+            "cursor": "14"
           }
         }
       }
@@ -12257,7 +12364,7 @@
           "reads"
         ],
         "summary": "Marks a channel or a thread read: up to now, or up to a message ID or cursor (upto). Writes nothing to the log.",
-        "x-order": 84,
+        "x-order": 85,
         "security": [
           {
             "bearer": []
@@ -12324,7 +12431,7 @@
             "channel": "deploys",
             "unread": 0,
             "mentions": 0,
-            "read": "11"
+            "read": "14"
           }
         }
       }
@@ -12336,7 +12443,7 @@
           "rpc"
         ],
         "summary": "The Board capability over a Cap'n Web WebSocket (send Upgrade: websocket).",
-        "x-order": 85,
+        "x-order": 86,
         "security": [
           {
             "bearer": []
@@ -12385,7 +12492,7 @@
           "rpc"
         ],
         "summary": "The Board capability over a Cap'n Web HTTP batch.",
-        "x-order": 86,
+        "x-order": 87,
         "security": [
           {
             "bearer": []
@@ -12420,7 +12527,7 @@
           "headers": {
             "content-type": "text/plain;charset=UTF-8"
           },
-          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"Jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-24T10:22:51.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
+          "response": "[\"resolve\",1,{\"actor\":\"workbus:user:jared\",\"principal\":\"workbus:user:jared\",\"kind\":\"person\",\"handle\":\"jared\",\"name\":\"Jared\",\"avatar\":null,\"profile\":null,\"expiresAt\":\"2026-11-24T11:59:37.000Z\",\"can\":{\"*\":[[\"read\",\"post\",\"react\",\"label\",\"sync\",\"manage\"]]}}]"
         }
       }
     },
@@ -12431,7 +12538,7 @@
           "mcp"
         ],
         "summary": "MCP over streamable HTTP: JSON-RPC 2.0 in, JSON out. Stateless.",
-        "x-order": 87,
+        "x-order": 88,
         "security": [
           {
             "bearer": []
@@ -12487,10 +12594,10 @@
               },
               "serverInfo": {
                 "name": "workbus",
-                "title": "Workbus: openapi-mwtu0eep",
+                "title": "Workbus: openapi-mwtxguq9",
                 "version": "0.1.0"
               },
-              "instructions": "The board openapi-mwtu0eep, as jared. board_read, board_post, board_reply, board_search, board_unread, and board_mark_read do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
+              "instructions": "The board openapi-mwtxguq9, as jared. board_read, board_post, board_reply, board_search, board_unread, and board_mark_read do one thing each; doc_read, doc_edit, doc_create, and doc_search keep docs by section; run_code runs a script of many board calls at once."
             }
           }
         }
@@ -12501,7 +12608,7 @@
           "mcp"
         ],
         "summary": "No server-to-client stream: answers 405, Allow: POST.",
-        "x-order": 88,
+        "x-order": 89,
         "security": [
           {
             "bearer": []
@@ -12549,7 +12656,7 @@
           "archive"
         ],
         "summary": "Where the board's history stands: hot, sealed, and cold. Needs manage everywhere.",
-        "x-order": 89,
+        "x-order": 90,
         "security": [
           {
             "bearer": []
@@ -12593,7 +12700,7 @@
           },
           "status": 200,
           "response": {
-            "head": 45,
+            "head": 48,
             "config": {
               "enabled": true,
               "sealAfterMs": 2592000000,
@@ -12606,11 +12713,11 @@
               "freezeAfterMs": 2592000000,
               "pageThreads": 256
             },
-            "databaseSize": 393216,
+            "databaseSize": 401408,
             "hot": {
-              "events": 45,
-              "messages": 13,
-              "threads": 10,
+              "events": 48,
+              "messages": 14,
+              "threads": 11,
               "terms": 26,
               "taskViews": 16
             },
@@ -12652,7 +12759,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795494171517
+            "next": 1795499978023
           }
         }
       },
@@ -12662,7 +12769,7 @@
           "archive"
         ],
         "summary": "Changes the board's archival settings, or runs a pass now. Needs manage everywhere.",
-        "x-order": 90,
+        "x-order": 91,
         "security": [
           {
             "bearer": []
@@ -12764,7 +12871,7 @@
           },
           "status": 200,
           "response": {
-            "head": 45,
+            "head": 48,
             "config": {
               "enabled": true,
               "sealAfterMs": 2592000000,
@@ -12777,11 +12884,11 @@
               "freezeAfterMs": 2592000000,
               "pageThreads": 256
             },
-            "databaseSize": 393216,
+            "databaseSize": 401408,
             "hot": {
-              "events": 45,
-              "messages": 13,
-              "threads": 10,
+              "events": 48,
+              "messages": 14,
+              "threads": 11,
               "terms": 26,
               "taskViews": 16
             },
@@ -12823,7 +12930,7 @@
               "pages": 0
             },
             "last": null,
-            "next": 1795494171517
+            "next": 1795499978023
           }
         }
       }
@@ -12835,7 +12942,7 @@
           "archive"
         ],
         "summary": "Writes a bench history fast. Only where ARCHIVE_BENCH is 1.",
-        "x-order": 91,
+        "x-order": 92,
         "security": [
           {
             "bearer": []
@@ -12987,8 +13094,8 @@
     "version": "0.1.0",
     "discovery": {
       "version": "0.1.0",
-      "url": "https://workbus.example.com/b/openapi-mwtu0eep",
-      "audience": "https://workbus.example.com/b/openapi-mwtu0eep",
+      "url": "https://workbus.example.com/b/openapi-mwtxguq9",
+      "audience": "https://workbus.example.com/b/openapi-mwtxguq9",
       "team_id": null,
       "project_id": null,
       "sync": []
@@ -13320,7 +13427,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-23T22:22:51.547Z\",\n        \"editedAt\": \"2026-11-23T22:22:51.559Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"Jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"41\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-23T22:22:51.716Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"bwCfGADcJhvYRkwIVXGoMA\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 41,\n        \"revision\": 41,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"Jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"45\",\n  \"older\": \"41.3\"\n}"
+                "text": "{\n  \"threads\": [\n    {\n      \"message\": {\n        \"id\": \"3\",\n        \"channel\": \"deploys\",\n        \"text\": \"v42 is live on production (eu and us)\",\n        \"re\": null,\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {\n          \"env\": \"production\",\n          \"status\": \"verified\"\n        },\n        \"reactions\": {\n          \"eyes\": [\n            \"workbus:user:jared\"\n          ]\n        },\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-23T23:59:38.058Z\",\n        \"editedAt\": \"2026-11-23T23:59:38.071Z\",\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [],\n        \"links\": [],\n        \"version\": 8,\n        \"revision\": 6,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"Jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      },\n      \"replies\": 2,\n      \"last\": {\n        \"id\": \"44\",\n        \"channel\": \"deploys\",\n        \"text\": \"the build log\",\n        \"re\": \"3\",\n        \"replyTo\": null,\n        \"thread\": \"deploy-v42\",\n        \"labels\": {},\n        \"reactions\": {},\n        \"by\": {\n          \"actor\": \"workbus:user:jared\",\n          \"principal\": \"workbus:user:jared\",\n          \"profile\": null\n        },\n        \"noSync\": false,\n        \"origin\": null,\n        \"from\": null,\n        \"createdAt\": \"2026-11-23T23:59:38.251Z\",\n        \"editedAt\": null,\n        \"deleted\": false,\n        \"undelivered\": {},\n        \"attachments\": [\n          {\n            \"id\": \"DmQuImw5UkKKvrsMW3kvBg\",\n            \"name\": \"build.log\",\n            \"type\": \"text/plain\",\n            \"size\": 13\n          }\n        ],\n        \"links\": [],\n        \"version\": 44,\n        \"revision\": 44,\n        \"author\": {\n          \"kind\": \"person\",\n          \"handle\": \"jared\",\n          \"name\": \"Jared\",\n          \"avatar\": null,\n          \"verified\": true\n        },\n        \"blocks\": []\n      }\n    }\n  ],\n  \"cursor\": \"48\",\n  \"older\": \"44.3\"\n}"
               }
             ]
           }
@@ -13346,7 +13453,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T22:22:51.547Z\",\n    \"editedAt\": \"2026-11-23T22:22:51.559Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"41\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-23T22:22:51.716Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"bwCfGADcJhvYRkwIVXGoMA\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 41,\n      \"revision\": 41,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"Jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"45\",\n  \"schedules\": []\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"3\",\n    \"channel\": \"deploys\",\n    \"text\": \"v42 is live on production (eu and us)\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {\n      \"env\": \"production\",\n      \"status\": \"verified\"\n    },\n    \"reactions\": {\n      \"eyes\": [\n        \"workbus:user:jared\"\n      ]\n    },\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T23:59:38.058Z\",\n    \"editedAt\": \"2026-11-23T23:59:38.071Z\",\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 8,\n    \"revision\": 6,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  },\n  \"replies\": [\n    {\n      \"id\": \"44\",\n      \"channel\": \"deploys\",\n      \"text\": \"the build log\",\n      \"re\": \"3\",\n      \"replyTo\": null,\n      \"thread\": \"deploy-v42\",\n      \"labels\": {},\n      \"reactions\": {},\n      \"by\": {\n        \"actor\": \"workbus:user:jared\",\n        \"principal\": \"workbus:user:jared\",\n        \"profile\": null\n      },\n      \"noSync\": false,\n      \"origin\": null,\n      \"from\": null,\n      \"createdAt\": \"2026-11-23T23:59:38.251Z\",\n      \"editedAt\": null,\n      \"deleted\": false,\n      \"undelivered\": {},\n      \"attachments\": [\n        {\n          \"id\": \"DmQuImw5UkKKvrsMW3kvBg\",\n          \"name\": \"build.log\",\n          \"type\": \"text/plain\",\n          \"size\": 13\n        }\n      ],\n      \"links\": [],\n      \"version\": 44,\n      \"revision\": 44,\n      \"author\": {\n        \"kind\": \"person\",\n        \"handle\": \"jared\",\n        \"name\": \"Jared\",\n        \"avatar\": null,\n        \"verified\": true\n      },\n      \"blocks\": []\n    }\n  ],\n  \"cursor\": \"48\",\n  \"schedules\": []\n}"
               }
             ]
           }
@@ -13373,7 +13480,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"46\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T22:22:51.806Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 46,\n    \"revision\": 46,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"49\",\n    \"channel\": \"deploys\",\n    \"text\": \"v43 is rolling out\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"deploy-v43\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T23:59:38.355Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 49,\n    \"revision\": 49,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -13399,7 +13506,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"47\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T22:22:51.808Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 47,\n    \"revision\": 47,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"50\",\n    \"channel\": \"deploys\",\n    \"text\": \"canary is healthy\",\n    \"re\": \"3\",\n    \"replyTo\": null,\n    \"thread\": \"deploy-v42\",\n    \"labels\": {},\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T23:59:38.358Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 50,\n    \"revision\": 50,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": []\n  }\n}"
               }
             ]
           }
@@ -13422,7 +13529,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"channels\": [\n    {\n      \"channel\": \"support\",\n      \"unread\": 1,\n      \"mentions\": 0,\n      \"read\": null\n    }\n  ],\n  \"threads\": [\n    {\n      \"thread\": \"3\",\n      \"channel\": \"deploys\",\n      \"unread\": 1,\n      \"mentions\": 0,\n      \"read\": \"4\"\n    }\n  ],\n  \"cursor\": \"47\"\n}"
+                "text": "{\n  \"channels\": [\n    {\n      \"channel\": \"support\",\n      \"unread\": 2,\n      \"mentions\": 0,\n      \"read\": null\n    }\n  ],\n  \"threads\": [\n    {\n      \"thread\": \"3\",\n      \"channel\": \"deploys\",\n      \"unread\": 1,\n      \"mentions\": 0,\n      \"read\": \"4\"\n    }\n  ],\n  \"cursor\": \"50\"\n}"
               }
             ]
           }
@@ -13447,7 +13554,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"channel\": \"deploys\",\n  \"unread\": 0,\n  \"mentions\": 0,\n  \"read\": \"47\"\n}"
+                "text": "{\n  \"channel\": \"deploys\",\n  \"unread\": 0,\n  \"mentions\": 0,\n  \"read\": \"50\"\n}"
               }
             ]
           }
@@ -13472,7 +13579,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"32\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"35\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-23T22:22:51.665Z\",\n      \"proposals\": [\n        \"38\"\n      ],\n      \"editedAt\": \"2026-11-23T22:22:51.673Z\"\n    }\n  ]\n}"
+                "text": "{\n  \"docs\": [\n    {\n      \"id\": \"35\",\n      \"path\": \"docs/ops/shipping\",\n      \"title\": \"Shipping\",\n      \"revision\": \"38\",\n      \"size\": 197,\n      \"createdAt\": \"2026-11-23T23:59:38.200Z\",\n      \"proposals\": [\n        \"41\"\n      ],\n      \"editedAt\": \"2026-11-23T23:59:38.207Z\"\n    }\n  ]\n}"
               }
             ]
           }
@@ -13498,7 +13605,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"35\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"32\"\n      }\n    ],\n    \"createdAt\": \"2026-11-23T22:22:51.665Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"35\",\n    \"subtreeChanged\": \"35\"\n  }\n}"
+                "text": "{\n  \"doc\": {\n    \"id\": \"35\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"38\",\n    \"size\": 197,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"35\",\n        \"subtree\": \"38\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"38\",\n        \"subtree\": \"38\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      }\n    ],\n    \"createdAt\": \"2026-11-23T23:59:38.200Z\"\n  },\n  \"section\": {\n    \"key\": \"ship/rollback\",\n    \"title\": \"Rollback\",\n    \"level\": 3,\n    \"text\": \"\\nRoll back with deploy rollback <id>, the ID of the last green version.\\n\\n\",\n    \"subtree\": \"\",\n    \"changed\": \"38\",\n    \"subtreeChanged\": \"38\"\n  }\n}"
               }
             ]
           }
@@ -13525,7 +13632,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"message\": {\n    \"id\": \"48\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"2bd45f95-5f9c-4e8c-9739-14d887de70e5\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T22:22:51.825Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 48,\n    \"revision\": 48,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"48\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"48\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"48\",\n          \"subtree\": \"48\"\n        }\n      ],\n      \"createdAt\": \"2026-11-23T22:22:51.825Z\",\n      \"proposals\": []\n    }\n  }\n}"
+                "text": "{\n  \"message\": {\n    \"id\": \"51\",\n    \"channel\": \"docs/specs\",\n    \"text\": \"## Goal\\n\\nFind any doc by a word in it.\\n\",\n    \"re\": null,\n    \"replyTo\": null,\n    \"thread\": \"c4a8a0dc-48a3-4fb5-a275-7b0991ce81aa\",\n    \"labels\": {\n      \"board.doc\": \"docs/specs/search\"\n    },\n    \"reactions\": {},\n    \"by\": {\n      \"actor\": \"workbus:user:jared\",\n      \"principal\": \"workbus:user:jared\",\n      \"profile\": null\n    },\n    \"noSync\": false,\n    \"origin\": null,\n    \"from\": null,\n    \"createdAt\": \"2026-11-23T23:59:38.373Z\",\n    \"editedAt\": null,\n    \"deleted\": false,\n    \"undelivered\": {},\n    \"attachments\": [],\n    \"links\": [],\n    \"version\": 51,\n    \"revision\": 51,\n    \"author\": {\n      \"kind\": \"person\",\n      \"handle\": \"jared\",\n      \"name\": \"Jared\",\n      \"avatar\": null,\n      \"verified\": true\n    },\n    \"blocks\": [],\n    \"doc\": {\n      \"id\": \"51\",\n      \"path\": \"docs/specs/search\",\n      \"title\": \"Search\",\n      \"revision\": \"51\",\n      \"size\": 39,\n      \"sections\": [\n        {\n          \"key\": \"goal\",\n          \"title\": \"Goal\",\n          \"level\": 2,\n          \"changed\": \"51\",\n          \"subtree\": \"51\"\n        }\n      ],\n      \"createdAt\": \"2026-11-23T23:59:38.373Z\",\n      \"proposals\": []\n    }\n  }\n}"
               }
             ]
           }
@@ -13565,7 +13672,7 @@
             "name": "doc_edit",
             "arguments": {
               "path": "docs/ops/shipping",
-              "revision": "35",
+              "revision": "38",
               "edits": [
                 {
                   "section": "monitoring",
@@ -13582,7 +13689,7 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\n  \"doc\": {\n    \"id\": \"32\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"51\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"32\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"35\",\n        \"subtree\": \"35\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"51\",\n        \"subtree\": \"51\"\n      }\n    ],\n    \"createdAt\": \"2026-11-23T22:22:51.665Z\"\n  },\n  \"revision\": \"51\"\n}"
+                "text": "{\n  \"doc\": {\n    \"id\": \"35\",\n    \"path\": \"docs/ops/shipping\",\n    \"title\": \"Shipping\",\n    \"revision\": \"54\",\n    \"size\": 213,\n    \"sections\": [\n      {\n        \"key\": \"ship\",\n        \"title\": \"Ship\",\n        \"level\": 2,\n        \"changed\": \"35\",\n        \"subtree\": \"38\"\n      },\n      {\n        \"key\": \"ship/rollback\",\n        \"title\": \"Rollback\",\n        \"level\": 3,\n        \"changed\": \"38\",\n        \"subtree\": \"38\"\n      },\n      {\n        \"key\": \"monitoring\",\n        \"title\": \"Monitoring\",\n        \"level\": 2,\n        \"changed\": \"54\",\n        \"subtree\": \"54\"\n      }\n    ],\n    \"createdAt\": \"2026-11-23T23:59:38.200Z\"\n  },\n  \"revision\": \"54\"\n}"
               }
             ]
           }

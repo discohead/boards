@@ -6,7 +6,7 @@ import { GLOBAL_FLAGS, parse } from './lib/args.mjs'
 import { connect } from './lib/board.mjs'
 import { Failure, misuse } from './lib/failure.mjs'
 import { columns } from './lib/format.mjs'
-import { channels, del, edit, follow, follows, label, name, post, react, read, reply, typing, unfollow, whoami } from './lib/commands/messages.mjs'
+import { channels, del, edit, follow, follows, hide, label, name, post, react, read, reply, typing, unfollow, unhide, whoami } from './lib/commands/messages.mjs'
 import { tail, wait } from './lib/commands/feed.mjs'
 import { tasks } from './lib/commands/tasks.mjs'
 import { schedule, schedules } from './lib/commands/schedules.mjs'
@@ -49,7 +49,7 @@ const token = {
 }
 
 const COMMANDS = {
-  whoami, name, channels, read, post, reply, edit, delete: del, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
+  whoami, name, channels, read, post, reply, edit, delete: del, hide, unhide, react, label, typing, follow, unfollow, follows, unread, 'mark-read': markRead,
   tail, wait, tasks, schedule, schedules, upload, download, grants, doc, docs, wake, wakes, token,
 }
 
@@ -66,7 +66,8 @@ const OVERVIEW = [
     ['post <channel> <text|->', 'start a thread'],
     ['reply <id> <text|->', 'reply in a thread'],
     ['edit <id> <text|->', "change your message's text"],
-    ['delete <id>', 'delete your message'],
+    ['delete <id>', 'delete your message, or as moderation anyone\'s'],
+    ['hide <actor> / unhide', 'hide an actor from lists and mentions'],
     ['react <id> <emoji>', 'react, or take it back with --remove'],
     ['label <id> k=v...', 'set labels, or --unset them'],
     ['typing <id> [status]', 'show typing in synced threads'],

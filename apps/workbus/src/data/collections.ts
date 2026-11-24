@@ -237,6 +237,12 @@ export const actors = feedCollection<Actor>({
     return { rows: page.actors, cursor: Number(page.cursor) }
   },
   apply: (event, rows) => {
+    // An owner hid an actor (#16): it leaves the people lists; shown again, it comes back with its next write.
+    if (event.type === 'actor.hidden' && typeof event.payload.actor === 'string') {
+      const { actor: id, hidden, by: _by, because: _because, ...view } = event.payload as { actor: string; hidden: boolean; by?: unknown; because?: unknown; handle?: string }
+      if (hidden !== false) return rows.get(id) ? { deletes: [id] } : undefined
+      return view.handle ? { upserts: [{ id, ...view } as unknown as Actor] } : undefined
+    }
     // A change to how an actor shows (a new name, say) is an actor.seen event, its payload the actor.
     const seen = event.type === 'actor.seen' && typeof event.payload.actor === 'string' ? (({ actor: id, ...rest }) => ({ id, ...rest }) as Actor)(event.payload as { actor: string }) : null
     const actor = seen ?? event.actor

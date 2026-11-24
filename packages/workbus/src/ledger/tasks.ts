@@ -349,10 +349,10 @@ hooks.rootEdited = (ctx, root) => {
   } else indexRoot(ctx, root, task.state)
 }
 
-hooks.rootDeleted = (ctx, root) => {
+hooks.rootDeleted = (ctx, root, moderation) => {
   const task = load(ctx, root)
   if (!task || task.state === 'completed' || task.state === 'canceled') return
-  apply(ctx, task, 'task.canceled', { reason: 'deleted', by: ctx.author }, (t) => {
+  apply(ctx, task, 'task.canceled', { reason: 'deleted', by: ctx.author, ...(moderation ? { moderation: true } : {}) }, (t) => {
     t.state = 'canceled'
     t.claim = null
     t.blocked = null
