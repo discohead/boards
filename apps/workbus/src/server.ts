@@ -8,6 +8,7 @@ import handler from '@tanstack/react-start/server-entry'
 import { getAgentByName } from 'agents'
 
 import { checkAccess } from './access.ts'
+import { BOARD } from './board.ts'
 import { bus } from './bus.ts'
 import { sessionName, type SessionStub } from './harness/pi.ts'
 import { boot } from './org/boot.ts'
@@ -50,7 +51,7 @@ export default {
     if (seat && request.method === 'GET') return seatStatus(env, seat, new URL(request.url).searchParams.get('file'))
     // Finishing a let-go (§5.7) for a seat whose doc is already gone: its sessions and workspace torn down. Behind Access.
     const leaving = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})\/let-go$/.exec(new URL(request.url).pathname)?.[1]
-    if (leaving && request.method === 'POST') return letGo(env, leaving)
+    if (leaving && request.method === 'POST') return letGo(env, leaving, request)
     // The daily brief now, as the operator's schedule writes it at 07:00 UTC (seats/seat.ts): behind Access, like the rest.
     if (new URL(request.url).pathname === '/api/briefs' && request.method === 'POST') return Response.json(await (env.SEAT.getByName(OPERATOR) as unknown as { briefNow(): Promise<unknown> }).briefNow())
     const resend = /^\/api\/seats\/([a-z][a-z0-9-]{0,31})\/runs\/resend$/.exec(new URL(request.url).pathname)?.[1]
@@ -60,13 +61,29 @@ export default {
 } satisfies ExportedHandler<Env>
 
 /** POST /api/seats/<key>/let-go: a seat with no seat doc is let go (its Seat retired and torn down); one with a doc is refused, since deleting the doc is how a seat is let go. */
-async function letGo(env: Env, key: string): Promise<Response> {
+async function letGo(env: Env, key: string, request: Request): Promise<Response> {
+  // The board's owner alone: the bus says who's asking (their Access assertion, forwarded), and their role.
+  if ((await roleOf(env, request)) !== 'owner') return Response.json({ error: "only the board's owner lets a seat go" }, { status: 403 })
   const there = await bus().docs.at('org/seats/' + key).then(() => true, () => false)
   if (there) return Response.json({ error: 'org/seats/' + key + ' is a seat doc: delete it to let the seat go' }, { status: 409 })
   const stub = env.SEAT.getByName(key) as unknown as { configure(runtime: null, revision: number): Promise<unknown>; status(): Promise<{ retired: unknown; code: string }> }
+  const before = await stub.status()
+  // Once: a seat already torn down says so, and nothing changes.
+  if (before.retired) return Response.json({ seat: key, already: true, retired: before.retired })
   await stub.configure(null, 0)
-  const status = await stub.status()
-  return Response.json({ seat: key, retired: status.retired })
+  return Response.json({ seat: key, already: false, retired: (await stub.status()).retired })
+}
+
+/** The role the bus gives the person asking (GET /me as them): their Access assertion, or in vite dev the dev token. */
+async function roleOf(env: Env, request: Request): Promise<string | null> {
+  const headers = new Headers()
+  const assertion = request.headers.get('cf-access-jwt-assertion')
+  if (assertion) headers.set('cf-access-jwt-assertion', assertion)
+  else if (import.meta.env.DEV && (env as { WORKBUS_DEV_TOKEN?: string }).WORKBUS_DEV_TOKEN) headers.set('authorization', 'Bearer ' + (request.headers.get('x-dev-token') ?? (env as { WORKBUS_DEV_TOKEN?: string }).WORKBUS_DEV_TOKEN))
+  else return null
+  const response = await env.BUS.fetch(new Request('https://bus.internal/b/' + BOARD + '/me', { headers }))
+  if (!response.ok) return null
+  return ((await response.json()) as { role?: string }).role ?? null
 }
 
 /**
@@ -80,7 +97,9 @@ async function seatStatus(env: Env, key: string, path: string | null): Promise<R
     const read = await space.execute({ id: 'status-read-' + crypto.randomUUID(), name: 'read', arguments: { path } })
     return Response.json({ path, text: read.content.map((part) => part.text ?? '').join(''), error: read.isError === true })
   }
-  const status = (await (env.SEAT.getByName(key) as unknown as { status(): Promise<{ runtime: unknown }> }).status())
+  const status = (await (env.SEAT.getByName(key) as unknown as { status(): Promise<{ runtime: unknown; retired: unknown }> }).status())
+  // A seat let go answers what's left of it: its retirement, its run records, and its workspace (empty).
+  if (!status.runtime && status.retired) return Response.json({ ...status, workspace: { files: ((await (env.WORKSPACE.getByName(key) as unknown as { files(): Promise<unknown[]> }).files()) ?? []).length } })
   if (!status.runtime) return Response.json({ error: 'no seat ' + key }, { status: 404 })
   return Response.json(status)
 }

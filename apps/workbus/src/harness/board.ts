@@ -14,7 +14,7 @@ export type SeatBoard = {
   threads(query?: Record<string, unknown>): Promise<unknown>
   follow(id: string, opts?: { on?: boolean }): Promise<unknown>
   follows(query?: { limit?: number }): Promise<unknown>
-  actors(): Promise<unknown>
+  actors(query?: { hidden?: boolean }): Promise<unknown>
   tasks: {
     list(query?: Record<string, unknown>): Promise<unknown>
     create(input: Record<string, unknown>): Promise<{ task: unknown }>
@@ -415,7 +415,8 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
             path = String(message.labels['board.doc.proposal'] ?? 'new:' + asked).slice(4)
           } else {
             // A key nobody has had: a let-go seat's actor keeps its key and handle (its history is its own), so a hire never reuses them.
-            const actors = ((await board().actors()) as { actors?: { id: string; handle?: string | null }[] }).actors ?? []
+            // Hidden actors too (a let-go seat may be hidden, #16): their keys and handles are theirs.
+            const actors = ((await board().actors({ hidden: true })) as { actors?: { id: string; handle?: string | null }[] }).actors ?? []
             const free = async (k: string) => !actors.some((one) => one.id === 'worker:workbus-app+' + k || one.handle === k) && !(await board().docs.at('org/seats/' + k).then(() => true, () => false))
             let key = input.key
             for (let n = 2; !(await free(key)); n++) {
