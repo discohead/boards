@@ -301,6 +301,9 @@ describe('private channels', () => {
     const ada = board(workerCaller('ada')).narrow({ 'dm/ada': 'all', 'eng/': 'all' })
     expect((await ada.messages('dm/ada')).messages.map((message: { text: string }) => message.text)).toEqual(['zebra for ada'])
     expect((await ada.channels()).channels.map((channel: { path: string }) => channel.path)).toEqual(['dm/ada'])
+    // The binding lists the board's actors, as GET /actors does: the owner who wrote, with a handle.
+    const actors = (await ada.actors()).actors as { id: string; handle: string }[]
+    expect(actors.some((actor) => actor.id === 'workbus:user:jared' && actor.handle === 'jared')).toBe(true)
     for (const other of [board(workerCaller('bob')), board(workerCaller('bob')).channel('dm/'), board(workerCaller(null)).channel('dm/ada'), board(workerCaller('ada')).as('bob')]) {
       expect((await other.messages('dm/ada')).messages).toEqual([])
       expect((await other.channels()).channels).toEqual([])

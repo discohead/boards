@@ -288,6 +288,11 @@ export class Board extends RpcTarget {
     return call(this.#seat, 'deleteWake', checked('deleteWake', options(opts), { key }))
   }
 
+  /** The board's actors (people, Workers, and their profiles), with their handles and names: GET /actors. */
+  actors() {
+    return call(this.#seat, 'actors', checked('actors', undefined))
+  }
+
   /** Every unread count at once: channels with new threads or mentions, followed threads with new replies (GET /unread). */
   unread(query?: { channel?: string }) {
     return call(this.#seat, 'unread', checked('unread', query))

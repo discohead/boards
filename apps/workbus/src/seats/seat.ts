@@ -7,8 +7,9 @@
 // and a session parked on an approval frees its slot. When an operation ends, the Seat writes its
 // run record (§8.2, telemetry/), which keeps the month's spend and sends the record to Basin.
 import { DurableObject } from 'cloudflare:workers'
+import { getAgentByName } from 'agents'
 
-import { PiHarnessAdapter } from '../harness/pi.ts'
+import { PiHarnessAdapter, sessionName } from '../harness/pi.ts'
 import type { Outcome, RequestHint, SeatRef, ToolAnswer, ToolTier, Turn } from '../harness/types.ts'
 import type { SeatRuntime } from '../org/rules.ts'
 import { record, runOf, Totals, type Run } from '../telemetry/index.ts'
@@ -21,7 +22,7 @@ import { OPERATOR, type Raised } from './watch.ts'
 import { render } from './turn.ts'
 
 /** Which code this Seat runs, in its status(): after a deploy, a check waits until the Seats answer with this. Bump it with each change a check depends on. */
-export const SEAT_CODE = 'op-sequencing-2026-11-23.2'
+export const SEAT_CODE = 'let-go-2026-11-24.1'
 
 export type SeatState = 'active' | 'working' | 'waiting' | 'paused' | 'over_budget' | 'retired'
 
@@ -116,6 +117,9 @@ export class Seat extends DurableObject<Env> {
       this.sql.exec('create index if not exists wakes_state on wakes (state, at)')
       this.sql.exec('create table if not exists holds (task text primary key, thread text not null, operation text, state text not null, at integer not null)')
       this.sql.exec('create table if not exists budget_tasks (task text primary key, period text not null, kind text not null, open integer not null, at integer not null)')
+      // Every thread it has run a session in: letting it go (§5.7) retires each.
+      this.sql.exec('create table if not exists sessions (thread text primary key, at integer not null)')
+      this.sql.exec('insert or ignore into sessions (thread, at) select distinct thread, max(at) from wakes group by thread')
     })
     this.totals = new Totals(this.sql)
   }
@@ -154,6 +158,8 @@ export class Seat extends DurableObject<Env> {
         this.ctx.storage.kv.put('key', runtime.key)
       }
     }
+    // Let go: its sessions and workspace are torn down (once), its run records kept.
+    if (runtime === null) await this.#teardown()
     // A raised budget closes the held limit task, and the seat runs again.
     if (runtime) await this.#budget(runtime)
     await this.pump()
@@ -294,6 +300,43 @@ export class Seat extends DurableObject<Env> {
     } catch (error) {
       console.error('seat ' + runtime.key + ': the brief for ' + date + ' failed', error)
     }
+  }
+
+  /**
+   * A seat let go (§5.7): every session it ran is retired (aborted, its container stopped, its
+   * storage deleted), its workspace emptied, its queue dropped, and what it held for the principal
+   * canceled with a note. Its run records (its totals) stay, and so does all it wrote on the board.
+   * Once: a let-go seat let go again changes nothing.
+   */
+  async #teardown(): Promise<{ sessions: number } | null> {
+    const key = this.ctx.storage.kv.get<string>('key')
+    if (!key || this.ctx.storage.kv.get('tornDown')) return null
+    const threads = new Set(this.sql.exec<{ thread: string }>('select thread from sessions union select thread from wakes union select thread from holds').toArray().map((row) => row.thread))
+    let sessions = 0
+    for (const thread of threads) {
+      try {
+        const session = (await getAgentByName(this.env.SESSION as never, sessionName(key, thread))) as unknown as { retire(): Promise<void> }
+        await session.retire()
+        sessions++
+      } catch (error) {
+        // Destroying a Durable Object can end the call before it answers: the storage is gone either way.
+        if (!/destroy|reset|disconnected/i.test(String(error))) console.warn('seat ' + key + ': retiring its session in #' + thread, error)
+        else sessions++
+      }
+    }
+    await (this.env.WORKSPACE.getByName(key) as unknown as { reset(): Promise<void> }).reset().catch((error: unknown) => console.warn('seat ' + key + ': emptying its workspace', error))
+    this.sql.exec("update wakes set state = 'dropped', error = 'let go' where state in ('queued', 'running', 'held')")
+    const app = bus()
+    const open = [
+      ...this.sql.exec<{ task: string }>("select task from holds where state = 'held'").toArray().map((row) => row.task),
+      ...this.sql.exec<{ task: string }>('select task from budget_tasks where open = 1').toArray().map((row) => row.task),
+    ]
+    for (const task of open) await app.tasks.cancel(task, 'The seat that held this, @' + key + ', was let go.').catch(() => undefined)
+    this.sql.exec("update holds set state = 'closed' where state = 'held'")
+    this.sql.exec('update budget_tasks set open = 0')
+    this.ctx.storage.kv.put('tornDown', { at: new Date().toISOString(), sessions, threads: threads.size })
+    await this.ctx.storage.deleteAlarm()
+    return { sessions }
   }
 
   /** The tasks already ready for a seat that has just been provisioned: one wake-up each, as its assigned rule would have brought. */
@@ -468,7 +511,7 @@ export class Seat extends DurableObject<Env> {
     const wakes = this.sql.exec('select id, thread, state, attempts, error from wakes order by at desc limit 20').toArray()
     const spend = runtime ? this.totals.spend(runtime.key) : null
     const budget = { tasks: this.sql.exec('select task, period, kind, open from budget_tasks order by at desc limit 12').toArray(), error: this.ctx.storage.kv.get('budgetError') ?? null }
-    return { code: SEAT_CODE, seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
+    return { code: SEAT_CODE, retired: this.ctx.storage.kv.get('tornDown') ?? null, seat: runtime?.key ?? null, revision: this.ctx.storage.kv.get<number>('revision') ?? null, state: this.state(), runtime, queue, wakes, holds, spend: spend && { ...spend, budget: runtime!.budget.month }, runs, budget }
   }
 
   #pumping = false
@@ -532,6 +575,7 @@ export class Seat extends DurableObject<Env> {
 
   async #start(runtime: SeatRuntime, row: WakeRow): Promise<void> {
     this.sql.exec("update wakes set state = 'running', started = ?, attempts = attempts + 1 where id = ?", Date.now(), row.id)
+    this.sql.exec('insert or ignore into sessions (thread, at) values (?, ?)', row.thread, Date.now())
     try {
       const session = await new PiHarnessAdapter(this.env.SESSION).open(seatRef(runtime), row.thread)
       const input = JSON.parse(row.input) as Input

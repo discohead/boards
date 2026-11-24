@@ -159,6 +159,16 @@ export class Session extends Agent<Env> {
     return tools
   }
 
+  /**
+   * The seat is let go (§5.7): whatever it runs is aborted, its container stopped, and this session's
+   * storage (its transcript, its harness state) deleted. Its run records are its Seat's, and stay.
+   */
+  async retire(): Promise<void> {
+    await this.harness.abort({}).catch(() => undefined)
+    if (this.ctx.container?.running) await this.ctx.container.destroy().catch(() => undefined)
+    await this.destroy()
+  }
+
   /** Stops the session's container (a check's stand-in for sleeping): the next command starts one again. */
   async sandboxReset() {
     if (this.ctx.container?.running) await this.ctx.container.destroy()

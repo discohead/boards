@@ -14,6 +14,7 @@ export type SeatBoard = {
   threads(query?: Record<string, unknown>): Promise<unknown>
   follow(id: string, opts?: { on?: boolean }): Promise<unknown>
   follows(query?: { limit?: number }): Promise<unknown>
+  actors(): Promise<unknown>
   tasks: {
     list(query?: Record<string, unknown>): Promise<unknown>
     create(input: Record<string, unknown>): Promise<{ task: unknown }>
@@ -408,10 +409,21 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
           let proposal = (await openProposal('org/seats', 'new:' + asked)) ?? (await openHire(input.template))
           const reused = proposal !== null
           let path = asked
+          let picked: { asked: string; key: string; why: string } | null = null
           if (proposal) {
             const { message } = (await board().read(proposal, { limit: 1 })) as { message: { labels: Record<string, string> } }
             path = String(message.labels['board.doc.proposal'] ?? 'new:' + asked).slice(4)
           } else {
+            // A key nobody has had: a let-go seat's actor keeps its key and handle (its history is its own), so a hire never reuses them.
+            const actors = ((await board().actors()) as { actors?: { id: string; handle?: string | null }[] }).actors ?? []
+            const free = async (k: string) => !actors.some((one) => one.id === 'worker:workbus-app+' + k || one.handle === k) && !(await board().docs.at('org/seats/' + k).then(() => true, () => false))
+            let key = input.key
+            for (let n = 2; !(await free(key)); n++) {
+              if (n > 9) throw new Error('no free key near ' + input.key + ': choose another word for it')
+              key = input.key + '-' + n
+            }
+            path = 'org/seats/' + key
+            if (key !== input.key) picked = { asked: input.key, key, why: input.key + ' was a seat before (its actor and handle stay its own), so this hire is ' + key }
             const template = (await board().docs.at('org/templates/' + input.template).catch(() => null)) as { body: string } | null
             if (!template) throw new Error('no template org/templates/' + input.template + ': the templates are the docs in org/templates')
             const fence = /(\`\`\`json#seat@\d+[^\n]*\n)([\s\S]*?)(\n\`\`\`)/
@@ -422,13 +434,13 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
             if (input.budget !== undefined && typeof ceiling === 'number' && input.budget > ceiling)
               throw new Error("a hire's budget is the template's ($" + ceiling + ') or less; propose at $' + ceiling + ' and say in the note why it needs more')
             const { role, name: _name, handle: _handle, ...rest } = block
-            const ordered = { role, name: input.name, handle: input.key, ...rest, ...(input.budget !== undefined ? { budget: { ...(block.budget ?? {}), month: input.budget } } : {}) }
+            const ordered = { role, name: input.name, handle: key, ...rest, ...(input.budget !== undefined ? { budget: { ...(block.budget ?? {}), month: input.budget } } : {}) }
             const body = template.body
               .replace(fence, (_all, open: string, _old: string, close: string) => open + JSON.stringify(ordered, null, 2) + close)
               .replace(/^# .*$/m, '# ' + input.name)
               .replace(/\{\{name\}\}/g, input.name)
               .replace(/\n## Hiring from this template[\s\S]*$/, '\n')
-            const made = (await board().docs.create({ channel: 'org/seats', slug: input.key, body, propose: true, ...(input.note ? { note: input.note } : {}) })) as { proposal: { id: string } }
+            const made = (await board().docs.create({ channel: 'org/seats', slug: key, body, propose: true, ...(input.note ? { note: input.note } : {}) })) as { proposal: { id: string } }
             // The proposal is part of the request it came from: labeled after, as a proposal's task can't be labeled by its write.
             await stampAfter(made.proposal)
             proposal = made.proposal.id
@@ -454,7 +466,7 @@ export function boardTools(board: () => SeatBoard, options: BoardToolsOptions): 
               }
             }
           }
-          const result = { proposal, path, reused, tasks, waitingFor: actor, ...(reused ? { note: 'An open hire proposal, #' + proposal + ', for ' + path + ' was reused: nothing new was proposed.' } : {}) }
+          const result = { proposal, path, reused, tasks, waitingFor: actor, ...(picked ? { picked } : {}), ...(reused ? { note: 'An open hire proposal, #' + proposal + ', for ' + path + ' was reused: nothing new was proposed.' } : {}) }
           if (!input.handoff) return result
           const said = 'Turned into a hire proposal, #' + proposal + ' (' + path + ')' + (tasks.length ? ', and ' + tasks.map((id) => '#' + id).join(', ') + ', waiting on it, for ' + actor : '') + '.'
           return { ...result, handoff: { id: input.handoff, state: await closeHandoff(input.handoff, said) } }
