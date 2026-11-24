@@ -98,9 +98,12 @@ function matcherOf(ctx: Ctx, rule: Rule): Matcher {
     return Boolean(task && (task.for === self || task.claim?.actor === self))
   }
   if (rule === 'mention') return (row, facets) => (row.type === 'message.posted' && mentions(facets.after)) || (row.type === 'message.edited' && mentions(facets.after) && !mentions(facets.before))
-  if (rule === 'follow') return (row, facets) => [facets.before, facets.after].some((facet) => Boolean(facet && ((facet.followers ?? []).includes(self) || mentions(facet))))
+  // A conversation's rules don't wake on a deleted message (follow, assigned, dm): there's nothing
+  // to do about one vanishing. A deleted task's root is its task.canceled, which assigned and owned hear.
+  if (rule === 'follow') return (row, facets) => row.type !== 'message.deleted' && [facets.before, facets.after].some((facet) => Boolean(facet && ((facet.followers ?? []).includes(self) || mentions(facet))))
   if (rule === 'assigned')
     return (row, facets, payload) => {
+      if (row.type === 'message.deleted') return false
       const facet = concerned(facets)!
       const root = facet.re ?? facet.id
       // As the event left the task; for one that took it away, as it was just before; and an answer
@@ -120,7 +123,7 @@ function matcherOf(ctx: Ctx, rule: Rule): Matcher {
   if (rule === 'dm' || (typeof rule === 'object' && 'dm' in rule)) {
     if (!ctx.caller.profile) throw new Error('a dm rule is for a profile: set the wake as one (x-board-profile, or .as())')
     const channel = 'dm/' + keyOf(ctx.caller.profile) + '/'
-    return (_row, facets) => within(channel, concerned(facets)!.channel)
+    return (row, facets) => row.type !== 'message.deleted' && within(channel, concerned(facets)!.channel)
   }
   if (typeof rule === 'object' && 'ready' in rule) {
     const channel = rule.ready

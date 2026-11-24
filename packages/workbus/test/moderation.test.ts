@@ -116,6 +116,30 @@ describe('moderation', () => {
   })
 })
 
+describe('a plain delete', () => {
+  it("wakes no dm, follow, or assigned rule; a tail still hears it, and a task's cancel still wakes assigned", async () => {
+    const name = freshBoard('plain-delete')
+    const who = await callers(name)
+    await post(name, who.ada, { channel: 'general', text: 'ada, on the board' })
+    expect((await api(name, 'POST', '/wakes', { key: 'ada', sink: 'wake', rules: { dm: 'dm', follow: 'follow', assigned: 'assigned', any: { tail: '' } } }, who.ada)).status).toBe(201)
+    // The owner's message in ada's DM; the owner's reply in a thread ada follows; the owner's reply in ada's task.
+    const inDm = await post(name, who.owner, { channel: 'dm/ada', text: 'a DM to ada' })
+    const followed = await post(name, who.owner, { channel: 'general', text: 'a thread ada follows' })
+    expect((await api(name, 'POST', '/messages/' + followed + '/follow', {}, who.ada)).status).toBeLessThan(300)
+    const inFollowed = await post(name, who.owner, { re: followed, text: 'a reply in it' })
+    const task = (await api(name, 'POST', '/tasks', { channel: 'eng', text: 'a task for ada', for: ADA }, who.owner)).body.task.id as string
+    const inTask = await post(name, who.owner, { re: task, text: 'a reply in the task' })
+    await until(() => wokenFor(name, 'ada').some((entry) => entry.event.message?.id === inTask), 'the reply in the task')
+    for (const id of [inDm, inFollowed, inTask, task]) expect((await api(name, 'POST', '/messages/' + id + '/delete', {}, who.owner)).body).toEqual({ ok: true })
+    await until(() => wokenFor(name, 'ada').some((entry) => entry.event.type === 'task.canceled'), "the task's cancel")
+    await new Promise((resolve) => setTimeout(resolve, 600))
+    const deletes = wokenFor(name, 'ada').filter((entry) => entry.event.type === 'message.deleted')
+    // Only the tail matched each delete: not dm, follow, or assigned.
+    expect(deletes.map((entry) => [entry.event.payload?.id, entry.rules])).toEqual([inDm, inFollowed, inTask, task].map((id) => [id, ['any']]))
+    expect(wokenFor(name, 'ada').find((entry) => entry.event.type === 'task.canceled')?.rules).toEqual(['assigned', 'any'])
+  })
+})
+
 describe('hidden actors', () => {
   it('an owner hides an actor: gone from /actors and mentions, its handle free, its messages keep their author; it shows again once it writes', async () => {
     const name = freshBoard('hidden')

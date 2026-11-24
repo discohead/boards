@@ -3,7 +3,7 @@
 //   node scripts/seat-check.ts
 import assert from 'node:assert/strict'
 import { DatabaseSync } from 'node:sqlite'
-import { RUNNING_UNHELD, WAKES_DDL } from '../src/seats/queue.ts'
+import { RUNNING_UNHELD, WAKES_DDL, takesNoTurn } from '../src/seats/queue.ts'
 import { budgetStep, budgetText, nextPeriod } from '../src/seats/budget.ts'
 
 const db = new DatabaseSync(':memory:')
@@ -35,4 +35,12 @@ assert.deepEqual(budgetStep(0, budget, limited, '2026-12'), { close: 'limit', wh
 assert.equal(budgetStep(5, { month: null, alert: 0.8 }, none, '2026-11'), null, 'no budget, no tasks')
 assert.equal(nextPeriod(Date.parse('2026-12-31T23:59:59Z')), Date.parse('2027-01-01T00:00:00Z'))
 assert.match(budgetText('limit', { key: 'ada', name: 'Ada' }, 0.0123, 0.01, '2026-11', 2).text, /^Ada has spent \$0\.0123 of its \$0\.01 budget for November 2026, its limit, and has stopped starting runs \(2 wake-ups wait\)\.$/)
-console.log('ok: 15 checks passed')
+// What the Seat acks without a turn (takesNoTurn): a deleted message from any rule, moderated or
+// not; a doc's change but to a docs rule. A post, a cancel, and a doc to a docs rule still take one.
+assert.equal(takesNoTurn({ type: 'message.deleted' }, ['answered']), true, "a deleted message through a tail: no turn")
+assert.equal(takesNoTurn({ type: 'message.deleted' }, ['docs']), true, 'a deleted doc root through docs: no turn either')
+assert.equal(takesNoTurn({ type: 'doc.edited' }, ['mention']), true, "a doc's edit to a mention: no turn")
+assert.equal(takesNoTurn({ type: 'doc.edited' }, ['docs']), false, 'a doc edited, to a docs rule: a turn')
+assert.equal(takesNoTurn({ type: 'message.posted' }, ['dm']), false, 'a post: a turn')
+assert.equal(takesNoTurn({ type: 'task.canceled' }, ['owned']), false, 'a cancel: a turn')
+console.log('ok: 21 checks passed')
