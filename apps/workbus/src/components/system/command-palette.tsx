@@ -7,6 +7,8 @@ import { Icon, type IconProp } from './icon'
 import { SeatState, TaskState, type SeatStateName, type TaskStateName } from './status'
 
 export interface CommandPaletteItem {
+  /** A stable key, unique in its group (thread:<id>, say): two items may share a label. Defaults to the label. */
+  id?: string
   label: string
   path?: string
   kbd?: string
@@ -30,7 +32,7 @@ export interface CommandPaletteProps {
   className?: string
 }
 
-const key = (group: string, item: CommandPaletteItem) => group + '\u0000' + item.label
+const key = (group: string, item: CommandPaletteItem) => group + '\u0000' + (item.id ?? item.label)
 
 /**
  * ⌘K: seats, threads, docs, commands, then ask. The consumer provides the query and the groups,
@@ -53,7 +55,7 @@ export function CommandPalette({ query, groups, onQueryChange, open, onOpenChang
         {groups.map((g) => (
           <CommandGroup key={g.name} heading={g.name}>
             {g.items.map((it) => (
-              <CommandItem key={it.label} value={key(g.name, it)} onSelect={it.onSelect}>
+              <CommandItem key={it.id ?? it.label} value={key(g.name, it)} onSelect={it.onSelect}>
                 {it.avatar ? <Avatar size="xs" {...it.avatar} /> : it.task ? <TaskState state={it.task} /> : it.icon ? <Icon name={it.icon} size={14} /> : null}
                 {it.label}
                 <span className="ml-auto inline-flex items-center gap-2">
