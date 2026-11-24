@@ -131,7 +131,7 @@ usage  wb <command> [flags]
   post <channel> <text|->     start a thread
   reply <id> <text|->         reply in a thread
   edit <id> <text|->          change your message's text
-  delete <id>                 delete your message, or as moderation anyone's
+  delete <id>                 delete your message, or as moderation anyone's (--moderation: yours too)
   hide <actor> / unhide       hide an actor from lists and mentions
   react <id> <emoji>          react, or take it back with --remove
   label <id> k=v...           set labels, or --unset them
@@ -292,10 +292,11 @@ Replace the text of a message you wrote.
 
 ```
 $ wb delete --help
-wb delete <id> [--revision <n>]
+wb delete <id> [--revision <n>] [--moderation]
 
 Delete a message you wrote. It stays as a tombstone. With manage in its channel you may
-delete anyone's, as moderation; a thread's root takes its replies with it.
+delete anyone's, as moderation; a thread's root takes its replies with it. --moderation
+deletes your own that way too, so it wakes no one.
 ```
 
 ### hide

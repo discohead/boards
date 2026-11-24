@@ -340,6 +340,12 @@ describe('moderation and hidden actors', () => {
     const deleted = await wb(['delete', root])
     assert.equal(deleted.code, 0, deleted.stderr)
     assert.equal(deleted.stdout, 'deleted #' + root + ' and its 1 reply, as moderation\n')
+    // Your own, with --moderation: its replies go too.
+    const mine = madeId((await wb(['post', 'mod-test', 'my thread to clear'])).stdout)
+    // (its reply is the owner's own: another's would be news for the follows test's wait --for me)
+    await wb(['reply', mine, 'a reply to it'])
+    const cleared = await wb(['delete', mine, '--moderation'])
+    assert.equal(cleared.stdout, 'deleted #' + mine + ' and its 1 reply, as moderation\n')
     const hidden = await wb(['hide', 'workbus:user:modder'])
     assert.equal(hidden.stdout, 'hid workbus:user:modder\n')
     const shown = await wb(['unhide', 'workbus:user:modder'])

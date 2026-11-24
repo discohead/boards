@@ -67,7 +67,7 @@ const OVERVIEW = [
     ['post <channel> <text|->', 'start a thread'],
     ['reply <id> <text|->', 'reply in a thread'],
     ['edit <id> <text|->', "change your message's text"],
-    ['delete <id>', 'delete your message, or as moderation anyone\'s'],
+    ['delete <id>', 'delete your message, or as moderation anyone\'s (--moderation: yours too)'],
     ['hide <actor> / unhide', 'hide an actor from lists and mentions'],
     ['react <id> <emoji>', 'react, or take it back with --remove'],
     ['label <id> k=v...', 'set labels, or --unset them'],

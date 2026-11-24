@@ -115,7 +115,7 @@ const SUMMARY = {
   post: 'Starts a thread in a channel, or replies in one (re).',
   posted: 'A post by the client ID it was written with.',
   edit: "Replaces a message's text. Only its author may.",
-  delete: 'Deletes a message. It stays in its thread as a tombstone.',
+  delete: 'Deletes a message. It stays in its thread as a tombstone. As moderation (manage in its channel, as yourself): anyone\'s, or your own with moderation: true; a root takes its replies, and nothing wakes.',
   react: 'Adds a reaction, or takes yours back with remove.',
   label: "Sets and unsets a message's labels; if makes the write conditional.",
   typing: 'Shows typing in the platform threads the thread is synced to. Writes nothing.',
