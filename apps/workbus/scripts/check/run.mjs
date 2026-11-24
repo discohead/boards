@@ -51,6 +51,8 @@ const clean = cleaner({ owner, others: [other] }).guard()
 clean.marker(run)
 for (const area of [...AREAS, ...ASKED].filter((name) => only.includes(name))) clean.channel('checks/' + area), clean.since('checks/' + area)
 if (only.includes('thread')) clean.profile(owner.actor + '+reviewer')
+// deleted posts in a second channel too, to see it unread.
+if (only.includes('deleted')) clean.channel('checks/deleted-unread'), clean.since('checks/deleted-unread')
 await clean.prepare()
 console.log('checking ' + base + ' as ' + owner.actor + ', with ' + other.actor + ' writing; run ' + run + '; screenshots in ' + values.out)
 
